@@ -10,7 +10,15 @@ On a computer you drag to spin, scroll to zoom, and click to tap. Keyboard short
 
 ## Put it on your iPhone
 
-Next step: publish it to a free GitHub Pages address. Your iPhone then opens it once in Safari and adds it to the Home Screen. After that it plays fully offline.
+The arcade is live at **https://mailforfredclaus.github.io/Arcade/** (the capital A matters).
+
+1. Open that address in Safari on the iPhone.
+2. Tap **Share** (in iOS 26, tap **•••** first), then **Add to Home Screen**.
+3. Open it once from the Home Screen while you have internet, until it says "Ready to play offline". After that it plays with no signal at all.
+
+Always play from the Home Screen icon: it keeps its own saved progress, separate from Safari's. Deleting the icon deletes that progress.
+
+To publish a change: run `node tools/build-sw.mjs`, then commit and push to GitHub. Phones pick up the new version the next time the arcade is opened with internet.
 
 ## Arrow Cube
 
