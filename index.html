@@ -186,6 +186,35 @@
       </div>
       </div>
 
+      <div class="game">
+      <a class="game-main" href="games/minesweeper/index.html">
+        <div class="thumb" aria-hidden="true">
+          <svg viewBox="0 0 100 100">
+            <g font-family="ui-rounded, system-ui, sans-serif" font-weight="900" font-size="17" text-anchor="middle">
+              <rect x="10" y="10" width="80" height="80" rx="10" fill="#eef2fb"/>
+              <rect x="12" y="12" width="24" height="24" rx="5" fill="#8b9af8"/><rect x="38" y="12" width="24" height="24" rx="5" fill="#7d8df4"/><rect x="64" y="12" width="24" height="24" rx="5" fill="#8b9af8"/>
+              <rect x="64" y="38" width="24" height="24" rx="5" fill="#7d8df4"/>
+              <text x="24" y="56" fill="#2f5bd9">1</text><text x="50" y="56" fill="#1f9d55">2</text>
+              <text x="24" y="82" fill="#2f5bd9">1</text><text x="50" y="82" fill="#2f5bd9">1</text><text x="76" y="82" fill="#2f5bd9">1</text>
+              <path d="M45 33V16" stroke="#1d2340" stroke-width="2.4" stroke-linecap="round"/><path d="M46 16l10 4.5-10 4.5z" fill="#ff4d3d"/>
+              <path d="M71 33V16" stroke="#1d2340" stroke-width="2.4" stroke-linecap="round"/><path d="M72 16l10 4.5-10 4.5z" fill="#ff4d3d"/>
+            </g>
+          </svg>
+        </div>
+        <div>
+          <h2>Minesweeper</h2>
+          <p>Dig out every safe square. Every board is solvable without guessing.</p>
+          <div class="meta"><span class="pill gold" id="msSolved">0 cleared</span></div>
+        </div>
+      </a>
+      <div class="modes">
+        <a class="mode" href="games/minesweeper/index.html?mode=easy"><b>Easy</b><span id="ms-easy">No. 1</span></a>
+        <a class="mode huge" href="games/minesweeper/index.html?mode=medium"><b>Medium</b><span id="ms-medium">No. 1</span></a>
+        <a class="mode hard" href="games/minesweeper/index.html?mode=hard"><b>Hard</b><span id="ms-hard">No. 1</span></a>
+        <a class="mode super" href="games/minesweeper/index.html?mode=huge"><b>Huge</b><span id="ms-huge">No. 1</span></a>
+      </div>
+      </div>
+
       <div class="soon">More games coming soon</div>
     </div>
 
@@ -225,6 +254,16 @@
       solved += run.solved || 0;
     }
     document.getElementById('sdSolved').textContent = `${solved} solved`;
+
+    // Minesweeper: the board you're on in each size, and how many cleared.
+    const ms = store.get('minesweeper', null) || {};
+    let cleared = 0;
+    for (const mode of ['easy', 'medium', 'hard', 'huge']) {
+      const run = (ms.runs || {})[mode] || {};
+      document.getElementById(`ms-${mode}`).textContent = `No. ${(run.play && run.play.n) || run.n || 1}`;
+      cleared += run.solved || 0;
+    }
+    document.getElementById('msSolved').textContent = `${cleared} cleared`;
 
     const dot = document.getElementById('statusDot');
     const text = document.getElementById('statusText');

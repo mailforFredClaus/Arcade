@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Arcade">
+  <meta name="theme-color" content="#b8d0f5">
+  <title>Minesweeper</title>
+  <link rel="manifest" href="../../manifest.webmanifest">
+  <link rel="icon" href="../../icons/icon-192.png">
+  <link rel="apple-touch-icon" href="../../icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="../../shared/arcade.css">
+  <link rel="stylesheet" href="../../shared/screen.css">
+  <style>
+    .clock {
+      position: fixed;
+      z-index: 4;
+      top: calc(var(--safe-top) + 62px);
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 9px 14px 5px;
+      border-radius: 0 0 14px 14px;
+      background: #fff;
+      color: var(--theme-2, var(--blue-2));
+      font-weight: 900;
+      font-size: 18px;
+      line-height: 1;
+      box-shadow: 0 6px 14px rgba(59, 71, 196, .15);
+    }
+    .clock svg { width: 17px; height: 17px; }
+    .tool .mode-ico { display: grid; place-items: center; width: 30px; height: 28px; }
+    #flagBtn.on { background: linear-gradient(180deg, #ff7a59, #e8413c); box-shadow: 0 4px 0 #a82540, 0 8px 16px rgba(168, 37, 64, .25); }
+  </style>
+</head>
+<body>
+  <canvas id="stage" aria-label="Minesweeper board"></canvas>
+
+  <header class="topbar" id="topbar">
+    <a class="sq-btn" href="../../index.html" aria-label="Back to the arcade" id="backBtn"></a>
+    <div class="banner">
+      <div class="stat" aria-label="Mines left">
+        <svg viewBox="0 0 24 24"><path d="M7 21V3.5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" fill="none"/><path d="M7.5 3.5 19 8.2 7.5 13z" fill="currentColor"/></svg>
+        <span id="minesLeft">10</span>
+      </div>
+      <div class="lvl"><span id="levelLabel">EASY 1</span><span class="tier-tag" id="tierTag"></span></div>
+    </div>
+    <button class="sq-btn" id="menuBtn" aria-label="Settings"></button>
+  </header>
+
+  <div class="clock" aria-label="Time">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9.5 2.5h5"/></svg>
+    <span id="timer">0:00</span>
+  </div>
+
+  <nav class="tools" id="tools">
+    <button class="tool" id="flagBtn">
+      <span class="mode-ico"><svg viewBox="0 0 24 24"><path d="M7 21V3.5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" fill="none"/><path d="M7.5 3.5 19 8.2 7.5 13z" fill="currentColor"/></svg></span>
+      <span id="flagLabel">Flag: off</span>
+    </button>
+    <button class="tool" id="undoBtn"><span class="ico" data-icon="undo"></span><span>Undo</span></button>
+    <button class="tool" id="hintBtn"><span class="ico" data-icon="hint"></span><span>Hint</span></button>
+    <button class="tool" id="viewBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+      <span>Fit</span>
+    </button>
+  </nav>
+
+  <div class="toast" id="toast" role="status"></div>
+  <div class="overlay" id="overlay" hidden><div class="card" id="card"></div></div>
+  <canvas id="confetti" class="confetti"></canvas>
+
+  <script type="module" src="js/game.js"></script>
+</body>
+</html>

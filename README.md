@@ -68,12 +68,23 @@ Four difficulties, each an endless numbered run with its own best time:
 
 Every puzzle has exactly one solution and can be solved by logic alone, with no guessing. Hint fills in the next square you could work out and says why. `node tools/test-sudoku.mjs 60` re-checks 60 puzzles of each difficulty.
 
+## Minesweeper
+
+Dig out every square that isn't a mine. Each number says how many of the 8 squares around it hide one. The game opens a starting patch for you, and **every board can be cleared from there by logic alone**, so there's never a 50/50 guess. Boards are made by a solver that only uses deductions a person can make; when it gets stuck, it moves a mine out of the way and tries again.
+
+- **Controls:** tap to dig; long-press (or turn Flag on) to flag. Tapping a number whose mines are all flagged digs the rest around it. Drag to move and pinch to zoom; **Fit** switches between the whole board and a close-up. On a computer, right-click flags and the scroll wheel zooms.
+- **Forgiving:** hit a mine and you can undo that tap. Hint digs a square the numbers prove is safe, and points out any wrong flag first.
+- **Sizes:** Easy 9×9 (10 mines), Medium 12×16 (32), Hard 16×30 (90) and Huge 30×50 (300) for chipping away at. Each has an endless numbered run and a best time.
+
+`node tools/test-minesweeper.mjs 100` re-checks 100 boards of each size.
+
 ## Files
 
 - `index.html`: the arcade menu
 - `games/arrow-cube/`: Arrow Cube (`topology.js` turns a shape into cells and planes, `rules.js` holds the rules, `generator.js` builds the shapes and levels, `render.js` draws them with WebGL)
 - `games/water-sort/`: Water Sort (`logic.js` has the rules, level generator and solver; `game.js` draws and animates the tubes)
 - `games/sudoku/`: Sudoku (`logic.js` makes and grades puzzles; `game.js` is the board)
+- `games/minesweeper/`: Minesweeper (`logic.js` makes no-guess boards and solves them; `game.js` draws the board and handles touch)
 - `shared/`: sound, haptics, saving and offline support used by every game (`arcade.js`), plus the screen frame, pop-up cards and confetti used by the newer games (`screen.css`, `ui.js`)
 - `sw.js`: the offline file list. Regenerate it after any change with `node tools/build-sw.mjs`
 - `tools/`: the local server, the tests for each game, and the icon maker (`tools/make-icons.ps1`)

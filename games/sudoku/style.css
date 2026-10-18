@@ -109,12 +109,6 @@
 .key.done { opacity: .28; }
 .notes-on .key b { font-size: 22px; font-weight: 700; }
 
-.best { color: var(--muted); font-weight: 800; font-size: 15px; }
-.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 6px 0 4px; }
-.stats div { padding: 10px 4px; border-radius: 14px; background: #f1f4fb; }
-.stats b { display: block; font-size: 22px; font-weight: 900; color: var(--ink); }
-.stats span { font-size: 12.5px; font-weight: 800; color: var(--muted); }
-
 .seg-btn[data-mode="medium"].on { color: #0c7f6c; }
 .seg-btn[data-mode="hard"].on { color: var(--red-2); }
 .seg-btn[data-mode="expert"].on { color: #ffe08a; background: linear-gradient(180deg, #43357e, #241a4d); }
