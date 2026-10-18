@@ -1,0 +1,4 @@
+# Screenshots of other games, used as reference: they stay on this PC.
+/image*.png
+# Claude Code's settings for this folder.
+.claude/

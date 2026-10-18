@@ -1,0 +1,5 @@
+# Keep files with plain web line endings (LF) everywhere; only the Windows
+# batch file needs Windows line endings.
+* text=auto eol=lf
+*.bat text eol=crlf
+*.png binary
