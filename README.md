@@ -6,7 +6,7 @@ Ad-free games for your iPhone that keep working with no signal.
 
 Double-click **Play on PC.bat**. Your browser opens the arcade at http://localhost:8080. Keep the black window open while you play, and close it when you're done.
 
-On a computer you drag to spin, scroll to zoom, and click to tap. Keyboard shortcuts: the arrow keys spin the cube, **H** shows a hint, **U** undoes a move.
+On a computer you click to tap; in Arrow Cube you also drag to spin and scroll to zoom. Keyboard shortcuts in every game: **H** shows a hint, **U** undoes a move. In Arrow Cube the arrow keys spin the cube.
 
 ## Put it on your iPhone
 
@@ -45,10 +45,35 @@ Levels are generated on the fly, so they never run out, and the same number alwa
 
 **Every level is solvable.** Levels are built backwards from an empty shape, so a solution always exists. Then each one is searched for any order of taps that could leave you stuck, and rejected if one is found. `node tools/test-levels.mjs 1 150 levels` re-checks levels 1–150 (use `hard`, `super` or `huge` for the other modes) and also plays each one 25 times in random order. Puzzles without purple markers can't have dead ends at all (clearing an arrow only ever opens things up), so for the giant ones the check is simply that they can be finished.
 
+## Water Sort
+
+Tap a tube to pick it up, then tap another to pour. The colour on top pours across, as much as fits, but only onto the same colour or into an empty tube. Fill every tube with a single colour to win.
+
+- **Endless levels.** They start with 3 colours and grow to 12. Later levels are chosen from several random deals, keeping the one with the most dead ends to fall into, so they keep getting trickier.
+- **Hard levels** come every 10th level, with two extra colours (up to 14) and the trickiest deal out of ten.
+- **Mystery levels** hide every colour except the top one until you uncover it.
+- **Help:** Undo as much as you like. Hint shows a pour that leads to a finish, and each level gives you one extra empty tube. If you pour yourself into a corner the game tells you, so you're never stuck without knowing.
+
+Every level is solved by the computer before you see it. `node tools/test-water-sort.mjs 1 500` re-checks levels 1–500.
+
+## Sudoku
+
+Fill the grid so every row, column and 3×3 box has 1 to 9 exactly once. Tap a square, then a number. Notes pencil in possibilities, wrong numbers turn red (this can be switched off in ⚙), and notes clear themselves as you place numbers. On a computer you can type numbers, use the arrow keys, and press **N** for notes.
+
+Four difficulties, each an endless numbered run with its own best time:
+- **Easy**: solvable using only the two basic moves: a square where just one number fits, or a number with just one place to go.
+- **Medium**: also needs locked candidates (a number stuck in one row or column of a box).
+- **Hard**: needs pairs or triples.
+- **Expert**: needs X-Wings, Swordfish or XY-Wings.
+
+Every puzzle has exactly one solution and can be solved by logic alone, with no guessing. Hint fills in the next square you could work out and says why. `node tools/test-sudoku.mjs 60` re-checks 60 puzzles of each difficulty.
+
 ## Files
 
 - `index.html`: the arcade menu
-- `games/arrow-cube/`: the game (`topology.js` turns a shape into cells and planes, `rules.js` holds the rules, `generator.js` builds the shapes and levels, `render.js` draws them with WebGL)
-- `shared/`: sound, haptics, saving and offline support used by every game
+- `games/arrow-cube/`: Arrow Cube (`topology.js` turns a shape into cells and planes, `rules.js` holds the rules, `generator.js` builds the shapes and levels, `render.js` draws them with WebGL)
+- `games/water-sort/`: Water Sort (`logic.js` has the rules, level generator and solver; `game.js` draws and animates the tubes)
+- `games/sudoku/`: Sudoku (`logic.js` makes and grades puzzles; `game.js` is the board)
+- `shared/`: sound, haptics, saving and offline support used by every game (`arcade.js`), plus the screen frame, pop-up cards and confetti used by the newer games (`screen.css`, `ui.js`)
 - `sw.js`: the offline file list. Regenerate it after any change with `node tools/build-sw.mjs`
-- `tools/`: the local server, level tests, and icon maker (`tools/make-icons.ps1`)
+- `tools/`: the local server, the tests for each game, and the icon maker (`tools/make-icons.ps1`)

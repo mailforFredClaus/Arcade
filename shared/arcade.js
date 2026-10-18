@@ -129,6 +129,29 @@ export function sfx(name) {
       [523, 659, 784, 1047].forEach((f, i) => tone(a, { f, type: 'triangle', t: i * 0.09, d: 0.32, g: 0.16 }));
       tone(a, { f: 1568, t: 0.36, d: 0.5, g: 0.07 });
       break;
+    case 'pour':
+      // A few glugs and a trickle.
+      hiss(a, { d: 0.45, g: 0.1, f0: 1400, f1: 700, q: 3 });
+      [0, 0.11, 0.21, 0.3].forEach((t, i) => tone(a, { f: 260 + i * 40, f2: 520 + i * 60, t, d: 0.07, g: 0.12 }));
+      break;
+    case 'pop':
+      tone(a, { f: 480, f2: 1300, type: 'triangle', d: 0.07, g: 0.16 });
+      tone(a, { f: 1760, t: 0.06, d: 0.18, g: 0.06 });
+      break;
+    case 'nope':
+      tone(a, { f: 220, f2: 160, type: 'triangle', d: 0.12, g: 0.18 });
+      break;
+    case 'write':
+      tone(a, { f: 1250, f2: 1100, type: 'triangle', d: 0.05, g: 0.07 });
+      break;
+    case 'wrong':
+      tone(a, { f: 300, f2: 200, type: 'square', d: 0.14, g: 0.07 });
+      tone(a, { f: 150, t: 0.02, d: 0.12, g: 0.2 });
+      break;
+    case 'chime':
+      tone(a, { f: 988, type: 'triangle', d: 0.18, g: 0.1 });
+      tone(a, { f: 1318, t: 0.08, d: 0.3, g: 0.08 });
+      break;
   }
 }
 

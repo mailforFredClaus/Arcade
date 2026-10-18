@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Arcade">
+  <meta name="theme-color" content="#b8d0f5">
+  <title>Sudoku</title>
+  <link rel="manifest" href="../../manifest.webmanifest">
+  <link rel="icon" href="../../icons/icon-192.png">
+  <link rel="apple-touch-icon" href="../../icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="../../shared/arcade.css">
+  <link rel="stylesheet" href="../../shared/screen.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar" id="topbar">
+    <a class="sq-btn" href="../../index.html" aria-label="Back to the arcade" id="backBtn"></a>
+    <div class="banner">
+      <div class="stat" aria-label="Time">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9.5 2.5h5"/></svg>
+        <span id="timer">0:00</span>
+      </div>
+      <div class="lvl"><span id="levelLabel">EASY 1</span><span class="tier-tag" id="tierTag"></span></div>
+    </div>
+    <button class="sq-btn" id="menuBtn" aria-label="Settings"></button>
+  </header>
+
+  <main class="play" id="play">
+    <div class="board" id="board" role="grid" aria-label="Sudoku grid"></div>
+    <div class="tools-row">
+      <button class="tool" id="undoBtn"><span class="ico" data-icon="undo"></span><span>Undo</span></button>
+      <button class="tool" id="eraseBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"><path d="M20 20H9.5L4 14.5a2 2 0 0 1 0-2.8l7.7-7.7a2 2 0 0 1 2.8 0l5 5a2 2 0 0 1 0 2.8L12.5 19.6"/><path d="m8 9.5 7 7"/></svg>
+        <span>Erase</span>
+      </button>
+      <button class="tool" id="notesBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"><path d="M15.5 4.5 19.5 8.5 9 19H5v-4z"/><path d="m13 7 4 4"/></svg>
+        <span>Notes</span><span class="badge" id="notesBadge">OFF</span>
+      </button>
+      <button class="tool" id="hintBtn"><span class="ico" data-icon="hint"></span><span>Hint</span></button>
+    </div>
+    <div class="pad" id="pad"></div>
+  </main>
+
+  <div class="loading hide" id="loading"><div class="spinner"></div><div>Making a puzzle…</div></div>
+  <div class="toast" id="toast" role="status"></div>
+  <div class="overlay" id="overlay" hidden><div class="card" id="card"></div></div>
+  <canvas id="confetti" class="confetti"></canvas>
+
+  <script type="module" src="js/game.js"></script>
+</body>
+</html>

@@ -136,6 +136,56 @@
         <a class="mode huge" href="games/arrow-cube/index.html?mode=huge"><b>Huge</b><span id="mode-huge">No. 1</span></a>
       </div>
       </div>
+      <a class="game game-main" href="games/water-sort/index.html">
+        <div class="thumb" aria-hidden="true">
+          <svg viewBox="0 0 100 100">
+            <g stroke="#fff" stroke-width="2.4">
+              <path d="M14 22v46a8 8 0 0 0 16 0V22" fill="rgba(255,255,255,.5)"/>
+              <path d="M42 22v46a8 8 0 0 0 16 0V22" fill="rgba(255,255,255,.5)"/>
+              <path d="M70 22v46a8 8 0 0 0 16 0V22" fill="rgba(255,255,255,.5)"/>
+            </g>
+            <path d="M16 46h12v22a6 6 0 0 1-12 0z" fill="#2f5bd9"/><rect x="16" y="35" width="12" height="11" fill="#ff9a1f"/>
+            <path d="M44 57h12v11a6 6 0 0 1-12 0z" fill="#ff9a1f"/><rect x="44" y="46" width="12" height="11" fill="#e8413c"/><rect x="44" y="35" width="12" height="11" fill="#2f5bd9"/>
+            <path d="M72 35h12v33a6 6 0 0 1-12 0z" fill="#e8413c"/>
+            <rect x="12" y="19" width="20" height="4" rx="2" fill="#fff"/><rect x="40" y="19" width="20" height="4" rx="2" fill="#fff"/><rect x="68" y="19" width="20" height="4" rx="2" fill="#fff"/>
+            <rect x="72" y="11" width="12" height="9" rx="2" fill="#b07a45"/>
+          </svg>
+        </div>
+        <div>
+          <h2>Water Sort</h2>
+          <p>Pour the colours until every tube holds just one.</p>
+          <div class="meta"><span class="pill" id="wsLevel">Level 1</span></div>
+        </div>
+      </a>
+
+      <div class="game">
+      <a class="game-main" href="games/sudoku/index.html">
+        <div class="thumb" aria-hidden="true">
+          <svg viewBox="0 0 100 100">
+            <rect x="10" y="10" width="80" height="80" rx="10" fill="#fff" stroke="#3a4266" stroke-width="3.5"/>
+            <path d="M36.7 10v80M63.3 10v80M10 36.7h80M10 63.3h80" stroke="#3a4266" stroke-width="2.6"/>
+            <rect x="37.5" y="37.5" width="25" height="25" fill="#a9bcff"/>
+            <g font-family="ui-rounded, system-ui, sans-serif" font-weight="800" font-size="19" text-anchor="middle">
+              <text x="23.4" y="30" fill="#1d2340">5</text><text x="76.6" y="30" fill="#1d2340">8</text>
+              <text x="50" y="57" fill="#3f4fe0">7</text><text x="23.4" y="83" fill="#1d2340">2</text>
+              <text x="76.6" y="56.5" fill="#1d2340">3</text><text x="50" y="83" fill="#3f4fe0">9</text>
+            </g>
+          </svg>
+        </div>
+        <div>
+          <h2>Sudoku</h2>
+          <p>Every row, column and box gets 1 to 9. Pure logic, no guessing.</p>
+          <div class="meta"><span class="pill gold" id="sdSolved">0 solved</span></div>
+        </div>
+      </a>
+      <div class="modes">
+        <a class="mode" href="games/sudoku/index.html?mode=easy"><b>Easy</b><span id="sd-easy">No. 1</span></a>
+        <a class="mode huge" href="games/sudoku/index.html?mode=medium"><b>Medium</b><span id="sd-medium">No. 1</span></a>
+        <a class="mode hard" href="games/sudoku/index.html?mode=hard"><b>Hard</b><span id="sd-hard">No. 1</span></a>
+        <a class="mode super" href="games/sudoku/index.html?mode=expert"><b>Expert</b><span id="sd-expert">No. 1</span></a>
+      </div>
+      </div>
+
       <div class="soon">More games coming soon</div>
     </div>
 
@@ -161,6 +211,20 @@
       stars += Object.values(run.best || {}).reduce((s, v) => s + v, 0);
     }
     document.getElementById('acStars').textContent = `★ ${stars}`;
+
+    // Water Sort: the level you're on.
+    const ws = store.get('watersort', null) || {};
+    document.getElementById('wsLevel').textContent = `Level ${(ws.play && ws.play.n) || ws.n || 1}`;
+
+    // Sudoku: the puzzle you're on in each difficulty, and how many solved.
+    const sd = store.get('sudoku', null) || {};
+    let solved = 0;
+    for (const mode of ['easy', 'medium', 'hard', 'expert']) {
+      const run = (sd.runs || {})[mode] || {};
+      document.getElementById(`sd-${mode}`).textContent = `No. ${(run.play && run.play.n) || run.n || 1}`;
+      solved += run.solved || 0;
+    }
+    document.getElementById('sdSolved').textContent = `${solved} solved`;
 
     const dot = document.getElementById('statusDot');
     const text = document.getElementById('statusText');

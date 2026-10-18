@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Arcade">
+  <meta name="theme-color" content="#b8d0f5">
+  <title>Water Sort</title>
+  <link rel="manifest" href="../../manifest.webmanifest">
+  <link rel="icon" href="../../icons/icon-192.png">
+  <link rel="apple-touch-icon" href="../../icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="../../shared/arcade.css">
+  <link rel="stylesheet" href="../../shared/screen.css">
+</head>
+<body>
+  <canvas id="stage" aria-label="Water Sort puzzle"></canvas>
+
+  <header class="topbar" id="topbar">
+    <a class="sq-btn" href="../../index.html" aria-label="Back to the arcade" id="backBtn"></a>
+    <div class="banner">
+      <div class="stat" id="sortedStat" aria-label="Tubes sorted">
+        <svg viewBox="0 0 20 24"><path d="M5 2h10v15a5 5 0 0 1-10 0z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/><path d="M6.4 11h7.2v6a3.6 3.6 0 0 1-7.2 0z" fill="currentColor"/></svg>
+        <span id="sorted">0/0</span>
+      </div>
+      <div class="lvl"><span id="levelLabel">LEVEL 1</span><span class="tier-tag" id="tierTag"></span></div>
+    </div>
+    <button class="sq-btn" id="menuBtn" aria-label="Settings"></button>
+  </header>
+
+  <nav class="tools" id="tools">
+    <button class="tool" id="undoBtn"><span class="ico" data-icon="undo"></span><span>Undo</span></button>
+    <button class="tool" id="restartBtn"><span class="ico" data-icon="restart"></span><span>Restart</span></button>
+    <button class="tool" id="hintBtn"><span class="ico" data-icon="hint"></span><span>Hint</span></button>
+    <button class="tool" id="tubeBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7v14a3.5 3.5 0 0 1-7 0z"/><path d="M18.5 5v6M15.5 8h6"/></svg>
+      <span>Tube</span><span class="badge" id="tubeBadge">1</span>
+    </button>
+  </nav>
+
+  <div class="toast" id="toast" role="status"></div>
+  <div class="overlay" id="overlay" hidden><div class="card" id="card"></div></div>
+  <canvas id="confetti" class="confetti"></canvas>
+
+  <script type="module" src="js/game.js"></script>
+</body>
+</html>
