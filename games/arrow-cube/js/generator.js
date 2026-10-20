@@ -10,7 +10,8 @@
 import { buildShape, boxShape, opp, headDir, hiddenFaces, FLAT, CONVEX } from './topology.js';
 import { Board, pieceOptions, NORMAL, TWO_WAY, FORK, BLUE, PURPLE, FORWARD, IGNORE, REVERSE } from './rules.js';
 
-export const GEN_VERSION = 4;
+// Version 5 made the arrows longer and more tangled.
+export const GEN_VERSION = 5;
 // The giant puzzles (Mega, Giga, Huge) have their own version, so tuning them
 // doesn't restart anyone's regular level. Bump it whenever they change: the
 // game keeps built giant puzzles on the device, tagged with this version.
@@ -263,10 +264,11 @@ export function levelSpec(n, mode = 'levels') {
   } else if (mode === 'super') {
     size = 9 + Math.floor(n / 5) + Math.round(R() * 2 - 1);
   } else {
-    // Aim for about 2,500 arrows in the first Huge puzzle, growing 10% per
-    // puzzle up to about 5,000 (measured: size 44 gives ~2,150 arrows on
-    // average across the shape families, and arrows grow with the square of
-    // the size).
+    // Make the first Huge puzzle big enough for about 2,500 short arrows,
+    // growing 10% per puzzle up to about 5,000 (measured: size 44 gives
+    // ~2,150 on average across the shape families, and the count grows with
+    // the square of the size). Joining them into long arrows (see entwine())
+    // leaves about two thirds as many.
     const target = Math.min(5000, 2500 * (1 + 0.1 * (n - 1)));
     size = Math.round(44 * Math.sqrt(target / 2150));
   }
@@ -293,8 +295,7 @@ export function levelSpec(n, mode = 'levels') {
     n, mode, tier, intro, shape,
     fill: early ? (n === 1 ? 0.55 : 0.75) : tt.fill,
     minLen: 2,
-    // The biggest puzzles use shorter arrows, so there are lots of them to chip away at.
-    maxLen: early ? 3 : big ? tt.maxLen : Math.min(tt.maxLen, size + 2),
+    maxLen: early ? 3 : Math.min(tt.maxLen + 4, 2 * size + 2),
     straight: 0.5,
     aim: intro ? 0.45 : 0.3,
     inward: early ? 0 : 1.6,
@@ -305,6 +306,12 @@ export function levelSpec(n, mode = 'levels') {
     candidates: early ? 1 : young ? 2 : tt.candidates,
     freeTarget: early ? 1 : young ? 0.4 : tt.free,
     fastInterlock: big,
+    // Joining arrows into long ones (see entwine()): the longest an arrow gets.
+    join: !early,
+    joinLen: young ? size + 4 : big ? 24 : Math.round(2.5 * size) + 2,
+    shortLen: 3,
+    joinBudget: 4000,
+    joinTrials: 400,
     blue: 0, purple: 0, two: 0, fork: 0, yellow: 0,
   };
   const has = (k) => !main || n >= INTRO[k];
@@ -337,6 +344,7 @@ export function generateLevel(n, mode = 'levels') {
   for (let attempt = 0; attempt < 40 && found < spec.candidates; attempt++) {
     const seed = seedOf(attempt);
     const level = buildLevel(spec, seed);
+    entwine(level, spec, rng(seed ^ 0x2e2e));
     interlock(level, spec, rng(seed ^ 0x1f1f));
     const check = checkLevel(level, spec, { stats });
     if (!check.ok) continue;
@@ -350,6 +358,7 @@ export function generateLevel(n, mode = 'levels') {
   const plain = { ...spec, purple: 0 };
   for (let attempt = 40; ; attempt++) {
     const level = buildLevel(plain, seedOf(attempt));
+    entwine(level, plain, rng(seedOf(attempt) ^ 0x2e2e));
     if (checkLevel(level, plain, { skipIntro: attempt >= 80 }).ok) return done(level);
   }
 }
@@ -466,6 +475,271 @@ function blockersOf(board, pid, snakes) {
     }
   });
   return out;
+}
+
+// Make the arrows long and tangled. On a nearly full shape, the arrows that
+// are free from the start are mostly short ones pointing straight off the
+// nearest edge, and they make a level quick to clear without thinking. So
+// each one is worked into its neighbours: joined end to end with an arrow it
+// touches (led by the far end of either), or joined onto part of an arrow it
+// touches in the middle (which splits that arrow in two), or turned around.
+// The long arrows this makes wind over more of the shape, often round an edge
+// onto the next side, and sit in the way of more arrows. A change is kept
+// only if it leaves fewer arrows free and the level can still be cleared
+// without ever getting stuck. Finally, arrows that are still very short are
+// joined onto a neighbour where that costs nothing.
+function entwine(level, spec, R) {
+  if (!spec.join) return;
+  const topo = buildShape(level.shape);
+  const { nbCell, planeOf } = topo;
+  const pieces = level.pieces.map((p) => ({ ...p }));
+  const P = pieces.length;
+  const board = new Board(topo, level);
+  const purple = board.purples.length > 0;
+  // (A level that can already get stuck is going to be thrown away.)
+  if (purple && board.findDeadEnd(spec.joinBudget) !== false) return;
+  const occ = board.occ.slice();
+  const alive = new Uint8Array(P).fill(1);
+  const len = (i) => pieces[i].cells.length;
+  const markers = level.redirectors.map((r) => r.cell);
+
+  // The cells each way of leaving crosses (null if it never works). Without
+  // purple markers that never changes, and the puzzle is just "this arrow
+  // needs the arrows on those cells gone first". With them it's how things
+  // stand at the start, and a full search has the final say.
+  const raysOf = (id, data) => pieceOptions(topo, data).map((snakes) => {
+    const r = board.simulate(id, snakes, IGNORE);
+    if (!r.ok) return null;
+    const out = [];
+    snakes.forEach((sn, s) => {
+      for (let k = sn.cells.length; k < r.seqs[s].length; k++) if (r.seqs[s][k] >= 0) out.push(r.seqs[s][k]);
+    });
+    return out;
+  });
+  const rays = pieces.map((p, i) => raysOf(i, p));
+  const waysOf = (i) => rays[i].map((cells) => {
+    if (!cells) return null;
+    const out = [];
+    for (const c of cells) if (occ[c] >= 0 && occ[c] !== i && !out.includes(occ[c])) out.push(occ[c]);
+    return out;
+  });
+  const ways = pieces.map((p, i) => waysOf(i));
+  const isFree = (w) => w.some((l) => l && !l.length);
+  let free = ways.filter(isFree).length;
+  // crossers[c]: the arrows with a way out over cell c.
+  const crossers = Array.from({ length: topo.N }, () => []);
+  const index = (id, rs, add) => {
+    for (const cells of rs) {
+      if (!cells) continue;
+      for (const c of cells) {
+        if (add) crossers[c].push(id);
+        else crossers[c] = crossers[c].filter((i) => i !== id);
+      }
+    }
+  };
+  pieces.forEach((p, i) => index(i, rays[i], true));
+
+  // An order to clear the arrows in: ord[i] is when arrow i goes, once the
+  // arrows need[i] on its way out have gone (that's its way cw[i]; a two-way
+  // arrow only needs one of its two). Without purple markers the level works
+  // exactly when there is such an order, and after a change only the arrows
+  // around the ones it touched need to shuffle along (Pearce and Kelly's
+  // way of keeping a topological order up to date).
+  const ord = new Float64Array(P), cw = new Int8Array(P), need = new Array(P), deps = Array.from({ length: P }, () => []);
+  if (!purple) {
+    // Clear whatever can go until nothing can, noting the order.
+    const left = ways.map((w) => w.map((l) => (l ? l.length : -1)));
+    const users = Array.from({ length: P }, () => []);
+    ways.forEach((w, i) => w.forEach((l, k) => { if (l) for (const j of l) users[j].push([i, k]); }));
+    const queue = [];
+    let at = 0;
+    const go = (i, k) => { ord[i] = at++; cw[i] = k; need[i] = ways[i][k]; queue.push(i); };
+    left.forEach((l, i) => { if (l.includes(0)) go(i, l.indexOf(0)); });
+    while (queue.length) {
+      for (const [i, k] of users[queue.pop()]) if (--left[i][k] === 0 && !need[i]) go(i, k);
+    }
+    if (at < P) return; // (Can't happen: levels are built to be solvable.)
+    need.forEach((l, i) => { for (const j of l) deps[j].push(i); });
+  }
+
+  // Make arrow t wait for arrow j, moving arrows along in the order if need
+  // be (noting each move in `moved`). False if j already waits for t.
+  function link(j, t, moved) {
+    if (ord[j] < ord[t]) return true;
+    const later = [], earlier = [], seen = new Set([t, j]);
+    for (const stack = [t]; stack.length;) {
+      const u = stack.pop();
+      later.push(u);
+      for (const v of deps[u]) {
+        if (v === j) return false;
+        if (!seen.has(v) && ord[v] < ord[j]) { seen.add(v); stack.push(v); }
+      }
+    }
+    for (const stack = [j]; stack.length;) {
+      const u = stack.pop();
+      earlier.push(u);
+      for (const v of need[u]) if (!seen.has(v) && ord[v] > ord[t]) { seen.add(v); stack.push(v); }
+    }
+    const slots = later.concat(earlier).map((i) => ord[i]).sort((a, b) => a - b);
+    const byOrd = (a, b) => ord[a] - ord[b];
+    earlier.sort(byOrd).concat(later.sort(byOrd)).forEach((i, k) => { moved.push(i, ord[i]); ord[i] = slots[k]; });
+    return true;
+  }
+
+  // After a change, re-attach the touched arrows to the arrows they now wait
+  // for. Returns false (with everything put back) if that makes a loop.
+  function relink(touched) {
+    const moved = [], before = [];
+    const unhook = (t) => {
+      for (const j of need[t]) deps[j] = deps[j].filter((i) => i !== t);
+      need[t] = [];
+    };
+    for (const t of touched) { before.push([t, need[t], cw[t]]); unhook(t); }
+    for (const t of touched) {
+      if (!alive[t]) continue;
+      let linked = false;
+      for (const k of [cw[t], 1 - cw[t]]) {
+        if (!ways[t][k]) continue;
+        linked = ways[t][k].every((j) => {
+          if (!link(j, t, moved)) return false;
+          need[t].push(j);
+          deps[j].push(t);
+          return true;
+        });
+        if (linked) { cw[t] = k; break; }
+        unhook(t);
+      }
+      if (linked) continue;
+      for (const u of touched) unhook(u);
+      for (const [u, l, k] of before) { need[u] = l; cw[u] = k; for (const j of l) deps[j].push(u); }
+      for (let k = moved.length - 2; k >= 0; k -= 2) ord[moved[k]] = moved[k + 1];
+      return false;
+    }
+    return true;
+  }
+
+  // Give some arrows new cells (null removes the arrow). Keeps the change and
+  // returns true if `accept(arrows free before, after)` agrees and the level
+  // still works; otherwise puts everything back.
+  let purpleTrials = 0;
+  function change(edits, accept) {
+    const touched = new Set(), oldOcc = [], old = edits.map(([id]) => [id, rays[id]]), oldWays = new Map();
+    const take = (c, id) => {
+      oldOcc.push(c, occ[c]);
+      occ[c] = id;
+      for (const i of crossers[c]) touched.add(i);
+    };
+    // Only the arrows being changed, and those with a way out over a cell
+    // that changes hands, can come out differently.
+    for (const [id] of edits) {
+      touched.add(id);
+      for (const c of pieces[id].cells) take(c, -1);
+    }
+    let ok = true;
+    for (const [id, cells] of edits) {
+      if (!cells) { alive[id] = 0; continue; }
+      for (const c of cells) take(c, id);
+      rays[id] = raysOf(id, { ...pieces[id], cells });
+      if (!rays[id].some(Boolean)) ok = false;
+    }
+    let f = free;
+    if (ok) {
+      for (const i of touched) {
+        oldWays.set(i, ways[i]);
+        if (isFree(ways[i])) f--;
+        ways[i] = alive[i] ? waysOf(i) : null;
+        if (ways[i] && isFree(ways[i])) f++;
+      }
+      ok = accept(free, f);
+    }
+    // Every marker must still be on some arrow's way out.
+    for (const c of ok ? markers : []) {
+      if (crossers[c].some((i) => !touched.has(i))) continue;
+      if (![...touched].some((i) => alive[i] && rays[i].some((cells) => cells && cells.includes(c)))) { ok = false; break; }
+    }
+    if (ok && purple) {
+      const now = new Map(edits);
+      const trial = { ...level, pieces: pieces.map((p, i) => (now.has(i) ? { ...p, cells: now.get(i) } : p)).filter((p, i) => alive[i]) };
+      ok = ++purpleTrials <= spec.joinTrials && new Board(topo, trial).findDeadEnd(spec.joinBudget) === false;
+    } else if (ok) ok = relink(touched);
+    if (!ok) {
+      for (const [i, w] of oldWays) ways[i] = w;
+      for (let k = oldOcc.length - 2; k >= 0; k -= 2) occ[oldOcc[k]] = oldOcc[k + 1];
+      for (const [id, rs] of old) { rays[id] = rs; alive[id] = 1; }
+      return false;
+    }
+    for (const [id, rs] of old) index(id, rs, false);
+    for (const [id, cells] of edits) {
+      if (!cells) continue;
+      pieces[id].cells = cells;
+      index(id, rays[id], true);
+    }
+    free = f;
+    return true;
+  }
+
+  const rev = (a) => a.slice().reverse();
+  const fits = (cells) => cells.length <= spec.joinLen;
+  // Ways arrow x (with its end e touching cell z) could be worked into the
+  // arrow on z. Each is a list of edits.
+  function mergesAt(x, e, z) {
+    const y = occ[z], out = [];
+    if (y < 0 || y === x || pieces[y].kind !== NORMAL) return out;
+    const X = pieces[x].cells, xc = e === X[X.length - 1] ? X : rev(X);
+    const Y = pieces[y].cells, at = Y.indexOf(z);
+    const add = (a, rest) => {
+      if (!fits(a)) return;
+      out.push([[x, a], [y, rest]]);
+      out.push([[x, rev(a)], [y, rest]]);
+    };
+    if (at === 0) add(xc.concat(Y), null);
+    else if (at === Y.length - 1) add(xc.concat(rev(Y)), null);
+    else {
+      // Split y at z: x takes the part beyond z, or the part up to z.
+      if (at >= 2) add(xc.concat(Y.slice(at)), Y.slice(0, at));
+      if (Y.length - at >= 3) add(xc.concat(rev(Y.slice(0, at + 1))), Y.slice(at + 1));
+    }
+    return out;
+  }
+  // Every merge at either end of arrow x, scored by `rate`, best first.
+  function movesFor(x, rate) {
+    const X = pieces[x].cells, moves = [];
+    for (const e of [X[0], X[X.length - 1]]) {
+      for (let k = 0; k < 4; k++) {
+        const z = nbCell[e * 4 + k];
+        for (const m of mergesAt(x, e, z)) {
+          const s = rate(m, e, z);
+          if (s !== null) moves.push([s, m]);
+        }
+      }
+    }
+    return moves.sort((a, b) => b[0] - a[0]).map((m) => m[1]);
+  }
+
+  // Take away free arrows. Joining round an edge and joining whole arrows
+  // are tried first.
+  const fewer = (before, after) => after < before;
+  const lead = (m, e, z) => R() + 1 + (planeOf[z] !== planeOf[e] ? 0.5 : 0) + (m[1][1] ? 0 : 1);
+  for (let pass = 0, again = true; again && pass < 3; pass++) {
+    again = false;
+    for (const x of shuffle(R, [...Array(P).keys()])) {
+      if (!alive[x] || pieces[x].kind !== NORMAL || !isFree(ways[x])) continue;
+      const moves = [[[x, rev(pieces[x].cells)]], ...movesFor(x, lead)];
+      if (moves.some((m) => change(m, fewer))) again = true;
+    }
+  }
+
+  // Tidy up: join very short arrows onto a neighbour, if no more arrows end
+  // up free.
+  const noWorse = (before, after) => after <= before;
+  const tidy = (m) => (!m[1][1] || m[1][1].length > spec.shortLen ? R() : null);
+  for (const x of shuffle(R, [...Array(P).keys()])) {
+    if (!alive[x] || pieces[x].kind !== NORMAL || len(x) > spec.shortLen) continue;
+    movesFor(x, tidy).some((m) => change(m, noWorse));
+  }
+  level.pieces = pieces.filter((p, i) => alive[i]);
+  const after = new Board(topo, level);
+  level.wraps = after.pieces.reduce((n, p) => n + after.simulate(p.id, p.options[0], IGNORE).wraps, 0);
 }
 
 // Independent check of a finished level: searches every order of taps and
@@ -766,7 +1040,8 @@ export function buildLevel(spec, seed) {
     const inPath = new Set(path);
     const plans = [];
     let budget = 150;
-    const want = 2 + ri(Math.max(1, spec.maxLen - 1));
+    // Gaps are small, so aim short (entwine() joins short arrows up later).
+    const want = 2 + ri(Math.max(1, Math.min(spec.maxLen, 6) - 1));
     const kind = R() < spec.two ? TWO_WAY : NORMAL;
     const green = ri(2);
     const visit = (cell) => {
