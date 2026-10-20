@@ -43,7 +43,7 @@ Shapes are built from cubes. You'll see plain boxes and flat slabs, plus cubes w
 
 Levels are generated on the fly, so they never run out, and the same number always gives the same puzzle. You can jump to any number from the ⚙ menu.
 
-**Every level is solvable.** Levels are built backwards from an empty shape, so a solution always exists. Then each one is searched for any order of taps that could leave you stuck, and rejected if one is found. `node tools/test-levels.mjs 1 150 levels` re-checks levels 1–150 (use `hard`, `super` or `huge` for the other modes) and also plays each one 25 times in random order. Puzzles without purple markers can't have dead ends at all (clearing an arrow only ever opens things up), so for the giant ones the check is simply that they can be finished.
+**Every level is solvable.** Levels are built backwards from an empty shape, so a solution always exists. Then arrows that touch are joined into long ones that wind round onto other sides, and arrows that could leave straight away are worked into their neighbours, so only a few can move at the start. Each of those changes is kept only if the level can still be finished. (Mega, Giga and Huge puzzles skip this step: they keep lots of short arrows to chip away at.) Finally each level is searched for any order of taps that could leave you stuck, and rejected if one is found. `node tools/test-levels.mjs 1 150 levels` re-checks levels 1–150 (use `hard`, `super` or `huge` for the other modes) and also plays each one 25 times in random order. Puzzles without purple markers can't have dead ends at all (clearing an arrow only ever opens things up), so for the giant ones the check is simply that they can be finished.
 
 ## Water Sort
 
