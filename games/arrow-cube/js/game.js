@@ -302,6 +302,9 @@ function layout() {
 
 const pointers = new Map();
 let gesture = null;
+// Press and hold an arrow to see where it would go, without moving it.
+const HOLD_MS = 380;
+let holdTimer = 0;
 const recent = [];
 let lastEmptyTap = { t: 0, x: 0, y: 0 };
 
@@ -313,7 +316,17 @@ canvas.addEventListener('pointerdown', (e) => {
   if (pointers.size === 1) {
     gesture = { mode: 'tap' };
     recent.length = 0;
+    const p = pointers.get(e.pointerId);
+    clearTimeout(holdTimer);
+    holdTimer = setTimeout(() => {
+      if (gesture && gesture.mode === 'tap' && pointers.size === 1 && previewAt(p.x, p.y)) {
+        gesture.mode = 'preview';
+        haptic();
+      }
+    }, HOLD_MS);
   } else if (pointers.size === 2) {
+    clearTimeout(holdTimer);
+    renderer.clearPreview();
     const [a, b] = [...pointers.values()];
     gesture = { mode: 'pinch', dist: Math.hypot(a.x - b.x, a.y - b.y), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
   } else {
@@ -327,8 +340,14 @@ canvas.addEventListener('pointermove', (e) => {
   const dx = e.clientX - p.x, dy = e.clientY - p.y;
   p.x = e.clientX;
   p.y = e.clientY;
+  // While holding, sliding onto another arrow shows that one's way instead.
+  if (gesture.mode === 'preview') {
+    previewAt(p.x, p.y);
+    return;
+  }
   if (gesture.mode === 'tap') {
     if (Math.hypot(p.x - p.x0, p.y - p.y0) < 9) return;
+    clearTimeout(holdTimer);
     gesture.mode = 'rotate';
   }
   if (gesture.mode === 'rotate') {
@@ -349,7 +368,12 @@ canvas.addEventListener('pointermove', (e) => {
 function endPointer(e, cancelled) {
   const p = pointers.get(e.pointerId);
   pointers.delete(e.pointerId);
+  clearTimeout(holdTimer);
   if (!gesture || !p) return;
+  if (gesture.mode === 'preview') {
+    renderer.clearPreview();
+    requestDraw();
+  }
   if (!cancelled && gesture.mode === 'tap' && pointers.size === 0 && performance.now() - p.t0 < 650) {
     onTap(e.clientX, e.clientY);
   }
@@ -407,9 +431,7 @@ function onTap(x, y) {
     }
     return;
   }
-  const piece = board.pieces[hit.pid];
-  // Two-way arrows leave from whichever end you tapped nearer.
-  const opt = piece.kind === TWO_WAY && hit.along < hit.len / 2 ? 1 : 0;
+  const opt = wayFor(hit);
   const res = board.tryMove(hit.pid, opt, true);
   renderer.setHint(-1);
   if (res.ok) {
@@ -440,6 +462,24 @@ function onTap(x, y) {
     loseStar();
   }
   requestDraw();
+}
+
+// Two-way arrows leave from whichever end you tapped nearer.
+function wayFor(hit) {
+  return board.pieces[hit.pid].kind === TWO_WAY && hit.along < hit.len / 2 ? 1 : 0;
+}
+
+// Show where the arrow under (x, y) would go. False if there's no arrow there.
+function previewAt(x, y) {
+  if (!board || finished || loading || cardOpen()) return false;
+  const hit = renderer.pick(x, y);
+  if (!hit) return false;
+  const opt = wayFor(hit), cur = renderer.preview;
+  if (!cur || cur.pid !== hit.pid || cur.opt !== opt) {
+    renderer.setPreview(hit.pid, opt, board.tryMove(hit.pid, opt, true));
+    requestDraw();
+  }
+  return true;
 }
 
 function loseStar() {
@@ -592,7 +632,7 @@ const ART = {
     <path d="M110 41 106 51" stroke="#ef4444" stroke-width="6" stroke-linecap="round"/>`,
 };
 const RULES = {
-  basics: ['How to play', 'Tap an arrow to send it sliding off the shape. Arrows can’t pass through each other, so clear the way first. Every bump costs a star.', 'Drag to spin · Pinch or scroll to zoom'],
+  basics: ['How to play', 'Tap an arrow to send it sliding off the shape. Arrows can’t pass through each other, so clear the way first. Every bump costs a star.', 'Hold an arrow to see where it would go · Drag to spin · Pinch or scroll to zoom'],
   blue: ['Blue turners', 'A blue marker steers every arrow that slides over it.'],
   two: ['Two-way arrows', 'Green-and-yellow arrows have a head on each end. Tap near the end you want to lead.'],
   yellow: ['Yellow edges', 'At a glowing yellow edge, arrows don’t fly off. They slide around onto the next side and keep going.'],
@@ -633,7 +673,7 @@ function showTutorial(n) {
 
 function showRules() {
   const list = Object.keys(RULES).map((k) => `<div class="rule">${art(k, '')}<div><b>${RULES[k][0]}</b><span>${RULES[k][1]}</span></div></div>`).join('');
-  showCard(`<h2>How to play</h2><div class="rules">${list}</div><p class="tip">Drag to spin · Pinch to zoom · Double-tap empty space to recenter</p>
+  showCard(`<h2>How to play</h2><div class="rules">${list}</div><p class="tip">Hold an arrow to see where it would go · Drag to spin · Pinch to zoom · Double-tap empty space to recenter</p>
     <div class="actions"><button class="btn btn-primary" data-action="close">Got it</button></div>`);
 }
 

@@ -36,6 +36,8 @@ const PURPLE_INK = rgba('#9b4dff');
 const BLUE_INK = rgba('#10a5f5');
 const PINK = rgba('#ff3896');
 const RED = rgba('#ef4444');
+const PATH = rgba('#00b894'); // the way a held arrow would go, when it's clear
+const HELD = rgba('#3b82f6', 0.45); // the glow round an arrow you're holding
 const EDGE_INK = rgba('#4f63a3', 0.85);
 const EDGE_GLOW = [1, 0.91, 0.25, 0.42];
 const EDGE_CORE = [1, 0.965, 0.59, 0.95];
@@ -265,6 +267,7 @@ export class Renderer {
     this.flash = new Map();
     this.hintPid = -1;
     this.hintStart = 0;
+    this.preview = null; // the arrow being held, and where it would go
     this.angles = new Map();
     this.spins = [];
     this.cam = null;
@@ -288,7 +291,7 @@ export class Renderer {
     this.flatProg = program(gl, FLAT_VS, FLAT_FS, ['aPos', 'aColor'], ['uMVP', 'uTint', 'uGhost']);
     this.glassProg = program(gl, GLASS_VS, GLASS_FS, ['aPos', 'aNormal', 'aShade'], ['uMVP', 'uRot', 'uLight', 'uBase', 'uLit', 'uAo', 'uAlpha']);
     this.bufs = {};
-    for (const k of ['glass', 'arrows', 'edges', 'yellow', 'dyn', 'hint', 'flash']) this.bufs[k] = gl.createBuffer();
+    for (const k of ['glass', 'arrows', 'edges', 'yellow', 'dyn', 'hint', 'flash', 'pathUnder', 'pathOver']) this.bufs[k] = gl.createBuffer();
     this.uploadedHint = -1;
   }
 
@@ -315,6 +318,7 @@ export class Renderer {
     this.flash.clear();
     this.spins = [];
     this.hintPid = -1;
+    this.preview = null;
     this.cam = null;
     this.vanishAt = 0;
     this.shrink = 1;
@@ -763,6 +767,51 @@ export class Renderer {
     this.spins.push({ cell, from, to: from + Math.PI, start: performance.now() });
   }
 
+  // Show the way arrow pid would go if tapped (way opt), from a traced move
+  // (board.tryMove(pid, opt, true)), without moving it.
+  setPreview(pid, opt, res) {
+    const p = this.board.pieces[pid];
+    const tracks = p.options[opt].map((sn, s) => this.track(sn.cells, res.pts ? res.pts[s] : [], res.ok ? res.exits[s] : null));
+    this.preview = { pid, opt, res, tracks, start: performance.now() };
+    this.needsDraw = true;
+  }
+
+  clearPreview() {
+    if (!this.preview) return;
+    this.preview = null;
+    this.needsDraw = true;
+  }
+
+  // The held arrow's way out as a dotted trail flowing from its head: off the
+  // shape and fading away if it's clear, or up to whatever stops it, marked
+  // red (with the arrow in the way lit up red). `under` goes beneath the
+  // arrows, `over` on top.
+  previewMeshes(now) {
+    const { pid, res, tracks, start } = this.preview, ok = res.ok;
+    const under = this.pathUnder || (this.pathUnder = new Mesh(1024)), over = this.pathOver || (this.pathOver = new Mesh(2048));
+    under.clear();
+    over.clear();
+    // Sizes in cells, but never so thin you can't see them on a big shape seen whole.
+    const px = 1 / this.s, ink = ok ? PATH : RED;
+    this.pieceMesh(under, this.board.pieces[pid], Math.max(BODY + 0.3, 8 * px), HELD, 1.4);
+    const width = Math.max(0.13, 3.5 * px), period = Math.max(0.8, 14 * px), dash = period * 0.55;
+    const shift = (((now - start) / 1000) * 3 * period) % period;
+    for (const tr of tracks) {
+      const from = tr.L, to = ok ? tr.exitAt + 2.5 : tr.cum[tr.cum.length - 1];
+      const color = (x) => withAlpha(ink, ok && x > tr.exitAt ? Math.max(0, 1 - (x - tr.exitAt) / 2.5) : 1);
+      for (let x = from - period + shift; x < to; x += period) {
+        const a = Math.max(from, x), b = Math.min(to, x + dash);
+        if (b - a > 0.02) this.strokeTrack(over, tr, a, b, width, color, false, false);
+      }
+      if (!ok) {
+        const end = this.pointAt(tr, to);
+        disc(over, end.p, end.f, Math.max(0.22, 6 * px), RED);
+      }
+    }
+    if (!ok && res.by >= 0 && this.board.present[res.by]) this.pieceMesh(over, this.board.pieces[res.by], Math.max(BODY + 0.04, 4 * px), RED, 1.05);
+    return { under, over };
+  }
+
   setHint(pid) {
     this.hintPid = pid;
     this.hintStart = performance.now();
@@ -820,6 +869,7 @@ export class Renderer {
       if (now - this.hintStart > 6000) this.hintPid = -1;
       busy = true;
     }
+    if (this.preview) busy = true;
     if (this.vanishAt) {
       const k = Math.min(1, (now - this.vanishAt) / 700);
       this.shrink = 1 - ease(k) * 0.9;
@@ -918,8 +968,23 @@ export class Renderer {
       const pulse = 0.5 + 0.4 * Math.sin((now - this.hintStart) / 160);
       this.drawFlat(B.hint, this.hintCount, [1, 1, 1, pulse * A], false);
     }
+    const path = this.preview && this.board.present[this.preview.pid] ? this.previewMeshes(now) : null;
+    if (path) {
+      gl.bindBuffer(gl.ARRAY_BUFFER, B.pathUnder);
+      gl.bufferData(gl.ARRAY_BUFFER, path.under.a.subarray(0, path.under.n * 7), gl.STREAM_DRAW);
+      this.drawFlat(B.pathUnder, path.under.n, [1, 1, 1, A], false);
+    }
     this.drawFlat(B.arrows, arrows, [1, 1, 1, A], false);
     this.drawFlat(B.dyn, dyn, [1, 1, 1, A], false);
+    if (path) {
+      // Where the way runs behind the shape it still shows, faintly.
+      gl.bindBuffer(gl.ARRAY_BUFFER, B.pathOver);
+      gl.bufferData(gl.ARRAY_BUFFER, path.over.a.subarray(0, path.over.n * 7), gl.STREAM_DRAW);
+      gl.depthFunc(gl.GREATER);
+      this.drawFlat(B.pathOver, path.over.n, [1, 1, 1, 0.45 * A], false);
+      gl.depthFunc(gl.LEQUAL);
+      this.drawFlat(B.pathOver, path.over.n, [1, 1, 1, A], false);
+    }
     for (const [pid, t0] of this.flash) {
       if (!this.board.present[pid]) continue;
       const fm = new Mesh(512);
