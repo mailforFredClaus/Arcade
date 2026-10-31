@@ -7,7 +7,7 @@
 // that involves purple markers, rejecting any level where a player could get
 // stuck. Same level number -> same level, on every device.
 
-import { buildShape, boxShape, opp, headDir, hiddenFaces, FLAT, CONVEX } from './topology.js';
+import { buildShape, boxShape, voxelize, opp, headDir, hiddenFaces, FLAT, CONVEX } from './topology.js';
 import { Board, pieceOptions, NORMAL, TWO_WAY, FORK, BLUE, PURPLE, FORWARD, IGNORE, REVERSE } from './rules.js';
 
 // Version 5 made the arrows longer and more tangled.
@@ -15,7 +15,8 @@ export const GEN_VERSION = 5;
 // The giant puzzles (Mega, Giga, Huge) have their own version, so tuning them
 // doesn't restart anyone's regular level. Bump it whenever they change: the
 // game keeps built giant puzzles on the device, tagged with this version.
-export const BIG_VERSION = 4;
+// (Version 5 gave them new, open shapes.)
+export const BIG_VERSION = 5;
 // The version their shapes and random seeds come from. Leaving it alone when
 // bumping BIG_VERSION keeps every giant puzzle's shape (version 4 only took
 // the arrows out of gaps too narrow to see into).
@@ -61,6 +62,15 @@ export function mix(...xs) {
   return h >>> 0;
 }
 
+// Working out a shape's surface takes a while for the giant ones, and every
+// step of making a level needs it, so it's done once per shape.
+const topos = new WeakMap();
+function topoOf(shape) {
+  let t = topos.get(shape);
+  if (!t) topos.set(shape, (t = buildShape(shape)));
+  return t;
+}
+
 function shuffle(R, a) {
   for (let i = a.length - 1; i > 0; i--) {
     const j = (R() * (i + 1)) | 0;
@@ -71,13 +81,26 @@ function shuffle(R, a) {
 
 // ---- shapes ------------------------------------------------------------------
 
-// Shape families for the regular modes and for Huge. Each is a few boxes
-// glued face to face; a box ending in 0 is cut away again.
+// Shape families for the regular modes. Each is a few boxes glued face to
+// face; a box ending in 0 is cut away again.
 const KINDS = ['bumps', 'steps', 'towers', 'arch', 'cross', 'ring', 'ell', 'yoke', 'pyramid', 'tee', 'stack'];
-// The big families, each with a size factor so that they all come out with
-// roughly the same number of arrows at the same size.
-const HUGE_SCALE = { city: 1.45, castle: 1.25, ziggurat: 1.72, bumps: 1, cross: 1.17, ring: 1.12, towers: 1.1 };
-const HUGE_KINDS = Object.keys(HUGE_SCALE);
+// The families for the giant puzzles (Mega, Giga, Huge). They're all open:
+// no deep, narrow gaps, so every side can be seen from one of the standard
+// views (square on, or across an edge or corner).
+const HUGE_KINDS = ['ziggurat', 'castle', 'bumps', 'stack', 'blocks', 'hills', 'diamond', 'pagoda', 'glyph',
+  'jack', 'stairs', 'robot', 'rocket', 'mushroom', 'house', 'plane', 'car'];
+
+// Pixel-art pictures for the 'glyph' family, built out of cubes.
+const GLYPHS = {
+  heart: ['.##...##.', '####.####', '#########', '#########', '.#######.', '..#####..', '...###...', '....#....'],
+  star: ['.....#.....', '....###....', '....###....', '###########', '.#########.', '..#######..', '..#######..', '.####.####.', '.###...###.', '##.......##'],
+  invader: ['..#.....#..', '..#.....#..', '..#######..', '.##.###.##.', '###########', '#.#######.#', '#.#.....#.#', '..##...##..'],
+  arrow: ['......#...', '......##..', '#########.', '##########', '#########.', '......##..', '......#...'],
+  mushroom: ['...####...', '.########.', '##..##..##', '##..##..##', '##########', '.########.', '...####...', '...####...', '...####...'],
+  ghost: ['...####...', '.########.', '##########', '##..##..##', '##..##..##', '##########', '##########', '##########', '#.##..##.#'],
+  crown: ['#...#...#', '##.###.##', '#########', '#########', '#########'],
+  house: ['....#....', '...###...', '..#####..', '.#######.', '#########', '.#######.', '.##...##.', '.##...##.', '.##...##.'],
+};
 
 export function makeShape(R, kind, s) {
   const ri = (lo, hi) => lo + ((R() * (Math.max(lo, hi) - lo + 1)) | 0);
@@ -174,17 +197,6 @@ export function makeShape(R, kind, s) {
       }
       break;
     }
-    case 'city': {
-      // A ground slab packed with towers in a few different heights.
-      const X = s + 4, Z = s + 4, base = 2, t = ri(2, 4);
-      const heights = [ri(3, half), ri(half, s), ri(3, s)];
-      add(0, 0, 0, X, base, Z);
-      const slots = [];
-      for (let x = 1; x + t <= X - 1; x += t + 1 + ri(0, 1)) for (let z = 1; z + t <= Z - 1; z += t + 1 + ri(0, 1)) slots.push([x, z]);
-      shuffle(R, slots);
-      for (const [x, z] of slots.slice(0, ri(6, 14))) add(x, base, z, x + t, base + heights[ri(0, 2)], z + t);
-      break;
-    }
     case 'castle': {
       // Thick walls round an open courtyard (an enclosed floor would trap
       // every arrow on it), tall corner towers and a gatehouse on each side.
@@ -200,8 +212,191 @@ export function makeShape(R, kind, s) {
       break;
     }
     case 'ziggurat': {
-      const k = ri(5, 6), t = Math.max(1, Math.round(s / (2 * k))), h = ri(2, 3), X = s + 4;
-      for (let i = 0; i < k && X - 2 * i * t >= 2; i++) add(i * t, i * h, i * t, X - i * t, (i + 1) * h, X - i * t);
+      // A stepped pyramid, often longer one way, with a temple on top.
+      const k = ri(4, 7), X = s + 4, Z = Math.round(X * (0.6 + R() * 0.4)), h = ri(2, Math.max(3, Math.round(s / 14)));
+      const t = Math.max(1, Math.round(Math.min(X, Z) / (2 * k + 3)));
+      let i = 0;
+      for (; i < k && Z - 2 * i * t >= 6; i++) add(i * t, i * h, i * t, X - i * t, (i + 1) * h, Z - i * t);
+      const m = i * t + t;
+      if (R() < 0.7 && Z - 2 * m >= 2) add(m, i * h, m, X - m, i * h + 2 * h, Z - m);
+      break;
+    }
+    case 'blocks': {
+      // Big cubes stuck together face to face, like a model built from toy bricks.
+      const k = Math.max(3, Math.round(s / 2.5));
+      const at = [[0, 0, 0]], taken = new Set(['0,0,0']);
+      for (let guard = 0, count = ri(4, 7); at.length < count && guard < 200; guard++) {
+        const p = at[ri(0, at.length - 1)].slice();
+        p[ri(0, 2)] += R() < 0.5 ? 1 : -1;
+        if (taken.has(p.join())) continue;
+        taken.add(p.join());
+        at.push(p);
+      }
+      for (const [x, y, z] of at) add(x * k, y * k, z * k, x * k + k, y * k + k, z * k + k);
+      break;
+    }
+    case 'hills': {
+      // Cone-shaped hills in terraces on a flat base, like a contour map.
+      // Gentle slopes, so every terrace is at least twice as wide as it is tall.
+      const X = Math.round(s * 1.5), step = ri(1, 2);
+      const hills = Array.from({ length: ri(3, 5) }, () => {
+        const r = ri(Math.max(5, Math.round(X / 6)), Math.max(6, Math.round(X / 2.5)));
+        return [ri(0, X), ri(0, X), r, ri(Math.max(2, r >> 2), Math.max(3, r >> 1))];
+      });
+      // One box per run of equal height along z.
+      for (let x = 0; x < X; x++) {
+        let z0 = 0, h0 = 0;
+        for (let z = 0; z <= X; z++) {
+          let h = 0;
+          if (z < X) {
+            let top = 0;
+            for (const [hx, hz, r, hh] of hills) top = Math.max(top, hh * (1 - Math.hypot(x + 0.5 - hx, z + 0.5 - hz) / r));
+            h = 2 + step * Math.floor(top / step);
+          }
+          if (h === h0) continue;
+          if (h0) add(x, 0, z0, x + 1, h0, z);
+          z0 = z;
+          h0 = h;
+        }
+      }
+      break;
+    }
+    case 'diamond': {
+      // A stepped double pyramid, like a cut gem, sometimes longer one way.
+      const k = ri(4, 6), t = Math.max(1, Math.round(s / (2 * k))), h = ri(Math.max(2, t >> 1), Math.max(2, t));
+      const X = 2 * k * t + 2, Z = R() < 0.5 ? X : X + 2 * t * ri(1, k), mid = k * h;
+      for (let i = 0; i < k; i++) {
+        add(i * t, mid + i * h, i * t, X - i * t, mid + (i + 1) * h, Z - i * t);
+        add(i * t, mid - (i + 1) * h, i * t, X - i * t, mid - i * h, Z - i * t);
+      }
+      break;
+    }
+    case 'pagoda': {
+      // Tiers that get smaller going up, each under a roof that juts out.
+      // Each tier is taller than its roof's overhang, so the eaves stay easy to see under.
+      const e = Math.max(2, Math.round(s / 12)), roof = Math.max(2, e >> 1), k = ri(3, 5), shrink = 0.6 + R() * 0.2;
+      const tier = Math.max(2 * e + 2, Math.round(s / (k + 1))), c = s + e;
+      let w = s, y = 0;
+      for (let i = 0; i < k; i++, w = Math.max(4, Math.round(w * shrink))) {
+        const h = w >> 1;
+        add(c - h, y, c - h, c + h, y + tier, c + h);
+        add(c - h - e, y + tier, c - h - e, c + h + e, y + tier + roof, c + h + e);
+        y += tier + roof;
+      }
+      add(c - 1, y, c - 1, c + 1, y + tier, c + 1);
+      break;
+    }
+    case 'plane': {
+      // An aeroplane: a long body, wide wings, a tail fin and tail wings.
+      const r = Math.max(2, Math.round(s / 7)), L = ri(7, 9) * r, span = ri(9, 12) * r, wt = Math.max(2, r >> 1), c = span >> 1;
+      add(c - r, 0, 0, c + r, 2 * r, L);
+      const wz = Math.round(L * 0.35), wd = ri(2, 3) * r;
+      add(0, r - (wt >> 1), wz, span, r - (wt >> 1) + wt, wz + wd);
+      const tz = L - 2 * r;
+      add(c - Math.round(span * 0.2), 2 * r - wt, tz, c + Math.round(span * 0.2), 2 * r, L);
+      add(c - (wt >> 1), 2 * r, tz, c - (wt >> 1) + wt, 2 * r + ri(2, 3) * r, L);
+      add(c - (r >> 1), r >> 1, -r, c + r - (r >> 1), 2 * r - (r >> 1), 0);
+      break;
+    }
+    case 'car': {
+      // A car: a long body on four wheels, with a cabin on top.
+      const u = Math.max(2, Math.round(s / 8)), W = 4 * u, L = ri(10, 12) * u, wh = 2 * u, bodyH = 2 * u;
+      add(0, u, 0, W, u + bodyH, L);
+      const cz = Math.round(L * 0.3);
+      add(u >> 1, u + bodyH, cz, W - (u >> 1), u + bodyH + 2 * u, cz + Math.round(L * 0.4));
+      for (const z of [u, L - u - wh]) {
+        add(-u, 0, z, 0, wh, z + wh);
+        add(W, 0, z, W + u, wh, z + wh);
+      }
+      break;
+    }
+    case 'jack': {
+      // A 3D cross whose arms each have their own length (now and then one is missing).
+      const c = Math.max(3, Math.round(s * 0.4)), o = 2 * s;
+      const arm = (i) => (i >= 3 && R() < 0.25 ? 0 : ri(Math.max(2, s >> 2), Math.max(3, Math.round(s * 0.8))));
+      const len = shuffle(R, [0, 1, 2, 3, 4, 5].map(arm));
+      add(o, o, o, o + c, o + c, o + c);
+      for (let a = 0; a < 3; a++) {
+        const lo = [o, o, o], hi = [o + c, o + c, o + c];
+        lo[a] = o - len[2 * a];
+        hi[a] = o;
+        add(lo[0], lo[1], lo[2], hi[0], hi[1], hi[2]);
+        lo[a] = o + c;
+        hi[a] = o + c + len[2 * a + 1];
+        add(lo[0], lo[1], lo[2], hi[0], hi[1], hi[2]);
+      }
+      break;
+    }
+    case 'stairs': {
+      // A giant flight of stairs, sometimes turning a corner at a landing.
+      const n = ri(4, 7), d = Math.max(2, Math.round(s / n)), h = Math.max(1, Math.round(d * (0.4 + R() * 0.5)));
+      const W = Math.max(4, Math.round(s * (0.4 + R() * 0.5)));
+      for (let i = 0; i < n; i++) add(0, 0, i * d, W, (i + 1) * h, (i + 1) * d);
+      if (R() < 0.6) {
+        // A landing, then a second flight off to the side.
+        const z = n * d, top = (n + 1) * h, m = ri(3, 6);
+        add(0, 0, z, W, top, z + W);
+        for (let i = 0; i < m; i++) add(W + i * d, 0, z, W + (i + 1) * d, top + (i + 1) * h, z + W);
+      }
+      break;
+    }
+    case 'robot': {
+      // A blocky robot: legs apart, arms at its sides, a head and an antenna.
+      const u = Math.max(2, Math.round(s / 9)), leg = 2 * u, gap = 2 * u + 2 * ri(0, u >> 1), bw = 2 * leg + gap;
+      const legH = ri(4, 6) * u, bodyH = ri(5, 7) * u, bd = ri(3, 4) * u, top = legH + bodyH;
+      add(0, 0, 0, leg, legH, bd);
+      add(leg + gap, 0, 0, bw, legH, bd);
+      add(0, legH, 0, bw, top, bd);
+      const armH = Math.round(bodyH * 0.85), aw = Math.max(2, u + ri(0, u));
+      add(-aw, top - armH, u >> 1, 0, top - u, bd - (u >> 1));
+      add(bw, top - armH, u >> 1, bw + aw, top - u, bd - (u >> 1));
+      const hw = Math.max(4, bw - 2 * u), hx = (bw - hw) >> 1, hh = ri(3, 4) * u;
+      add(hx, top, 0, hx + hw, top + hh, bd);
+      add((bw >> 1) - 1, top + hh, (bd >> 1) - 1, (bw >> 1) + 1, top + hh + 2 * u, (bd >> 1) + 1);
+      break;
+    }
+    case 'rocket': {
+      // A rocket standing on four fins, its body narrowing to a stepped nose.
+      const r = Math.max(3, Math.round(s / 5)), H = ri(5, 7) * r, f = Math.max(2, Math.round(r * (0.8 + R() * 0.6)));
+      const ft = Math.max(2, r >> 1), fh = Math.round(H * 0.35), c = r + f, c0 = c - (ft >> 1);
+      add(c - r, 0, c - r, c + r, H, c + r);
+      add(c - r - f, 0, c0, c - r, fh, c0 + ft);
+      add(c + r, 0, c0, c + r + f, fh, c0 + ft);
+      add(c0, 0, c - r - f, c0 + ft, fh, c - r);
+      add(c0, 0, c + r, c0 + ft, fh, c + r + f);
+      let y = H;
+      for (let w = r - Math.max(1, r >> 2); w >= 1; w -= Math.max(1, r >> 2)) {
+        add(c - w, y, c - w, c + w, y + Math.max(2, r >> 1), c + w);
+        y += Math.max(2, r >> 1);
+      }
+      break;
+    }
+    case 'mushroom': {
+      // A mushroom: a thick stem under a wide cap that domes up in steps.
+      const stem = Math.max(4, Math.round(s * (0.25 + R() * 0.15))), H = Math.round(s * (0.55 + R() * 0.2)), c = s;
+      add(c - (stem >> 1), 0, c - (stem >> 1), c + stem - (stem >> 1), H, c + stem - (stem >> 1));
+      const th = Math.max(2, Math.round(s / 7));
+      let w = s, y = H;
+      for (let i = 0; i < 4; i++, y += th, w = Math.round(w * 0.78)) add(c - (w >> 1), y, c - (w >> 1), c + w - (w >> 1), y + th, c + w - (w >> 1));
+      break;
+    }
+    case 'house': {
+      // A house with a stepped roof and a chimney.
+      const W = s, D = Math.round(s * (0.6 + R() * 0.3)), H = Math.round(s * (0.35 + R() * 0.2)), k = ri(3, 5);
+      const rt = Math.max(1, Math.round(W / (2 * k + 1))), rh = Math.max(1, Math.round(rt * (0.6 + R() * 0.6)));
+      add(0, 0, 0, W, H, D);
+      for (let i = 0; i < k; i++) add(i * rt, H + i * rh, -1, W - i * rt, H + (i + 1) * rh, D + 1);
+      const cw = Math.max(2, Math.round(s / 10)), cx = Math.round(W * 0.68);
+      add(cx, H, Math.round(D * 0.3), cx + cw, H + (k + 1) * rh, Math.round(D * 0.3) + cw);
+      break;
+    }
+    case 'glyph': {
+      // A pixel-art picture standing up, each pixel a cube.
+      const names = Object.keys(GLYPHS), rows = GLYPHS[names[ri(0, names.length - 1)]];
+      const b = Math.max(2, Math.round(s / 4)), H = rows.length;
+      rows.forEach((row, i) => {
+        for (let j = 0; j < row.length; j++) if (row[j] === '#') add(j * b, (H - 1 - i) * b, 0, j * b + b, (H - i) * b, b);
+      });
       break;
     }
     case 'bridge': {
@@ -226,6 +421,31 @@ export function makeShape(R, kind, s) {
     dims: [hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]],
     boxes: boxes.map((b) => [b[0] - lo[0], b[1] - lo[1], b[2] - lo[2], b[3] - lo[0], b[4] - lo[1], b[5] - lo[2], ...b.slice(6)]),
   };
+}
+
+// How many cell faces a shape's surface has.
+function surface(shape) {
+  const [X, Y, Z] = shape.dims, solid = voxelize(shape);
+  const at = (x, y, z) => x >= 0 && y >= 0 && z >= 0 && x < X && y < Y && z < Z && solid[(x * Y + y) * Z + z];
+  let n = 0;
+  for (let x = 0; x < X; x++) for (let y = 0; y < Y; y++) for (let z = 0; z < Z; z++) {
+    if (!solid[(x * Y + y) * Z + z]) continue;
+    n += !at(x + 1, y, z) + !at(x - 1, y, z) + !at(x, y + 1, z) + !at(x, y - 1, z) + !at(x, y, z + 1) + !at(x, y, z - 1);
+  }
+  return n;
+}
+
+// A shape of the given family with about `cells` cells on its surface: the
+// same random choices each time, scaled up or down until it's about right.
+export function sizedShape(seed, kind, cells) {
+  let s = Math.max(4, Math.round(Math.sqrt(cells / 6))), shape = null;
+  for (let tries = 0; tries < 5; tries++) {
+    shape = makeShape(rng(seed), kind, s);
+    const k = Math.sqrt(cells / surface(shape)), next = Math.max(4, Math.round(s * k));
+    if (Math.abs(k - 1) < 0.05 || next === s) break;
+    s = next;
+  }
+  return shape;
 }
 
 // How each tier of puzzle is built. size: how much bigger than a normal level
@@ -279,8 +499,14 @@ export function levelSpec(n, mode = 'levels') {
   if ((main && n <= 2) || intro) shape = boxShape([size, size, size]);
   else if (main && n === 3) shape = boxShape([4, 5, 1]);
   else if (big) {
-    const kind = HUGE_KINDS[(R() * HUGE_KINDS.length) | 0];
-    shape = makeShape(R, kind, Math.min(tt.cap, Math.round(size * HUGE_SCALE[kind])));
+    // Go through every family before any comes round again, and size the
+    // shape by how much surface it has, whatever the family.
+    const at = mode === 'huge' ? n - 1 : Math.floor(n / 50) - 1, k = HUGE_KINDS.length;
+    const cycle = (c) => shuffle(rng(mix(c, m, 0x6b1d)), HUGE_KINDS.slice());
+    const c = Math.floor(at / k), order = cycle(c);
+    // (and not the same one twice running where one round meets the next)
+    if (c > 0 && order[0] === cycle(c - 1)[k - 1]) [order[0], order[1]] = [order[1], order[0]];
+    shape = sizedShape(mix(n, m, 0x5a9e), order[at % k], 7 * size * size);
   }
   else if (size >= 5 && chance(main ? (n < 6 ? 0 : 0.5) : 0.6)) shape = makeShape(R, KINDS[(R() * KINDS.length) | 0], size - 1);
   else {
@@ -312,6 +538,8 @@ export function levelSpec(n, mode = 'levels') {
     shortLen: 3,
     joinBudget: 4000,
     joinTrials: 400,
+    // (A third round hardly adds anything on the giant puzzles, and takes a second.)
+    joinPasses: big ? 2 : 3,
     blue: 0, purple: 0, two: 0, fork: 0, yellow: 0,
   };
   const has = (k) => !main || n >= INTRO[k];
@@ -379,7 +607,7 @@ function showsFeature(level, feature) {
 // each change only if the level is still solvable.
 function interlock(level, spec, R) {
   if (spec.freeTarget >= 1) return;
-  const topo = buildShape(level.shape);
+  const topo = topoOf(level.shape);
   const isFree = (b, i) => b.pieces[i].options.some((o, k) => b.tryMove(i, k).ok);
   const start = new Board(topo, level);
   const free = [];
@@ -490,7 +718,7 @@ function blockersOf(board, pid, snakes) {
 // joined onto a neighbour where that costs nothing.
 function entwine(level, spec, R) {
   if (!spec.join) return;
-  const topo = buildShape(level.shape);
+  const topo = topoOf(level.shape);
   const { nbCell, planeOf } = topo;
   const pieces = level.pieces.map((p) => ({ ...p }));
   const P = pieces.length;
@@ -720,7 +948,7 @@ function entwine(level, spec, R) {
   // are tried first.
   const fewer = (before, after) => after < before;
   const lead = (m, e, z) => R() + 1 + (planeOf[z] !== planeOf[e] ? 0.5 : 0) + (m[1][1] ? 0 : 1);
-  for (let pass = 0, again = true; again && pass < 3; pass++) {
+  for (let pass = 0, again = true; again && pass < spec.joinPasses; pass++) {
     again = false;
     for (const x of shuffle(R, [...Array(P).keys()])) {
       if (!alive[x] || pieces[x].kind !== NORMAL || !isFree(ways[x])) continue;
@@ -746,7 +974,7 @@ function entwine(level, spec, R) {
 // fails if any of them can leave the player stuck. (No dead ends anywhere
 // also proves the level can be finished.)
 export function checkLevel(level, spec = null, opts = {}) {
-  const topo = buildShape(level.shape);
+  const topo = topoOf(level.shape);
   const fresh = new Board(topo, level);
   const dead = fresh.findDeadEnd(opts.budget ?? 30000);
   if (dead !== false) return { ok: false, why: dead ? 'a dead end is reachable' : 'too many orders to verify' };
@@ -777,7 +1005,7 @@ export function checkLevel(level, spec = null, opts = {}) {
 export function buildLevel(spec, seed) {
   const R = rng(seed);
   const ri = (k) => (R() * k) | 0;
-  const topo = buildShape(spec.shape);
+  const topo = topoOf(spec.shape);
   const { N, nbCell, nbDir, nbType, nbEdge, planeOf, gi, gj } = topo;
   const B = new Board(topo, {});
   const placed = [];
@@ -1067,7 +1295,9 @@ export function buildLevel(spec, seed) {
   }
 
   const target = Math.floor(spec.fill * (visible - markers.length));
-  const maxFails = 40 + (N >> 2);
+  // (The giant puzzles give up sooner: the last stretch of tries there takes
+  // seconds and hardly adds an arrow.)
+  const maxFails = 40 + (BIG_TIERS.has(spec.tier) ? N >> 4 : N >> 2);
   let fails = 0;
   while (covered < target && fails < maxFails) {
     const plans = [];
