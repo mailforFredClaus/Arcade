@@ -24,7 +24,11 @@ To publish a change: run `node tools/build-sw.mjs`, then commit and push to GitH
 
 Tap an arrow and it slides away head first, with its body following. The head always travels in a straight line on its own flat level of the shape. It carries on off the edge and across open gaps, so an arrow lying on that same level on another part of the shape can be in the way. The shape itself blocks it too: an arrow aimed into a concave corner, where a wall rises up in front of it, can't get out that way. If anything is in the way, the arrow bumps back and you lose one of your three stars.
 
-Shapes are built from cubes. You'll see plain boxes and flat slabs, plus cubes with bumps, stairs, towers, arches, crosses, rings, L and U shapes, pyramids, T shapes, stacks, and, in the biggest puzzles, cities, castles with courtyards, and ziggurats. Arrows only go where you can comfortably see and tap them. The walls deep inside a narrow gap (say between two tall towers) are left empty, because you could only ever see them edge-on.
+Shapes are built from cubes. You'll see plain boxes and flat slabs, plus cubes with bumps, stairs, towers, arches, crosses, rings, L and U shapes, pyramids, T shapes and stacks. Arrows only go where you can comfortably see and tap them. The walls deep inside a narrow gap (say between two tall towers) are left empty, because you could only ever see them edge-on.
+
+The giant puzzles (Mega, Giga and Huge) have shapes of their own, all open, with no deep narrow gaps: ziggurats, castles, toy-brick models, terraced hills, gems, pagodas, pixel-art pictures (a heart, a star, a space invader and more), 3D crosses, staircases, robots, rockets, mushrooms, houses, aeroplanes and cars, plus big blocks with bumps and stacks. Every side of them can be seen from one of the standard views. Huge goes through every kind before any comes round again.
+
+**Seeing the shape.** Sides facing the light are brighter, inside corners are shaded and the outside edges are outlined, so you can tell the sides apart. The little cube in the top corner turns with the shape and is labelled Front, Back, Left, Right, Top and Bottom. Tap one of its sides to look straight at that side of the shape (the side you're facing lights up). Its arrows turn a quarter turn: left and right spin the shape round like a turntable, up and down tip it. Zoomed in, you stay looking at the same spot.
 
 | Piece | What it does |
 |---|---|
@@ -36,10 +40,10 @@ Shapes are built from cubes. You'll see plain boxes and flat slabs, plus cubes w
 | Yellow edge | Arrows slide around it onto the next side instead of flying off. |
 
 **Modes** (pick from the Arcade menu or the ⚙ menu; each keeps its own progress):
-- **Levels**: the main run. New pieces arrive gradually: blue at level 4, two-way at 6, yellow edges at 8, purple at 12, forks at 14. Every 5th level is HARD (red), every 10th SUPER HARD (dark and gold), every 50th MEGA HARD (orange and pink) and every 100th GIGA HARD (black and neon, with 450+ arrows).
+- **Levels**: the main run. New pieces arrive gradually: blue at level 4, two-way at 6, yellow edges at 8, purple at 12, forks at 14. Every 5th level is HARD (red), every 10th SUPER HARD (dark and gold), every 50th MEGA HARD (orange and pink) and every 100th GIGA HARD (black and neon, with around 500 arrows).
 - **Hard**: endless hard puzzles with every piece.
 - **Super Hard**: endless super hard puzzles, big and dense.
-- **Huge**: enormous shapes made for chipping away at over many sittings. The first has about 1,700 arrows, and they grow to about 3,000. Every move is saved along with where you were looking, and there are no stars to lose. A new one takes a few seconds to build. After that it's kept on your phone, and the next one is built in the background while you finish the current one. Hint lights up an arrow that can leave, nearest to where you're looking, and turns and zooms the view to it if it's out of sight.
+- **Huge**: enormous shapes made for chipping away at over many sittings. The first has about 1,700 arrows, and they grow to about 3,500. Every move is saved along with where you were looking, and there are no stars to lose. A new one takes a few seconds to build. After that it's kept on your phone, and the next one is built in the background while you finish the current one. Hint lights up an arrow that can leave, nearest to where you're looking, and turns and zooms the view to it if it's out of sight.
 
 Levels are generated on the fly, so they never run out, and the same number always gives the same puzzle. You can jump to any number from the ⚙ menu.
 

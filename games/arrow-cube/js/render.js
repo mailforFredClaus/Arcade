@@ -22,6 +22,9 @@ const LIFT = 0.012; // arrows float this far above the glass
 const NV = FACE_DEFS.map((F) => F.n);
 const TAP_PX = 30; // how big a cell should be on screen when a hint shows it
 const LIGHT = norm3([-0.35, 0.75, 0.55]);
+// How much light reaches a corner of a cell with 3, 2, 1 or 0 of the cubes
+// around it rising up in front (ambient occlusion).
+const AO = [0.3, 0.58, 0.82, 1];
 
 const rgba = (hex, a = 1) => {
   const n = parseInt(hex.slice(1), 16);
@@ -33,7 +36,7 @@ const PURPLE_INK = rgba('#9b4dff');
 const BLUE_INK = rgba('#10a5f5');
 const PINK = rgba('#ff3896');
 const RED = rgba('#ef4444');
-const EDGE_WHITE = [1, 1, 1, 0.9];
+const EDGE_INK = rgba('#4f63a3', 0.85);
 const EDGE_GLOW = [1, 0.91, 0.25, 0.42];
 const EDGE_CORE = [1, 0.965, 0.59, 0.95];
 const GREEN = [34 / 255, 197 / 255, 94 / 255], YELLOW = [250 / 255, 204 / 255, 21 / 255];
@@ -111,6 +114,24 @@ export const quat = {
     return quat.norm(q);
   },
 };
+
+// The axis direction closest to v (only among those square to n, if given).
+function nearestAxis(v, n = null) {
+  let best = null, top = -Infinity;
+  for (const a of NV) {
+    if (n && Math.abs(dot3(a, n)) > 0.5) continue;
+    const d = dot3(a, v);
+    if (d > top) { top = d; best = a; }
+  }
+  return best;
+}
+
+// The view with side n facing you, square on. Sides are shown upright; the
+// top and bottom are turned so "up" on screen is as close to `up` as can be.
+function squareView(n, up) {
+  const y = n[1] ? nearestAxis(up, n) : [0, 1, 0], x = cross(y, n);
+  return quat.fromMat([x[0], x[1], x[2], y[0], y[1], y[2], n[0], n[1], n[2]]);
+}
 
 export function defaultView(dims) {
   const thin = Math.min(dims[0], dims[1]) >= 4 && dims[2] <= 2;
@@ -198,11 +219,12 @@ void main() {
   if (uGhost > 0.5) c = vec4(1.0, 1.0, 1.0, c.a * 0.92);
   gl_FragColor = vec4(c.rgb * c.a, c.a);
 }`;
-const GLASS_VS = `attribute vec3 aPos; attribute vec3 aNormal; uniform mat4 uMVP; uniform mat3 uRot;
-uniform vec3 uLight; uniform vec4 uBase; uniform vec4 uLit; varying vec4 vColor;
+const GLASS_VS = `attribute vec3 aPos; attribute vec3 aNormal; attribute float aShade; uniform mat4 uMVP; uniform mat3 uRot;
+uniform vec3 uLight; uniform vec4 uBase; uniform vec4 uLit; uniform float uAo; varying vec4 vColor;
 void main() {
   gl_Position = uMVP * vec4(aPos, 1.0);
   vColor = uBase + uLit * max(0.0, dot(uRot * aNormal, uLight));
+  vColor.rgb *= 1.0 - uAo * (1.0 - aShade);
 }`;
 const GLASS_FS = `precision mediump float; varying vec4 vColor; uniform float uAlpha;
 void main() { float a = vColor.a * uAlpha; gl_FragColor = vec4(vColor.rgb * a, a); }`;
@@ -264,9 +286,9 @@ export class Renderer {
   initGL() {
     const gl = this.gl;
     this.flatProg = program(gl, FLAT_VS, FLAT_FS, ['aPos', 'aColor'], ['uMVP', 'uTint', 'uGhost']);
-    this.glassProg = program(gl, GLASS_VS, GLASS_FS, ['aPos', 'aNormal'], ['uMVP', 'uRot', 'uLight', 'uBase', 'uLit', 'uAlpha']);
+    this.glassProg = program(gl, GLASS_VS, GLASS_FS, ['aPos', 'aNormal', 'aShade'], ['uMVP', 'uRot', 'uLight', 'uBase', 'uLit', 'uAo', 'uAlpha']);
     this.bufs = {};
-    for (const k of ['glass', 'arrows', 'white', 'yellow', 'dyn', 'hint', 'flash']) this.bufs[k] = gl.createBuffer();
+    for (const k of ['glass', 'arrows', 'edges', 'yellow', 'dyn', 'hint', 'flash']) this.bufs[k] = gl.createBuffer();
     this.uploadedHint = -1;
   }
 
@@ -312,14 +334,24 @@ export class Renderer {
   // Everything that only changes when arrows come and go.
   buildStatic() {
     const t = this.topo, b = this.board;
-    // Glass: one square per cell (position + normal).
-    const g = new Float32Array(t.N * 36);
+    // Glass: one square per cell (position, normal, and how open each corner
+    // is). Corners tucked into a crease are shaded darker, so inside corners
+    // and the floors of gaps read as such.
+    const g = new Float32Array(t.N * 42);
     for (let c = 0; c < t.N; c++) {
       const { n, u, v } = FACE_DEFS[t.nrm[c]];
       const P = this.cellPos(c);
-      const corner = (su, sv) => [P[0] + (u[0] * su + v[0] * sv) / 2, P[1] + (u[1] * su + v[1] * sv) / 2, P[2] + (u[2] * su + v[2] * sv) / 2];
-      const quad = [corner(-1, -1), corner(1, -1), corner(1, 1), corner(-1, -1), corner(1, 1), corner(-1, 1)];
-      quad.forEach((q, i) => g.set([q[0], q[1], q[2], n[0], n[1], n[2]], c * 36 + i * 6));
+      const x = t.vox[c * 3] + n[0], y = t.vox[c * 3 + 1] + n[1], z = t.vox[c * 3 + 2] + n[2]; // the space in front
+      const solid = (su, sv) => (t.isSolid(x + u[0] * su + v[0] * sv, y + u[1] * su + v[1] * sv, z + u[2] * su + v[2] * sv) ? 1 : 0);
+      const corner = (su, sv) => {
+        const s1 = solid(su, 0), s2 = solid(0, sv);
+        const open = s1 && s2 ? 0 : 3 - s1 - s2 - solid(su, sv);
+        return [P[0] + (u[0] * su + v[0] * sv) / 2, P[1] + (u[1] * su + v[1] * sv) / 2, P[2] + (u[2] * su + v[2] * sv) / 2, AO[open]];
+      };
+      const p00 = corner(-1, -1), p10 = corner(1, -1), p11 = corner(1, 1), p01 = corner(-1, 1);
+      // Split the square along the diagonal that keeps the shading smooth.
+      const quad = p00[3] + p11[3] >= p10[3] + p01[3] ? [p00, p10, p11, p00, p11, p01] : [p10, p11, p01, p10, p01, p00];
+      quad.forEach((q, i) => g.set([q[0], q[1], q[2], n[0], n[1], n[2], q[3]], c * 42 + i * 7));
     }
     this.glassData = g;
 
@@ -336,8 +368,8 @@ export class Renderer {
     this.arrowMesh = m;
     this.shown = new Uint8Array(b.pieces.length).fill(1);
 
-    // Edges: thin white lines, and glowing yellow ones that arrows wrap over.
-    const white = new Mesh(), yel = new Mesh();
+    // Edges: thin outlines, and glowing yellow ones that arrows wrap over.
+    const lines = new Mesh(), yel = new Mesh();
     for (const ed of t.edges) {
       const [c1, c2] = ed.cells, n1 = NV[t.nrm[c1]], n2 = NV[t.nrm[c2]];
       const strip = (mesh, n, inward, width, color) => {
@@ -355,11 +387,11 @@ export class Renderer {
           strip(yel, n, other, 0.075, EDGE_CORE);
         }
       } else {
-        strip(white, n1, n2, 0.03, EDGE_WHITE);
-        strip(white, n2, n1, 0.03, EDGE_WHITE);
+        strip(lines, n1, n2, 0.035, EDGE_INK);
+        strip(lines, n2, n1, 0.035, EDGE_INK);
       }
     }
-    this.whiteMesh = white;
+    this.edgeMesh = lines;
     this.yellowMesh = yel;
   }
 
@@ -369,8 +401,8 @@ export class Renderer {
     gl.bufferData(gl.ARRAY_BUFFER, this.glassData, gl.STATIC_DRAW);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.bufs.arrows);
     gl.bufferData(gl.ARRAY_BUFFER, this.arrowMesh.a.subarray(0, this.arrowMesh.n * 7), gl.DYNAMIC_DRAW);
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.bufs.white);
-    gl.bufferData(gl.ARRAY_BUFFER, this.whiteMesh.a.subarray(0, this.whiteMesh.n * 7), gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.bufs.edges);
+    gl.bufferData(gl.ARRAY_BUFFER, this.edgeMesh.a.subarray(0, this.edgeMesh.n * 7), gl.STATIC_DRAW);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.bufs.yellow);
     gl.bufferData(gl.ARRAY_BUFFER, this.yellowMesh.a.subarray(0, this.yellowMesh.n * 7), gl.STATIC_DRAW);
     this.shown.fill(1);
@@ -407,8 +439,12 @@ export class Renderer {
 
   // Scale so the shape fills the space between the top and bottom bars.
   fit() {
-    if (!this.topo) return;
-    const M = quat.toMat(this.q), C = this.topo.center, D = this.topo.dims;
+    if (this.topo) this.base = this.scaleFor(this.q);
+  }
+
+  // The scale at which the whole shape fills that space, seen in view q.
+  scaleFor(q) {
+    const M = quat.toMat(q), C = this.topo.center, D = this.topo.dims;
     let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
     for (let i = 0; i < 8; i++) {
       const p = rot(M, [(i & 1 ? D[0] : 0) - C[0], (i & 2 ? D[1] : 0) - C[1], (i & 4 ? D[2] : 0) - C[2]]);
@@ -417,7 +453,7 @@ export class Renderer {
     }
     const availW = Math.max(100, this.w - 28);
     const availH = Math.max(100, this.h - this.inset.top - this.inset.bottom - 20);
-    this.base = Math.min(availW / (x1 - x0), availH / (y1 - y0)) * 0.94;
+    return Math.min(availW / (x1 - x0), availH / (y1 - y0)) * 0.94;
   }
 
   cellPos(c) {
@@ -612,6 +648,40 @@ export class Renderer {
 
   resetView() {
     if (this.topo) this.animateView({ q: defaultView(this.topo.dims), zoom: 1, pan: [0, 0] });
+  }
+
+  // The view looking straight at side f of the shape (f numbered as in
+  // FACE_DEFS), reached by the smallest turn from the current view and then
+  // squared up so the shape sits level on screen.
+  faceView(f) {
+    const M = quat.toMat(this.q), n = NV[f];
+    const from = rot(M, n), axis = cross(from, [0, 0, 1]), s = Math.hypot(axis[0], axis[1], axis[2]);
+    const ang = Math.atan2(s, from[2]);
+    const turn = s > 1e-6 ? quat.axis(axis.map((x) => x / s), ang) : ang > 1 ? quat.axis([1, 0, 0], Math.PI) : [0, 0, 0, 1];
+    const T = quat.toMat(quat.mul(turn, this.q));
+    return squareView(n, [T[3], T[4], T[5]]);
+  }
+
+  // A quarter turn, landing square on a side: left and right (dx = -1, 1)
+  // spin the shape round its upright axis like a turntable, bringing the side
+  // on that side round to face you; up and down (dy = -1, 1) tip it towards
+  // or away from you.
+  quarterTurn(dx, dy) {
+    const q = dx ? quat.mul(this.q, quat.axis([0, 1, 0], (-dx * Math.PI) / 2)) : quat.mul(quat.axis([1, 0, 0], (-dy * Math.PI) / 2), this.q);
+    const T = quat.toMat(q);
+    return squareView(nearestAxis([T[6], T[7], T[8]]), [T[3], T[4], T[5]]);
+  }
+
+  // Turn to view q. Zoomed right out, the whole shape stays in view, as big
+  // as fits; zoomed in, the spot in the middle of the screen stays there.
+  turnTo(q) {
+    if (!this.topo) return;
+    if (this.zoom <= 1.05 * this.scaleFor(this.q) / this.base) {
+      return this.animateView({ q, zoom: this.scaleFor(q) / this.base, pan: [0, 0] }, 520);
+    }
+    const f = this.focus(), C = this.topo.center, s = this.base * this.zoom;
+    const v = rot(quat.toMat(q), [f[0] - C[0], f[1] - C[1], f[2] - C[2]]);
+    this.animateView({ q, pan: [-s * v[0], s * v[1]] }, 520);
   }
 
   // Turn and slide the view so cell c is in plain sight. A small shape is
@@ -833,7 +903,7 @@ export class Renderer {
 
     // 4. The nearest glass, frosting all of that.
     gl.depthFunc(gl.LEQUAL);
-    this.drawGlass([236 / 255, 243 / 255, 1, 0.5], [14 / 255, 10 / 255, 0, 0.2]);
+    this.drawGlass([168 / 255, 185 / 255, 230 / 255, 0.66], [128 / 255, 112 / 255, 60 / 255, 0.06], 0.75);
 
     // 5. Visible arrows.
     if (this.hintPid >= 0 && this.board.present[this.hintPid]) {
@@ -860,7 +930,7 @@ export class Renderer {
     }
 
     // 6. Edges.
-    this.drawFlat(B.white, this.whiteMesh.n, [1, 1, 1, A], false);
+    this.drawFlat(B.edges, this.edgeMesh.n, [1, 1, 1, A], false);
     this.drawFlat(B.yellow, this.yellowMesh.n, [1, 1, 1, A], false);
   }
 
@@ -879,21 +949,25 @@ export class Renderer {
     gl.drawArrays(gl.TRIANGLES, 0, count);
   }
 
-  drawGlass(base, lit) {
+  drawGlass(base, lit, ao = 0) {
     const gl = this.gl, P = this.glassProg;
     gl.useProgram(P.p);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.bufs.glass);
     gl.enableVertexAttribArray(0);
     gl.enableVertexAttribArray(1);
-    gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 24, 0);
-    gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 24, 12);
+    gl.enableVertexAttribArray(2);
+    gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 28, 0);
+    gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 28, 12);
+    gl.vertexAttribPointer(2, 1, gl.FLOAT, false, 28, 24);
     gl.uniformMatrix4fv(P.uMVP, false, this.mvp);
     gl.uniformMatrix3fv(P.uRot, false, this.rotMat);
     gl.uniform3fv(P.uLight, LIGHT);
     gl.uniform4fv(P.uBase, base);
     gl.uniform4fv(P.uLit, lit);
+    gl.uniform1f(P.uAo, ao);
     gl.uniform1f(P.uAlpha, this.alpha);
     gl.drawArrays(gl.TRIANGLES, 0, this.topo.N * 6);
+    gl.disableVertexAttribArray(2);
   }
 
   // ---- picking --------------------------------------------------------------------------

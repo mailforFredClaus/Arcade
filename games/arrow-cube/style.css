@@ -254,3 +254,70 @@ html, body { position: fixed; inset: 0; overflow: hidden; }
   -webkit-user-select: text;
   user-select: text;
 }
+
+/* The little cube in the corner: it turns with the shape, so you can tell
+   which side you're looking at. Tap one of its sides to look straight at
+   that side; the arrows turn a quarter turn to the next side over. */
+.viewcube {
+  position: fixed;
+  z-index: 4;
+  top: calc(var(--safe-top) + 68px);
+  right: 6px;
+  width: 100px;
+  height: 100px;
+  color: var(--blue-2);
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.tier-hard .viewcube { color: var(--red-2); }
+.tier-super .viewcube { color: #2c2160; }
+.tier-mega .viewcube { color: #e0237a; }
+.tier-giga .viewcube { color: #07070d; }
+.tier-huge .viewcube { color: #0c7f6c; }
+.vc-stage { position: absolute; left: 27px; top: 27px; width: 46px; height: 46px; cursor: pointer; }
+.vc-cube { position: absolute; inset: 0; transform-style: preserve-3d; pointer-events: none; }
+.vc-face {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border: 2px solid currentColor;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, .9);
+  font-weight: 900;
+  font-size: 9px;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+.vc-face.on { background: currentColor; }
+.vc-face.on span { color: #fff; }
+.vc-face[data-f="0"] { transform: rotateY(90deg) translateZ(23px); }
+.vc-face[data-f="1"] { transform: rotateY(-90deg) translateZ(23px); }
+.vc-face[data-f="2"] { transform: rotateX(90deg) translateZ(23px); }
+.vc-face[data-f="3"] { transform: rotateX(-90deg) translateZ(23px); }
+.vc-face[data-f="4"] { transform: translateZ(23px); }
+.vc-face[data-f="5"] { transform: rotateY(180deg) translateZ(23px); }
+.vc-turn {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: inherit;
+  background: rgba(255, 255, 255, .8);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .12);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.vc-turn:active { transform: scale(.9); }
+.vc-turn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; }
+.vc-turn[data-dy="-1"] { left: 38px; top: 0; }
+.vc-turn[data-dx="-1"] { left: 0; top: 38px; }
+.vc-turn[data-dx="1"] { left: 76px; top: 38px; }
+.vc-turn[data-dy="1"] { left: 38px; top: 76px; }

@@ -3,7 +3,7 @@
 import { buildShape } from './topology.js';
 import { Board, TWO_WAY } from './rules.js';
 import { BIG_TIERS, INTRO, MODES, generateLevel, tierOf, versionOf } from './generator.js';
-import { Renderer } from './render.js';
+import { Renderer, quat } from './render.js';
 import { store, settings, saveSettings, sfx, haptic, unlockAudio, lockViewport, registerOffline } from '../../../shared/arcade.js';
 
 const $ = (id) => document.getElementById(id);
@@ -287,11 +287,12 @@ function loop(now) {
     spinning = true;
   }
   if (renderer.frame(now) || spinning) requestDraw();
+  syncCube();
 }
 
 function layout() {
   const w = window.innerWidth, h = window.innerHeight;
-  const top = $('counter').getBoundingClientRect().bottom + 4;
+  const top = Math.max($('counter').getBoundingClientRect().bottom, $('viewCube').getBoundingClientRect().bottom - 12) + 4;
   const bottom = h - $('tools').getBoundingClientRect().top + 8;
   renderer.resize(w, h, Math.min(window.devicePixelRatio || 1, 3), { top, bottom });
   requestDraw();
@@ -707,6 +708,69 @@ $('menuBtn').addEventListener('click', () => { sfx('tap'); showSettings(); });
 $('hintBtn').addEventListener('click', hint);
 $('undoBtn').addEventListener('click', undo);
 $('viewBtn').addEventListener('click', () => { sfx('tap'); renderer.resetView(); requestDraw(); });
+
+// ---- the little cube in the corner ---------------------------------------------
+
+// It turns with the shape, labelled with the side each face stands for (in
+// FACE_DEFS order: +x, -x, +y, -y, +z, -z). The side you're looking straight
+// at lights up.
+$('vcCube').innerHTML = ['Right', 'Left', 'Top', 'Bottom', 'Front', 'Back']
+  .map((name, f) => `<div class="vc-face" data-f="${f}"><span>${name}</span></div>`).join('');
+const cubeFaces = [...$('vcCube').children];
+const FACE_N = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
+let cubeKey = '';
+
+function syncCube() {
+  const key = renderer.q.join();
+  if (key === cubeKey) return;
+  cubeKey = key;
+  const M = quat.toMat(renderer.q);
+  // The same turn as the shape, with y flipped for the page (y runs down there).
+  $('vcCube').style.transform = `matrix3d(${M[0]},${-M[3]},${M[6]},0,${-M[1]},${M[4]},${-M[7]},0,${M[2]},${-M[5]},${M[8]},0,0,0,0,1)`;
+  cubeFaces.forEach((el, f) => el.classList.toggle('on', M[6] * FACE_N[f][0] + M[7] * FACE_N[f][1] + M[8] * FACE_N[f][2] > 0.995));
+}
+
+// Which side of the little cube is under screen point (x, y), or -1.
+function cubeSideAt(x, y) {
+  const r = $('vcStage').getBoundingClientRect(), h = r.width / 2;
+  const vx = (x - r.left - h) / h, vy = -(y - r.top - h) / h;
+  const M = quat.toMat(renderer.q);
+  // Follow the line of sight into the cube, which spans -1..1 on each axis.
+  const o = [0, 1, 2].map((i) => M[i] * vx + M[3 + i] * vy + M[6 + i] * 4);
+  const d = [-M[6], -M[7], -M[8]];
+  let t0 = -Infinity, t1 = Infinity, side = -1;
+  for (let a = 0; a < 3; a++) {
+    if (Math.abs(d[a]) < 1e-9) {
+      if (Math.abs(o[a]) > 1) return -1;
+      continue;
+    }
+    const ta = (-1 - o[a]) / d[a], tb = (1 - o[a]) / d[a];
+    if (Math.min(ta, tb) > t0) { t0 = Math.min(ta, tb); side = a * 2 + (d[a] < 0 ? 0 : 1); }
+    t1 = Math.min(t1, Math.max(ta, tb));
+  }
+  return t0 <= t1 ? side : -1;
+}
+
+// (Taps anywhere on the widget count: seen at an angle, the cube reaches
+// beyond its square.)
+$('viewCube').addEventListener('click', (e) => {
+  if (e.target.closest('.vc-turn')) return;
+  const f = cubeSideAt(e.clientX, e.clientY);
+  if (f < 0 || !board) return;
+  sfx('tap');
+  spin = null;
+  renderer.turnTo(renderer.faceView(f));
+  requestDraw();
+});
+for (const b of document.querySelectorAll('.vc-turn')) {
+  b.addEventListener('click', () => {
+    if (!board) return;
+    sfx('tap');
+    spin = null;
+    renderer.turnTo(renderer.quarterTurn(+b.dataset.dx, +b.dataset.dy));
+    requestDraw();
+  });
+}
 
 // ---- confetti --------------------------------------------------------------------
 

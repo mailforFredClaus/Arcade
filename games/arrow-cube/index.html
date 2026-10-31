@@ -42,6 +42,24 @@
     <span id="count">0</span>
   </div>
 
+  <div class="viewcube" id="viewCube">
+    <button class="vc-turn" data-dx="0" data-dy="-1" aria-label="Turn to the side above">
+      <svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg>
+    </button>
+    <button class="vc-turn" data-dx="-1" data-dy="0" aria-label="Turn to the side on the left">
+      <svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg>
+    </button>
+    <div class="vc-stage" id="vcStage" role="group" aria-label="Tap a side of the little cube to look straight at it">
+      <div class="vc-cube" id="vcCube"></div>
+    </div>
+    <button class="vc-turn" data-dx="1" data-dy="0" aria-label="Turn to the side on the right">
+      <svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+    </button>
+    <button class="vc-turn" data-dx="0" data-dy="1" aria-label="Turn to the side below">
+      <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+    </button>
+  </div>
+
   <nav class="tools" id="tools">
     <button class="tool" id="hintBtn">
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.4a6.6 6.6 0 0 0-4 11.9c.7.5 1.1 1.3 1.1 2.1v.9h5.8v-.9c0-.8.4-1.6 1.1-2.1A6.6 6.6 0 0 0 12 2.4z"/><rect x="9.1" y="18.6" width="5.8" height="2.9" rx="1.3"/></svg>
