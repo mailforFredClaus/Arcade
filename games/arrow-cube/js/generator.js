@@ -15,8 +15,8 @@ export const GEN_VERSION = 5;
 // The giant puzzles (Mega, Giga, Huge) have their own version, so tuning them
 // doesn't restart anyone's regular level. Bump it whenever they change: the
 // game keeps built giant puzzles on the device, tagged with this version.
-// (Version 5 gave them new, open shapes.)
-export const BIG_VERSION = 5;
+// (Version 6 made them plain boxes with longer, more tangled arrows.)
+export const BIG_VERSION = 6;
 // The version their shapes and random seeds come from. Leaving it alone when
 // bumping BIG_VERSION keeps every giant puzzle's shape (version 4 only took
 // the arrows out of gaps too narrow to see into).
@@ -70,6 +70,12 @@ function topoOf(shape) {
   if (!t) topos.set(shape, (t = buildShape(shape)));
   return t;
 }
+const hiddens = new WeakMap();
+function hiddenOf(topo) {
+  let h = hiddens.get(topo);
+  if (!h) hiddens.set(topo, (h = hiddenFaces(topo)));
+  return h;
+}
 
 function shuffle(R, a) {
   for (let i = a.length - 1; i > 0; i--) {
@@ -84,24 +90,6 @@ function shuffle(R, a) {
 // Shape families for the regular modes. Each is a few boxes glued face to
 // face; a box ending in 0 is cut away again.
 const KINDS = ['bumps', 'steps', 'towers', 'arch', 'cross', 'ring', 'ell', 'yoke', 'pyramid', 'tee', 'stack'];
-// The families for the giant puzzles (Mega, Giga, Huge). They're all open:
-// no deep, narrow gaps, so every side can be seen from one of the standard
-// views (square on, or across an edge or corner).
-const HUGE_KINDS = ['ziggurat', 'castle', 'bumps', 'stack', 'blocks', 'hills', 'diamond', 'pagoda', 'glyph',
-  'jack', 'stairs', 'robot', 'rocket', 'mushroom', 'house', 'plane', 'car'];
-
-// Pixel-art pictures for the 'glyph' family, built out of cubes.
-const GLYPHS = {
-  heart: ['.##...##.', '####.####', '#########', '#########', '.#######.', '..#####..', '...###...', '....#....'],
-  star: ['.....#.....', '....###....', '....###....', '###########', '.#########.', '..#######..', '..#######..', '.####.####.', '.###...###.', '##.......##'],
-  invader: ['..#.....#..', '..#.....#..', '..#######..', '.##.###.##.', '###########', '#.#######.#', '#.#.....#.#', '..##...##..'],
-  arrow: ['......#...', '......##..', '#########.', '##########', '#########.', '......##..', '......#...'],
-  mushroom: ['...####...', '.########.', '##..##..##', '##..##..##', '##########', '.########.', '...####...', '...####...', '...####...'],
-  ghost: ['...####...', '.########.', '##########', '##..##..##', '##..##..##', '##########', '##########', '##########', '#.##..##.#'],
-  crown: ['#...#...#', '##.###.##', '#########', '#########', '#########'],
-  house: ['....#....', '...###...', '..#####..', '.#######.', '#########', '.#######.', '.##...##.', '.##...##.', '.##...##.'],
-};
-
 export function makeShape(R, kind, s) {
   const ri = (lo, hi) => lo + ((R() * (Math.max(lo, hi) - lo + 1)) | 0);
   const boxes = [];
@@ -197,214 +185,20 @@ export function makeShape(R, kind, s) {
       }
       break;
     }
-    case 'castle': {
-      // Thick walls round an open courtyard (an enclosed floor would trap
-      // every arrow on it), tall corner towers and a gatehouse on each side.
-      const X = s + 2, H = ri(Math.max(4, s >> 2), Math.max(4, half)), w = Math.max(3, Math.round(s / 6)), T = w + 2, mid = X >> 1;
-      add(0, 0, 0, X, H, X);
-      cut(w, 0, w, X - w, H, X - w);
-      for (const [x, z] of [[0, 0], [X - T, 0], [0, X - T], [X - T, X - T]]) add(x, 0, z, x + T, H + ri(3, 6), z + T);
-      const g = Math.max(2, w >> 1);
-      add(mid - 2, 0, -g, mid + 2, H + 2, 0);
-      add(mid - 2, 0, X, mid + 2, H + 2, X + g);
-      add(-g, 0, mid - 2, 0, H + 2, mid + 2);
-      add(X, 0, mid - 2, X + g, H + 2, mid + 2);
-      break;
-    }
-    case 'ziggurat': {
-      // A stepped pyramid, often longer one way, with a temple on top.
-      const k = ri(4, 7), X = s + 4, Z = Math.round(X * (0.6 + R() * 0.4)), h = ri(2, Math.max(3, Math.round(s / 14)));
-      const t = Math.max(1, Math.round(Math.min(X, Z) / (2 * k + 3)));
-      let i = 0;
-      for (; i < k && Z - 2 * i * t >= 6; i++) add(i * t, i * h, i * t, X - i * t, (i + 1) * h, Z - i * t);
-      const m = i * t + t;
-      if (R() < 0.7 && Z - 2 * m >= 2) add(m, i * h, m, X - m, i * h + 2 * h, Z - m);
-      break;
-    }
-    case 'blocks': {
-      // Big cubes stuck together face to face, like a model built from toy bricks.
-      const k = Math.max(3, Math.round(s / 2.5));
-      const at = [[0, 0, 0]], taken = new Set(['0,0,0']);
-      for (let guard = 0, count = ri(4, 7); at.length < count && guard < 200; guard++) {
-        const p = at[ri(0, at.length - 1)].slice();
-        p[ri(0, 2)] += R() < 0.5 ? 1 : -1;
-        if (taken.has(p.join())) continue;
-        taken.add(p.join());
-        at.push(p);
-      }
-      for (const [x, y, z] of at) add(x * k, y * k, z * k, x * k + k, y * k + k, z * k + k);
-      break;
-    }
-    case 'hills': {
-      // Cone-shaped hills in terraces on a flat base, like a contour map.
-      // Gentle slopes, so every terrace is at least twice as wide as it is tall.
-      const X = Math.round(s * 1.5), step = ri(1, 2);
-      const hills = Array.from({ length: ri(3, 5) }, () => {
-        const r = ri(Math.max(5, Math.round(X / 6)), Math.max(6, Math.round(X / 2.5)));
-        return [ri(0, X), ri(0, X), r, ri(Math.max(2, r >> 2), Math.max(3, r >> 1))];
-      });
-      // One box per run of equal height along z.
-      for (let x = 0; x < X; x++) {
-        let z0 = 0, h0 = 0;
-        for (let z = 0; z <= X; z++) {
-          let h = 0;
-          if (z < X) {
-            let top = 0;
-            for (const [hx, hz, r, hh] of hills) top = Math.max(top, hh * (1 - Math.hypot(x + 0.5 - hx, z + 0.5 - hz) / r));
-            h = 2 + step * Math.floor(top / step);
-          }
-          if (h === h0) continue;
-          if (h0) add(x, 0, z0, x + 1, h0, z);
-          z0 = z;
-          h0 = h;
-        }
-      }
-      break;
-    }
-    case 'diamond': {
-      // A stepped double pyramid, like a cut gem, sometimes longer one way.
-      const k = ri(4, 6), t = Math.max(1, Math.round(s / (2 * k))), h = ri(Math.max(2, t >> 1), Math.max(2, t));
-      const X = 2 * k * t + 2, Z = R() < 0.5 ? X : X + 2 * t * ri(1, k), mid = k * h;
-      for (let i = 0; i < k; i++) {
-        add(i * t, mid + i * h, i * t, X - i * t, mid + (i + 1) * h, Z - i * t);
-        add(i * t, mid - (i + 1) * h, i * t, X - i * t, mid - i * h, Z - i * t);
-      }
-      break;
-    }
-    case 'pagoda': {
-      // Tiers that get smaller going up, each under a roof that juts out.
-      // Each tier is taller than its roof's overhang, so the eaves stay easy to see under.
-      const e = Math.max(2, Math.round(s / 12)), roof = Math.max(2, e >> 1), k = ri(3, 5), shrink = 0.6 + R() * 0.2;
-      const tier = Math.max(2 * e + 2, Math.round(s / (k + 1))), c = s + e;
-      let w = s, y = 0;
-      for (let i = 0; i < k; i++, w = Math.max(4, Math.round(w * shrink))) {
-        const h = w >> 1;
-        add(c - h, y, c - h, c + h, y + tier, c + h);
-        add(c - h - e, y + tier, c - h - e, c + h + e, y + tier + roof, c + h + e);
-        y += tier + roof;
-      }
-      add(c - 1, y, c - 1, c + 1, y + tier, c + 1);
-      break;
-    }
-    case 'plane': {
-      // An aeroplane: a long body, wide wings, a tail fin and tail wings.
-      const r = Math.max(2, Math.round(s / 7)), L = ri(7, 9) * r, span = ri(9, 12) * r, wt = Math.max(2, r >> 1), c = span >> 1;
-      add(c - r, 0, 0, c + r, 2 * r, L);
-      const wz = Math.round(L * 0.35), wd = ri(2, 3) * r;
-      add(0, r - (wt >> 1), wz, span, r - (wt >> 1) + wt, wz + wd);
-      const tz = L - 2 * r;
-      add(c - Math.round(span * 0.2), 2 * r - wt, tz, c + Math.round(span * 0.2), 2 * r, L);
-      add(c - (wt >> 1), 2 * r, tz, c - (wt >> 1) + wt, 2 * r + ri(2, 3) * r, L);
-      add(c - (r >> 1), r >> 1, -r, c + r - (r >> 1), 2 * r - (r >> 1), 0);
-      break;
-    }
-    case 'car': {
-      // A car: a long body on four wheels, with a cabin on top.
-      const u = Math.max(2, Math.round(s / 8)), W = 4 * u, L = ri(10, 12) * u, wh = 2 * u, bodyH = 2 * u;
-      add(0, u, 0, W, u + bodyH, L);
-      const cz = Math.round(L * 0.3);
-      add(u >> 1, u + bodyH, cz, W - (u >> 1), u + bodyH + 2 * u, cz + Math.round(L * 0.4));
-      for (const z of [u, L - u - wh]) {
-        add(-u, 0, z, 0, wh, z + wh);
-        add(W, 0, z, W + u, wh, z + wh);
-      }
-      break;
-    }
-    case 'jack': {
-      // A 3D cross whose arms each have their own length (now and then one is missing).
-      const c = Math.max(3, Math.round(s * 0.4)), o = 2 * s;
-      const arm = (i) => (i >= 3 && R() < 0.25 ? 0 : ri(Math.max(2, s >> 2), Math.max(3, Math.round(s * 0.8))));
-      const len = shuffle(R, [0, 1, 2, 3, 4, 5].map(arm));
-      add(o, o, o, o + c, o + c, o + c);
-      for (let a = 0; a < 3; a++) {
-        const lo = [o, o, o], hi = [o + c, o + c, o + c];
-        lo[a] = o - len[2 * a];
-        hi[a] = o;
-        add(lo[0], lo[1], lo[2], hi[0], hi[1], hi[2]);
-        lo[a] = o + c;
-        hi[a] = o + c + len[2 * a + 1];
-        add(lo[0], lo[1], lo[2], hi[0], hi[1], hi[2]);
-      }
-      break;
-    }
-    case 'stairs': {
-      // A giant flight of stairs, sometimes turning a corner at a landing.
-      const n = ri(4, 7), d = Math.max(2, Math.round(s / n)), h = Math.max(1, Math.round(d * (0.4 + R() * 0.5)));
-      const W = Math.max(4, Math.round(s * (0.4 + R() * 0.5)));
-      for (let i = 0; i < n; i++) add(0, 0, i * d, W, (i + 1) * h, (i + 1) * d);
-      if (R() < 0.6) {
-        // A landing, then a second flight off to the side.
-        const z = n * d, top = (n + 1) * h, m = ri(3, 6);
-        add(0, 0, z, W, top, z + W);
-        for (let i = 0; i < m; i++) add(W + i * d, 0, z, W + (i + 1) * d, top + (i + 1) * h, z + W);
-      }
-      break;
-    }
-    case 'robot': {
-      // A blocky robot: legs apart, arms at its sides, a head and an antenna.
-      const u = Math.max(2, Math.round(s / 9)), leg = 2 * u, gap = 2 * u + 2 * ri(0, u >> 1), bw = 2 * leg + gap;
-      const legH = ri(4, 6) * u, bodyH = ri(5, 7) * u, bd = ri(3, 4) * u, top = legH + bodyH;
-      add(0, 0, 0, leg, legH, bd);
-      add(leg + gap, 0, 0, bw, legH, bd);
-      add(0, legH, 0, bw, top, bd);
-      const armH = Math.round(bodyH * 0.85), aw = Math.max(2, u + ri(0, u));
-      add(-aw, top - armH, u >> 1, 0, top - u, bd - (u >> 1));
-      add(bw, top - armH, u >> 1, bw + aw, top - u, bd - (u >> 1));
-      const hw = Math.max(4, bw - 2 * u), hx = (bw - hw) >> 1, hh = ri(3, 4) * u;
-      add(hx, top, 0, hx + hw, top + hh, bd);
-      add((bw >> 1) - 1, top + hh, (bd >> 1) - 1, (bw >> 1) + 1, top + hh + 2 * u, (bd >> 1) + 1);
-      break;
-    }
-    case 'rocket': {
-      // A rocket standing on four fins, its body narrowing to a stepped nose.
-      const r = Math.max(3, Math.round(s / 5)), H = ri(5, 7) * r, f = Math.max(2, Math.round(r * (0.8 + R() * 0.6)));
-      const ft = Math.max(2, r >> 1), fh = Math.round(H * 0.35), c = r + f, c0 = c - (ft >> 1);
-      add(c - r, 0, c - r, c + r, H, c + r);
-      add(c - r - f, 0, c0, c - r, fh, c0 + ft);
-      add(c + r, 0, c0, c + r + f, fh, c0 + ft);
-      add(c0, 0, c - r - f, c0 + ft, fh, c - r);
-      add(c0, 0, c + r, c0 + ft, fh, c + r + f);
-      let y = H;
-      for (let w = r - Math.max(1, r >> 2); w >= 1; w -= Math.max(1, r >> 2)) {
-        add(c - w, y, c - w, c + w, y + Math.max(2, r >> 1), c + w);
-        y += Math.max(2, r >> 1);
-      }
-      break;
-    }
-    case 'mushroom': {
-      // A mushroom: a thick stem under a wide cap that domes up in steps.
-      const stem = Math.max(4, Math.round(s * (0.25 + R() * 0.15))), H = Math.round(s * (0.55 + R() * 0.2)), c = s;
-      add(c - (stem >> 1), 0, c - (stem >> 1), c + stem - (stem >> 1), H, c + stem - (stem >> 1));
-      const th = Math.max(2, Math.round(s / 7));
-      let w = s, y = H;
-      for (let i = 0; i < 4; i++, y += th, w = Math.round(w * 0.78)) add(c - (w >> 1), y, c - (w >> 1), c + w - (w >> 1), y + th, c + w - (w >> 1));
-      break;
-    }
-    case 'house': {
-      // A house with a stepped roof and a chimney.
-      const W = s, D = Math.round(s * (0.6 + R() * 0.3)), H = Math.round(s * (0.35 + R() * 0.2)), k = ri(3, 5);
-      const rt = Math.max(1, Math.round(W / (2 * k + 1))), rh = Math.max(1, Math.round(rt * (0.6 + R() * 0.6)));
-      add(0, 0, 0, W, H, D);
-      for (let i = 0; i < k; i++) add(i * rt, H + i * rh, -1, W - i * rt, H + (i + 1) * rh, D + 1);
-      const cw = Math.max(2, Math.round(s / 10)), cx = Math.round(W * 0.68);
-      add(cx, H, Math.round(D * 0.3), cx + cw, H + (k + 1) * rh, Math.round(D * 0.3) + cw);
-      break;
-    }
-    case 'glyph': {
-      // A pixel-art picture standing up, each pixel a cube.
-      const names = Object.keys(GLYPHS), rows = GLYPHS[names[ri(0, names.length - 1)]];
-      const b = Math.max(2, Math.round(s / 4)), H = rows.length;
-      rows.forEach((row, i) => {
-        for (let j = 0; j < row.length; j++) if (row[j] === '#') add(j * b, (H - 1 - i) * b, 0, j * b + b, (H - i) * b, b);
-      });
-      break;
-    }
     case 'bridge': {
       const X = s + 6, Z = ri(4, 6), H = ri(half, s - 2), p = 4, mid = X >> 1;
       add(0, 0, 0, p, H + 2, Z + 2);
       add(X - p, 0, 0, X, H + 2, Z + 2);
       add(0, H - 2, 1, X, H, Z + 1);
       add(mid - 1, 0, 1, mid + 1, H - 2, Z + 1);
+      break;
+    }
+    case 'box': {
+      // The giant puzzles: a plain box, in one of a few proportions. Every
+      // side is one flat face with nothing else on its level, so it's easy to
+      // see what could be in an arrow's way even zoomed right in.
+      const [a, b, c] = [[1, 1, 1], [1.4, 0.8, 1.1], [0.7, 1.7, 0.7], [1.6, 0.5, 1.3], [1.9, 0.75, 0.75]][ri(0, 4)];
+      add(0, 0, 0, Math.max(3, Math.round(s * a)), Math.max(3, Math.round(s * b)), Math.max(3, Math.round(s * c)));
       break;
     }
     default:
@@ -456,9 +250,9 @@ const TIERS = {
   normal: { size: 0, cap: 12, fill: 0.93, maxLen: 12, choices: 5, chain: 1.5, rim: 3, candidates: 3, free: 0.25, odds: 0.4, markers: 2, edges: 3 },
   hard: { size: 1, cap: 13, fill: 0.97, maxLen: 12, choices: 8, chain: 2, rim: 4, candidates: 4, free: 0.15, odds: 0.6, markers: 2, edges: 3 },
   super: { size: 3, cap: 14, fill: 0.985, maxLen: 13, choices: 10, chain: 2.6, rim: 5, candidates: 3, free: 0.08, odds: 0.85, markers: 3, edges: 4 },
-  mega: { size: 8, cap: 22, fill: 0.97, maxLen: 10, choices: 6, chain: 2.6, rim: 5, candidates: 1, free: 0.1, odds: 0.9, markers: 4, edges: 5 },
-  giga: { size: 14, cap: 30, fill: 0.96, maxLen: 8, choices: 4, chain: 2.4, rim: 5, candidates: 1, free: 0.12, odds: 0.95, markers: 5, edges: 5 },
-  huge: { size: 0, cap: 90, fill: 0.95, maxLen: 6, choices: 4, chain: 2.4, rim: 4, candidates: 1, free: 0.15, odds: 0.85, markers: 14, edges: 10 },
+  mega: { size: 8, cap: 22, fill: 0.97, maxLen: 14, choices: 6, chain: 2.6, rim: 5, candidates: 1, free: 0.03, odds: 0.9, markers: 4, edges: 5 },
+  giga: { size: 14, cap: 30, fill: 0.96, maxLen: 14, choices: 4, chain: 2.4, rim: 5, candidates: 1, free: 0.03, odds: 0.95, markers: 5, edges: 5 },
+  huge: { size: 0, cap: 90, fill: 0.95, maxLen: 14, choices: 4, chain: 2.4, rim: 4, candidates: 1, free: 0.03, odds: 0.85, markers: 14, edges: 10 },
 };
 
 export function levelSpec(n, mode = 'levels') {
@@ -499,14 +293,8 @@ export function levelSpec(n, mode = 'levels') {
   if ((main && n <= 2) || intro) shape = boxShape([size, size, size]);
   else if (main && n === 3) shape = boxShape([4, 5, 1]);
   else if (big) {
-    // Go through every family before any comes round again, and size the
-    // shape by how much surface it has, whatever the family.
-    const at = mode === 'huge' ? n - 1 : Math.floor(n / 50) - 1, k = HUGE_KINDS.length;
-    const cycle = (c) => shuffle(rng(mix(c, m, 0x6b1d)), HUGE_KINDS.slice());
-    const c = Math.floor(at / k), order = cycle(c);
-    // (and not the same one twice running where one round meets the next)
-    if (c > 0 && order[0] === cycle(c - 1)[k - 1]) [order[0], order[1]] = [order[1], order[0]];
-    shape = sizedShape(mix(n, m, 0x5a9e), order[at % k], 7 * size * size);
+    // A plain box, sized by how much surface it has.
+    shape = sizedShape(mix(n, m, 0x5a9e), 'box', 7 * size * size);
   }
   else if (size >= 5 && chance(main ? (n < 6 ? 0 : 0.5) : 0.6)) shape = makeShape(R, KINDS[(R() * KINDS.length) | 0], size - 1);
   else {
@@ -521,7 +309,7 @@ export function levelSpec(n, mode = 'levels') {
     n, mode, tier, intro, shape,
     fill: early ? (n === 1 ? 0.55 : 0.75) : tt.fill,
     minLen: 2,
-    maxLen: early ? 3 : Math.min(tt.maxLen + 4, 2 * size + 2),
+    maxLen: early ? 3 : big ? tt.maxLen : Math.min(tt.maxLen + 4, 2 * size + 2),
     straight: 0.5,
     aim: intro ? 0.45 : 0.3,
     inward: early ? 0 : 1.6,
@@ -532,14 +320,20 @@ export function levelSpec(n, mode = 'levels') {
     candidates: early ? 1 : young ? 2 : tt.candidates,
     freeTarget: early ? 1 : young ? 0.4 : tt.free,
     fastInterlock: big,
-    // Joining arrows into long ones (see entwine()): the longest an arrow gets.
+    // The giant puzzles' big faces: try every way out for a new arrow, and
+    // look at more spots for it, so they fill up.
+    anyWay: big,
+    samples: big ? 20 : 6,
+    // Joining arrows into long ones (see entwine()): the longest an arrow
+    // gets, and how short an arrow must be to get joined onto a neighbour
+    // even when that frees nothing. On the giant puzzles arrows also grow
+    // into empty cells, and two-way arrows can become one-way.
     join: !early,
-    joinLen: young ? size + 4 : big ? 24 : Math.round(2.5 * size) + 2,
-    shortLen: 3,
+    joinLen: young ? size + 4 : big ? 50 : Math.round(2.5 * size) + 2,
+    shortLen: big ? 14 : 3,
+    grow: big,
     joinBudget: 4000,
     joinTrials: 400,
-    // (A third round hardly adds anything on the giant puzzles, and takes a second.)
-    joinPasses: big ? 2 : 3,
     blue: 0, purple: 0, two: 0, fork: 0, yellow: 0,
   };
   const has = (k) => !main || n >= INTRO[k];
@@ -548,6 +342,12 @@ export function levelSpec(n, mode = 'levels') {
   if (has('blue')) spec.blue = chance(p) ? upTo(tt.markers) : 0;
   if (has('two')) spec.two = chance(p + 0.1) ? 0.08 + R() * 0.12 : 0;
   if (has('yellow')) spec.yellow = chance(p) ? upTo(tt.edges) : 0;
+  // A box has only twelve edges, and every arrow aimed at a yellow one goes
+  // round onto the next side instead of leaving: too many, and arrows can
+  // hardly get off the shape at all.
+  if (big) spec.yellow = Math.min(spec.yellow, 2);
+  // Two-way arrows have two chances to be free, so the giant puzzles have fewer.
+  if (big) spec.two = Math.min(spec.two, 0.1);
   // Purple markers make a puzzle slow to check for dead ends, so the very
   // biggest ones go without.
   if (has('purple')) spec.purple = tier !== 'giga' && tier !== 'huge' && chance(p) ? upTo(2) : 0;
@@ -719,7 +519,7 @@ function blockersOf(board, pid, snakes) {
 function entwine(level, spec, R) {
   if (!spec.join) return;
   const topo = topoOf(level.shape);
-  const { nbCell, planeOf } = topo;
+  const { nbCell, nbDir, planeOf } = topo;
   const pieces = level.pieces.map((p) => ({ ...p }));
   const P = pieces.length;
   const board = new Board(topo, level);
@@ -730,6 +530,10 @@ function entwine(level, spec, R) {
   const alive = new Uint8Array(P).fill(1);
   const len = (i) => pieces[i].cells.length;
   const markers = level.redirectors.map((r) => r.cell);
+  // Cells no arrow is on yet, that one could go on.
+  const hidden = hiddenOf(topo), marked = new Uint8Array(topo.N);
+  for (const c of markers) marked[c] = 1;
+  const empty = (c) => occ[c] < 0 && !marked[c] && !hidden[c];
 
   // The cells each way of leaving crosses (null if it never works). Without
   // purple markers that never changes, and the puzzle is just "this arrow
@@ -846,9 +650,9 @@ function entwine(level, spec, R) {
     return true;
   }
 
-  // Give some arrows new cells (null removes the arrow). Keeps the change and
-  // returns true if `accept(arrows free before, after)` agrees and the level
-  // still works; otherwise puts everything back.
+  // Give some arrows new cells (null removes the arrow), and maybe a new kind.
+  // Keeps the change and returns true if `accept(arrows free before, after)`
+  // agrees and the level still works; otherwise puts everything back.
   let purpleTrials = 0;
   function change(edits, accept) {
     const touched = new Set(), oldOcc = [], old = edits.map(([id]) => [id, rays[id]]), oldWays = new Map();
@@ -864,10 +668,10 @@ function entwine(level, spec, R) {
       for (const c of pieces[id].cells) take(c, -1);
     }
     let ok = true;
-    for (const [id, cells] of edits) {
+    for (const [id, cells, kind = pieces[id].kind] of edits) {
       if (!cells) { alive[id] = 0; continue; }
       for (const c of cells) take(c, id);
-      rays[id] = raysOf(id, { ...pieces[id], cells });
+      rays[id] = raysOf(id, { ...pieces[id], cells, kind });
       if (!rays[id].some(Boolean)) ok = false;
     }
     let f = free;
@@ -886,8 +690,8 @@ function entwine(level, spec, R) {
       if (![...touched].some((i) => alive[i] && rays[i].some((cells) => cells && cells.includes(c)))) { ok = false; break; }
     }
     if (ok && purple) {
-      const now = new Map(edits);
-      const trial = { ...level, pieces: pieces.map((p, i) => (now.has(i) ? { ...p, cells: now.get(i) } : p)).filter((p, i) => alive[i]) };
+      const now = new Map(edits.map(([id, cells, kind = pieces[id].kind]) => [id, { cells, kind }]));
+      const trial = { ...level, pieces: pieces.map((p, i) => (now.has(i) ? { ...p, ...now.get(i) } : p)).filter((p, i) => alive[i]) };
       ok = ++purpleTrials <= spec.joinTrials && new Board(topo, trial).findDeadEnd(spec.joinBudget) === false;
     } else if (ok) ok = relink(touched);
     if (!ok) {
@@ -897,9 +701,10 @@ function entwine(level, spec, R) {
       return false;
     }
     for (const [id, rs] of old) index(id, rs, false);
-    for (const [id, cells] of edits) {
+    for (const [id, cells, kind] of edits) {
       if (!cells) continue;
       pieces[id].cells = cells;
+      if (kind !== undefined) pieces[id].kind = kind;
       index(id, rays[id], true);
     }
     free = f;
@@ -929,6 +734,23 @@ function entwine(level, spec, R) {
     }
     return out;
   }
+  // Ways arrow x could grow from its end e into empty cells (one to three in
+  // a straight line), its head moving to the far end of them: that way it
+  // often reaches round an edge and points into the crowd on the next side.
+  function growsAt(x, e) {
+    const X = pieces[x].cells, xc = e === X[X.length - 1] ? X : rev(X), out = [], path = [];
+    for (let k = 0; k < 4; k++) {
+      path.length = 0;
+      for (let c = nbCell[e * 4 + k], d = nbDir[e * 4 + k]; path.length < 3 && empty(c) && !path.includes(c);) {
+        path.push(c);
+        if (fits(xc.concat(path))) out.push([[x, xc.concat(path)]]);
+        const step = c * 4 + d;
+        c = nbCell[step];
+        d = nbDir[step];
+      }
+    }
+    return out;
+  }
   // Every merge at either end of arrow x, scored by `rate`, best first.
   function movesFor(x, rate) {
     const X = pieces[x].cells, moves = [];
@@ -948,11 +770,21 @@ function entwine(level, spec, R) {
   // are tried first.
   const fewer = (before, after) => after < before;
   const lead = (m, e, z) => R() + 1 + (planeOf[z] !== planeOf[e] ? 0.5 : 0) + (m[1][1] ? 0 : 1);
-  for (let pass = 0, again = true; again && pass < spec.joinPasses; pass++) {
+  for (let pass = 0, again = true; again && pass < 3; pass++) {
     again = false;
     for (const x of shuffle(R, [...Array(P).keys()])) {
-      if (!alive[x] || pieces[x].kind !== NORMAL || !isFree(ways[x])) continue;
-      const moves = [[[x, rev(pieces[x].cells)]], ...movesFor(x, lead)];
+      if (!alive[x] || !isFree(ways[x])) continue;
+      const X = pieces[x].cells;
+      let moves;
+      if (pieces[x].kind === NORMAL) {
+        moves = [[[x, rev(X)]], ...movesFor(x, lead)];
+        if (spec.grow) moves.push(...growsAt(x, X[X.length - 1]), ...growsAt(x, X[0]));
+      } else if (pieces[x].kind === TWO_WAY && spec.grow) {
+        // A two-way arrow with one end clear is free: keep just its other
+        // end, or make it a one-way arrow joined or grown as above.
+        moves = [[[x, X, NORMAL]], [[x, rev(X), NORMAL]], ...movesFor(x, lead), ...growsAt(x, X[X.length - 1]), ...growsAt(x, X[0])];
+        for (const m of moves) m[0][2] = NORMAL;
+      } else continue;
       if (moves.some((m) => change(m, fewer))) again = true;
     }
   }
@@ -964,6 +796,21 @@ function entwine(level, spec, R) {
   for (const x of shuffle(R, [...Array(P).keys()])) {
     if (!alive[x] || pieces[x].kind !== NORMAL || len(x) > spec.shortLen) continue;
     movesFor(x, tidy).some((m) => change(m, noWorse));
+  }
+
+  // Grow tails into the empty cells behind them: longer arrows, in the way
+  // of more arrows, and fewer bare patches.
+  if (spec.grow) {
+    for (const x of shuffle(R, [...Array(P).keys()])) {
+      for (let grew = true; grew && alive[x] && pieces[x].kind === NORMAL && len(x) < spec.joinLen;) {
+        const X = pieces[x].cells;
+        grew = false;
+        for (let k = 0; k < 4 && !grew; k++) {
+          const c = nbCell[X[0] * 4 + k];
+          if (empty(c)) grew = change([[x, [c].concat(X)]], noWorse);
+        }
+      }
+    }
   }
   level.pieces = pieces.filter((p, i) => alive[i]);
   const after = new Board(topo, level);
@@ -1014,7 +861,7 @@ export function buildLevel(spec, seed) {
 
   // Faces deep in a gap too narrow to see into get no arrows, markers or
   // yellow edges: you couldn't see or tap them.
-  const hidden = hiddenFaces(topo);
+  const hidden = hiddenOf(topo);
   let visible = N;
   for (let c = 0; c < N; c++) visible -= hidden[c];
 
@@ -1166,7 +1013,7 @@ export function buildLevel(spec, seed) {
     // clear, and work out towards the rims (which are easy to fill last).
     const lean = Math.max(0, 1 - covered / Math.max(1, target)) * spec.inward;
     let pick = -1, top = -Infinity;
-    for (let t = 0, seen = 0; t < 60 && seen < 6; t++) {
+    for (let t = 0, seen = 0; t < 60 && seen < spec.samples; t++) {
       const c = ri(N);
       if (!isOpen(c)) continue;
       seen++;
@@ -1238,7 +1085,9 @@ export function buildLevel(spec, seed) {
   function proposeArrow(kind) {
     const hd = pickHead();
     if (!hd) return null;
-    const ray = probeRay(hd[0], hd[1]);
+    let ray = probeRay(hd[0], hd[1]);
+    // (On the giant puzzles' big faces most ways are soon blocked, so try the others too.)
+    for (let k = 1; !ray && spec.anyWay && k < 4; k++) ray = probeRay(hd[0], (hd[1] = (hd[1] + 1) & 3));
     if (!ray) return null;
     return evaluate({ kind, cells: body(hd[0], hd[1], randLen(), ray), green: ri(2) });
   }
