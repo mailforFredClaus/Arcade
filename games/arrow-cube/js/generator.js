@@ -15,8 +15,9 @@ export const GEN_VERSION = 5;
 // The giant puzzles (Mega, Giga, Huge) have their own version, so tuning them
 // doesn't restart anyone's regular level. Bump it whenever they change: the
 // game keeps built giant puzzles on the device, tagged with this version.
-// (Version 6 made them plain boxes with longer, more tangled arrows.)
-export const BIG_VERSION = 6;
+// (Version 6 made them plain boxes with longer, more tangled arrows;
+// version 7 gave them simple, chunky shapes.)
+export const BIG_VERSION = 7;
 // The version their shapes and random seeds come from. Leaving it alone when
 // bumping BIG_VERSION keeps every giant puzzle's shape (version 4 only took
 // the arrows out of gaps too narrow to see into).
@@ -90,6 +91,8 @@ function shuffle(R, a) {
 // Shape families for the regular modes. Each is a few boxes glued face to
 // face; a box ending in 0 is cut away again.
 const KINDS = ['bumps', 'steps', 'towers', 'arch', 'cross', 'ring', 'ell', 'yoke', 'pyramid', 'tee', 'stack'];
+// The families for the giant puzzles (Mega, Giga, Huge): simple, chunky shapes.
+const HUGE_KINDS = ['box', 'lblock', 'tblock', 'plus', 'bigsteps', 'tiers', 'notch', 'bigarch', 'stack', 'topped'];
 export function makeShape(R, kind, s) {
   const ri = (lo, hi) => lo + ((R() * (Math.max(lo, hi) - lo + 1)) | 0);
   const boxes = [];
@@ -193,12 +196,74 @@ export function makeShape(R, kind, s) {
       add(mid - 1, 0, 1, mid + 1, H - 2, Z + 1);
       break;
     }
+    // The giant puzzles' shapes: a few big, chunky blocks. Every side is a
+    // big flat face, with no deep gaps and few places where two separate
+    // parts sit on the same level, so it stays easy to see what could be in
+    // an arrow's way even zoomed right in.
     case 'box': {
-      // The giant puzzles: a plain box, in one of a few proportions. Every
-      // side is one flat face with nothing else on its level, so it's easy to
-      // see what could be in an arrow's way even zoomed right in.
+      // A plain box, in one of a few proportions.
       const [a, b, c] = [[1, 1, 1], [1.4, 0.8, 1.1], [0.7, 1.7, 0.7], [1.6, 0.5, 1.3], [1.9, 0.75, 0.75]][ri(0, 4)];
       add(0, 0, 0, Math.max(3, Math.round(s * a)), Math.max(3, Math.round(s * b)), Math.max(3, Math.round(s * c)));
+      break;
+    }
+    case 'lblock': {
+      // An L: a low block with a tall one standing at one end.
+      const Z = Math.round(s * (0.5 + R() * 0.4)), h = Math.round(s * (0.3 + R() * 0.15));
+      const w = Math.round(s * (0.35 + R() * 0.15)), H = Math.round(s * (0.8 + R() * 0.3));
+      add(0, 0, 0, s, h, Z);
+      add(0, 0, 0, w, H, Z);
+      break;
+    }
+    case 'tblock': {
+      // A T standing up: a thick bar across the top of a thick post.
+      const Z = Math.round(s * (0.4 + R() * 0.3)), t = Math.round(s * (0.3 + R() * 0.1));
+      const w = Math.round(s * (0.35 + R() * 0.15)), H = Math.round(s * (0.9 + R() * 0.3)), x0 = (s - w) >> 1;
+      add(0, H - t, 0, s, H, Z);
+      add(x0, 0, 0, x0 + w, H - t, Z);
+      break;
+    }
+    case 'plus': {
+      // A chunky plus sign.
+      const w = Math.round(s * (0.36 + R() * 0.1)), t = Math.round(s * (0.3 + R() * 0.25)), a = (s - w) >> 1;
+      add(a, 0, 0, a + w, t, s);
+      add(0, 0, a, s, t, a + w);
+      break;
+    }
+    case 'bigsteps': {
+      // Two or three big steps.
+      const k = ri(2, 3), d = Math.round(s / k), W = Math.round(s * (0.6 + R() * 0.4)), h = Math.round((s * (0.8 + R() * 0.4)) / k);
+      for (let i = 0; i < k; i++) add(0, 0, i * d, W, (k - i) * h, (i + 1) * d);
+      break;
+    }
+    case 'tiers': {
+      // Two or three big tiers, each set in from the one below.
+      const k = ri(2, 3), Z = Math.round(s * (0.7 + R() * 0.3)), t = Math.round(s / (2 * k + 1)), h = Math.round(s * (0.25 + R() * 0.15));
+      for (let i = 0; i < k; i++) add(i * t, i * h, i * t, s - i * t, (i + 1) * h, Z - i * t);
+      break;
+    }
+    case 'notch': {
+      // A big block with a chunk cut out of one corner, or all along one edge.
+      const Y = Math.round(s * (0.6 + R() * 0.4)), Z = Math.round(s * (0.7 + R() * 0.3));
+      const a = Math.round(s * (0.35 + R() * 0.2)), b = Math.round(Y * (0.35 + R() * 0.2)), c = R() < 0.5 ? Math.round(Z * (0.4 + R() * 0.2)) : Z;
+      add(0, 0, 0, s, Y, Z);
+      cut(s - a, Y - b, Z - c, s, Y, Z);
+      break;
+    }
+    case 'bigarch': {
+      // A thick arch: two legs under a beam, the opening about as deep as it is wide.
+      const leg = Math.round(s * (0.28 + R() * 0.08)), gap = Math.round(s * (0.35 + R() * 0.1)), beam = Math.round(s * (0.25 + R() * 0.1));
+      const X = 2 * leg + gap, H = Math.round(s * (0.7 + R() * 0.3)), Z = Math.round(gap * (0.8 + R() * 0.4));
+      add(0, 0, 0, leg, H, Z);
+      add(X - leg, 0, 0, X, H, Z);
+      add(0, H, 0, X, H + beam, Z);
+      break;
+    }
+    case 'topped': {
+      // A big block with a smaller one sitting on top, off centre.
+      const Y = Math.round(s * (0.5 + R() * 0.4)), Z = Math.round(s * (0.6 + R() * 0.4));
+      const w = Math.round(s * (0.35 + R() * 0.15)), d = Math.round(s * (0.25 + R() * 0.15)), x0 = ri(0, s - w), z0 = ri(0, Math.max(0, Z - w));
+      add(0, 0, 0, s, Y, Z);
+      add(x0, Y, z0, x0 + w, Y + d, z0 + w);
       break;
     }
     default:
@@ -293,8 +358,14 @@ export function levelSpec(n, mode = 'levels') {
   if ((main && n <= 2) || intro) shape = boxShape([size, size, size]);
   else if (main && n === 3) shape = boxShape([4, 5, 1]);
   else if (big) {
-    // A plain box, sized by how much surface it has.
-    shape = sizedShape(mix(n, m, 0x5a9e), 'box', 7 * size * size);
+    // Go through every family before any comes round again (and not the
+    // same one twice running where one round meets the next), and size the
+    // shape by how much surface it has, whatever the family.
+    const at = mode === 'huge' ? n - 1 : Math.floor(n / 50) - 1, k = HUGE_KINDS.length;
+    const cycle = (c) => shuffle(rng(mix(c, m, 0x6b1d)), HUGE_KINDS.slice());
+    const c = Math.floor(at / k), order = cycle(c);
+    if (c > 0 && order[0] === cycle(c - 1)[k - 1]) [order[0], order[1]] = [order[1], order[0]];
+    shape = sizedShape(mix(n, m, 0x5a9e), order[at % k], 7 * size * size);
   }
   else if (size >= 5 && chance(main ? (n < 6 ? 0 : 0.5) : 0.6)) shape = makeShape(R, KINDS[(R() * KINDS.length) | 0], size - 1);
   else {
@@ -342,9 +413,9 @@ export function levelSpec(n, mode = 'levels') {
   if (has('blue')) spec.blue = chance(p) ? upTo(tt.markers) : 0;
   if (has('two')) spec.two = chance(p + 0.1) ? 0.08 + R() * 0.12 : 0;
   if (has('yellow')) spec.yellow = chance(p) ? upTo(tt.edges) : 0;
-  // A box has only twelve edges, and every arrow aimed at a yellow one goes
-  // round onto the next side instead of leaving: too many, and arrows can
-  // hardly get off the shape at all.
+  // The giant shapes have few edges, and every arrow aimed at a yellow one
+  // goes round onto the next side instead of leaving: too many, and arrows
+  // can hardly get off the shape at all.
   if (big) spec.yellow = Math.min(spec.yellow, 2);
   // Two-way arrows have two chances to be free, so the giant puzzles have fewer.
   if (big) spec.two = Math.min(spec.two, 0.1);
@@ -372,7 +443,9 @@ export function generateLevel(n, mode = 'levels') {
   for (let attempt = 0; attempt < 40 && found < spec.candidates; attempt++) {
     const seed = seedOf(attempt);
     const level = buildLevel(spec, seed);
-    entwine(level, spec, rng(seed ^ 0x2e2e));
+    // (A giant puzzle that could already get stuck goes without joining, and
+    // only flipping might rescue it: try the next one instead.)
+    if (!entwine(level, spec, rng(seed ^ 0x2e2e)) && big) continue;
     interlock(level, spec, rng(seed ^ 0x1f1f));
     const check = checkLevel(level, spec, { stats });
     if (!check.ok) continue;
@@ -517,15 +590,17 @@ function blockersOf(board, pid, snakes) {
 // without ever getting stuck. Finally, arrows that are still very short are
 // joined onto a neighbour where that costs nothing.
 function entwine(level, spec, R) {
-  if (!spec.join) return;
+  if (!spec.join) return true;
   const topo = topoOf(level.shape);
   const { nbCell, nbDir, planeOf } = topo;
   const pieces = level.pieces.map((p) => ({ ...p }));
   const P = pieces.length;
   const board = new Board(topo, level);
   const purple = board.purples.length > 0;
-  // (A level that can already get stuck is going to be thrown away.)
-  if (purple && board.findDeadEnd(spec.joinBudget) !== false) return;
+  // (A level that can already get stuck is going to be thrown away. The
+  // giant puzzles look as hard as the final check does, so a level that's
+  // merely slow to check doesn't go without joining.)
+  if (purple && board.findDeadEnd(BIG_TIERS.has(spec.tier) ? 30000 : spec.joinBudget) !== false) return false;
   const occ = board.occ.slice();
   const alive = new Uint8Array(P).fill(1);
   const len = (i) => pieces[i].cells.length;
@@ -590,7 +665,7 @@ function entwine(level, spec, R) {
     while (queue.length) {
       for (const [i, k] of users[queue.pop()]) if (--left[i][k] === 0 && !need[i]) go(i, k);
     }
-    if (at < P) return; // (Can't happen: levels are built to be solvable.)
+    if (at < P) return false; // (Can't happen: levels are built to be solvable.)
     need.forEach((l, i) => { for (const j of l) deps[j].push(i); });
   }
 
@@ -815,6 +890,7 @@ function entwine(level, spec, R) {
   level.pieces = pieces.filter((p, i) => alive[i]);
   const after = new Board(topo, level);
   level.wraps = after.pieces.reduce((n, p) => n + after.simulate(p.id, p.options[0], IGNORE).wraps, 0);
+  return true;
 }
 
 // Independent check of a finished level: searches every order of taps and
