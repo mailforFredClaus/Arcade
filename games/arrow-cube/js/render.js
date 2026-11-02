@@ -128,10 +128,10 @@ function nearestAxis(v, n = null) {
   return best;
 }
 
-// The view with side n facing you, square on. Sides are shown upright; the
-// top and bottom are turned so "up" on screen is as close to `up` as can be.
+// The view with side n facing you, square on, and "up" on screen as close
+// to `up` as that allows.
 function squareView(n, up) {
-  const y = n[1] ? nearestAxis(up, n) : [0, 1, 0], x = cross(y, n);
+  const y = nearestAxis(up, n), x = cross(y, n);
   return quat.fromMat([x[0], x[1], x[2], y[0], y[1], y[2], n[0], n[1], n[2]]);
 }
 
@@ -656,7 +656,7 @@ export class Renderer {
 
   // The view looking straight at side f of the shape (f numbered as in
   // FACE_DEFS), reached by the smallest turn from the current view and then
-  // squared up so the shape sits level on screen.
+  // squared up, keeping the shape as near the way up it already was as can be.
   faceView(f) {
     const M = quat.toMat(this.q), n = NV[f];
     const from = rot(M, n), axis = cross(from, [0, 0, 1]), s = Math.hypot(axis[0], axis[1], axis[2]);
@@ -666,12 +666,12 @@ export class Renderer {
     return squareView(n, [T[3], T[4], T[5]]);
   }
 
-  // A quarter turn, landing square on a side: left and right (dx = -1, 1)
-  // spin the shape round its upright axis like a turntable, bringing the side
-  // on that side round to face you; up and down (dy = -1, 1) tip it towards
-  // or away from you.
+  // A quarter turn that brings the side to the left, right, top or bottom of
+  // the screen (dx, dy = -1 or 1) round to face you, landing square on it.
+  // The turn is always that way on screen, so taps in one direction go all
+  // the way round the shape.
   quarterTurn(dx, dy) {
-    const q = dx ? quat.mul(this.q, quat.axis([0, 1, 0], (-dx * Math.PI) / 2)) : quat.mul(quat.axis([1, 0, 0], (-dy * Math.PI) / 2), this.q);
+    const q = quat.mul(quat.axis(dx ? [0, 1, 0] : [1, 0, 0], (-(dx || dy) * Math.PI) / 2), this.q);
     const T = quat.toMat(q);
     return squareView(nearestAxis([T[6], T[7], T[8]]), [T[3], T[4], T[5]]);
   }

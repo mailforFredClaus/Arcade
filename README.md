@@ -6,7 +6,7 @@ Ad-free games for your iPhone that keep working with no signal.
 
 Double-click **Play on PC.bat**. Your browser opens the arcade at http://localhost:8080. Keep the black window open while you play, and close it when you're done.
 
-On a computer you click to tap; in Arrow Cube you also drag to spin and scroll to zoom. Keyboard shortcuts in every game: **H** shows a hint, **U** undoes a move. In Arrow Cube the arrow keys spin the cube.
+On a computer you click to tap; in Arrow Cube you also drag to spin, right-drag (or Shift-drag) to move the shape around, and scroll to zoom. Keyboard shortcuts in every game: **H** shows a hint, **U** undoes a move. In Arrow Cube the arrow keys spin the cube.
 
 ## Put it on your iPhone
 
@@ -30,7 +30,7 @@ Shapes are built from cubes. You'll see plain boxes and flat slabs, plus cubes w
 
 The giant puzzles (Mega, Giga and Huge) are plain boxes: a cube, a wide block, a tall tower, a flat slab or a long bar. Each side is one flat face with nothing else on its level, so even zoomed right in you can tell what could be in an arrow's way. What makes them hard is the arrows: they're long (about 12 cells on average), they wind round the edges, two-way arrows are rarer, and only about 3 in 100 can move at the start.
 
-**Seeing the shape.** Sides facing the light are brighter, inside corners are shaded and the outside edges are outlined, so you can tell the sides apart. The little cube in the top corner turns with the shape and is labelled Front, Back, Left, Right, Top and Bottom. Tap one of its sides to look straight at that side of the shape (the side you're facing lights up). Its arrows turn a quarter turn: left and right spin the shape round like a turntable, up and down tip it. Zoomed in, you stay looking at the same spot.
+**Seeing the shape.** Sides facing the light are brighter, inside corners are shaded and the outside edges are outlined, so you can tell the sides apart. The little cube in the top corner turns with the shape and is labelled Front, Back, Left, Right, Top and Bottom. Tap one of its sides to look straight at that side of the shape (the side you're facing lights up): it turns the shortest way, keeping the shape as near the way up it already was as it can. Its arrows turn the shape a quarter turn that way, so tapping one again and again takes you all the way round. Zoomed in, you stay looking at the same spot.
 
 | Piece | What it does |
 |---|---|

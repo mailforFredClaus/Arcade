@@ -313,7 +313,11 @@ canvas.addEventListener('pointerdown', (e) => {
   try { canvas.setPointerCapture(e.pointerId); } catch { /* not supported */ }
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t0: performance.now() });
   spin = null;
-  if (pointers.size === 1) {
+  // With a mouse, dragging with the right (or middle) button, or with Shift
+  // held, moves the shape instead of turning it.
+  if (pointers.size === 1 && e.pointerType === 'mouse' && (e.button === 1 || e.button === 2 || e.shiftKey)) {
+    gesture = { mode: 'pan' };
+  } else if (pointers.size === 1) {
     gesture = { mode: 'tap' };
     recent.length = 0;
     const p = pointers.get(e.pointerId);
@@ -350,7 +354,10 @@ canvas.addEventListener('pointermove', (e) => {
     clearTimeout(holdTimer);
     gesture.mode = 'rotate';
   }
-  if (gesture.mode === 'rotate') {
+  if (gesture.mode === 'pan') {
+    renderer.panBy(dx, dy);
+    requestDraw();
+  } else if (gesture.mode === 'rotate') {
     renderer.rotateBy(dx, dy);
     recent.push([performance.now(), dx, dy]);
     if (recent.length > 8) recent.shift();
@@ -381,6 +388,7 @@ function endPointer(e, cancelled) {
   gesture = pointers.size === 0 ? null : { mode: 'none' };
 }
 canvas.addEventListener('pointerup', (e) => endPointer(e, false));
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 canvas.addEventListener('pointercancel', (e) => endPointer(e, true));
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault();
