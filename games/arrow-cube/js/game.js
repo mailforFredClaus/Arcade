@@ -382,7 +382,7 @@ function endPointer(e, cancelled) {
     requestDraw();
   }
   if (!cancelled && gesture.mode === 'tap' && pointers.size === 0 && performance.now() - p.t0 < 650) {
-    onTap(e.clientX, e.clientY);
+    onTap(e.clientX, e.clientY, e.pointerType);
   }
   if (gesture.mode === 'rotate' && pointers.size === 0) flick();
   gesture = pointers.size === 0 ? null : { mode: 'none' };
@@ -425,10 +425,14 @@ window.addEventListener('keydown', (e) => {
 
 // ---- playing ---------------------------------------------------------------
 
-function onTap(x, y) {
+function onTap(x, y, pointerType) {
   if (!board || finished || loading || cardOpen()) return;
   const hit = renderer.pick(x, y);
   if (!hit) {
+    // Double-tapping empty space recenters, on a touch screen. With a mouse
+    // it's too easy to double-click by accident and lose the view you've set
+    // up, so there it's the Recenter button only.
+    if (pointerType === 'mouse') return;
     const now = performance.now();
     if (now - lastEmptyTap.t < 330 && Math.hypot(x - lastEmptyTap.x, y - lastEmptyTap.y) < 40) {
       renderer.resetView();
@@ -681,7 +685,7 @@ function showTutorial(n) {
 
 function showRules() {
   const list = Object.keys(RULES).map((k) => `<div class="rule">${art(k, '')}<div><b>${RULES[k][0]}</b><span>${RULES[k][1]}</span></div></div>`).join('');
-  showCard(`<h2>How to play</h2><div class="rules">${list}</div><p class="tip">Hold an arrow to see where it would go · Drag to spin · Pinch to zoom · Double-tap empty space to recenter</p>
+  showCard(`<h2>How to play</h2><div class="rules">${list}</div><p class="tip">Hold an arrow to see where it would go · Drag to spin · Pinch to zoom · Double-tap empty space (on a touch screen) to recenter</p>
     <div class="actions"><button class="btn btn-primary" data-action="close">Got it</button></div>`);
 }
 
