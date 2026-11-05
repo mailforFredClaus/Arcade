@@ -1,0 +1,48 @@
+/* Car Park: the bits the shared frame doesn't cover. */
+
+.stat .glass { fill: var(--theme-2, var(--blue-2)); }
+.stat svg.car-ico { width: 27px; height: 21px; }
+.stat .tyre { stroke: var(--theme-2, var(--blue-2)); stroke-width: 1.3; }
+.stat-unit { font-size: 13px; font-weight: 800; opacity: .85; margin-left: -2px; }
+
+.loading {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
+  color: var(--theme-2, var(--blue-2));
+  font-weight: 800;
+  pointer-events: none;
+  transition: opacity .2s;
+}
+.loading.hide { opacity: 0; }
+.spinner {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 5px solid rgba(77, 91, 230, .2);
+  border-top-color: var(--theme-2, var(--blue-2));
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Stars on the "solved!" card. */
+.win-stars { display: flex; justify-content: center; gap: 6px; margin: 2px 0 10px; }
+.win-stars svg { width: 46px; height: 46px; fill: #dfe4f0; }
+.win-stars svg.on { fill: #ffc531; filter: drop-shadow(0 3px 0 #d68f00); animation: star-in .45s cubic-bezier(.2, 1.6, .4, 1) both; }
+.win-stars svg.on:nth-child(2) { animation-delay: .15s; width: 56px; height: 56px; margin-top: -6px; }
+.win-stars svg.on:nth-child(3) { animation-delay: .3s; }
+.win-stars svg:nth-child(2) { width: 56px; height: 56px; margin-top: -6px; }
+@keyframes star-in { from { transform: scale(0) rotate(-40deg); } to { transform: none; } }
+.you { font-weight: 800; color: var(--ink) !important; }
+
+/* Mode tabs in the settings card, in each mode's colours. */
+.seg-btn[data-mode="medium"].on { color: #0c7f6c; }
+.seg-btn[data-mode="hard"].on { color: var(--red-2); }
+.seg-btn[data-mode="expert"].on { color: #ffe08a; background: linear-gradient(180deg, #43357e, #241a4d); }
+
+.theme-night .stat .glass { fill: #241a4d; }
+.theme-night .stat .tyre { stroke: #241a4d; }

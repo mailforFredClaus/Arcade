@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Arcade">
+  <meta name="theme-color" content="#b8d0f5">
+  <title>Car Park</title>
+  <link rel="manifest" href="../../manifest.webmanifest">
+  <link rel="icon" href="../../icons/icon-192.png">
+  <link rel="apple-touch-icon" href="../../icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="../../shared/arcade.css">
+  <link rel="stylesheet" href="../../shared/screen.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="stage" aria-label="Car park puzzle"></canvas>
+
+  <header class="topbar" id="topbar">
+    <a class="sq-btn" href="../../index.html" aria-label="Back to the arcade" id="backBtn"></a>
+    <div class="banner">
+      <div class="stat" aria-label="Moves made">
+        <svg class="car-ico" viewBox="0 0 26 20"><path d="M2 13.6v-2.4c0-1 .7-1.8 1.6-2.1l3.2-.9 2.6-3.4A2.6 2.6 0 0 1 11.5 3.8h5.6c.8 0 1.6.4 2.1 1l2.6 3.4 1.2.4A2.2 2.2 0 0 1 24.5 10.7v2.9a1.4 1.4 0 0 1-1.4 1.4H3.4A1.4 1.4 0 0 1 2 13.6z" fill="currentColor"/><path d="M10.6 5.6h3v2.7H8.6zM15.4 5.6h1.6c.4 0 .7.2.9.5l1.6 2.2h-4.1z" class="glass"/><circle cx="7.6" cy="15" r="2.9" fill="currentColor" class="tyre"/><circle cx="19" cy="15" r="2.9" fill="currentColor" class="tyre"/><circle cx="7.6" cy="15" r="1.1" class="glass"/><circle cx="19" cy="15" r="1.1" class="glass"/></svg>
+        <span id="moves">0</span><small class="stat-unit" id="movesUnit">moves</small>
+      </div>
+      <div class="lvl"><span id="levelLabel">EASY 1</span><span class="tier-tag" id="tierTag"></span></div>
+    </div>
+    <button class="sq-btn" id="menuBtn" aria-label="Settings"></button>
+  </header>
+
+  <nav class="tools" id="tools">
+    <button class="tool" id="undoBtn"><span class="ico" data-icon="undo"></span><span>Undo</span></button>
+    <button class="tool" id="restartBtn"><span class="ico" data-icon="restart"></span><span>Restart</span></button>
+    <button class="tool" id="hintBtn"><span class="ico" data-icon="hint"></span><span>Hint</span></button>
+  </nav>
+
+  <div class="loading hide" id="loading"><div class="spinner"></div><div id="loadingText">Parking the cars…</div></div>
+  <div class="toast" id="toast" role="status"></div>
+  <div class="overlay" id="overlay" hidden><div class="card" id="card"></div></div>
+  <canvas id="confetti" class="confetti"></canvas>
+
+  <script type="module" src="js/game.js"></script>
+</body>
+</html>
