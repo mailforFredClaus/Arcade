@@ -126,7 +126,8 @@ function makeShape(name, w, h, R) {
     case 'heart':
       each((r, c) => {
         const x = (c - cx) / (cx + 0.9) * 1.25, y = (cy - r) / (cy + 0.9) * 1.25 + 0.2;
-        return (x * x + y * y - 1) ** 3 - x * x * y ** 3 > 0;
+        const t = x * x + y * y - 1;
+        return t * t * t - x * x * y * y * y > 0;
       });
       break;
     default: // full
@@ -371,7 +372,9 @@ const EARLY = {
 
 function plan(n, R, tier) {
   if (EARLY[n]) return { colors: 5, ...EARLY[n] };
-  const hardness = 1 - Math.exp(-n / 70) + (tier === 'super' ? 0.3 : tier === 'hard' ? 0.18 : 0);
+  // Rises from 0 towards 1 as the levels go on (a ratio rather than an
+  // exponential, so every browser works it out exactly the same).
+  const hardness = n / (n + 45) + (tier === 'super' ? 0.3 : tier === 'hard' ? 0.18 : 0);
   const amount = () => clamp(0.15 + hardness * 0.55 + (R.next() - 0.5) * 0.35, 0.05, 1);
   const p = { w: R.next() < 0.75 ? 9 : 8, h: pick(R, [9, 9, 10, 10, 8]), shape: pick(R, SHAPES) };
   // Which obstacles, favouring the newest ones for a while after they arrive.

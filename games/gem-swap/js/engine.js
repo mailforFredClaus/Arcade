@@ -20,7 +20,9 @@
 //
 // play() changes the board and returns the steps, with timings, for the
 // screen to animate. Everything follows from the seed, so a game can be saved
-// as its list of moves and replayed exactly.
+// as its list of moves and replayed exactly. (Only plain arithmetic and
+// square roots are used, never Math.hypot, exp or the like: browsers round
+// those differently, and the same level must come out the same everywhere.)
 
 export const NONE = 0, LINE_H = 1, LINE_V = 2, BOMB = 3, FLY = 4, PRISM = 5;
 export const EMPTY = 0, GEM = 1, CRATE = 2, COIN = 3;
@@ -501,7 +503,7 @@ export class Board {
           const w = this.w;
           const mr = free.reduce((t, i) => t + ((i / w) | 0), 0) / free.length, mc = free.reduce((t, i) => t + (i % w), 0) / free.length;
           make = free.reduce((best, i) => {
-            const d = Math.hypot(((i / w) | 0) - mr, (i % w) - mc);
+            const dr = ((i / w) | 0) - mr, dc = (i % w) - mc, d = dr * dr + dc * dc;
             return d < best.d ? { i, d } : best;
           }, { i: -1, d: Infinity }).i;
         }
@@ -686,7 +688,7 @@ export class Board {
     if (t < 0) return;
     ctx.reserved.add(t);
     const w = this.w;
-    const dist = Math.hypot(((a.i / w) | 0) - ((t / w) | 0), (a.i % w) - (t % w));
+    const dr = ((a.i / w) | 0) - ((t / w) | 0), dc = (a.i % w) - (t % w), dist = Math.sqrt(dr * dr + dc * dc);
     const dur = Math.round(430 + 26 * dist);
     ctx.ev.push({ at: a.at, e: 'fly', from: a.i, to: t, color: a.color, carry: a.carry ? a.carry.power : 0, dur });
     if (a.carry) ctx.push({ at: a.at + dur, act: 'fire', i: t, virtual: true, power: a.carry.power, color: a.carry.color, radius: a.carry.radius });
@@ -743,7 +745,12 @@ export class Board {
     const w = this.w, r0 = (i / w) | 0, c0 = i % w;
     const targets = [];
     for (let j = 0; j < this.N; j++) if (j !== i && this.kind[j] === GEM && this.color[j] === color && !ctx.pending[j]) targets.push(j);
-    targets.sort((a, b) => Math.hypot(((a / w) | 0) - r0, (a % w) - c0) - Math.hypot(((b / w) | 0) - r0, (b % w) - c0));
+    // Squared distances are whole numbers, so they sort the same everywhere.
+    const d2 = (j) => {
+      const dr = ((j / w) | 0) - r0, dc = (j % w) - c0;
+      return dr * dr + dc * dc;
+    };
+    targets.sort((a, b) => d2(a) - d2(b));
     ctx.ev.push({ at, e: 'zap', i, targets, color, power: withPower });
     const after = at + 160 + targets.length * T.zap + 260;
     targets.forEach((j, k) => {
@@ -791,7 +798,7 @@ export class Board {
       ctx.ev.push({ at: 60, e: 'wipe', i });
       for (let j = 0; j < this.N; j++) {
         if (!this.on[j]) continue;
-        const d = Math.hypot(((j / w) | 0) - r, (j % w) - c);
+        const dr = ((j / w) | 0) - r, dc = (j % w) - c, d = Math.sqrt(dr * dr + dc * dc);
         ctx.push({ at: 140 + d * 50, act: 'hit', i: j, s });
       }
     } else if (has(PRISM)) {

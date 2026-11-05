@@ -62,7 +62,7 @@ export function levelSpec(n, mode = 'levels') {
   const fresh = (k) => mode === 'levels' && n === AT[k];
   let tiles, bias, tries;
   if (mode === 'levels') {
-    tiles = Math.round(9 + 135 * (1 - Math.exp(-(n - 1) / 38)));
+    tiles = Math.round(9 + (135 * (n - 1)) / (n - 1 + 30));
     if (tier === 'hard') tiles = Math.round(tiles * 1.3);
     if (tier === 'super') tiles = Math.round(tiles * 1.6);
     bias = 0.8 + Math.min(1.6, n / 25) + (tier === 'hard' ? 0.6 : tier === 'super' ? 1 : 0);
@@ -95,6 +95,17 @@ export function levelSpec(n, mode = 'levels') {
 }
 
 // ---- building ------------------------------------------------------------------------
+
+// x to the power b, with b taken to the nearest half: just multiplying and a
+// square root, which every browser works out exactly the same (Math.pow and
+// ** can differ in the last digit, and that could change a level).
+function power(x, b) {
+  const h = Math.round(b * 2);
+  let w = 1;
+  for (let k = 2; k <= h; k += 2) w *= x;
+  if (h % 2) w *= Math.sqrt(x);
+  return w;
+}
 
 function attempt(spec, R) {
   const { feats } = spec;
@@ -181,7 +192,7 @@ function attempt(spec, R) {
       if (!p || block[best * 6 + d]) continue;
       let later = 0;
       for (const j of p.cells) if (!occ[j] && want[j]) later++;
-      const wgt = (1 + later) ** spec.bias;
+      const wgt = power(1 + later, spec.bias);
       opts.push([d, wgt]);
       total += wgt;
     }

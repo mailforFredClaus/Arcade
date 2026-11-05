@@ -87,7 +87,8 @@ function ring(R) {
 function heart(R) {
   return byPixels(Math.ceil(R * 1.3), (x, y) => {
     const u = x / (R * 1.05), v = -y / (R * 1.05) + 0.25;
-    return (u * u + v * v - 1) ** 3 - u * u * v ** 3 <= 0;
+    const t = u * u + v * v - 1;
+    return t * t * t - u * u * v * v * v <= 0;
   });
 }
 
