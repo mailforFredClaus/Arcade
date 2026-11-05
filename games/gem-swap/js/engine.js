@@ -352,6 +352,7 @@ export class Board {
 
   // m: { type: 'swap', a, b } | { type: 'tap', i } | { type: 'hammer', i }
   //    | { type: 'row', i } | { type: 'shuffle' } | { type: 'extra' }
+  //    | { type: 'start', powers: [...] } (power-ups to begin with)
   // first: stop after the first clear (the practice player uses this to
   // judge a move without peeking at what drops in next).
   play(m, first = false) {
@@ -391,6 +392,20 @@ export class Board {
     } else if (m.type === 'shuffle') {
       steps.push(this.shuffle(false));
       return steps;
+    } else if (m.type === 'start') {
+      // A win streak's reward: some gems become power-ups before the first move.
+      const pool = [];
+      for (let i = 0; i < this.N; i++) if (this.kind[i] === GEM && !this.chain[i] && !this.power[i] && this.color[i] >= 0) pool.push(i);
+      const cells = [];
+      for (const p of m.powers || []) {
+        if (!pool.length) break;
+        const i = pool.splice(this.rand.int(pool.length), 1)[0];
+        const pw = isLine(p) ? (this.rand.int(2) ? LINE_H : LINE_V) : p;
+        this.power[i] = pw;
+        if (pw === PRISM) this.color[i] = -1;
+        cells.push(i);
+      }
+      return [{ t: 'start', cells, snap: this.snap() }];
     } else if (m.type === 'extra') {
       this.moves += 5;
       steps.push({ t: 'extra' });

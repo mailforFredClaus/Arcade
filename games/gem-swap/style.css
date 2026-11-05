@@ -95,3 +95,11 @@
   .goals { top: calc(var(--safe-top) + 68px); padding: 5px 12px 4px; }
   .goal img { width: 32px; height: 32px; }
 }
+
+/* Win streak */
+.streak { display: flex; align-items: center; gap: 10px; margin: 10px 0 4px; padding: 10px 12px; border-radius: 16px; background: #fff6d6; text-align: left; }
+.streak-icons { display: flex; flex: none; }
+.streak-icons img { width: 34px; height: 34px; margin-right: -6px; }
+.streak span { color: #7a5200; font-size: 14.5px; line-height: 1.35; font-weight: 700; }
+.streak b { color: #b07800; font-weight: 900; }
+.streak-tip { color: #b07800 !important; }

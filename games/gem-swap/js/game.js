@@ -30,7 +30,8 @@ const lerp = (a, b, t) => a + (b - a) * t;
 // times each level has been started (each go deals a different board).
 // play: the level in progress and the moves made in it.
 const SAVE_KEY = 'gemswap';
-const save = Object.assign({ n: 1, best: {}, seen: {}, tries: {}, play: null }, store.get(SAVE_KEY, {}) || {});
+// streak: levels won in a row (each one starts the next with power-ups).
+const save = Object.assign({ n: 1, best: {}, seen: {}, tries: {}, play: null, streak: 0 }, store.get(SAVE_KEY, {}) || {});
 const writeSave = () => store.set(SAVE_KEY, save);
 const totalStars = () => Object.values(save.best).reduce((s, v) => s + v, 0);
 
@@ -118,10 +119,26 @@ let selected = -1;
 let celebrating = false;
 let loadToken = 0;
 
-const CODE = { tap: 't', hammer: 'h', row: 'r', shuffle: 's', extra: 'e' };
-const TYPE = { t: 'tap', h: 'hammer', r: 'row', s: 'shuffle', e: 'extra' };
-const enc = (m) => (m.type === 'swap' ? [m.a, m.b] : m.i === undefined ? [CODE[m.type]] : [CODE[m.type], m.i]);
-const dec = (e) => (typeof e[0] === 'number' ? { type: 'swap', a: e[0], b: e[1] } : { type: TYPE[e[0]], i: e[1] });
+const CODE = { tap: 't', hammer: 'h', row: 'r', shuffle: 's', extra: 'e', start: 'b' };
+const TYPE = { t: 'tap', h: 'hammer', r: 'row', s: 'shuffle', e: 'extra', b: 'start' };
+const enc = (m) => (m.type === 'swap' ? [m.a, m.b] : m.type === 'start' ? ['b', ...m.powers] : m.i === undefined ? [CODE[m.type]] : [CODE[m.type], m.i]);
+const dec = (e) => (typeof e[0] === 'number' ? { type: 'swap', a: e[0], b: e[1] } : e[0] === 'b' ? { type: 'start', powers: e.slice(1) } : { type: TYPE[e[0]], i: e[1] });
+
+// What a win streak starts the next level with.
+const STREAK = [LINE_H, BOMB, PRISM];
+const streakGift = () => STREAK.slice(0, Math.min(3, save.streak || 0));
+let gift = []; // cells given power-ups at the start of this go
+
+// Has a move been made in this go? (The streak's gift doesn't count.)
+const played = () => log.some((e) => e[0] !== 'b');
+
+// Giving up on a level (or needing extra moves) ends the streak.
+function endStreak() {
+  if (save.streak) {
+    save.streak = 0;
+    writeSave();
+  }
+}
 
 async function startLevel(n, resume = false) {
   n = Math.max(1, Math.min(save.n, Math.floor(n) || 1));
@@ -148,10 +165,19 @@ async function startLevel(n, resume = false) {
   log = [];
   extra = 0;
   used = { hammer: 0, row: 0, shuffle: 0 };
+  gift = [];
   if (again) {
     board.quiet = true;
-    for (const e of p.moves) if (!apply(dec(e))) break;
+    for (const e of p.moves) {
+      const m = dec(e), steps = apply(m);
+      if (!steps) break;
+      if (m.type === 'start') gift = steps[0].cells;
+    }
     board.quiet = false;
+  } else if (streakGift().length) {
+    const steps = board.play({ type: 'start', powers: streakGift() });
+    log.push(enc({ type: 'start', powers: streakGift() }));
+    gift = steps[0].cells;
   }
   selected = -1;
   armed = '';
@@ -168,14 +194,14 @@ async function startLevel(n, resume = false) {
   setTimeout(() => prefetch(n + 1), 900);
   if (board.won()) return win();
   if (board.moves <= 0) return outOfMoves();
-  if (!log.length) {
+  if (!played()) {
     dropIn();
     introCards();
   } else armHint();
   requestDraw();
 }
 
-// Replays a saved move (no animation). False if it no longer fits.
+// Replays a saved move (no animation): its steps, or null if it no longer fits.
 function apply(m) {
   if (!m.type) return false;
   if (used[m.type] !== undefined) {
@@ -184,9 +210,9 @@ function apply(m) {
   }
   if (m.type === 'extra') extra++;
   const steps = board.play(m);
-  if (!steps.length || (steps[0].t === 'swap' && !steps[0].ok)) return false;
+  if (!steps.length || (steps[0].t === 'swap' && !steps[0].ok)) return null;
   log.push(enc(m));
-  return true;
+  return steps;
 }
 
 function savePlay() {
@@ -1510,6 +1536,7 @@ function win() {
   save.best[level.n] = Math.max(prev, stars);
   save.n = Math.max(save.n, level.n + 1);
   save.play = null;
+  if (!extra) save.streak = (save.streak || 0) + 1;
   writeSave();
   result = { stars, spare, better: prev > 0 && stars > prev };
   setMoves(spare);
@@ -1557,9 +1584,10 @@ function winCard() {
   const left = spare === 1 ? '1 move' : `${spare} moves`;
   const note = extra ? 'You used extra moves, so that’s one star. Try again for more?'
     : stars === 3 ? `${left} to spare. Superb!` : `${left} to spare. Finish with ${level.stars[stars === 1 ? 0 : 1]} or more for ${stars === 1 ? 'two' : 'three'} stars.`;
+  const streak = !extra && save.streak ? `<p class="tip streak-tip">Win streak ×${save.streak}! ${save.streak <= 3 ? `The next level starts with ${listOf(streakGift().map((p) => POWER_NAME[p]))}.` : 'The next level starts with all three power-ups.'}</p>` : '';
   ui.show(`<h2>Level ${level.n} complete!</h2>
     <div class="win-stars">${[1, 2, 3].map((k) => STAR(k <= stars)).join('')}</div>
-    <p>${note}${better ? ' A new best!' : ''}</p>
+    <p>${note}${better ? ' A new best!' : ''}</p>${streak}
     <div class="actions"><button class="btn btn-primary" data-action="next">Next level</button>
     <button class="btn btn-soft" data-action="replay">Play again</button></div>`);
   sfx('win');
@@ -1572,8 +1600,9 @@ function outOfMoves() {
   sound('lose');
   setTimeout(() => {
     if (state !== 'lost') return;
+    const lose = save.streak ? ` Either way your win streak of ${save.streak} ends.` : '';
     ui.show(`<h2>Out of moves</h2>${goalRow(true)}
-      <p>So close! Take 5 more moves and keep going? You can still finish the level, for one star.</p>
+      <p>So close! Take 5 more moves and keep going? You can still finish the level, for one star.${lose}</p>
       <div class="actions"><button class="btn btn-primary" data-action="extra">+5 moves</button>
       <button class="btn btn-soft" data-action="retry">Try again</button></div>`);
   }, 500);
@@ -1588,11 +1617,26 @@ function goalRow(left) {
   }).join('')}</div>`;
 }
 
+const POWER_NAME = { [LINE_H]: 'a Line Blaster', [LINE_V]: 'a Line Blaster', [BOMB]: 'a Bomb', [PRISM]: 'a Prism' };
+const powerIcon = (p) => {
+  const key = `pw${p}`;
+  if (!iconCache.has(key)) iconCache.set(key, art.icon(96, (c) => (p === PRISM ? art.paintPrism(c, 300) : p === BOMB ? art.paintBomb(c, 1) : art.paintLine(c, 4, false))));
+  return iconCache.get(key);
+};
+const listOf = (xs) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
+
+function streakNote() {
+  if (!gift.length) return '';
+  const powers = gift.map((i) => board.power[i]);
+  return `<div class="streak"><div class="streak-icons">${powers.map((p) => `<img alt="" src="${powerIcon(p)}">`).join('')}</div>
+    <span><b>Win streak ×${save.streak}!</b> You start with ${listOf(powers.map((p) => POWER_NAME[p]))}.</span></div>`;
+}
+
 function levelCard() {
   const tier = level.tier === 'hard' ? '<p class="tip" style="color:var(--red-2)">Hard level: fewer moves than usual.</p>'
     : level.tier === 'super' ? '<p class="tip" style="color:#5228a8">Super hard level! Every move counts.</p>' : '';
   ui.show(`<h2>Level ${level.n}</h2>${tier}${goalRow(false)}
-    <p class="level-info">${level.moves} moves</p>
+    <p class="level-info">${level.moves} moves</p>${streakNote()}
     <p class="tip"><span class="star-goal">${'<svg viewBox="0 0 24 24"><path d="M12 2.6l2.85 5.8 6.4.93-4.63 4.5 1.1 6.37L12 17.2l-5.72 3 1.1-6.37-4.63-4.5 6.4-.93z"/></svg>'.repeat(3)}</span>
       with ${level.stars[1]} or more moves to spare</p>
     <div class="actions"><button class="btn btn-primary" data-action="go">Play</button></div>`);
@@ -1687,7 +1731,7 @@ function showRules() {
       ${row(small([pw(PRISM, 0, { k: 1.6 })]), '5 in a row', 'makes a Prism: swap it with a gem to clear that whole colour.')}
       ${row(small([pw(LINE_V, 2), pw(BOMB, 5)]), 'Combos', 'Swap two power-ups together. Tap a power-up to set it off where it is.')}
     </div>
-    <p class="tip">Each level gives you one Hammer, one Row blast and one Shuffle, and they don't cost a move.</p>
+    <p class="tip">Each level gives you one Hammer, one Row blast and one Shuffle, and they don't cost a move. Win levels in a row and the next one starts with power-ups already on the board.</p>
     <div class="actions"><button class="btn btn-primary" data-action="close">Got it</button></div>`);
 }
 
@@ -1711,19 +1755,32 @@ const ui = cards({
   go: () => {
     ui.close();
     armHint();
+    if (gift.length && !played()) {
+      gift.forEach((i, k) => setTimeout(() => {
+        ring(i, performance.now(), '#fff6b0', 1.6);
+        const p = pieces.get(cellId[i]);
+        if (p) p.app = performance.now();
+        sound('pop');
+        requestDraw();
+      }, 150 + k * 220));
+    }
   },
   'intro-done': () => introCards(),
   next: () => startLevel(level.n + 1),
   replay: () => startLevel(level.n),
   retry: () => {
+    endStreak();
     save.play = null;
     startLevel(level.n);
   },
   restart: () => {
+    // Starting again part way through gives up on this go.
+    if (state !== 'won' && played()) endStreak();
     save.play = null;
     startLevel(level.n);
   },
   extra: () => {
+    endStreak();
     ui.close();
     state = 'ready';
     doMove({ type: 'extra' });
@@ -1734,6 +1791,7 @@ const ui = cards({
   'go-level': () => {
     const n = Math.min(save.n, Math.max(1, +$('lvlInput').value || 1));
     if (level && n === level.n && state !== 'won') { ui.close(); return; }
+    if (level && state !== 'won' && played()) endStreak();
     startLevel(n, true);
   },
 });
