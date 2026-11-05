@@ -99,7 +99,9 @@ function hiss(a, { t = 0, d = 0.25, g = 0.25, f0 = 500, f1 = 2500, q = 1.1 }) {
   src.stop(at + d + 0.03);
 }
 
-export function sfx(name) {
+// k picks a variation for the sounds that have them (for 'match', how many
+// cascades in a row: each one rings a step higher).
+export function sfx(name, k = 0) {
   if (!settings.sound) return;
   const a = audio();
   if (!a || a.state !== 'running') return;
@@ -151,6 +153,80 @@ export function sfx(name) {
     case 'chime':
       tone(a, { f: 988, type: 'triangle', d: 0.18, g: 0.1 });
       tone(a, { f: 1318, t: 0.08, d: 0.3, g: 0.08 });
+      break;
+    case 'swap':
+      hiss(a, { d: 0.12, g: 0.1, f0: 900, f1: 2200, q: 1.4 });
+      tone(a, { f: 620, f2: 780, type: 'triangle', d: 0.06, g: 0.06 });
+      break;
+    case 'match': {
+      // A bright pluck that climbs a whole step with each cascade.
+      const f = 523.25 * 2 ** ((Math.min(12, k) * 2) / 12);
+      tone(a, { f, type: 'triangle', d: 0.16, g: 0.12 });
+      tone(a, { f: f * 1.5, t: 0.03, d: 0.18, g: 0.06 });
+      tone(a, { f: f * 2, t: 0.05, d: 0.22, g: 0.035 });
+      break;
+    }
+    case 'line':
+      // A zap down a whole row or column.
+      tone(a, { f: 1700, f2: 260, type: 'sawtooth', d: 0.3, g: 0.045 });
+      hiss(a, { d: 0.32, g: 0.16, f0: 3200, f1: 500, q: 0.8 });
+      break;
+    case 'bomb':
+      tone(a, { f: 130, f2: 38, d: 0.55, g: 0.6 });
+      tone(a, { f: 80, f2: 30, type: 'triangle', t: 0.02, d: 0.5, g: 0.3 });
+      hiss(a, { d: 0.6, g: 0.42, f0: 1300, f1: 110, q: 0.6 });
+      break;
+    case 'flutter':
+      // Wings beating, then off it goes.
+      [0, 0.055, 0.11, 0.165].forEach((t) => hiss(a, { t, d: 0.05, g: 0.1, f0: 1400, f1: 2600, q: 2 }));
+      tone(a, { f: 700, f2: 1500, type: 'triangle', t: 0.1, d: 0.25, g: 0.05 });
+      break;
+    case 'prism':
+      // A shimmering run up two octaves.
+      [0, 4, 7, 12, 16, 19, 24].forEach((s, i) => tone(a, { f: 880 * 2 ** (s / 12), type: 'triangle', t: i * 0.04, d: 0.24, g: 0.055 }));
+      hiss(a, { d: 0.5, g: 0.06, f0: 6000, f1: 9000, q: 4 });
+      break;
+    case 'crate':
+      // A knock on wood.
+      tone(a, { f: 250, f2: 130, type: 'square', d: 0.07, g: 0.07 });
+      hiss(a, { d: 0.11, g: 0.22, f0: 750, f1: 280, q: 2 });
+      break;
+    case 'ice':
+      // Glass cracking.
+      tone(a, { f: 2500, f2: 1700, type: 'triangle', d: 0.09, g: 0.06 });
+      hiss(a, { d: 0.16, g: 0.16, f0: 5200, f1: 2400, q: 3 });
+      break;
+    case 'coin':
+      tone(a, { f: 988, type: 'square', d: 0.07, g: 0.045 });
+      tone(a, { f: 1319, type: 'square', t: 0.07, d: 0.24, g: 0.045 });
+      break;
+    case 'goal':
+      // One of the goals ticked off.
+      tone(a, { f: 784, type: 'triangle', d: 0.12, g: 0.1 });
+      tone(a, { f: 1175, type: 'triangle', t: 0.07, d: 0.28, g: 0.09 });
+      break;
+    case 'lose':
+      [392, 349, 311, 262].forEach((f, i) => tone(a, { f, type: 'triangle', t: i * 0.15, d: 0.32, g: 0.12 }));
+      break;
+    case 'slide':
+      // Something sliding along wood.
+      hiss(a, { d: 0.16, g: 0.11, f0: 450, f1: 950, q: 1.6 });
+      break;
+    case 'clack':
+      // Something knocking into place.
+      tone(a, { f: 380, f2: 200, type: 'triangle', d: 0.06, g: 0.16 });
+      hiss(a, { d: 0.05, g: 0.12, f0: 1500, f1: 800, q: 2 });
+      break;
+    case 'fill':
+      tone(a, { f: 660, f2: 590, type: 'triangle', d: 0.05, g: 0.08 });
+      break;
+    case 'cross':
+      tone(a, { f: 430, f2: 370, type: 'triangle', d: 0.04, g: 0.06 });
+      break;
+    case 'cheer':
+      // A big moment: a quick fanfare.
+      [659, 784, 988, 1319].forEach((f, i) => tone(a, { f, type: 'triangle', t: i * 0.06, d: 0.22, g: 0.1 }));
+      tone(a, { f: 1976, t: 0.24, d: 0.4, g: 0.05 });
       break;
   }
 }
