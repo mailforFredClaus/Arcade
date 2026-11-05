@@ -126,6 +126,9 @@ button, input { font: inherit; color: inherit; }
   left: 50%;
   bottom: calc(var(--safe-bottom) + 112px);
   transform: translate(-50%, 16px);
+  /* Sized to its message (positioned from the middle, it would otherwise
+     only ever get half the screen's width before wrapping). */
+  width: max-content;
   max-width: calc(100% - 40px);
   padding: 10px 16px;
   border-radius: 14px;
