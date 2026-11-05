@@ -2,14 +2,28 @@
 // picture, it can be solved line by line with no guessing, it has exactly
 // one answer (checked a second, independent way on the smaller sizes), the
 // hints can walk all the way through it, and the same number always gives
-// the same puzzle.
+// the same puzzle. Also checks the puzzle maker sticks to arithmetic every
+// browser does the same way, so a number gives the same puzzle everywhere.
 // Usage: node tools/test-nonogram.mjs [count per size]
 
+import { readFileSync } from 'node:fs';
 import { MODES, SIZES, makePuzzle, solve, cluesFor, nextStep, UNKNOWN, FILL, EMPTY } from '../games/nonogram/js/logic.js';
 import { ICONS } from '../games/nonogram/js/pictures.js';
 
 const count = Number(process.argv[2] || 30);
 let failures = 0;
+
+// Browsers may round these differently, so making puzzles mustn't use them.
+const ROUNDED = ['sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'atan2', 'sinh', 'cosh', 'tanh', 'exp', 'expm1', 'log', 'log1p', 'log2', 'log10', 'pow', 'hypot', 'cbrt'];
+const usedMaths = new Set();
+for (const name of ROUNDED) {
+  const f = Math[name];
+  Math[name] = (...args) => { usedMaths.add(name); return f(...args); };
+}
+for (const file of ['logic.js', 'pictures.js']) {
+  const code = readFileSync(new URL(`../games/nonogram/js/${file}`, import.meta.url), 'utf8').replace(/\/\/.*$/gm, '');
+  if (code.includes('**')) { failures++; console.log(`${file}: FAIL uses ** (browsers may round it differently)`); }
+}
 
 // Every way to lay a clue's runs out in a line of n squares.
 function layouts(clue, n) {
@@ -134,6 +148,9 @@ for (const icon of ICONS) {
 }
 failures += badIcons;
 console.log(`icons   ${ICONS.length} pictures, ${badIcons} failed`);
+
+if (usedMaths.size) { failures++; console.log(`maths   FAIL the puzzle maker used Math.${[...usedMaths].join(', Math.')}`); }
+else console.log('maths   only arithmetic every browser rounds the same way');
 
 console.log(`\n${failures} failed`);
 process.exit(failures ? 1 : 0);

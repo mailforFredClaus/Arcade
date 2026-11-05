@@ -12,7 +12,7 @@
 
 import { picture } from './pictures.js';
 
-export const GEN_VERSION = 1;
+export const GEN_VERSION = 2;
 export const MODES = ['easy', 'medium', 'hard', 'huge'];
 export const SIZES = {
   easy: { cols: 10, rows: 10 },

@@ -1,6 +1,6 @@
 // Car Park: slide the cars and trucks out of the way to get the red car out.
 
-import { MODES, RANGES, SIZE, EXIT_ROW, GOAL, GEN_VERSION, limits, isSolved, canMove, solveFrom, paintOf, makePuzzle } from './logic.js';
+import { MODES, RANGES, SIZE, EXIT_ROW, GOAL, GEN_VERSION, limits, isSolved, canMove, solveFrom, bestHint, paintOf, makePuzzle } from './logic.js';
 import { store, settings, sfx, haptic, unlockAudio, lockViewport, registerOffline } from '../../../shared/arcade.js';
 import { cards, switchRow, toast, confetti, ICON } from '../../../shared/ui.js';
 
@@ -121,7 +121,8 @@ function prefetch(m, n) {
 
 // ---- the game ------------------------------------------------------------------------
 
-let mode = save.mode;
+let mode = save.mode; // the mode of the puzzle on screen
+let loadingMode = null; // a puzzle on its way (nothing can be moved meanwhile)
 let puzzle = null;
 let pos = []; // where each vehicle is, in squares along its line
 let shown = []; // where each one is drawn (it slides between squares)
@@ -137,19 +138,26 @@ let loadToken = 0;
 let winToken = 0; // a win's drive-out and card, cancelled if another puzzle starts
 const bumps = new Map(); // vehicle -> { at, dir }
 
-async function startPuzzle(n, resume = false) {
+async function startPuzzle(n, resume = false, m = puzzle ? puzzle.mode : mode) {
   n = Math.max(1, Math.floor(n) || 1);
   ui.close();
   const token = ++loadToken;
+  winToken++; // a win still driving out on the old puzzle stops here
+  if (drag) { const d = drag; drag = null; slideTo(d.i, pos[d.i]); }
+  loadingMode = m;
+  updateHud();
   const slow = setTimeout(() => {
     if (token !== loadToken) return;
-    $('loadingText').textContent = mode === 'easy' ? 'Parking the cars…' : `Parking the cars for a ${MODE_NAME[mode].toLowerCase()} one…`;
+    $('loadingText').textContent = m === 'easy' ? 'Parking the cars…' : `Parking the cars for a ${MODE_NAME[m].toLowerCase()} one…`;
     $('loading').classList.remove('hide');
   }, 150);
-  const p = await getPuzzle(mode, n);
+  const p = await getPuzzle(m, n);
   if (token !== loadToken) return; // another puzzle was picked meanwhile
   clearTimeout(slow);
   $('loading').classList.add('hide');
+  loadingMode = null;
+  mode = m;
+  save.mode = m;
 
   winToken++;
   puzzle = p;
@@ -161,7 +169,7 @@ async function startPuzzle(n, resume = false) {
   hintShow = null;
   exitAt = 0;
   bumps.clear();
-  const play = save.runs[mode].play;
+  const play = save.runs[m].play;
   if (resume && play && play.n === n && play.v === p.v) {
     let ok = true;
     for (const [i, to] of play.moves || []) {
@@ -175,8 +183,8 @@ async function startPuzzle(n, resume = false) {
   shown = pos.slice();
   tweens = pos.map(() => null);
   introAt = performance.now();
-  for (const t of ['teal', 'red', 'night']) document.body.classList.toggle(`theme-${t}`, THEME[mode] === t);
-  $('levelLabel').textContent = `${MODE_NAME[mode].toUpperCase()} ${n}`;
+  for (const t of ['teal', 'red', 'night']) document.body.classList.toggle(`theme-${t}`, THEME[m] === t);
+  $('levelLabel').textContent = `${MODE_NAME[m].toUpperCase()} ${n}`;
   $('tierTag').textContent = `MIN ${p.min}`;
   layout();
   updateHud();
@@ -184,21 +192,30 @@ async function startPuzzle(n, resume = false) {
   sfx('slide');
   intro();
   // The next one is worked out while you play this one.
-  setTimeout(() => prefetch(mode, n + 1), 400);
+  setTimeout(() => prefetch(m, n + 1), 400);
+}
+
+// Stop loading a puzzle that was asked for (going back to the one on screen).
+function cancelLoad() {
+  loadToken++;
+  loadingMode = null;
+  $('loading').classList.add('hide');
+  updateHud();
 }
 
 function savePlay() {
   if (!puzzle) return;
-  save.runs[mode].play = finished ? null : { n: puzzle.n, v: puzzle.v, moves: moves.map((m) => [m.i, m.to]), hints };
+  save.runs[puzzle.mode].play = finished ? null : { n: puzzle.n, v: puzzle.v, moves: moves.map((m) => [m.i, m.to]), hints };
   writeSave();
 }
 
 function updateHud() {
   $('moves').textContent = String(moves.length);
   $('movesUnit').textContent = moves.length === 1 ? 'move' : 'moves';
-  $('undoBtn').disabled = finished || !moves.length;
-  $('restartBtn').disabled = finished;
-  $('hintBtn').disabled = finished;
+  const busy = finished || !!loadingMode || !puzzle;
+  $('undoBtn').disabled = busy || !moves.length;
+  $('restartBtn').disabled = busy;
+  $('hintBtn').disabled = busy;
 }
 
 // Slide vehicle i to p on screen. clack: knock into place when it gets there.
@@ -210,7 +227,9 @@ function slideTo(i, p, clack = false, dur = 0) {
     if (clack) { sfx('clack'); haptic(); }
     return;
   }
-  tweens[i] = { from: shown[i], to: p, start: performance.now(), dur: dur || 110 + 55 * Math.min(4, d), clack };
+  // It may spring a little past the end, but never into whatever is there.
+  const [lo, hi] = limits(puzzle, pos, i);
+  tweens[i] = { from: shown[i], to: p, start: performance.now(), dur: dur || 110 + 55 * Math.min(4, d), clack, lo, hi };
   requestDraw();
 }
 
@@ -233,7 +252,7 @@ function drive(i, p) {
 }
 
 function undo() {
-  if (finished || drag || !moves.length) return;
+  if (finished || drag || loadingMode || !moves.length) return;
   const m = moves.pop();
   pos[m.i] = m.from;
   slideTo(m.i, m.from, true);
@@ -243,8 +262,11 @@ function undo() {
   savePlay();
 }
 
+// A fresh go at the same puzzle: everything back where it started (the cars
+// arrive again, rather than all sliding back through each other), and no
+// moves or hints so far.
 function restart() {
-  if (!puzzle) return;
+  if (!puzzle || loadingMode) return;
   ui.close();
   winToken++;
   finished = false;
@@ -252,15 +274,20 @@ function restart() {
   drag = null;
   hintShow = null;
   moves = [];
+  hints = 0;
   pos = puzzle.start.slice();
-  pos.forEach((p, i) => slideTo(i, p, false, 260));
+  shown = pos.slice();
+  tweens = pos.map(() => null);
+  bumps.clear();
+  introAt = performance.now();
   sfx('slide');
   updateHud();
   savePlay();
+  requestDraw();
 }
 
 function hint() {
-  if (finished || !puzzle || drag || ui.isOpen()) return;
+  if (finished || !puzzle || drag || loadingMode || ui.isOpen()) return;
   // Asked again while showing: make that move.
   if (hintShow && performance.now() - hintShow.at < 9000) {
     const { i, to } = hintShow;
@@ -269,13 +296,19 @@ function hint() {
     drive(i, to);
     return;
   }
-  const plan = solveFrom(puzzle, pos);
-  if (!plan || !plan.length) return;
-  const [i, to] = plan[0];
+  // Driving the last car again is still the same move, so the best next
+  // step is sometimes to carry on with it.
+  const last = moves[moves.length - 1] || null;
+  const h = bestHint(puzzle, pos, last && { i: last.i, from: last.from });
+  if (!h) return;
   hints++;
-  hintShow = { i, to, at: performance.now() };
+  hintShow = { i: h.i, to: h.to, at: performance.now() };
   sfx('hint');
-  toast(plan.length === 1 ? 'One move to go: drive the red car out!' : `${plan.length} moves from the exit. Tap Hint again to make this one.`, 3200);
+  const total = moves.length + h.left;
+  const same = last && last.i === h.i ? 'Keep going with that one: it’s still the same move. ' : '';
+  const out = h.i === 0 && h.to === GOAL ? 'Drive the red car out! ' : '';
+  const best = `Best from here: ${total} ${total === 1 ? 'move' : 'moves'} in all${total === puzzle.min ? ', the fewest possible' : ''}.`;
+  toast(`${out || same}${best} Tap Hint again to make this move.`, 3600);
   savePlay();
   requestDraw();
 }
@@ -283,7 +316,8 @@ function hint() {
 function win() {
   finished = true;
   hintShow = null;
-  const run = save.runs[mode];
+  const run = save.runs[puzzle.mode];
+  const name = MODE_NAME[puzzle.mode];
   const stars = starsFor(moves.length, puzzle.min);
   const before = run.best[puzzle.n] || 0;
   if (!before) run.solved++;
@@ -307,12 +341,12 @@ function win() {
     const star = (on) => `<svg viewBox="0 0 24 24" class="${on ? 'on' : ''}"><path d="M12 2.6l2.85 5.8 6.4.93-4.63 4.5 1.1 6.37L12 17.2l-5.72 3 1.1-6.37-4.63-4.5 6.4-.93z"/></svg>`;
     const note = stars === 3 ? 'The fewest moves possible. Perfect!'
       : `Do it in ${puzzle.min} for 3 stars${before === 3 ? ' (you already have them).' : '.'}`;
-    ui.show(`<h2>${MODE_NAME[mode]} ${puzzle.n} solved!</h2>
+    ui.show(`<h2>${name} ${puzzle.n} solved!</h2>
       <div class="win-stars">${star(stars >= 1)}${star(stars >= 2)}${star(stars >= 3)}</div>
       <p class="you">You: ${moves.length} ${moves.length === 1 ? 'move' : 'moves'} · Best possible: ${puzzle.min}</p>
       <div class="stats"><div><b>${moves.length}</b><span>Your moves</span></div><div><b>${puzzle.min}</b><span>Fewest</span></div><div><b>${hints}</b><span>Hints</span></div></div>
       <p class="best">${note}</p>
-      <p class="tip">★ ${total} ${total === 1 ? 'star' : 'stars'} in ${MODE_NAME[mode]} so far</p>
+      <p class="tip">★ ${total} ${total === 1 ? 'star' : 'stars'} in ${name} so far</p>
       <div class="actions"><button class="btn btn-primary" data-action="next">Next puzzle</button>
       ${stars < 3 ? '<button class="btn btn-soft" data-action="retry">Try for 3 stars</button>' : ''}</div>`);
   });
@@ -332,9 +366,17 @@ function layout() {
   canvas.width = Math.round(W * dpr);
   canvas.height = Math.round(H * dpr);
   const top = $('topbar').getBoundingClientRect().bottom + 18;
-  const bottom = $('tools').getBoundingClientRect().top - 18;
-  const across = SIZE + 2 * KERB + ROAD;
-  S = Math.max(24, Math.min((W - 14) / across, (bottom - top) / (SIZE + 2 * KERB), 88));
+  let bottom = $('tools').getBoundingClientRect().top - 18;
+  const across = SIZE + 2 * KERB + ROAD, down = SIZE + 2 * KERB;
+  const size = (b) => Math.max(24, Math.min((W - 14) / across, (b - top) / down, 88));
+  S = size(bottom);
+  // Hints pop up just above the buttons: where the car park would reach down
+  // that far (a big screen, or a short one), it stops short of them.
+  const room = H - (parseFloat(getComputedStyle($('toast')).bottom) || 112) - 64;
+  if (top + (bottom - top + down * S) / 2 > room) {
+    bottom = Math.min(bottom, room);
+    S = size(bottom);
+  }
   ox = Math.round((W - across * S) / 2 + KERB * S);
   oy = Math.round(top + (bottom - top - (SIZE + 2 * KERB) * S) / 2 + KERB * S);
   requestDraw();
@@ -363,17 +405,18 @@ const rubber = (x) => 0.1 * (1 - Math.exp(-x / 0.25)); // a little give against 
 
 canvas.addEventListener('pointerdown', (e) => {
   e.preventDefault();
-  if (!puzzle || finished || drag || ui.isOpen()) return;
+  if (!puzzle || finished || drag || loadingMode || ui.isOpen()) return;
   const i = vehicleAt(e.clientX, e.clientY);
   if (i < 0) return;
   try { canvas.setPointerCapture(e.pointerId); } catch { /* not supported */ }
   const v = puzzle.vehicles[i];
+  // Caught while still sliding: it carries on from where it is now.
   const t = tweens[i];
-  if (t) { tweens[i] = null; if (t.clack) { sfx('clack'); } }
+  tweens[i] = null;
   const [lo, hi] = limits(puzzle, pos, i);
   drag = {
-    i, id: e.pointerId, h: v.h, lo, hi, base: shown[i], at: shown[i], from: pos[i],
-    start: v.h ? e.clientX : e.clientY, pushed: 0, slid: shown[i], track: [[performance.now(), shown[i]]],
+    i, id: e.pointerId, h: v.h, lo, hi, base: shown[i], at: shown[i], from: pos[i], clack: !!(t && t.clack),
+    start: v.h ? e.clientX : e.clientY, travel: 0, pushed: 0, slid: shown[i], track: [[performance.now(), shown[i]]],
   };
   hintShow = hintShow && hintShow.i === i ? hintShow : null;
   requestDraw();
@@ -382,6 +425,7 @@ canvas.addEventListener('pointerdown', (e) => {
 canvas.addEventListener('pointermove', (e) => {
   if (!drag || e.pointerId !== drag.id) return;
   const want = drag.base + ((drag.h ? e.clientX : e.clientY) - drag.start) / S;
+  drag.travel = Math.max(drag.travel, Math.abs(want - drag.base));
   let at = want, push = 0;
   if (want < drag.lo) { at = drag.lo - rubber(drag.lo - want); push = -1; }
   else if (want > drag.hi) { at = drag.hi + rubber(want - drag.hi); push = 1; }
@@ -411,9 +455,10 @@ function endDrag(e) {
   let v = 0;
   if (recent.length >= 2) v = (recent[recent.length - 1][1] - recent[0][1]) / Math.max(16, recent[recent.length - 1][0] - recent[0][0]);
   const aim = Math.abs(v) > 0.004 ? d.at + v * 110 : d.at;
-  const to = Math.max(d.lo, Math.min(d.hi, Math.round(aim)));
+  // Hardly moved at all (a tap): no move, it just settles where it was going.
+  const to = d.travel < 0.2 ? pos[d.i] : Math.max(d.lo, Math.min(d.hi, Math.round(aim)));
   const moved = to !== pos[d.i];
-  slideTo(d.i, to, moved);
+  slideTo(d.i, to, moved || d.clack);
   if (moved) drive(d.i, to);
   requestDraw();
 }
@@ -445,7 +490,7 @@ function draw(now) {
     const t = tweens[i];
     if (!t) continue;
     const k = Math.min(1, (now - t.start) / t.dur);
-    shown[i] = t.from + (t.to - t.from) * easeBack(k);
+    shown[i] = Math.max(t.lo, Math.min(t.hi, t.from + (t.to - t.from) * easeBack(k)));
     if (k >= 1) {
       shown[i] = t.to;
       tweens[i] = null;
@@ -895,16 +940,17 @@ function intro() {
 const runStars = (m) => Object.values(save.runs[m].best).reduce((s, v) => s + v, 0);
 
 function showSettings() {
-  const tab = (m) => `<button class="seg-btn${m === mode ? ' on' : ''}" data-action="mode" data-mode="${m}">${MODE_NAME[m]}</button>`;
-  const run = save.runs[mode];
-  const [lo, hi] = RANGES[mode];
+  const shownMode = loadingMode || mode;
+  const tab = (m) => `<button class="seg-btn${m === shownMode ? ' on' : ''}" data-action="mode" data-mode="${m}">${MODE_NAME[m]}</button>`;
+  const run = save.runs[shownMode];
+  const [lo, hi] = RANGES[shownMode];
   ui.show(`<h2>Settings</h2>
     <div class="seg">${MODES.map(tab).join('')}</div>
-    <p class="seg-note tip">${mode === 'expert' ? `${lo} or more moves` : `${lo} to ${hi} moves`} · ${run.solved} solved · ★ ${runStars(mode)}</p>
+    <p class="seg-note tip">${shownMode === 'expert' ? `${lo} or more moves` : `${lo} to ${hi} moves`} · ${run.solved} solved · ★ ${runStars(shownMode)}</p>
     ${switchRow('Sound', 'sound')}
     ${switchRow('Haptics', 'haptics')}
     <div class="row">Puzzle <span class="stepper"><button class="btn btn-soft" data-action="num-down" aria-label="Previous">−</button>
-      <input id="numInput" type="number" inputmode="numeric" min="1" value="${puzzle && puzzle.mode === mode ? puzzle.n : run.n}">
+      <input id="numInput" type="number" inputmode="numeric" min="1" value="${puzzle && puzzle.mode === shownMode ? puzzle.n : run.play ? run.play.n : run.n}">
       <button class="btn btn-soft" data-action="num-up" aria-label="Next">+</button></span></div>
     <div class="actions">
       <button class="btn btn-primary" data-action="go">Play this puzzle</button>
@@ -914,25 +960,25 @@ function showSettings() {
     </div>`);
 }
 
+// Pick up another mode's run where it was left. The puzzle on screen stays
+// (and stays saved as its own mode's) until the new one has arrived.
 function switchMode(m) {
-  if (!MODES.includes(m) || m === mode) return;
-  savePlay();
-  mode = m;
-  save.mode = m;
-  writeSave();
+  if (!MODES.includes(m) || m === (loadingMode || mode)) return;
+  if (puzzle) savePlay();
+  if (m === mode && puzzle && puzzle.mode === m) { cancelLoad(); ui.close(); return; }
   const run = save.runs[m];
-  startPuzzle(run.play ? run.play.n : run.n, true);
+  startPuzzle(run.play ? run.play.n : run.n, true, m);
 }
 
 const ui = cards({
   next: () => startPuzzle(puzzle.n + 1),
   retry: () => restart(),
-  restart: () => restart(),
+  restart: () => { if (loadingMode) ui.close(); else restart(); },
   rules: showRules,
   mode: (el) => switchMode(el.dataset.mode),
   'num-down': () => { const i = $('numInput'); i.value = Math.max(1, (+i.value || 1) - 1); },
   'num-up': () => { const i = $('numInput'); i.value = (+i.value || 0) + 1; },
-  go: () => startPuzzle(+$('numInput').value || 1, true),
+  go: () => startPuzzle(+$('numInput').value || 1, true, loadingMode || mode),
 });
 
 $('menuBtn').addEventListener('click', () => { sfx('tap'); showSettings(); });
@@ -975,15 +1021,12 @@ if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
     },
     get puzzle() { return puzzle; }, get pos() { return pos.slice(); }, get moves() { return moves.length; },
     get finished() { return finished; }, get hints() { return hints; }, get view() { return { ox, oy, S }; },
+    get shown() { return shown.slice(); }, get loading() { return loadingMode; },
   };
 }
 
 const params = new URLSearchParams(location.search);
-if (MODES.includes(params.get('mode'))) {
-  mode = params.get('mode');
-  save.mode = mode;
-  writeSave();
-}
+if (MODES.includes(params.get('mode'))) mode = params.get('mode');
 if (location.search) window.history.replaceState(null, '', location.pathname);
 layout();
 const asked = Number(params.get('n'));

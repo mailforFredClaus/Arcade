@@ -11,17 +11,17 @@
 // out how far each one is from the nearest finish (a breadth-first search,
 // so the distances are exact). The farthest positions are the hardest
 // puzzles that layout can make. Layouts are improved a vehicle at a time
-// until one is hard enough. That's quick for easy and medium ones; hard and
-// expert ones start from a bank of hard layouts found the same way ahead of
-// time (seeds.js), rearranged for each puzzle without getting any easier.
-// Same mode and number, same puzzle, everywhere.
+// until one is hard enough. That's quick for easy and medium ones; the first
+// few hundred hard and expert ones each come from a bank of car parks found
+// the same way ahead of time (seeds.js). Same mode and number, same puzzle,
+// everywhere.
 
 import { SEEDS } from './seeds.js';
 
 export const SIZE = 6;
 export const EXIT_ROW = 2;
 export const GOAL = SIZE - 2; // the red car's column when it's at the exit
-export const GEN_VERSION = 1;
+export const GEN_VERSION = 2;
 export const MODES = ['easy', 'medium', 'hard', 'expert'];
 
 // The fewest moves each mode's puzzles take.
@@ -294,6 +294,30 @@ export function solveFrom(puzzle, pos) {
   return null;
 }
 
+// The best next move for the way the game counts: driving the vehicle you
+// moved last again is still that same move, and driving it back to where
+// that move started takes the move away. last: { i, from } for the last move,
+// or null. Returns { i, to, left }, where left is how many more moves the
+// counter will go up by on the best way out from here; null if solved.
+export function bestHint(puzzle, pos, last = null) {
+  const plan = solveFrom(puzzle, pos);
+  if (!plan || !plan.length) return null;
+  let best = { i: plan[0][0], to: plan[0][1], left: plan.length };
+  if (last && last.i >= 0 && last.i < pos.length) {
+    const [lo, hi] = limits(puzzle, pos, last.i);
+    for (let q = lo; q <= hi; q++) {
+      if (q === pos[last.i]) continue;
+      const next = pos.slice();
+      next[last.i] = q;
+      const rest = solveFrom(puzzle, next);
+      if (!rest) continue;
+      const left = rest.length - (q === last.from ? 1 : 0);
+      if (left < best.left) best = { i: last.i, to: q, left };
+    }
+  }
+  return best;
+}
+
 // ---- making puzzles ----------------------------------------------------------------
 
 // How each mode's car parks are filled: how many vehicles, how many of them
@@ -368,7 +392,14 @@ function randomLayout(R, spec) {
   return L;
 }
 
+// Everything in the same place (in any order)?
+function sameLayout(a, b) {
+  const key = (L) => L.vehicles.map((v, i) => `${v.h ? 'h' : 'v'}${v.line}${v.len}@${L.pos[i]}`).concat(L.walls.map((w) => `x${w}`)).sort().join(' ');
+  return key(a) === key(b);
+}
+
 // Change one thing: take a vehicle away, add one, or move one somewhere else.
+// Returns null if that came to nothing (no room for it, or the same again).
 function mutate(R, L, spec) {
   const out = copy(L);
   const n = out.vehicles.length;
@@ -389,7 +420,7 @@ function mutate(R, L, spec) {
     drop();
     addVehicle(R, out, spec);
   }
-  return out;
+  return sameLayout(out, L) ? null : out;
 }
 
 // How hard a layout's hardest position is (-1 if it leaves far too much
@@ -408,9 +439,9 @@ function score(L, limit) {
 // changes that make it harder, until it takes at least `target` moves.
 // Layouts that leave too much room are no good (and slow to look at), so
 // they score -1 and the search moves on to tighter ones.
-function climb(R, spec, mode, target, from = null) {
+function climb(R, spec, mode, target) {
   let best = null;
-  let cur = score(from || randomLayout(R, spec), spec.limit);
+  let cur = score(randomLayout(R, spec), spec.limit);
   let stale = 0, steps = 0, restarts = 0;
   for (steps = 1; ; steps++) {
     if (!best || cur.max > best.max) best = cur;
@@ -425,12 +456,14 @@ function climb(R, spec, mode, target, from = null) {
       if (restarts % spec.fresh === 0) cur = score(randomLayout(R, spec), spec.limit);
       else {
         let L = best.far;
-        for (let k = 2 + ((R() * 3) | 0); k > 0; k--) L = mutate(R, L, spec);
+        for (let k = 2 + ((R() * 3) | 0); k > 0; k--) L = mutate(R, L, spec) || L;
         cur = score(L, spec.limit);
       }
       continue;
     }
-    const next = score(mutate(R, cur.far, spec), spec.limit);
+    const changed = mutate(R, cur.far, spec);
+    if (!changed) { stale++; continue; }
+    const next = score(changed, spec.limit);
     if (next.max > cur.max) {
       cur = next;
       stale = 0;
@@ -443,16 +476,16 @@ function climb(R, spec, mode, target, from = null) {
   return { layout: best.far, max: best.max, steps };
 }
 
-// Rearrange a layout: make `changes` changes one at a time, each kept only
-// if the car park still takes at least `floor` moves. A hard layout stays
-// hard but ends up quite different.
-function wander(R, spec, L, floor, changes, budget = 400) {
-  let cur = score(L, spec.limit), steps = 0, done = 0;
-  for (; done < changes && steps < budget; steps++) {
-    const next = score(mutate(R, cur.far, spec), spec.limit);
-    if (next.max >= floor) { cur = next; done++; }
-  }
-  return { layout: cur.far, max: cur.max, steps, changes: done };
+// Hard and expert puzzles 1, 2, 3… each have a car park of their own from
+// the bank, easiest first so later numbers get harder. Past the end of the
+// bank they're built from scratch like the others (slower, but the next
+// puzzle is always built while you play this one).
+const seedOrders = {};
+function seedFor(mode, n) {
+  const seeds = SEEDS[mode];
+  if (!seeds || n > seeds.length) return null;
+  if (!seedOrders[mode]) seedOrders[mode] = seeds.map((x, i) => i).sort((x, y) => seeds[x].max - seeds[y].max || x - y);
+  return seeds[seedOrders[mode][n - 1]];
 }
 
 // Make puzzle number n of a mode.
@@ -466,17 +499,11 @@ export function makePuzzle(mode, n, want = 0) {
   if (want) low = high = want;
   const target = low + ((R() * (high - low + 1)) | 0);
 
-  // Easy and medium car parks are built from scratch. Hard ones take a
-  // while to find, so they start from one of a few hundred hard layouts
-  // found ahead of time (SEEDS) and are rearranged from there.
-  let found;
-  const seeds = !want && SEEDS[mode];
-  if (seeds && seeds.length) {
-    const fit = seeds.filter((x) => x.max >= target && x.max <= target + 4);
-    const pool = fit.length ? fit : seeds.filter((x) => x.max >= target);
-    const seed = (pool.length ? pool : seeds)[(R() * (pool.length || seeds.length)) | 0];
-    found = wander(R, spec, parseBoard(seed.board), Math.min(seed.max, target), 10 + ((R() * 10) | 0));
-  } else found = climb(R, spec, mode, target);
+  // Easy and medium car parks are built from scratch. Hard and expert ones
+  // take a while to find, so the first few hundred come from a bank found
+  // ahead of time (SEEDS).
+  const seed = !want && seedFor(mode, n);
+  const found = seed ? { layout: parseBoard(seed.board), max: seed.max, steps: 0 } : climb(R, spec, mode, target);
   const best = found.layout;
   const goal = Math.min(target, found.max);
 
@@ -512,7 +539,7 @@ export function makePuzzle(mode, n, want = 0) {
   }));
   return {
     mode, n, v: GEN_VERSION, vehicles, walls: best.walls.slice(), start, min: d, solution,
-    positions: a.size, steps: found.steps, changes: found.changes || 0, max: a.max,
+    positions: a.size, steps: found.steps, max: a.max, seeded: !!seed,
   };
 }
 

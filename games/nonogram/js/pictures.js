@@ -9,6 +9,59 @@
 //   paint(grid, kind) the colours of the finished picture: { fg, bg }, one
 //         colour per square (fg for filled squares, bg for empty ones)
 
+// ---- arithmetic that comes out the same everywhere -------------------------------------
+//
+// A puzzle number has to give the same picture on every device, but browsers
+// may round Math.sin, Math.exp, Math.hypot and ** each in their own way, and
+// a difference in the last digit can flip a square. So pictures only use
+// + − × ÷ and Math.sqrt (which every engine must round exactly the same way),
+// and these, built from them.
+
+const PI = 3.141592653589793, TAU = 2 * PI, HALF_PI = PI / 2, LN2 = 0.6931471805599453;
+const sq = (x) => x * x;
+const len = (x, y) => Math.sqrt(x * x + y * y);
+
+export function sin(x) {
+  x -= TAU * Math.round(x / TAU);
+  if (x > HALF_PI) x = PI - x;
+  else if (x < -HALF_PI) x = -PI - x;
+  const x2 = x * x;
+  return x * (1 + x2 * (-1 / 6 + x2 * (1 / 120 + x2 * (-1 / 5040 + x2 * (1 / 362880 + x2 * (-1 / 39916800 + x2 * (1 / 6227020800 + x2 * (-1 / 1307674368000))))))));
+}
+
+export function cos(x) {
+  return sin(x + HALF_PI);
+}
+
+// The angle whose tangent is z, for z from 0 to 1: halve it twice, then a
+// short series.
+function atanSmall(z) {
+  z /= 1 + Math.sqrt(1 + z * z);
+  z /= 1 + Math.sqrt(1 + z * z);
+  const z2 = z * z;
+  let s = 0;
+  for (let k = 23; k >= 1; k -= 2) s = 1 / k - z2 * s;
+  return 4 * z * s;
+}
+
+export function atan2(y, x) {
+  if (x === 0 && y === 0) return 0;
+  const ax = Math.abs(x), ay = Math.abs(y);
+  let a = ay <= ax ? atanSmall(ay / ax) : HALF_PI - atanSmall(ax / ay);
+  if (x < 0) a = PI - a;
+  return y < 0 ? -a : a;
+}
+
+// e to the x, for the gentle hills of an island (far below zero it's zero).
+export function exp(x) {
+  if (x < -60) return 0;
+  const k = Math.round(x / LN2), r = x - k * LN2;
+  let sum = 1, term = 1;
+  for (let i = 1; i <= 16; i++) { term = (term * r) / i; sum += term; }
+  for (let i = 0; i < Math.abs(k); i++) sum *= k > 0 ? 2 : 0.5;
+  return sum;
+}
+
 export const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 
 export function hsl(h, s, l) {
@@ -805,17 +858,17 @@ function creature(R, cols, rows) {
   const inside = (x, y) => {
     const ax = Math.abs(x);
     // Eyes first (they're holes, with a pupil in the bigger ones).
-    const ed = Math.hypot(ax - eye.x, y - eye.y);
+    const ed = len(ax - eye.x, y - eye.y);
     if (ed < eye.r * 0.45 && cols >= 20) return 'pupil';
     if (ed < eye.r) return '-eye';
     if (mouth) {
       const my = main.y + main.ry * 0.25, mw = main.rx * 0.38;
-      if (ax < mw && y > my && y < my + 0.12 + 0.1 * (1 - (ax / mw) ** 2) && y > my + 0.12 * (ax / mw) ** 2) return '-mouth';
+      if (ax < mw && y > my && y < my + 0.12 + 0.1 * (1 - sq(ax / mw)) && y > my + 0.12 * sq(ax / mw)) return '-mouth';
     }
     for (const b of blobs) {
       const dx = (ax - b.x) / b.rx, dy = (y - b.y) / b.ry;
       if (dx * dx + dy * dy <= 1) {
-        if (belly && b === main && ((ax / (b.rx * 0.6)) ** 2 + ((y - b.y - b.ry * 0.35) / (b.ry * 0.5)) ** 2 <= 1)) return 'belly';
+        if (belly && b === main && sq(ax / (b.rx * 0.6)) + sq((y - b.y - b.ry * 0.35) / (b.ry * 0.5)) <= 1) return 'belly';
         return 'body';
       }
     }
@@ -826,7 +879,7 @@ function creature(R, cols, rows) {
     if (head === 'ears' && inPolygon(ax, y, [[main.rx * 0.2, top + 0.15], [main.rx * 0.75, top - 0.3], [main.rx * 0.75, top + 0.3]])) return 'horn';
     if (head === 'antennae') {
       const ay = top - 0.25, axx = main.rx * 0.45;
-      if (Math.hypot(ax - axx, y - ay) < 0.1) return 'horn';
+      if (len(ax - axx, y - ay) < 0.1) return 'horn';
       if (Math.abs(ax - axx * (1 - (ay - y) * 0)) < 0.05 && y > ay && y < top + 0.15) return 'limb';
     }
     return 0;
@@ -862,20 +915,21 @@ function creature(R, cols, rows) {
 function starPoints(points, inner, lift = 0) {
   const pts = [];
   for (let i = 0; i < points * 2; i++) {
-    const a = -Math.PI / 2 + (i * Math.PI) / points, rad = i % 2 ? inner : 1;
-    pts.push([Math.cos(a) * rad, Math.sin(a) * rad + lift]);
+    const a = -HALF_PI + (i * PI) / points, rad = i % 2 ? inner : 1;
+    pts.push([cos(a) * rad, sin(a) * rad + lift]);
   }
   return pts;
 }
 
-const HEX = Array.from({ length: 6 }, (_, i) => [Math.cos((i * Math.PI) / 3 + Math.PI / 6), Math.sin((i * Math.PI) / 3 + Math.PI / 6)]);
+const HEX = Array.from({ length: 6 }, (_, i) => [cos((i * PI) / 3 + PI / 6), sin((i * PI) / 3 + PI / 6)]);
 const BOLT = [[0.15, -1], [-0.55, 0.12], [-0.05, 0.12], [-0.2, 1], [0.55, -0.15], [0.05, -0.15], [0.3, -1]];
 
 // Shapes to put on a badge, each a test of a point (x, y down, about -1..1).
 const MOTIFS = {
   heart: () => (x, y) => {
     const X = x * 1.12, Y = -y * 1.12 + 0.25;
-    return (X * X + Y * Y - 1) ** 3 - X * X * Y * Y * Y <= 0;
+    const t = X * X + Y * Y - 1;
+    return t * t * t - X * X * Y * Y * Y <= 0;
   },
   star: (R) => {
     const pts = starPoints(5 + Math.floor(R() * 3), 0.5 + R() * 0.08, 0.08);
@@ -884,18 +938,18 @@ const MOTIFS = {
   flower: (R) => {
     const petals = 5 + Math.floor(R() * 3);
     return (x, y) => {
-      const r = Math.hypot(x, y), a = Math.atan2(y, x);
+      const r = len(x, y), a = atan2(y, x);
       if (r < 0.32) return 'centre';
-      return r < 0.62 + 0.36 * Math.cos(petals * a);
+      return r < 0.62 + 0.36 * cos(petals * a);
     };
   },
   plus: () => (x, y) => (Math.abs(x) < 0.34 && Math.abs(y) < 0.92) || (Math.abs(y) < 0.34 && Math.abs(x) < 0.92),
-  moon: () => (x, y) => x * x + y * y < 0.85 && (x - 0.38) ** 2 + (y + 0.18) ** 2 > 0.45,
-  drop: () => (x, y) => x * x + (y - 0.3) ** 2 < 0.42 || (y < 0.3 && y > -1 && Math.abs(x) < (y + 1) * 0.5),
+  moon: () => (x, y) => x * x + y * y < 0.85 && sq(x - 0.38) + sq(y + 0.18) > 0.45,
+  drop: () => (x, y) => x * x + sq(y - 0.3) < 0.42 || (y < 0.3 && y > -1 && Math.abs(x) < (y + 1) * 0.5),
   bolt: () => (x, y) => inPolygon(x, y, BOLT),
-  paw: () => (x, y) => ((x / 0.6) ** 2 + ((y - 0.38) / 0.48) ** 2 < 1)
-    || Math.hypot(Math.abs(x) - 0.66, y + 0.18) < 0.24 || Math.hypot(Math.abs(x) - 0.26, y + 0.62) < 0.26,
-  clover: () => (x, y) => Math.hypot(x, y - 0.42) < 0.42 || Math.hypot(x, y + 0.42) < 0.42 || Math.hypot(x - 0.42, y) < 0.42 || Math.hypot(x + 0.42, y) < 0.42,
+  paw: () => (x, y) => sq(x / 0.6) + sq((y - 0.38) / 0.48) < 1
+    || len(Math.abs(x) - 0.66, y + 0.18) < 0.24 || len(Math.abs(x) - 0.26, y + 0.62) < 0.26,
+  clover: () => (x, y) => len(x, y - 0.42) < 0.42 || len(x, y + 0.42) < 0.42 || len(x - 0.42, y) < 0.42 || len(x + 0.42, y) < 0.42,
   diamond: () => (x, y) => Math.abs(x) * 0.85 + Math.abs(y) < 0.95,
   house: () => (x, y) => {
     if (Math.abs(x) < 0.2 && y > 0.35 && y < 0.95) return '-door';
@@ -910,7 +964,7 @@ const MOTIFS = {
 
 const PLATES = {
   circle: (x, y) => x * x + y * y <= 1,
-  squircle: (x, y) => x ** 4 + y ** 4 <= 1,
+  squircle: (x, y) => sq(x * x) + sq(y * y) <= 1,
   hexagon: (x, y) => inPolygon(x, y, HEX),
   shield: (x, y) => (y < 0.15 ? Math.abs(x) <= 0.92 && y >= -0.95 : Math.abs(x) <= 0.92 * (1 - (y - 0.15) / 0.85) && y <= 1),
   square: (x, y) => Math.abs(x) <= 0.92 && Math.abs(y) <= 0.92,
@@ -983,7 +1037,7 @@ export function landscapePicture(R, cols, rows) {
   const f1 = 1 + R() * 2, f2 = 2 + R() * 3, p1 = R() * 6, p2 = R() * 6;
   for (let c = 0; c < cols; c++) {
     const x = c / cols;
-    let y = Math.sin(x * Math.PI * f1 + p1) * 0.6 + Math.sin(x * Math.PI * f2 + p2) * 0.4;
+    let y = sin(x * PI * f1 + p1) * 0.6 + sin(x * PI * f2 + p2) * 0.4;
     if (peaks) y = 1 - Math.abs(((x * f1 + p1) % 1) * 2 - 1) * 2;
     h.push(clamp(Math.round(base - y * amp), Math.round(rows * 0.3), rows - 2));
   }
@@ -1045,7 +1099,7 @@ export function landscapePicture(R, cols, rows) {
     for (let r = top + cr; r < ground; r++) { grid[r * cols + c0] = 1; kind[r * cols + c0] = 'trunk'; }
     for (let r = top - cr; r <= top + cr; r++) for (let c = c0 - cr; c <= c0 + cr; c++) {
       if (r < 0 || c < 0 || c >= cols) continue;
-      if ((r - top) ** 2 + (c - c0) ** 2 <= cr * cr + cr) { grid[r * cols + c] = 1; kind[r * cols + c] = 'leaves'; }
+      if (sq(r - top) + sq(c - c0) <= cr * cr + cr) { grid[r * cols + c] = 1; kind[r * cols + c] = 'leaves'; }
     }
   }
   const dusk = R() < 0.3;
@@ -1091,7 +1145,7 @@ export function islandPicture(R, cols, rows) {
   const bumps = noise(R, 5), fine = noise(R, 9);
   const field = (x, y) => {
     let v = 0;
-    for (const h of hills) v += h.w * Math.exp(-((x - h.x) ** 2 + (y - h.y) ** 2) / (h.r * h.r));
+    for (const h of hills) v += h.w * exp(-(sq(x - h.x) + sq(y - h.y)) / (h.r * h.r));
     return v + bumps(x, y) * 0.35 + fine(x, y) * 0.15;
   };
   const share = 0.48 + R() * 0.12;
@@ -1134,7 +1188,7 @@ export function quiltPicture(R, cols, rows) {
   for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
     let x = Math.abs((c + 0.5) / cols - 0.5) * 2, y = Math.abs((r + 0.5) / rows - 0.5) * 2;
     if (diag && y > x) [x, y] = [y, x];
-    values[r * cols + c] = bumps(x, y) + fine(x, y) * 0.3 - Math.hypot(x, y) * 0.15;
+    values[r * cols + c] = bumps(x, y) + fine(x, y) * 0.3 - len(x, y) * 0.15;
   }
   const grid = threshold(values, 0.5 + R() * 0.1);
   const hue = R() * 360;

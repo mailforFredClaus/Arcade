@@ -30,16 +30,42 @@ const knownOf = (m) => (isFilled(m) ? FILL : isOut(m) ? EMPTY : UNKNOWN);
 
 // ---- saved progress ----------------------------------------------------------------
 
-// One run per size: the puzzle you're up to, how many you've solved, your best
-// time, and the puzzle in progress.
+// One run per size: the puzzle you're up to, how many you've solved (and
+// which), your best time, the puzzle in progress, and a few others you've
+// started and left (so trying another number doesn't lose one).
 const SAVE_KEY = 'nonogram';
+const KEEP = 5;
 const save = (() => {
   const s = store.get(SAVE_KEY, {}) || {};
   const out = { mode: MODES.includes(s.mode) ? s.mode : 'easy', seen: s.seen || {}, runs: s.runs || {} };
-  for (const m of MODES) out.runs[m] = Object.assign({ n: 1, solved: 0, best: null, play: null }, out.runs[m]);
+  for (const m of MODES) out.runs[m] = Object.assign({ n: 1, solved: 0, won: [], best: null, play: null, kept: [] }, out.runs[m]);
   return out;
 })();
 const writeSave = () => store.set(SAVE_KEY, save);
+
+// A fingerprint of a puzzle's clues: a save only fits the puzzle it was made on.
+function clueKey(p) {
+  let h = 0x811c9dc5;
+  for (const ch of JSON.stringify([p.rowClues, p.colClues])) h = Math.imul(h ^ ch.charCodeAt(0), 0x01000193);
+  return (h >>> 0).toString(36);
+}
+
+const started = (play) => !!play && /[1-4]/.test(play.marks || '');
+
+// Put the puzzle in progress aside before another number starts.
+function stash(run, n) {
+  const p = run.play;
+  run.play = null;
+  if (!started(p) || p.n === n) { run.play = p && p.n === n ? p : null; return; }
+  run.kept = [p, ...run.kept.filter((q) => q.n !== p.n)].slice(0, KEEP);
+}
+
+// The saved progress on puzzle n, if there is any (taking it off the kept list).
+function takeSaved(run, n) {
+  if (run.play && run.play.n === n) return run.play;
+  const k = run.kept.findIndex((q) => q.n === n);
+  return k < 0 ? null : run.kept.splice(k, 1)[0];
+}
 
 // ---- the game ------------------------------------------------------------------------
 
@@ -59,10 +85,14 @@ let hintInfo = null; // { cell, kind, index, at }
 let flashes = []; // lines just finished: { kind, index, at }
 let playToken = 0; // changes with each puzzle, so a late "solved!" card can tell it's stale
 
-function startPuzzle(n, resume = false) {
+function startPuzzle(n, resume = true) {
   n = Math.max(1, Math.floor(n) || 1);
   ui.close();
   playToken++;
+  const run = save.runs[mode];
+  stash(run, n);
+  const play = resume ? takeSaved(run, n) : null;
+  if (!resume) run.kept = run.kept.filter((q) => q.n !== n);
   puzzle = makePuzzle(mode, n);
   cols = puzzle.cols;
   rows = puzzle.rows;
@@ -75,8 +105,7 @@ function startPuzzle(n, resume = false) {
   flashes = [];
   gesture = null;
   let keptView = null;
-  const play = save.runs[mode].play;
-  if (resume && play && play.n === n && play.v === puzzle.v && play.marks && play.marks.length === N) {
+  if (play && play.v === puzzle.v && play.c === clueKey(puzzle) && play.marks && play.marks.length === N) {
     for (let i = 0; i < N; i++) marks[i] = Math.min(4, Math.max(0, play.marks.charCodeAt(i) - 48));
     time = play.time || 0;
     mistakes = play.mistakes || 0;
@@ -90,6 +119,8 @@ function startPuzzle(n, resume = false) {
   refreshLines();
   layout(true, keptView);
   updateHud();
+  // A puzzle saved already complete (it can't normally happen) is won now.
+  if (isSolved()) return win();
   savePlay();
   intro();
 }
@@ -97,7 +128,7 @@ function startPuzzle(n, resume = false) {
 function savePlay() {
   if (!puzzle) return;
   save.runs[mode].play = finished ? null : {
-    n: puzzle.n, v: puzzle.v, time, mistakes, hints,
+    n: puzzle.n, v: puzzle.v, c: clueKey(puzzle), time, mistakes, hints,
     marks: Array.from(marks, (m) => String(m)).join(''),
     view: zoomable() ? { s: view.s, fx: (area.x + area.w / 2 - view.ox) / view.s, fy: (area.y + area.h / 2 - view.oy) / view.s } : null,
   };
@@ -179,14 +210,15 @@ function beginStroke(press) {
   const first = marks[press.cell];
   if (settled(first)) {
     sfx('nope');
-    toast(first === WRONG_FILL ? 'That square is empty: it was a mistake, so it’s been settled.' : 'That square is filled: it was a mistake, so it’s been settled.');
+    say(first === WRONG_FILL ? 'That square is empty: it was a mistake, so it’s been settled.' : 'That square is filled: it was a mistake, so it’s been settled.');
     gesture = { kind: 'done' };
     return false;
   }
   const tool = press.cross ? CROSSED : FILLED;
   hintInfo = null;
   gesture = {
-    kind: 'stroke', start: press.cell, from: first, to: first === BLANK ? tool : BLANK,
+    kind: 'stroke', id: press.id, x0: press.x0, y0: press.y0, moved: !!press.moved,
+    start: press.cell, from: first, to: first === BLANK ? tool : BLANK,
     axis: null, end: press.cell, before: new Map(), stopped: false, changed: false,
     full0: { row: lines.row.map((l) => l.full), col: lines.col.map((l) => l.full) },
   };
@@ -199,7 +231,11 @@ function extendStroke(end) {
   if (!st || st.kind !== 'stroke' || st.stopped || end < 0) return;
   const sr = (st.start / cols) | 0, sc = st.start % cols;
   let er = (end / cols) | 0, ec = end % cols;
-  if (!st.axis && end !== st.start) st.axis = Math.abs(ec - sc) >= Math.abs(er - sr) ? 'row' : 'col';
+  // The way the finger has moved since it went down picks row or column.
+  if (!st.axis && end !== st.start) {
+    const dx = lastPoint ? Math.abs(lastPoint.x - st.x0) : Math.abs(ec - sc), dy = lastPoint ? Math.abs(lastPoint.y - st.y0) : Math.abs(er - sr);
+    st.axis = dx >= dy ? 'row' : 'col';
+  }
   if (st.axis === 'row') er = sr;
   else if (st.axis === 'col') ec = sc;
   const len = Math.max(Math.abs(er - sr), Math.abs(ec - sc));
@@ -297,20 +333,46 @@ function toggleCross() {
   updateHud();
 }
 
+// A message that isn't about any square: in its usual place.
+function say(msg, ms) {
+  const el = $('toast');
+  el.style.top = el.style.bottom = '';
+  toast(msg, ms);
+}
+
+// A hint's message goes just above or below the square it marks (where the
+// view is heading, if it's moving), so it never covers that square or the
+// clues along its row.
+function hintToast(msg, cell, ms = 4400) {
+  const el = $('toast');
+  const v = anim ? anim.to : view;
+  const top = v.oy + ((cell / cols) | 0) * v.s, bottom = top + v.s;
+  if (top + v.s / 2 > area.y + area.h / 2) {
+    el.style.top = 'auto';
+    el.style.bottom = `${Math.round(Math.min(H - 70, H - top + 10))}px`;
+  } else {
+    el.style.bottom = 'auto';
+    el.style.top = `${Math.round(Math.min(H - 70, bottom + 10))}px`;
+  }
+  toast(msg, ms);
+}
+
 function hint() {
   if (finished || !puzzle || ui.isOpen()) return;
   // A wrong mark gets taken off first (only possible with mistakes hidden).
   for (let i = 0; i < N; i++) {
     const wrongFill = marks[i] === FILLED && !puzzle.solution[i], wrongCross = marks[i] === CROSSED && puzzle.solution[i];
     if (!wrongFill && !wrongCross) continue;
-    undoStack.push([[i, marks[i]]]);
+    const before = marks[i];
     marks[i] = BLANK;
-    refreshLines();
+    const { extra, finishedLine } = linesChanged([i]);
+    undoStack.push([[i, before], ...extra]);
     hints++;
     hintInfo = { cell: i, kind: null, at: performance.now() };
     show(i);
-    toast(wrongFill ? 'That square shouldn’t be filled, so it’s been cleared.' : 'That square shouldn’t be crossed out, so the cross is gone.', 3200);
+    hintToast(wrongFill ? 'That square shouldn’t be filled, so it’s been cleared.' : 'That square shouldn’t be crossed out, so the cross is gone.', i, 3200);
     sfx('hint');
+    if (finishedLine && !isSolved()) setTimeout(() => sfx('chime'), 300);
     afterChange();
     return;
   }
@@ -324,7 +386,7 @@ function hint() {
   hints++;
   hintInfo = { cell: i, kind: step.kind, index: step.index, at: performance.now() };
   show(i);
-  toast(step.why, 4400);
+  hintToast(step.why, i);
   sfx('hint');
   if (finishedLine && !isSolved()) setTimeout(() => sfx('chime'), 300);
   afterChange();
@@ -351,7 +413,12 @@ function win() {
   hover = -1;
   hintInfo = null;
   const run = save.runs[mode];
-  run.solved++;
+  // Each number counts once, however many times it's solved.
+  if (!run.won.includes(puzzle.n)) {
+    run.won.push(puzzle.n);
+    run.solved++;
+  }
+  run.kept = run.kept.filter((q) => q.n !== puzzle.n);
   const best = run.best === null || time < run.best;
   if (best) run.best = time;
   run.n = Math.max(run.n, puzzle.n + 1);
@@ -435,6 +502,7 @@ function layout(reset = false, kept = null) {
   canvas.height = Math.round(H * dpr);
   if (!puzzle) return;
   const centre = reset ? null : { fx: (area.x + area.w / 2 - view.ox) / view.s, fy: (area.y + area.h / 2 - view.oy) / view.s, s: view.s };
+  const wasFitted = !reset && view.s <= fitS * 1.01;
   const top = $('topbar').getBoundingClientRect().bottom + 12;
   const bottom = $('tools').getBoundingClientRect().top - 12;
   area = { x: 11, y: top, w: W - 22, h: bottom - top };
@@ -444,7 +512,8 @@ function layout(reset = false, kept = null) {
   else if (reset) {
     // Big grids start zoomed in at the top left, where you'd start reading.
     view = zoomable() && fitS < 14 ? centredOn(0, 0, Math.min(maxS(), 28)) : fitted();
-  } else view = centredOn(centre.fx, centre.fy, Math.max(fitS, Math.min(maxS(), centre.s)));
+  } else if (!zoomable() || wasFitted) view = fitted();
+  else view = centredOn(centre.fx, centre.fy, Math.max(fitS, Math.min(maxS(), centre.s)));
   updateHud();
   requestDraw();
 }
@@ -507,18 +576,19 @@ function show(i) {
   animateTo(v);
 }
 
-// The square at a point, or -1 (off the grid, or on the clues). With clamp,
-// the nearest square on the grid instead.
+// The square at a point, or -1 if there's no square on show there (off the
+// grid, on the clues, or past the edge of the board, where a zoomed-in grid
+// carries on out of sight). With clamp, the nearest square on show instead.
 function cellAt(x, y, clamp = false) {
   const m = metricsFor(view.s);
-  let c = Math.floor((x - view.ox) / view.s), r = Math.floor((y - view.oy) / view.s);
+  const left = Math.max(area.x, view.ox - m.stripW) + m.stripW, top = Math.max(area.y, view.oy - m.stripH) + m.stripH;
+  const right = Math.min(area.x + area.w, view.ox + cols * view.s), bottom = Math.min(area.y + area.h, view.oy + rows * view.s);
   if (clamp) {
-    c = Math.max(0, Math.min(cols - 1, c));
-    r = Math.max(0, Math.min(rows - 1, r));
-    return r * cols + c;
-  }
-  if (x < Math.max(area.x, view.ox - m.stripW) + m.stripW || y < Math.max(area.y, view.oy - m.stripH) + m.stripH) return -1;
-  if (c < 0 || r < 0 || c >= cols || r >= rows) return -1;
+    x = Math.max(left + 0.5, Math.min(right - 0.5, x));
+    y = Math.max(top + 0.5, Math.min(bottom - 0.5, y));
+  } else if (x < left || y < top || x >= right || y >= bottom) return -1;
+  const c = Math.floor((x - view.ox) / view.s), r = Math.floor((y - view.oy) / view.s);
+  if (c < 0 || r < 0 || c >= cols || r >= rows) return clamp ? Math.max(0, Math.min(rows - 1, r)) * cols + Math.max(0, Math.min(cols - 1, c)) : -1;
   return r * cols + c;
 }
 
@@ -536,9 +606,9 @@ canvas.addEventListener('pointerdown', (e) => {
   if (!puzzle || ui.isOpen()) return;
   try { canvas.setPointerCapture(e.pointerId); } catch { /* not supported */ }
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  lastPoint = { x: e.clientX, y: e.clientY };
-  clearTimeout(pressTimer);
   if (pointers.size === 1) {
+    clearTimeout(pressTimer);
+    lastPoint = { x: e.clientX, y: e.clientY };
     const cell = finished ? -1 : cellAt(e.clientX, e.clientY);
     const pan = e.pointerType === 'mouse' && (e.button === 1 || (e.button === 0 && e.shiftKey));
     if (pan || cell < 0) {
@@ -546,7 +616,7 @@ canvas.addEventListener('pointerdown', (e) => {
       gesture = { kind: 'pan' };
       return;
     }
-    gesture = { kind: 'press', cell, cross: crossMode || e.button === 2, x0: e.clientX, y0: e.clientY };
+    gesture = { kind: 'press', id: e.pointerId, cell, cross: crossMode || e.button === 2, x0: e.clientX, y0: e.clientY, moved: false };
     hover = cell;
     if (!gesture.cross && settings.nonogramLongPress && e.pointerType !== 'mouse') {
       const press = gesture;
@@ -559,8 +629,10 @@ canvas.addEventListener('pointerdown', (e) => {
     }
     requestDraw();
   } else if (pointers.size === 2) {
-    // A second finger: pinch to zoom, unless a drag is already under way.
+    // A second finger: pinch to zoom, unless a drag is already under way
+    // (then it's left out, and the drag carries on with the first finger).
     if (gesture && gesture.kind === 'stroke' && gesture.axis) return;
+    clearTimeout(pressTimer);
     if (gesture && gesture.kind === 'stroke') cancelStroke();
     const [a, b] = [...pointers.values()];
     gesture = { kind: 'pinch', d0: Math.hypot(a.x - b.x, a.y - b.y), s0: view.s, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2, ox: view.ox, oy: view.oy };
@@ -582,14 +654,21 @@ canvas.addEventListener('pointermove', (e) => {
   const dx = e.clientX - p.x, dy = e.clientY - p.y;
   p.x = e.clientX;
   p.y = e.clientY;
-  lastPoint = { x: e.clientX, y: e.clientY };
   if (!gesture) return;
+  const drawing = gesture.kind === 'press' || gesture.kind === 'stroke';
+  // Only the finger that started a drag moves it.
+  if (drawing && gesture.id !== e.pointerId) return;
+  if (drawing) {
+    lastPoint = { x: e.clientX, y: e.clientY };
+    // A finger that has moved isn't long-pressing.
+    if (!gesture.moved && Math.hypot(e.clientX - gesture.x0, e.clientY - gesture.y0) > 6) {
+      gesture.moved = true;
+      clearTimeout(pressTimer);
+    }
+  }
   if (gesture.kind === 'press') {
     const c = cellAt(e.clientX, e.clientY, true);
-    if (c !== gesture.cell && Math.hypot(e.clientX - gesture.x0, e.clientY - gesture.y0) > 6) {
-      clearTimeout(pressTimer);
-      if (beginStroke(gesture)) extendStroke(c);
-    }
+    if (c !== gesture.cell && gesture.moved && beginStroke(gesture)) extendStroke(c);
   } else if (gesture.kind === 'stroke') {
     extendStroke(cellAt(e.clientX, e.clientY, true));
     hover = gesture ? gesture.end : -1;
@@ -616,12 +695,18 @@ canvas.addEventListener('pointermove', (e) => {
 function endPointer(e, cancelled) {
   if (!pointers.has(e.pointerId)) return;
   pointers.delete(e.pointerId);
-  clearTimeout(pressTimer);
-  if (gesture && pointers.size === 0) {
-    if (gesture.kind === 'press' && !cancelled) { if (beginStroke(gesture)) commitStroke(); }
-    else if (gesture.kind === 'stroke') commitStroke();
-  }
-  if (pointers.size === 0) {
+  const drawing = gesture && (gesture.kind === 'press' || gesture.kind === 'stroke');
+  if (drawing && gesture.id === e.pointerId) {
+    // The finger that owns the drag lifting ends it.
+    clearTimeout(pressTimer);
+    if (gesture.kind === 'press') { if (!cancelled && beginStroke(gesture)) commitStroke(); }
+    else commitStroke();
+    gesture = pointers.size ? { kind: 'done' } : null;
+    if (e.pointerType !== 'mouse') hover = -1;
+    savePlay();
+  } else if (drawing) {
+    // Another finger lifting: the drag carries on.
+  } else if (pointers.size === 0) {
     gesture = null;
     if (e.pointerType !== 'mouse') hover = -1;
     savePlay();
@@ -659,16 +744,18 @@ const rgb = (hex) => [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 1
 const mixRgb = (a, b, k) => `rgb(${Math.round(a[0] + (b[0] - a[0]) * k)}, ${Math.round(a[1] + (b[1] - a[1]) * k)}, ${Math.round(a[2] + (b[2] - a[2]) * k)})`;
 const WHITE = [255, 255, 255], INK_RGB = rgb(INK);
 
-// While dragging near the edge of a zoomed-in grid, it scrolls along.
+// While dragging near the edge of a zoomed-in grid, it scrolls along the
+// line being drawn. (Not for a finger held still, like a long-press.)
 function edgeScroll() {
-  if (!gesture || gesture.kind !== 'stroke' || !lastPoint || !zoomable()) return false;
+  if (!gesture || gesture.kind !== 'stroke' || !gesture.axis || !gesture.moved || gesture.stopped || !lastPoint || !zoomable()) return false;
   const m = metricsFor(view.s);
   const left = Math.max(area.x, view.ox - m.stripW) + m.stripW, topY = Math.max(area.y, view.oy - m.stripH) + m.stripH;
   const edge = 30, speed = 7;
   let dx = 0, dy = 0;
-  if (lastPoint.x < left + edge) dx = speed;
-  else if (lastPoint.x > area.x + area.w - edge) dx = -speed;
-  if (lastPoint.y < topY + edge) dy = speed;
+  if (gesture.axis === 'row') {
+    if (lastPoint.x < left + edge) dx = speed;
+    else if (lastPoint.x > area.x + area.w - edge) dx = -speed;
+  } else if (lastPoint.y < topY + edge) dy = speed;
   else if (lastPoint.y > area.y + area.h - edge) dy = -speed;
   if (!dx && !dy) return false;
   const before = { ...view };
@@ -1028,7 +1115,7 @@ function showSettings() {
   const run = save.runs[mode], size = SIZES[mode];
   ui.show(`<h2>Settings</h2>
     <div class="seg">${MODES.map(tab).join('')}</div>
-    <p class="seg-note tip">${size.cols}×${size.rows} · ${run.solved} solved${run.best !== null ? ` · best ${clock(run.best)}` : ''}</p>
+    <p class="seg-note tip">${size.cols}×${size.rows} · ${run.solved} solved${run.best !== null ? ` · best ${clock(run.best)}` : ''}${run.kept.length ? ` · also started: ${run.kept.map((q) => q.n).sort((x, y) => x - y).join(', ')}` : ''}</p>
     ${switchRow('Sound', 'sound')}
     ${switchRow('Haptics', 'haptics')}
     ${switchRow('Show mistakes', 'nonogramMistakes')}
@@ -1065,6 +1152,9 @@ function settingChanged(key) {
       if (marks[i] === CROSSED && puzzle.solution[i]) { marks[i] = WRONG_CROSS; any = true; }
     }
     if (any) undoStack = [];
+    refreshLines();
+    // Settling stray squares can leave the picture complete.
+    if (isSolved()) return win();
   }
   if (puzzle) refreshLines();
   updateHud();
@@ -1074,7 +1164,7 @@ function settingChanged(key) {
 
 const ui = cards({
   next: () => startPuzzle(puzzle.n + 1),
-  restart: () => { save.runs[mode].play = null; startPuzzle(puzzle.n); },
+  restart: () => { save.runs[mode].play = null; startPuzzle(puzzle.n, false); },
   rules: showRules,
   mode: (el) => switchMode(el.dataset.mode),
   'num-down': () => { const i = $('numInput'); i.value = Math.max(1, (+i.value || 1) - 1); },
