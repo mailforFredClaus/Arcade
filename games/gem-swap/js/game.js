@@ -968,15 +968,28 @@ function requestDraw() {
   if (!raf) raf = requestAnimationFrame(frame);
 }
 
+// Power-ups twinkle even when nothing else is happening; that's drawn at a
+// gentler rate, to go easy on the battery.
+let ambient = false, ambientTimer = 0;
+
 function frame(now) {
   raf = 0;
   const dt = Math.min(0.05, (now - (lastFrame || now)) / 1000);
   lastFrame = now;
   runTimers(now);
   if (playing && now >= stepEnd) nextStep(now);
+  ambient = false;
   const live = draw(now, dt);
   if (live || playing || timers.length) requestDraw();
-  else lastFrame = 0;
+  else {
+    lastFrame = 0;
+    if (ambient && !ambientTimer && !document.hidden) {
+      ambientTimer = setTimeout(() => {
+        ambientTimer = 0;
+        requestDraw();
+      }, 45);
+    }
+  }
 }
 
 function draw(now, dt) {
@@ -1024,7 +1037,7 @@ function draw(now, dt) {
       g.closePath();
       g.fill();
     }
-    live = true;
+    ambient = true;
   }
   // Crates.
   for (let i = 0; i < N; i++) {
@@ -1137,13 +1150,13 @@ function draw(now, dt) {
       g.scale(gs, gs);
       if (p.power === FLY) art.paintFly(g, p.color, 0.75 + 0.25 * Math.sin(now / 140 + p.id));
       else art.paintPrism(g, now);
-      live = true;
+      ambient = true;
     } else {
       g.drawImage(art.pieceSprite(gemPx, p.color, p.power), -gs / 2, -gs / 2, gs, gs);
       if (p.power === BOMB) {
         g.scale(gs, gs);
         art.paintSpark(g, now + p.id * 50);
-        live = true;
+        ambient = true;
       }
     }
     g.restore();
@@ -1167,7 +1180,11 @@ function draw(now, dt) {
     g.restore();
     live = true;
   }
-  if (hint) live = true;
+  if (hint) {
+    // A hint nobody looks at stops after a while (the next tap starts the clock again).
+    if (now - hint.t0 > 12000) hint = null;
+    else live = true;
+  }
   if (armed) {
     // Shimmer to show a booster is waiting for a square.
     g.save();
@@ -1745,7 +1762,10 @@ window.addEventListener('resize', () => {
   layout();
   if (board) syncFrom(playing && current && current.snap ? current.snap : board);
 });
-document.addEventListener('visibilitychange', () => { if (document.hidden) savePlay(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) savePlay();
+  else requestDraw();
+});
 
 // A handle for poking at the game from the browser console while testing on this computer.
 if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
