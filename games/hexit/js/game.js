@@ -818,7 +818,7 @@ function picture(items, w = 200, h = 110) {
   c.height = h * 2;
   const t = c.getContext('2d');
   t.scale(2, 2);
-  const a = Math.min(26, (w - 20) / (items.length * 2.1));
+  const a = Math.min(w > 100 ? 34 : 24, (w - 16) / (items.length * 2.1));
   items.forEach((it, k) => {
     const x = w / 2 + (k - (items.length - 1) / 2) * a * 2.05, y = h / 2 - a * 0.1;
     if (it.pad !== undefined) {
