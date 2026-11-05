@@ -508,7 +508,7 @@ function layout(reset = false, kept = null) {
   area = { x: 11, y: top, w: W - 22, h: bottom - top };
   fitS = fitScale();
   anim = null;
-  if (reset && kept && zoomable()) view = centredOn(kept.fx, kept.fy, kept.s);
+  if (reset && kept && zoomable()) view = centredOn(kept.fx, kept.fy, Math.max(fitS, Math.min(maxS(), kept.s)));
   else if (reset) {
     // Big grids start zoomed in at the top left, where you'd start reading.
     view = zoomable() && fitS < 14 ? centredOn(0, 0, Math.min(maxS(), 28)) : fitted();
