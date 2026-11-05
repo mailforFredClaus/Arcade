@@ -1,0 +1,105 @@
+/* Gem Swap: the moves counter, the goal bar and the cards. */
+
+.moves { display: flex; flex-direction: column; align-items: flex-start; line-height: 1; }
+.moves-label { font-size: 10.5px; font-weight: 900; letter-spacing: .12em; opacity: .85; }
+.moves-num { font-size: 25px; font-weight: 900; margin-top: 2px; transition: transform .15s; }
+.moves-num.bump { transform: scale(1.25); }
+.moves.low .moves-num { color: #ffe08a; animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 50% { transform: scale(1.15); } }
+
+.goals {
+  position: fixed;
+  z-index: 4;
+  top: calc(var(--safe-top) + 72px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 14px;
+  padding: 7px 16px 6px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .9);
+  box-shadow: 0 5px 0 rgba(59, 71, 196, .14), 0 10px 24px rgba(59, 71, 196, .16);
+  pointer-events: none;
+}
+.goals:empty { display: none; }
+.goal { position: relative; display: grid; justify-items: center; gap: 1px; min-width: 40px; }
+.goal img { width: 38px; height: 38px; display: block; transition: transform .12s; }
+.goal img.hit { transform: scale(1.22); }
+.goal b { font-size: 16px; font-weight: 900; color: var(--ink); line-height: 1.1; }
+.goal .tick {
+  display: none;
+  width: 21px;
+  height: 21px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 2px 0 #15803d;
+  place-items: center;
+}
+.goal .tick svg { width: 14px; height: 14px; }
+.goal.done b { display: none; }
+.goal.done .tick { display: grid; animation: tick .35s cubic-bezier(.2, 1.6, .4, 1); }
+@keyframes tick { from { transform: scale(0); } to { transform: none; } }
+
+.fx { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 7; }
+
+.tools .tool { width: 72px; }
+.tool.armed { outline: 3px solid #fff; outline-offset: -5px; background: linear-gradient(180deg, #ffb347, #ff8a1c); box-shadow: 0 4px 0 #c45f00, 0 8px 16px rgba(196, 95, 0, .3); }
+
+/* Cards */
+.goal-row { display: flex; justify-content: center; flex-wrap: wrap; gap: 14px; margin: 10px 0 8px; }
+.goal-row div { display: grid; justify-items: center; gap: 3px; padding: 8px 10px 6px; border-radius: 14px; background: #f1f4fb; min-width: 62px; }
+.goal-row img { width: 42px; height: 42px; }
+.goal-row b { font-size: 17px; font-weight: 900; }
+.goal-row .ok { color: #16a34a; }
+.level-info { font-weight: 800; color: var(--ink) !important; font-size: 17px !important; margin-bottom: 4px !important; }
+.star-goal { display: inline-flex; align-items: center; gap: 4px; color: #b07800; }
+.star-goal svg { width: 16px; height: 16px; fill: #ffc21a; }
+.win-stars { display: flex; justify-content: center; gap: 6px; margin: 4px 0 10px; }
+.win-stars svg { width: 58px; height: 58px; fill: #e3e8f4; }
+.win-stars svg:nth-child(2) { transform: translateY(-10px) scale(1.15); }
+.win-stars svg.on { fill: #ffc21a; filter: drop-shadow(0 3px 0 #d18f00); animation: star-in .5s cubic-bezier(.2, 1.6, .4, 1) both; }
+.win-stars svg.on:nth-child(1) { animation-delay: .15s; }
+.win-stars svg.on:nth-child(2) { animation-delay: .45s; }
+.win-stars svg.on:nth-child(3) { animation-delay: .75s; }
+@keyframes star-in { from { transform: scale(0) rotate(-40deg); opacity: 0; } }
+.win-stars svg.on:nth-child(2) { animation-name: star-in-mid; }
+@keyframes star-in-mid { from { transform: translateY(-10px) scale(0) rotate(-40deg); opacity: 0; } to { transform: translateY(-10px) scale(1.15); } }
+.intro-art { display: block; margin: 4px auto 12px; width: 220px; height: 78px; border-radius: 16px; background: #2f3488; }
+.rules img { width: 64px; height: 48px; border-radius: 10px; background: #2f3488; }
+
+.loading {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
+  color: var(--blue-2);
+  font-weight: 800;
+  pointer-events: none;
+  transition: opacity .2s;
+}
+.loading.hide { opacity: 0; }
+.spinner {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 5px solid rgba(77, 91, 230, .2);
+  border-top-color: var(--blue-2);
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-height: 700px) {
+  .goals { top: calc(var(--safe-top) + 68px); padding: 5px 12px 4px; }
+  .goal img { width: 32px; height: 32px; }
+}
+
+/* Win streak */
+.streak { display: flex; align-items: center; gap: 10px; margin: 10px 0 4px; padding: 10px 12px; border-radius: 16px; background: #fff6d6; text-align: left; }
+.streak-icons { display: flex; flex: none; }
+.streak-icons img { width: 34px; height: 34px; margin-right: -6px; }
+.streak span { color: #7a5200; font-size: 14.5px; line-height: 1.35; font-weight: 700; }
+.streak b { color: #b07800; font-weight: 900; }
+.streak-tip { color: #b07800 !important; }

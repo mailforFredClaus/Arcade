@@ -5,6 +5,10 @@
   "scripts": {
     "serve": "node tools/serve.mjs",
     "test": "node tools/test-levels.mjs 1 120",
-    "build": "node tools/build-sw.mjs"
+    "build": "node tools/build-sw.mjs",
+    "test:gem-swap": "node tools/test-gem-swap.mjs 1 60",
+    "test:hexit": "node tools/test-hexit.mjs 1 60",
+    "test:car-park": "node tools/test-car-park.mjs 30",
+    "test:nonogram": "node tools/test-nonogram.mjs 30"
   }
 }
