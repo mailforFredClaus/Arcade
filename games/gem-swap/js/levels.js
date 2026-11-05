@@ -21,7 +21,25 @@ export function tierOf(n) {
 }
 
 // The level where each thing first appears (the game explains it there).
-export const INTRO = { 1: 'basics', 2: 'line', 3: 'bomb', 4: 'crate', 5: 'fly', 7: 'prism', 8: 'ice', 9: 'combo', 11: 'crate2', 12: 'chain', 14: 'coin', 17: 'ice2', 22: 'crate3' };
+// Things on the board (crates, ice, chains, coins) are explained the first
+// time a level has them; see intros().
+export const INTRO = { 1: 'basics', 2: 'line', 3: 'bomb', 5: 'fly', 7: 'prism', 9: 'combo' };
+
+// What a level has on it that might need explaining.
+export function intros(lv) {
+  const out = [];
+  if (INTRO[lv.n]) out.push(INTRO[lv.n]);
+  const most = (arr) => arr.reduce((m, v, i) => (lv.on[i] ? Math.max(m, v) : m), 0);
+  const crate = most(lv.crate), ice = most(lv.ice);
+  if (crate >= 1) out.push('crate');
+  if (crate >= 2) out.push('crate2');
+  if (crate >= 3) out.push('crate3');
+  if (ice >= 1) out.push('ice');
+  if (ice >= 2) out.push('ice2');
+  if (most(lv.chain)) out.push('chain');
+  if (lv.goals.some((g) => g.type === 'coin')) out.push('coin');
+  return out;
+}
 const UNLOCK = { crate: 4, ice: 8, chain: 12, coin: 14, crate2: 11, ice2: 17, crate3: 22, six: 20 };
 
 const pick = (R, list) => list[R.int(list.length)];
@@ -429,7 +447,8 @@ const TARGET = { normal: [0.85, 1], hard: [0.55, 0], super: [0.4, 0] };
 
 function calibrate(spec) {
   let [q, margin] = TARGET[spec.tier];
-  if (spec.n <= 6) { q = 1; margin = 4; } else if (spec.n <= 14) { q = 0.92; margin = 2; }
+  // The first levels are gentler; the first hard one is only a little hard.
+  if (spec.tier === 'normal' && spec.n <= 6) { q = 1; margin = 4; } else if (spec.tier === 'normal' && spec.n <= 14) { q = 0.92; margin = 2; } else if (spec.n <= 14) { q = 0.7; margin = 1; }
   const k = Math.min(RUNS - 1, Math.floor(q * RUNS));
   const used = [];
   let long = 0;

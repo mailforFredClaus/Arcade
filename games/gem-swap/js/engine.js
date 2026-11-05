@@ -387,11 +387,14 @@ export class Board {
       const r = (m.i / this.w) | 0, c = m.i % this.w;
       steps.push(this.clearStep(this.phase([], [], [], (ctx) => this.line(r, c, true, 0, ++ctx.src, -1, true, ctx)), 0));
     } else if (m.type === 'shuffle') {
-      steps.push(this.shuffle());
+      steps.push(this.shuffle(false));
       return steps;
     } else if (m.type === 'extra') {
       this.moves += 5;
-      return [{ t: 'extra' }];
+      steps.push({ t: 'extra' });
+      // The moves ran out on a board with nothing left to do: mix it up.
+      if (!this.won() && !this.hasMove()) steps.push(this.shuffle());
+      return steps;
     } else return [];
     if (first) return steps;
     this.settle(steps);
@@ -931,7 +934,8 @@ export class Board {
 
   // Mix up the loose gems (not power-ups or chained ones) until there's a
   // move to make and nothing already matched.
-  shuffle() {
+  // auto: the game had to (no move left), rather than the Shuffle booster.
+  shuffle(auto = true) {
     const cells = [];
     for (let i = 0; i < this.N; i++) if (this.kind[i] === GEM && !this.chain[i] && !this.power[i]) cells.push(i);
     const pieces = cells.map((i) => ({ id: this.id[i], color: this.color[i], from: i }));
@@ -954,7 +958,7 @@ export class Board {
       }
     }
     const moves = cells.map((i, k) => ({ id: this.id[i], from: order[k].from, to: i }));
-    return { t: 'shuffle', moves, snap: this.snap() };
+    return { t: 'shuffle', moves, auto, snap: this.snap() };
   }
 
   // ---- the end-of-level celebration ------------------------------------------------------

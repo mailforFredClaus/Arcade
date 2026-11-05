@@ -7,7 +7,7 @@
 
 import { Board, mix, NONE, LINE_H, LINE_V, BOMB, FLY, PRISM, EMPTY, GEM, CRATE, COIN, T } from './engine.js';
 import { bestMove } from './bot.js';
-import { INTRO, GEN_VERSION, makeLevel } from './levels.js';
+import { intros, GEN_VERSION, makeLevel } from './levels.js';
 import * as art from './art.js';
 import { store, settings, sfx, haptic, unlockAudio, lockViewport, registerOffline } from '../../../shared/arcade.js';
 import { cards, switchRow, toast, confetti, ICON } from '../../../shared/ui.js';
@@ -50,7 +50,12 @@ function keepLevel(lv) {
 }
 
 function deliver(n, lv) {
-  if (!lv) return;
+  if (!lv) {
+    const list = waiting.get(n) || [];
+    waiting.delete(n);
+    list.forEach((resolve) => resolve(null));
+    return;
+  }
   levels.set(n, lv);
   while (levels.size > 8) levels.delete(levels.keys().next().value);
   keepLevel(lv);
@@ -212,6 +217,11 @@ function doMove(m) {
   selected = -1;
   hideHint();
   updateTools();
+  if (ok && m.type === 'tap') {
+    movesShown--;
+    setMoves(movesShown);
+    bump();
+  }
   playSteps(steps, () => {
     state = 'ready';
     afterMove(ok);
@@ -262,7 +272,7 @@ function buildGoals() {
   goalEls = board.goals.map((gl) => {
     const d = document.createElement('div');
     d.className = 'goal';
-    d.innerHTML = `<img alt="" src="${goalIcon(gl)}"><b></b><span class="tick">${TICK_SVG}</span>`;
+    d.innerHTML = `<img alt="" src="${goalIcon(gl)}"><b>${Math.max(0, gl.need - gl.got)}</b><span class="tick">${TICK_SVG}</span>`;
     box.appendChild(d);
     return { el: d, img: d.querySelector('img'), num: d.querySelector('b') };
   });
@@ -673,7 +683,7 @@ function coinOut(ex, now) {
 }
 
 function shuffleAnim(st, now) {
-  toast('No moves left, so the gems were shuffled.');
+  if (st.auto) toast('No moves left, so the gems were shuffled.');
   for (const m of st.moves) {
     const p = pieces.get(m.id);
     if (!p) continue;
@@ -1509,7 +1519,18 @@ function skipCelebration() {
   stopAnimation();
   syncFrom(board);
   requestDraw();
-  winCard();
+  // Wait until the finger that skipped has lifted, so its tap doesn't land on
+  // a button of the card that comes up.
+  let shown = false;
+  const show = () => {
+    if (shown) return;
+    shown = true;
+    window.removeEventListener('pointerup', later, true);
+    winCard();
+  };
+  const later = () => setTimeout(show, 120);
+  window.addEventListener('pointerup', later, true);
+  setTimeout(show, 900);
 }
 
 function winCard() {
@@ -1627,8 +1648,8 @@ const INTRO_CARD = {
 };
 
 function introCards() {
-  const intro = INTRO[level.n];
-  if (intro && !save.seen[intro] && INTRO_CARD[intro]) {
+  const intro = intros(level).find((k) => !save.seen[k] && INTRO_CARD[k]);
+  if (intro) {
     save.seen[intro] = true;
     writeSave();
     const c = INTRO_CARD[intro]();
@@ -1674,7 +1695,7 @@ const ui = cards({
     ui.close();
     armHint();
   },
-  'intro-done': () => levelCard(),
+  'intro-done': () => introCards(),
   next: () => startLevel(level.n + 1),
   replay: () => startLevel(level.n),
   retry: () => {

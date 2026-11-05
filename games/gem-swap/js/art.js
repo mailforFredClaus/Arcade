@@ -92,14 +92,17 @@ function roundPoly(p, pts, r) {
 
 // ---- sprites ---------------------------------------------------------------------------
 
-const cache = new Map();
-let cachedFor = 0;
+// Kept for the last few sizes in use: gems are drawn a little smaller than
+// crates and ice, and both are needed every frame.
+const caches = new Map();
 
 // A still picture at pixel size px, drawn once and reused.
 export function sprite(key, px, paint) {
-  if (cachedFor !== px) {
-    cache.clear();
-    cachedFor = px;
+  let cache = caches.get(px);
+  if (!cache) {
+    cache = new Map();
+    caches.set(px, cache);
+    while (caches.size > 4) caches.delete(caches.keys().next().value);
   }
   let c = cache.get(key);
   if (!c) {
