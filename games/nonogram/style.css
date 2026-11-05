@@ -1,0 +1,26 @@
+/* Nonogram: the bits the shared frame doesn't have. */
+
+.tool .mark-ico { display: grid; place-items: center; width: 30px; height: 28px; }
+.tool .mark-ico svg { width: 26px; height: 26px; }
+#markBtn.on {
+  background: linear-gradient(180deg, #6b7596, #454d70);
+  box-shadow: 0 4px 0 #2c3250, 0 8px 16px rgba(44, 50, 80, .25);
+  color: #fff;
+}
+.tool[hidden] { display: none; }
+
+/* The finished picture on the "solved!" card. */
+.pic {
+  display: block;
+  width: 132px;
+  height: 132px;
+  margin: 4px auto 12px;
+  border-radius: 14px;
+  image-rendering: pixelated;
+  box-shadow: 0 4px 0 rgba(59, 71, 196, .14), 0 10px 22px rgba(59, 71, 196, .16);
+}
+.pic-name { margin: -4px 0 10px !important; font-weight: 800; color: var(--ink) !important; }
+
+.seg-btn[data-mode="medium"].on { color: #0c7f6c; }
+.seg-btn[data-mode="hard"].on { color: var(--red-2); }
+.seg-btn[data-mode="huge"].on { color: #ffe08a; background: linear-gradient(180deg, #43357e, #241a4d); }
