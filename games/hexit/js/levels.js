@@ -195,8 +195,9 @@ function attempt(spec, R) {
   }
   // Cells that never got a tile stay as empty floor.
   const empty = cells.filter((_, i) => !stone[i] && pad[i] < 0 && !layers[i].length).length;
-  // Two-way tiles: any tile can have a second head (its own way stays clear).
-  const stacks = layers.map((ls) => ls.map((t) => [t.d, R.next() < feats.two ? 1 : 0]));
+  // Two-way tiles: any tile can have a second head (its own way stays clear),
+  // as long as that other way leads somewhere (a pad could turn it back round).
+  const stacks = layers.map((ls, i) => ls.map((t) => [t.d, R.next() < feats.two && paths[i * 6 + opposite(t.d)] ? 1 : 0]));
   // Frozen tiles: only single tiles with a neighbour that leaves before them.
   const frozen = [];
   if (feats.frozen) {

@@ -13,6 +13,10 @@ export const COLORS = [ // N, NE, SE, S, SW, NW
   { top: '#a77bff', side: '#6b3fd2', light: '#d8c4ff' },
 ];
 
+// The tiles hidden under a stack, seen from the top while the one above is
+// away (bumping): no arrow until they're uncovered.
+const PLAIN = { top: '#e8edf8', side: '#9aa6c8', light: '#ffffff' };
+
 const TAU = Math.PI * 2;
 
 export function hexPath(g, x, y, a) {
@@ -95,7 +99,7 @@ function arrow(g, x, y, a, d, double = false, alpha = 1, colour = '#fff') {
 // One tile. t: { d, two }; layers: how many tiles are stacked here (the
 // ones underneath show only as edges); frozen: iced over.
 export function paintTile(g, x, y, a, t, layers = 1, frozen = false) {
-  const c = COLORS[t.d];
+  const c = t.d < 0 ? PLAIN : COLORS[t.d];
   const face = a * 0.9, depth = a * 0.16;
   // The tiles underneath, as plain edges.
   for (let k = layers - 1; k >= 1; k--) {
@@ -173,7 +177,7 @@ export function paintTile(g, x, y, a, t, layers = 1, frozen = false) {
     g.strokeStyle = '#ffffff';
     g.stroke();
   }
-  arrow(g, x, y, a, t.d, t.two, 1, frozen ? '#3b8fd9' : '#fff');
+  if (t.d >= 0) arrow(g, x, y, a, t.d, t.two, 1, frozen ? '#3b8fd9' : '#fff');
   if (frozen) snowflake(g, x + a * 0.5, y - a * 0.5, a * 0.2);
   if (layers > 1) {
     // How many are stacked here.

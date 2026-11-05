@@ -55,8 +55,8 @@ function getLevel(n, m) {
   return new Promise((resolve) => {
     if (waiting.has(k)) return waiting.get(k).push(resolve);
     waiting.set(k, [resolve]);
-    // Small boards are quick; the huge ones are built in a worker.
-    if (m === 'huge' && !workerBroken) {
+    // The main run's boards are quick; the big ones are built in a worker.
+    if (m !== 'levels' && !workerBroken) {
       try {
         if (!worker) {
           worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
@@ -135,7 +135,8 @@ async function startLevel(n, resume = false) {
   updateHud();
   savePlay();
   if (mode !== 'huge') setTimeout(() => getLevel(n + 1, mode), 700);
-  intro();
+  if (!relaxed() && hearts <= 0 && !practice) outOfHearts();
+  else intro();
   requestDraw();
 }
 
@@ -176,7 +177,7 @@ function updateHud() {
 // ---- tapping a tile ---------------------------------------------------------------------
 
 function tapAt(sx, sy) {
-  if (finished || !board) return;
+  if (finished || !board || ui.isOpen()) return;
   const i = cellAt(sx, sy);
   if (i < 0 || !board.top(i) || busyCell(i)) return;
   hint = null;
@@ -210,6 +211,10 @@ function send(i, d) {
     if (!board.remaining) setTimeout(win, 650);
   } else if (r.hit >= 0) {
     bump(i, t, d, r.path, r.stop, r.hit);
+  } else {
+    // A way that goes round in circles (never in a built level).
+    wiggle.set(i, performance.now());
+    sfx('nope');
   }
   requestDraw();
 }
@@ -224,7 +229,7 @@ function bump(i, t, d, path, stop, hit) {
   }, 140);
   if (relaxed()) return;
   if (!practice) {
-    hearts--;
+    hearts = Math.max(0, hearts - 1);
     const el = $('hearts').children[hearts];
     if (el) {
       el.classList.remove('lost');
@@ -236,13 +241,16 @@ function bump(i, t, d, path, stop, hit) {
   updateHud();
   savePlay();
   if (hearts <= 0 && !practice) {
-    setTimeout(() => {
-      if (finished) return;
-      ui.show(`<h2>Out of hearts</h2><p>That's three bumps. Press and hold a tile to see where it would go before you tap it.</p>
-        <div class="actions"><button class="btn btn-primary" data-action="restart">Start again</button>
-        <button class="btn btn-soft" data-action="practice">Keep going, for no stars</button></div>`);
-    }, 600);
+    const b = board;
+    setTimeout(() => { if (board === b) outOfHearts(); }, 600);
   }
+}
+
+function outOfHearts() {
+  if (finished || practice || hearts > 0 || relaxed()) return;
+  ui.show(`<h2>Out of hearts</h2><p>That's three bumps. Press and hold a tile to see where it would go before you tap it.</p>
+    <div class="actions"><button class="btn btn-primary" data-action="restart">Start again</button>
+    <button class="btn btn-soft" data-action="practice">Keep going, for no stars</button></div>`);
 }
 
 function undo() {
@@ -250,6 +258,8 @@ function undo() {
   const h = board.undo();
   if (!h) return;
   moves.pop();
+  for (let k = flying.length - 1; k >= 0; k--) if (flying[k].i === h.i) flying.splice(k, 1);
+  for (let k = bumps.length - 1; k >= 0; k--) if (bumps[k].i === h.i) bumps.splice(k, 1);
   appear.set(h.i, performance.now());
   sfx('tap');
   updateHud();
@@ -261,10 +271,12 @@ function hintMove() {
   if (finished || !board || ui.isOpen()) return;
   const free = board.free();
   if (!free.length) return;
-  // The free tile nearest the middle of the view.
+  // A free tile you can see (the one nearest the middle), or failing that
+  // the nearest one out of sight.
+  const seen = (c) => c.x >= area.x && c.x <= area.x + area.w && c.y >= area.y && c.y <= area.y + area.h;
   let best = free[0], bd = Infinity;
   for (const i of free) {
-    const c = centreOf(i), dd = Math.hypot(c.x - W / 2, c.y - (area.y + area.h / 2));
+    const c = centreOf(i), dd = Math.hypot(c.x - W / 2, c.y - (area.y + area.h / 2)) + (seen(c) ? 0 : 1e6);
     if (dd < bd) { bd = dd; best = i; }
   }
   const c = centreOf(best);
@@ -296,7 +308,9 @@ function win() {
   haptic();
   confetti();
   requestDraw();
+  const b = board;
   setTimeout(() => {
+    if (board !== b) return;
     const what = level.mode === 'levels' ? (TIER_TAG[level.tier] ? `${level.tier === 'hard' ? 'Hard' : 'Super hard'} level` : 'Level') : MODE_NAME[level.mode];
     const note = relaxed() ? `All ${board.total.toLocaleString()} tiles cleared. What a board!`
       : practice ? 'Cleared! Try it again without running out of hearts for stars.'
@@ -426,7 +440,7 @@ function pathPoints(i, path, stop, isBump) {
 }
 
 function fly(i, t, d, path, layers) {
-  flying.push({ t, pts: pathPoints(i, path, path.cells.length, false), t0: performance.now(), d });
+  flying.push({ i, t, pts: pathPoints(i, path, path.cells.length, false), t0: performance.now(), d });
   // Sparkles where it took off.
   const [x, y] = toXY(...level.cells[i]);
   for (let k = 0; k < 6; k++) {
@@ -445,6 +459,7 @@ function thaw(j) {
 }
 
 const busyCell = (i) => bumps.some((b) => b.i === i);
+const PLAIN_TILE = { d: -1, two: false };
 
 // Where along a polyline a distance falls.
 function along(pts, dist) {
@@ -534,14 +549,14 @@ function draw(now, dt) {
   for (const [i, d] of level.pads) {
     const c = centreOf(i);
     if (!vis(c.x, c.y)) continue;
-    paintPad(g, c.x, c.y, a, d, 0.5 + 0.5 * Math.sin(now / 400 + i));
-    live = true;
+    paintPad(g, c.x, c.y, a, d, 0.5);
   }
   // Tiles and stones, back to front.
   for (const i of order) {
     const st = board.stack[i];
     if (!st.length && !board.stone[i]) continue;
-    if (busyCell(i)) continue;
+    const away = busyCell(i); // the top tile is out bumping
+    if (away && st.length < 2) continue;
     let { x, y } = centreOf(i);
     if (!vis(x, y)) continue;
     const wg = wiggle.get(i);
@@ -563,7 +578,9 @@ function draw(now, dt) {
         live = true;
       }
     }
-    const img = board.stone[i] ? stoneSprite(spriteA) : tileSprite(spriteA, st[st.length - 1], st.length, !!board.frozen[i]);
+    const img = board.stone[i] ? stoneSprite(spriteA)
+      : away ? tileSprite(spriteA, PLAIN_TILE, st.length - 1, false)
+        : tileSprite(spriteA, st[st.length - 1], st.length, !!board.frozen[i]);
     const w = (img.width / dpr / spriteA) * a * dpr, h = (img.height / dpr / spriteA) * a * dpr;
     g.drawImage(img, x - (w / 2) * sc, y - a * 1.05 * sc, w * sc, h * sc);
   }
@@ -595,8 +612,7 @@ function draw(now, dt) {
     if (t >= dur) { bumps.splice(k, 1); continue; }
     const dist = t < out ? (t / out) ** 2 * len : t < out + 60 ? len : (1 - (t - out - 60) / out) * len;
     const [wx, wy] = along(b.pts, Math.max(0, dist));
-    const st = board.stack[b.i];
-    const img = tileSprite(spriteA, b.t, st.length || 1, false);
+    const img = tileSprite(spriteA, b.t, 1, false);
     const w = (img.width / spriteA) * a, h = (img.height / spriteA) * a;
     g.drawImage(img, view.x + wx * s - w / 2, view.y + wy * s - a * 1.05, w, h);
     live = true;

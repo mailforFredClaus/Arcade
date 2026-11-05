@@ -35,6 +35,7 @@ for (const mode of modes) {
       for (const t of b.stack[i]) {
         if (!(t.d >= 0 && t.d < 6)) problems.push('a tile with no direction');
         if (!b.paths[i * 6 + t.d]) problems.push('a tile pointing round in circles');
+        if (t.two && !b.paths[i * 6 + (t.d + 3) % 6]) problems.push('a two-way tile whose other end goes nowhere');
       }
     }
     for (const i of lv.frozen) if (b.stack[i].length !== 1) problems.push('a frozen stack');
@@ -49,7 +50,10 @@ for (const mode of modes) {
         const free = p.free();
         if (!free.length) { problems.push(`stuck with ${p.remaining} tiles left`); break; }
         const i = free[Math.floor(rand() * free.length)];
-        if (!p.move(i, p.exit(i)).ok) { problems.push('a free tile would not move'); break; }
+        let d = p.exit(i);
+        const t = p.top(i);
+        if (t.two && rand() < 0.5 && p.probe(i, (d + 3) % 6).hit === -1) d = (d + 3) % 6;
+        if (!p.move(i, d).ok) { problems.push('a free tile would not move'); break; }
         // Now and then, undo and redo.
         if (rand() < 0.05) {
           const h = p.undo();
