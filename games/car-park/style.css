@@ -5,6 +5,11 @@
 .stat .tyre { stroke: var(--theme-2, var(--blue-2)); stroke-width: 1.3; }
 .stat-unit { font-size: 13px; font-weight: 800; opacity: .85; margin-left: -2px; }
 
+/* The shared toast is placed from the middle of the screen, so on its own
+   it only grows to half the width; here hints may use the whole width and
+   take fewer lines. */
+.toast { width: max-content; }
+
 .loading {
   position: fixed;
   inset: 0;

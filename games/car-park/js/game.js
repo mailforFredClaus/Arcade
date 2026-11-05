@@ -136,6 +136,7 @@ let exitAt = 0; // when the red car started driving out
 let introAt = 0;
 let loadToken = 0;
 let winToken = 0; // a win's drive-out and card, cancelled if another puzzle starts
+let winCard = null; // shows the "solved!" card for the puzzle on screen
 const bumps = new Map(); // vehicle -> { at, dir }
 
 async function startPuzzle(n, resume = false, m = puzzle ? puzzle.mode : mode) {
@@ -160,6 +161,7 @@ async function startPuzzle(n, resume = false, m = puzzle ? puzzle.mode : mode) {
   save.mode = m;
 
   winToken++;
+  winCard = null;
   puzzle = p;
   pos = p.start.slice();
   moves = [];
@@ -196,11 +198,16 @@ async function startPuzzle(n, resume = false, m = puzzle ? puzzle.mode : mode) {
 }
 
 // Stop loading a puzzle that was asked for (going back to the one on screen).
+// If that one had just been solved, its card comes back.
 function cancelLoad() {
   loadToken++;
   loadingMode = null;
   $('loading').classList.add('hide');
   updateHud();
+  if (finished && winCard) {
+    if (!exitAt) { exitAt = performance.now(); requestDraw(); }
+    winCard();
+  }
 }
 
 function savePlay() {
@@ -269,6 +276,7 @@ function restart() {
   if (!puzzle || loadingMode) return;
   ui.close();
   winToken++;
+  winCard = null;
   finished = false;
   exitAt = 0;
   drag = null;
@@ -307,8 +315,8 @@ function hint() {
   const total = moves.length + h.left;
   const same = last && last.i === h.i ? 'Keep going with that one: it’s still the same move. ' : '';
   const out = h.i === 0 && h.to === GOAL ? 'Drive the red car out! ' : '';
-  const best = `Best from here: ${total} ${total === 1 ? 'move' : 'moves'} in all${total === puzzle.min ? ', the fewest possible' : ''}.`;
-  toast(`${out || same}${best} Tap Hint again to make this move.`, 3600);
+  const best = `Best from here: ${total} ${total === 1 ? 'move' : 'moves'} in all${total === puzzle.min ? ' (the fewest)' : ''}.`;
+  toast(`${out || same}${best} Tap Hint again to make it.`, 3600);
   savePlay();
   requestDraw();
 }
@@ -336,7 +344,7 @@ function win() {
     requestDraw();
   });
   later(wait + 650, () => { sfx('win'); haptic(); confetti(); });
-  later(wait + 1500, () => {
+  winCard = () => {
     const total = Object.values(run.best).reduce((s, v) => s + v, 0);
     const star = (on) => `<svg viewBox="0 0 24 24" class="${on ? 'on' : ''}"><path d="M12 2.6l2.85 5.8 6.4.93-4.63 4.5 1.1 6.37L12 17.2l-5.72 3 1.1-6.37-4.63-4.5 6.4-.93z"/></svg>`;
     const note = stars === 3 ? 'The fewest moves possible. Perfect!'
@@ -349,7 +357,8 @@ function win() {
       <p class="tip">★ ${total} ${total === 1 ? 'star' : 'stars'} in ${name} so far</p>
       <div class="actions"><button class="btn btn-primary" data-action="next">Next puzzle</button>
       ${stars < 3 ? '<button class="btn btn-soft" data-action="retry">Try for 3 stars</button>' : ''}</div>`);
-  });
+  };
+  later(wait + 1500, winCard);
 }
 
 // ---- the car park on screen ------------------------------------------------------------
@@ -372,8 +381,9 @@ function layout() {
   S = size(bottom);
   // Hints pop up just above the buttons: where the car park would reach down
   // that far (a big screen, or a short one), it stops short of them.
+  // (Not if that would shrink it a lot: a phone on its side.)
   const room = H - (parseFloat(getComputedStyle($('toast')).bottom) || 112) - 64;
-  if (top + (bottom - top + down * S) / 2 > room) {
+  if (top + (bottom - top + down * S) / 2 > room && size(Math.min(bottom, room)) > S * 0.75) {
     bottom = Math.min(bottom, room);
     S = size(bottom);
   }
@@ -965,7 +975,7 @@ function showSettings() {
 function switchMode(m) {
   if (!MODES.includes(m) || m === (loadingMode || mode)) return;
   if (puzzle) savePlay();
-  if (m === mode && puzzle && puzzle.mode === m) { cancelLoad(); ui.close(); return; }
+  if (m === mode && puzzle && puzzle.mode === m) { ui.close(); cancelLoad(); return; }
   const run = save.runs[m];
   startPuzzle(run.play ? run.play.n : run.n, true, m);
 }
