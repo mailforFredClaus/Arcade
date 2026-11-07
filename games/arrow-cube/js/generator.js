@@ -22,13 +22,14 @@ export const BIG_VERSION = 7;
 // bumping BIG_VERSION keeps every giant puzzle's shape (version 4 only took
 // the arrows out of gaps too narrow to see into).
 const BIG_SEED = 3;
-export const BIG_TIERS = new Set(['mega', 'giga', 'huge']);
+export const BIG_TIERS = new Set(['mega', 'giga', 'huge', 'megahuge']);
 export const versionOf = (tier) => (BIG_TIERS.has(tier) ? `${GEN_VERSION}.${BIG_VERSION}` : GEN_VERSION);
 
 // Levels: the main run, where every 5th level is HARD and every 10th is
 // SUPER HARD. Hard and Super Hard: endless runs of only that kind.
-// Huge: enormous shapes to chip away at over many sittings.
-export const MODES = ['levels', 'hard', 'super', 'huge'];
+// Huge: enormous shapes to chip away at over many sittings. Mega Huge:
+// several times bigger still.
+export const MODES = ['levels', 'hard', 'super', 'huge', 'megahuge'];
 
 // The level where each feature first appears (with a short how-to card).
 export const INTRO = { blue: 4, two: 6, yellow: 8, purple: 12, fork: 14 };
@@ -318,6 +319,7 @@ const TIERS = {
   mega: { size: 8, cap: 22, fill: 0.97, maxLen: 14, choices: 6, chain: 2.6, rim: 5, candidates: 1, free: 0.03, odds: 0.9, markers: 4, edges: 5 },
   giga: { size: 14, cap: 30, fill: 0.96, maxLen: 14, choices: 4, chain: 2.4, rim: 5, candidates: 1, free: 0.03, odds: 0.95, markers: 5, edges: 5 },
   huge: { size: 0, cap: 90, fill: 0.95, maxLen: 14, choices: 4, chain: 2.4, rim: 4, candidates: 1, free: 0.03, odds: 0.85, markers: 14, edges: 10 },
+  megahuge: { size: 0, cap: 160, fill: 0.95, maxLen: 14, choices: 4, chain: 2.4, rim: 4, candidates: 1, free: 0.03, odds: 0.85, markers: 30, edges: 10 },
 };
 
 export function levelSpec(n, mode = 'levels') {
@@ -326,7 +328,7 @@ export function levelSpec(n, mode = 'levels') {
   const chance = (p) => R() < p;
   const tier = tierOf(n, mode);
   const tt = TIERS[tier];
-  const big = tier === 'mega' || tier === 'giga' || tier === 'huge';
+  const big = BIG_TIERS.has(tier);
   const main = mode === 'levels';
   const intro = main ? Object.keys(INTRO).find((k) => INTRO[k] === n) || null : null;
 
@@ -342,6 +344,11 @@ export function levelSpec(n, mode = 'levels') {
     size = 6 + Math.floor(n / 6) + Math.round(R() * 2 - 1);
   } else if (mode === 'super') {
     size = 9 + Math.floor(n / 5) + Math.round(R() * 2 - 1);
+  } else if (mode === 'megahuge') {
+    // Several times a Huge puzzle: about 4,500 long arrows in the first,
+    // growing 10% per puzzle up to about 7,000 (measured: size 98 gives about
+    // 4,500, and the count grows with the square of the size).
+    size = Math.round(98 * Math.sqrt(Math.min(1.6, 1 + 0.1 * (n - 1))));
   } else {
     // Make the first Huge puzzle big enough for about 2,500 short arrows,
     // growing 10% per puzzle up to about 5,000 (measured: size 44 gives
@@ -361,7 +368,7 @@ export function levelSpec(n, mode = 'levels') {
     // Go through every family before any comes round again (and not the
     // same one twice running where one round meets the next), and size the
     // shape by how much surface it has, whatever the family.
-    const at = mode === 'huge' ? n - 1 : Math.floor(n / 50) - 1, k = HUGE_KINDS.length;
+    const at = mode === 'levels' ? Math.floor(n / 50) - 1 : n - 1, k = HUGE_KINDS.length;
     const cycle = (c) => shuffle(rng(mix(c, m, 0x6b1d)), HUGE_KINDS.slice());
     const c = Math.floor(at / k), order = cycle(c);
     if (c > 0 && order[0] === cycle(c - 1)[k - 1]) [order[0], order[1]] = [order[1], order[0]];
@@ -421,7 +428,7 @@ export function levelSpec(n, mode = 'levels') {
   if (big) spec.two = Math.min(spec.two, 0.1);
   // Purple markers make a puzzle slow to check for dead ends, so the very
   // biggest ones go without.
-  if (has('purple')) spec.purple = tier !== 'giga' && tier !== 'huge' && chance(p) ? upTo(2) : 0;
+  if (has('purple')) spec.purple = tier !== 'giga' && tier !== 'huge' && tier !== 'megahuge' && chance(p) ? upTo(2) : 0;
   if (has('fork')) spec.fork = chance(p) ? 0.05 + R() * 0.1 : 0;
   if (intro) {
     // A new feature gets the level to itself.

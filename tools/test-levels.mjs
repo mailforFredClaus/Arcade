@@ -1,5 +1,5 @@
 // Generates Arrow Cube levels and independently re-checks every one of them.
-// Usage: node tools/test-levels.mjs [from] [to] [levels|hard|super|huge]
+// Usage: node tools/test-levels.mjs [from] [to] [levels|hard|super|huge|megahuge]
 
 import { generateLevel, levelSpec, checkLevel } from '../games/arrow-cube/js/generator.js';
 import { buildShape, hiddenFaces } from '../games/arrow-cube/js/topology.js';
@@ -46,7 +46,7 @@ for (let n = from; n <= to; n++) {
   const B = new Board(topo, level);
   // Without purple markers, a solvable level can't have dead ends (clearing an
   // arrow never blocks another), so random play adds nothing for the giants.
-  const runs = mode === 'huge' || spec.tier === 'giga' ? 0 : spec.tier === 'mega' ? 6 : 25;
+  const runs = mode === 'huge' || mode === 'megahuge' || spec.tier === 'giga' ? 0 : spec.tier === 'mega' ? 6 : 25;
   for (let run = 0; run < runs && !problems.length; run++) {
     let seed = n * 1000 + run;
     const rand = () => ((seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296);
@@ -72,7 +72,7 @@ for (let n = from; n <= to; n++) {
     level.yellow.length && `yellow×${level.yellow.length}(${level.wraps} wraps)`,
   ].filter(Boolean).join(' ');
   const fill = Math.round((100 * cellsUsed) / (topo.N - hiddenCount));
-  const tag = { normal: '     ', hard: 'HARD ', super: 'SUPER', mega: 'MEGA ', giga: 'GIGA ', huge: 'HUGE ' }[spec.tier];
+  const tag = { normal: '     ', hard: 'HARD ', super: 'SUPER', mega: 'MEGA ', giga: 'GIGA ', huge: 'HUGE ', megahuge: 'MHUGE' }[spec.tier];
   const kind = (level.shape.kind || 'box').padEnd(8);
   const line = `L${String(n).padStart(3)} ${tag} ${kind} ${level.dims.join('x').padEnd(8)} ` +
     `${String(level.pieces.length).padStart(3)} arrows, ${String(check.free ?? '?').padStart(3)} free at start, ` +

@@ -17,11 +17,12 @@ try {
   throw err;
 }
 const SAVE_KEY = 'arrowcube';
-const MODE_NAME = { levels: 'Level', hard: 'Hard', super: 'Super', huge: 'Huge' };
+const MODE_NAME = { levels: 'Level', hard: 'Hard', super: 'Super', huge: 'Huge', megahuge: 'Mega Huge' };
 const TIER_TAG = { hard: 'HARD', super: 'SUPER HARD', mega: 'MEGA HARD', giga: 'GIGA HARD' };
-const TIER_THEMES = ['hard', 'super', 'mega', 'giga', 'huge']; // each has its own colours (body.tier-*)
-// Huge puzzles are for chipping away at: no stars to lose, just progress.
-const relaxed = () => level && level.mode === 'huge';
+const TIER_THEMES = ['hard', 'super', 'mega', 'giga', 'huge', 'megahuge']; // each has its own colours (body.tier-*)
+// Huge and Mega Huge puzzles are for chipping away at: no stars to lose, just progress.
+const chipAway = (m) => m === 'huge' || m === 'megahuge';
+const relaxed = () => level && chipAway(level.mode);
 
 // One run of progress per mode: the number you're up to, your best stars,
 // and the puzzle you're in the middle of.
@@ -157,8 +158,9 @@ async function startLevel(n, resume = false) {
   const token = ++loadToken;
   loading = true;
   const tier = tierOf(n, mode);
-  $('loadingText').textContent = mode === 'huge' ? 'Building a huge puzzle… thousands of arrows can take a few seconds'
-    : BIG_TIERS.has(tier) ? `Building a ${tier} hard level…` : 'Building level…';
+  $('loadingText').textContent = mode === 'megahuge' ? 'Building a mega huge puzzle… this many arrows can take half a minute'
+    : mode === 'huge' ? 'Building a huge puzzle… thousands of arrows can take a few seconds'
+      : BIG_TIERS.has(tier) ? `Building a ${tier} hard level…` : 'Building level…';
   const slow = setTimeout(() => {
     if (token !== loadToken) return;
     // Taking a while (a giant puzzle): say which one is on its way.
@@ -208,9 +210,9 @@ async function startLevel(n, resume = false) {
   updateHud();
   savePlay();
   requestDraw();
-  // The next one is built while you play. (A Huge puzzle waits until you're
-  // nearly done, so it doesn't sit in memory for days.)
-  if (lv.mode !== 'huge') setTimeout(() => prefetch(n + 1, lv.mode), 600);
+  // The next one is built while you play. (A Huge or Mega Huge puzzle waits
+  // until you're nearly done, so it doesn't sit in memory for days.)
+  if (!chipAway(lv.mode)) setTimeout(() => prefetch(n + 1, lv.mode), 600);
   showTutorial(n);
 }
 
@@ -463,7 +465,7 @@ function onTap(x, y, pointerType) {
       // things up, so skipping the check keeps taps instant on giant puzzles.
       setTimeout(showStuck, 700);
     }
-    if (level.mode === 'huge' && board.remaining < board.pieces.length * 0.15) prefetch(level.n + 1, 'huge');
+    if (relaxed() && board.remaining < board.pieces.length * 0.15) prefetch(level.n + 1, level.mode);
     updateHud();
     savePlay();
   } else {
@@ -588,8 +590,8 @@ function levelComplete() {
   haptic();
   confetti();
   if (relaxed()) {
-    showCard(`<h2>Huge ${n} cleared!</h2><p>All ${board.pieces.length.toLocaleString()} arrows, gone. That took some chipping away.</p>
-      <div class="actions"><button class="btn btn-primary" data-action="next">Start the next huge one</button></div>`);
+    showCard(`<h2>${MODE_NAME[level.mode]} ${n} cleared!</h2><p>All ${board.pieces.length.toLocaleString()} arrows, gone. That took some chipping away.</p>
+      <div class="actions"><button class="btn btn-primary" data-action="next">Start the next ${MODE_NAME[level.mode].toLowerCase()} one</button></div>`);
     return;
   }
   const big = [0, 1, 2].map((i) => STAR.replace('<svg', `<svg class="${i < earned ? 'on' : ''}"`)).join('');
@@ -655,12 +657,14 @@ const RULES = {
 const art = (key, cls = 'tut-art') => `<svg class="${cls}" viewBox="0 0 150 96">${ART[key]}</svg>`;
 
 function showTutorial(n) {
-  if (level.mode === 'huge' && !save.seen.huge) {
-    save.seen.huge = true;
+  if (relaxed() && !save.seen[level.mode]) {
+    save.seen[level.mode] = true;
     save.seen.rules = true;
     writeSave();
-    showCard(`<h2>Huge puzzles</h2><p>These are meant for chipping away at, a few arrows at a time. Every move is saved, along with where you were looking, so come back whenever you like.</p>
-      <p>No stars to lose here, and Hint always knows a way forward. Pinch to zoom way in.</p>
+    const intro = level.mode === 'megahuge'
+      ? '<h2>Mega Huge puzzles</h2><p>Like Huge, only several times bigger: thousands of long, tangled arrows. Every move is saved, along with where you were looking, so come back whenever you like.</p>'
+      : '<h2>Huge puzzles</h2><p>These are meant for chipping away at, a few arrows at a time. Every move is saved, along with where you were looking, so come back whenever you like.</p>';
+    showCard(`${intro}<p>No stars to lose here, and Hint always knows a way forward. Pinch to zoom way in.</p>
       <div class="actions"><button class="btn btn-primary" data-action="close">Let’s go</button><button class="btn btn-soft" data-action="rules">How to play</button></div>`);
     return;
   }
@@ -693,12 +697,13 @@ function showSettings() {
   const tab = (m, label) => `<button class="seg-btn${m === mode ? ' on' : ''}" data-action="mode" data-mode="${m}">${label}</button>`;
   const r = save.runs[mode];
   showCard(`<h2>Settings</h2>
-    <div class="seg">${tab('levels', 'Levels')}${tab('hard', 'Hard')}${tab('super', 'Super')}${tab('huge', 'Huge')}</div>
+    <div class="seg">${tab('levels', 'Levels')}${tab('hard', 'Hard')}${tab('super', 'Super')}${tab('huge', 'Huge')}${tab('megahuge', 'Mega Huge')}</div>
     <p class="seg-note">${{
       levels: 'Every 5th level is hard, every 10th super hard, every 50th mega hard and every 100th giga hard.',
       hard: 'Endless hard puzzles.',
       super: 'Endless super hard puzzles. Big and brutal.',
       huge: 'Enormous puzzles to chip away at. Progress saves after every move.',
+      megahuge: 'Like Huge, only several times bigger. Progress saves after every move.',
     }[mode]}</p>
     <label class="row">Sound <input type="checkbox" class="toggle" data-setting="sound" ${settings.sound ? 'checked' : ''}></label>
     <label class="row">Haptics <input type="checkbox" class="toggle" data-setting="haptics" ${settings.haptics ? 'checked' : ''}></label>
