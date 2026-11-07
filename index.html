@@ -60,6 +60,7 @@
     .mode.hard { background: linear-gradient(180deg, var(--red-1), var(--red-2)); box-shadow: 0 4px 0 var(--red-edge); }
     .mode.super { color: #ffe08a; background: linear-gradient(180deg, #43357e, #241a4d); box-shadow: 0 4px 0 #120c2b; }
     .mode.huge { background: linear-gradient(180deg, #19b38a, #0c7f6c); box-shadow: 0 4px 0 #075a4c; }
+    .mode.megahuge { grid-column: 1 / -1; background: linear-gradient(180deg, #0891b2, #155e75); box-shadow: 0 4px 0 #0c3f50; }
     .thumb { width: 112px; height: 112px; border-radius: 18px; background: linear-gradient(160deg, #cfe0fb, #e9f0fb); display: grid; place-items: center; }
     .thumb svg { width: 96px; height: 96px; }
     .game h2 { margin: 0 0 4px; font-size: 22px; font-weight: 900; }
@@ -134,6 +135,7 @@
         <a class="mode hard" href="games/arrow-cube/index.html?mode=hard"><b>Hard</b><span id="mode-hard">No. 1</span></a>
         <a class="mode super" href="games/arrow-cube/index.html?mode=super"><b>Super Hard</b><span id="mode-super">No. 1</span></a>
         <a class="mode huge" href="games/arrow-cube/index.html?mode=huge"><b>Huge</b><span id="mode-huge">No. 1</span></a>
+        <a class="mode megahuge" href="games/arrow-cube/index.html?mode=megahuge"><b>Mega Huge</b><span id="mode-megahuge">No. 1</span></a>
       </div>
       </div>
       <div class="game">
@@ -387,7 +389,7 @@
     const ac = store.get('arrowcube', null) || {};
     const runs = ac.runs || { levels: { n: ac.level || 1, best: ac.best || {}, play: ac.play } };
     let stars = 0;
-    for (const mode of ['levels', 'hard', 'super', 'huge']) {
+    for (const mode of ['levels', 'hard', 'super', 'huge', 'megahuge']) {
       const run = runs[mode] || {};
       const n = (run.play && run.play.n) || run.n || 1;
       document.getElementById(`mode-${mode}`).textContent = mode === 'levels' ? `Level ${n}` : `No. ${n}`;
