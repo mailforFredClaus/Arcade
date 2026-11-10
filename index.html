@@ -439,6 +439,29 @@
         </div>
       </a>
 
+      <a class="game game-main" href="games/prism-break/index.html">
+        <div class="thumb" aria-hidden="true">
+          <svg viewBox="0 0 100 100">
+          <defs><linearGradient id="pbSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b2a6b"/><stop offset=".6" stop-color="#5a3d9a"/><stop offset="1" stop-color="#ff8a5c"/></linearGradient></defs>
+          <rect x="6" y="6" width="88" height="88" rx="16" fill="url(#pbSky)"/>
+          <g>
+          <rect x="13" y="16" width="13" height="7" rx="2" fill="#ff4d6d"/><rect x="28" y="16" width="13" height="7" rx="2" fill="#ff4d6d"/><rect x="43" y="16" width="13" height="7" rx="2" fill="#ff4d6d"/><rect x="58" y="16" width="13" height="7" rx="2" fill="#ff4d6d"/><rect x="73" y="16" width="13" height="7" rx="2" fill="#ff4d6d"/>
+          <rect x="13" y="25" width="13" height="7" rx="2" fill="#ff9a3c"/><rect x="28" y="25" width="13" height="7" rx="2" fill="#ff9a3c"/><rect x="58" y="25" width="13" height="7" rx="2" fill="#ff9a3c"/><rect x="73" y="25" width="13" height="7" rx="2" fill="#ff9a3c"/>
+          <rect x="13" y="34" width="13" height="7" rx="2" fill="#ffd93d"/><rect x="28" y="34" width="13" height="7" rx="2" fill="#ffd93d"/><rect x="73" y="34" width="13" height="7" rx="2" fill="#ffd93d"/>
+          <rect x="13" y="43" width="13" height="7" rx="2" fill="#4ade80"/><rect x="73" y="43" width="13" height="7" rx="2" fill="#4ade80"/>
+          </g>
+          <path d="M40 80 56 46" stroke="#9fe8ff" stroke-width="3" stroke-linecap="round" opacity=".45"/>
+          <circle cx="56" cy="46" r="5" fill="#fff"/><circle cx="56" cy="46" r="8" fill="#9fe8ff" opacity=".35"/>
+          <rect x="24" y="80" width="34" height="7" rx="3.500" fill="#fff"/><rect x="24" y="83.500" width="34" height="3.500" rx="1.750" fill="#ffb37a"/>
+          </svg>
+        </div>
+        <div>
+          <h2>Prism Break</h2>
+          <p>Brick breaking with glow: fifty levels, bombs, lasers, multi-ball and fireballs.</p>
+          <div class="meta"><span class="pill" id="pbLevel">Level 1</span><span class="pill gold" id="pbStars">★ 0</span></div>
+        </div>
+      </a>
+
       <div class="soon">More games coming soon</div>
     </div>
 
@@ -539,6 +562,11 @@
     const hr = store.get('honeyrun', null) || {};
     document.getElementById('hrBest').textContent = `Best ${(hr.best || 0).toLocaleString()}`;
     document.getElementById('hrFar').textContent = hr.far ? `${hr.far.toLocaleString()} m` : 'New';
+
+    // Prism Break: the level you're up to, and your stars.
+    const pb = store.get('prismbreak', null) || {};
+    document.getElementById('pbLevel').textContent = `Level ${pb.n || 1}`;
+    document.getElementById('pbStars').textContent = `★ ${Object.values(pb.stars || {}).reduce((x, y) => x + y, 0)}`;
 
     const dot = document.getElementById('statusDot');
     const text = document.getElementById('statusText');

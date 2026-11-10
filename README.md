@@ -202,6 +202,19 @@ An endless runner in 3D. A bear cub has made off with a pot of honey and is dash
 
 **There is always a way through.** The line is laid a beat at a time, and one lane is always passable on foot: clear, or with a fence to jump, a barrier to roll under or a cart to hop. A train never starts in a lane with no way out to the side. `node tools/test-honey-run.mjs` checks the rules one by one, then a practice player that keeps to that promised lane runs forty different lines for six kilometres each without being stopped.
 
+## Prism Break
+
+A brick breaker. Slide your finger to move the paddle and lift it to launch the ball; break every brick to clear the level. On a computer the paddle follows the mouse (or the arrow keys), and a click or Space launches.
+
+- **Aiming:** where the ball lands on the paddle decides where it goes: the middle sends it straight up, the ends out to the side. A served ball leans in towards the middle of the field, and dots show the way it will go.
+- **Bricks:** plain ones break in one hit, tough ones (silver frame) in two, armoured ones (gold studs) in three. Steel never breaks, and doesn't have to. A bomb takes its neighbours with it. A gift always drops a power-up. A hidden brick can't be seen until it's hit.
+- **Power-ups** fall as capsules to catch: multi-ball, a wide paddle, a laser, fireballs that burn straight through, slow, a shield along the bottom that saves one ball, and an extra life. Two are worth dodging: shrink and fast.
+- **Combos:** each brick broken before the ball touches the paddle again is worth more than the last.
+- **Levels:** fifty laid out by hand in five worlds of ten (Daybreak, Ironworks, Treasure Cove, Labyrinth, Supernova), each bringing something new; after that, Deep Space goes on for ever. Three lives a level; three stars for losing none.
+- If only a few bricks are left and the ball keeps missing them, the paddle quietly helps by leaning the next bounce towards one.
+
+`node tools/test-prism-break.mjs` checks every level's map, the bounces, each kind of brick and power-up, and then a practice player clears all fifty levels and twenty more, which proves no brick is out of reach and no ball can get stuck for ever.
+
 ## Files
 
 - `index.html`: the arcade menu
@@ -216,6 +229,7 @@ An endless runner in 3D. A bear cub has made off with a pot of honey and is dash
 - `games/star-swarm/`: Star Swarm (`engine.js` is the whole game as plain numbers, stepped 60 times a second: flight scripts, the formation, attacks, the tractor beam, scoring; `sprites.js` is the pixel art and the arcade font; `game.js` draws it and handles the controls)
 - `games/snake/`: Snake (`engine.js` has the rules: steps, turns, apples, stars, walls and wrapping; `game.js` draws the snake sliding from cell to cell and handles swipes and keys)
 - `games/honey-run/`: Honey Run (`engine.js` has the rules and lays the line; `gl.js` is a small WebGL renderer: flat-shaded models, fog, a world that bends away, shadows; `models.js` builds the cub, wagons and power-ups, `world.js` the countryside and its seasons; `game.js` is the camera, controls, shop and goals)
+- `games/prism-break/`: Prism Break (`engine.js` is the physics and the rules; `levels.js` the fifty maps and the ones built after; `bot.js` the practice player, which also plays behind the title; `art.js` paints the bricks, capsules and backdrops; `game.js` is the screen)
 - `shared/`: sound, haptics, saving and offline support used by every game (`arcade.js`), plus the screen frame, pop-up cards and confetti used by the newer games (`screen.css`, `ui.js`)
 - `sw.js`: the offline file list. Regenerate it after any change with `node tools/build-sw.mjs`
 - `tools/`: the local server, the tests for each game, and the icon maker (`tools/make-icons.ps1`)

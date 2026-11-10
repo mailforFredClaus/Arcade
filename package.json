@@ -12,6 +12,7 @@
     "test:nonogram": "node tools/test-nonogram.mjs 30",
     "test:star-swarm": "node tools/test-star-swarm.mjs 12 16",
     "test:snake": "node tools/test-snake.mjs 30",
-    "test:honey-run": "node tools/test-honey-run.mjs 40 6000"
+    "test:honey-run": "node tools/test-honey-run.mjs 40 6000",
+    "test:prism-break": "node tools/test-prism-break.mjs 70"
   }
 }
