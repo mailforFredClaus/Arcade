@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Arcade">
+  <meta name="theme-color" content="#05060f">
+  <title>Star Swarm</title>
+  <link rel="manifest" href="../../manifest.webmanifest">
+  <link rel="icon" href="../../icons/icon-192.png">
+  <link rel="apple-touch-icon" href="../../icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="../../shared/arcade.css">
+  <link rel="stylesheet" href="../../shared/screen.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="theme-night">
+  <header class="topbar" id="topbar">
+    <a class="sq-btn" href="../../index.html" aria-label="Back to the arcade" id="backBtn"></a>
+    <div class="banner">
+      <div class="name">Star Swarm</div>
+      <div class="lvl"><span id="stageLabel">STAGE 1</span><span class="tier-tag" id="tierTag"></span></div>
+    </div>
+    <button class="sq-btn" id="menuBtn" aria-label="Pause and settings"></button>
+  </header>
+
+  <canvas id="screen" width="224" height="288" aria-label="Star Swarm"></canvas>
+
+  <div class="pad" id="pad">
+    <div class="move" id="move" role="group" aria-label="Hold the left or right side to move">
+      <svg viewBox="0 0 24 24"><path d="M15.5 4.5 7 12l8.5 7.5z"/></svg>
+      <svg viewBox="0 0 24 24"><path d="M8.5 4.5 17 12l-8.5 7.5z"/></svg>
+    </div>
+    <button class="fire" id="fire" aria-label="Fire">FIRE</button>
+  </div>
+
+  <div class="toast" id="toast" role="status"></div>
+  <div class="overlay" id="overlay" hidden><div class="card" id="card"></div></div>
+
+  <script type="module" src="js/game.js"></script>
+</body>
+</html>

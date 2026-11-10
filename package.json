@@ -9,6 +9,7 @@
     "test:gem-swap": "node tools/test-gem-swap.mjs 1 60",
     "test:hexit": "node tools/test-hexit.mjs 1 60",
     "test:car-park": "node tools/test-car-park.mjs 30",
-    "test:nonogram": "node tools/test-nonogram.mjs 30"
+    "test:nonogram": "node tools/test-nonogram.mjs 30",
+    "test:star-swarm": "node tools/test-star-swarm.mjs 12 16"
   }
 }

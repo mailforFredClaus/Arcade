@@ -223,6 +223,48 @@ export function sfx(name, k = 0) {
     case 'cross':
       tone(a, { f: 430, f2: 370, type: 'triangle', d: 0.04, g: 0.06 });
       break;
+    // Star Swarm.
+    case 'laser':
+      tone(a, { f: 1500, f2: 520, type: 'square', d: 0.09, g: 0.045 });
+      break;
+    case 'burst': {
+      // k: how big the thing that blew up was.
+      const f = [760, 560, 330, 620, 440][Math.min(4, k)] || 500;
+      tone(a, { f, f2: f * 0.3, type: 'triangle', d: 0.16, g: 0.16 });
+      hiss(a, { d: 0.14 + 0.05 * (k === 2), g: 0.14, f0: 2400, f1: 500, q: 0.9 });
+      break;
+    }
+    case 'clank':
+      tone(a, { f: 540, type: 'square', d: 0.05, g: 0.05 });
+      tone(a, { f: 810, type: 'square', t: 0.04, d: 0.08, g: 0.04 });
+      break;
+    case 'swoop':
+      tone(a, { f: 1250, f2: 380, d: 0.42, g: 0.05 });
+      break;
+    case 'tractor':
+      // The beam warbling up and down for as long as it's out.
+      for (let i = 0; i < 14; i++) tone(a, { f: 330 + (i % 4) * 130, f2: 520 + (i % 4) * 130, type: 'triangle', t: i * 0.2, d: 0.19, g: 0.055 });
+      break;
+    case 'alarm':
+      [880, 740, 622, 523, 440, 370].forEach((f, i) => tone(a, { f, type: 'square', t: i * 0.11, d: 0.1, g: 0.05 }));
+      break;
+    case 'reunite':
+      [392, 523, 659, 784, 1047, 1319].forEach((f, i) => tone(a, { f, type: 'triangle', t: i * 0.08, d: 0.2, g: 0.11 }));
+      break;
+    case 'crash':
+      tone(a, { f: 220, f2: 36, d: 0.8, g: 0.5 });
+      hiss(a, { d: 0.9, g: 0.4, f0: 1800, f1: 90, q: 0.5 });
+      hiss(a, { t: 0.15, d: 0.6, g: 0.2, f0: 900, f1: 200, q: 0.8 });
+      break;
+    case 'stage':
+      tone(a, { f: 880, type: 'square', d: 0.07, g: 0.04 });
+      tone(a, { f: 1320, type: 'square', t: 0.09, d: 0.12, g: 0.04 });
+      break;
+    case 'anthem':
+      // The start of a game.
+      [523, 659, 784, 659, 784, 1047, 784, 1047, 1319].forEach((f, i) => tone(a, { f, type: 'square', t: i * 0.13, d: 0.12, g: 0.045 }));
+      [262, 330, 392, 523].forEach((f, i) => tone(a, { f, type: 'triangle', t: i * 0.26, d: 0.25, g: 0.09 }));
+      break;
     case 'cheer':
       // A big moment: a quick fanfare.
       [659, 784, 988, 1319].forEach((f, i) => tone(a, { f, type: 'triangle', t: i * 0.06, d: 0.22, g: 0.1 }));

@@ -152,6 +152,27 @@ Dig out every square that isn't a mine. Each number says how many of the 8 squar
 
 `node tools/test-minesweeper.mjs 100` re-checks 100 boards of each size.
 
+## Star Swarm
+
+A shooter in the style of the 1981 arcade classic, played on a 224 × 288 screen like the machine's, with its own pixel art, sounds and name. Slide your thumb on the left pad to move, and tap **FIRE** (or the screen itself) to shoot; only two shots can be in the air at once, so aim. On a computer: arrow keys (or A and D) and Space, and P to pause.
+
+Each stage, forty enemies fly in in five waves and line up: four bosses on top, two rows of butterflies, two rows of bees. Then they peel off and dive at you, shooting. Clear them all to go on to the next stage; they get faster, more of them dive at once, and they fire more.
+
+| | In line | Diving |
+|---|---|---|
+| Bee | 50 | 100 |
+| Butterfly | 80 | 160 |
+| Boss (takes two hits) | 150 | 400 alone, 800 after shooting one of its escorts, 1,600 after both |
+| A bee's three transformations (stage 4 on) | | 160 each, and 1,000, 2,000 or 3,000 for all three |
+
+- **Tractor beam:** a boss can stop above you and send down a beam. Get caught and that fighter is captured: it sits above the boss, in red. Shoot that boss *while it dives* and the fighter comes back to fly beside your next one, a dual fighter with twice the shots (and twice the width). Shoot the boss in the line-up instead and the fighter turns on you (1,000 if you shoot it; shooting your own captured fighter above its boss scores 500 and loses it).
+- **Challenging Stages** are stage 3 and every fourth stage after (7, 11, 15, …): forty enemies fly past in five groups, nothing shoots and nothing can hurt you. Each hit is 100, each whole group 1,000 to 3,000, and at the end you get 100 a hit, or a special bonus of 10,000 for all forty.
+- **Fighters:** you start with three. A new one comes at 20,000, at 70,000, and every 70,000 after that. When only a few enemies are left they stop going home and attack without a rest.
+- The flags at the bottom right count the stages, and at the end you get your shots fired, hits and hit-miss ratio. The high score starts at 20,000, as the machine's did.
+- **Coming back:** leave part way through and you can carry on from the start of the stage you had reached. In ⚙ you can make Fire keep firing while it's held (the arcade made you tap).
+
+**The rules are checked against the arcade's.** `node tools/test-star-swarm.mjs` checks that every stage brings in the right forty in the right places, the points for everything, the two-hit bosses, the Challenging Stage bonuses, capture and rescue, and when extra fighters come; then a simple robot player plays a dozen whole games, twice each, to check that nothing ever jams and that the same game always plays out the same way.
+
 ## Files
 
 - `index.html`: the arcade menu
@@ -163,6 +184,7 @@ Dig out every square that isn't a mine. Each number says how many of the 8 squar
 - `games/sudoku/`: Sudoku (`logic.js` makes and grades puzzles; `game.js` is the board)
 - `games/nonogram/`: Nonogram (`logic.js` has the rules, the line-by-line solver, the hints and the puzzle maker; `pictures.js` draws the pictures, including the hand-drawn 10×10 icons; `game.js` is the board)
 - `games/minesweeper/`: Minesweeper (`logic.js` makes no-guess boards and solves them; `game.js` draws the board and handles touch)
+- `games/star-swarm/`: Star Swarm (`engine.js` is the whole game as plain numbers, stepped 60 times a second: flight scripts, the formation, attacks, the tractor beam, scoring; `sprites.js` is the pixel art and the arcade font; `game.js` draws it and handles the controls)
 - `shared/`: sound, haptics, saving and offline support used by every game (`arcade.js`), plus the screen frame, pop-up cards and confetti used by the newer games (`screen.css`, `ui.js`)
 - `sw.js`: the offline file list. Regenerate it after any change with `node tools/build-sw.mjs`
 - `tools/`: the local server, the tests for each game, and the icon maker (`tools/make-icons.ps1`)
