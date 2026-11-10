@@ -265,6 +265,35 @@ export function sfx(name, k = 0) {
       [523, 659, 784, 659, 784, 1047, 784, 1047, 1319].forEach((f, i) => tone(a, { f, type: 'square', t: i * 0.13, d: 0.12, g: 0.045 }));
       [262, 330, 392, 523].forEach((f, i) => tone(a, { f, type: 'triangle', t: i * 0.26, d: 0.25, g: 0.09 }));
       break;
+    // Honey Run.
+    case 'honey': {
+      // A coin: each one in a quick run of them rings a step higher.
+      const f = 880 * 2 ** (Math.min(12, k) / 12);
+      tone(a, { f, type: 'triangle', d: 0.07, g: 0.1 });
+      tone(a, { f: f * 1.5, type: 'sine', t: 0.03, d: 0.1, g: 0.06 });
+      break;
+    }
+    case 'hop':
+      tone(a, { f: 300, f2: 620, type: 'sine', d: 0.14, g: 0.16 });
+      break;
+    case 'slide':
+      hiss(a, { d: 0.22, g: 0.18, f0: 1400, f1: 500, q: 0.9 });
+      break;
+    case 'smash':
+      tone(a, { f: 160, f2: 45, d: 0.4, g: 0.5 });
+      hiss(a, { d: 0.45, g: 0.4, f0: 2200, f1: 180, q: 0.6 });
+      tone(a, { f: 520, f2: 180, type: 'triangle', t: 0.05, d: 0.25, g: 0.12 });
+      break;
+    case 'buzz':
+      [0, 0.09, 0.18].forEach((t) => tone(a, { f: 210, f2: 250, type: 'sawtooth', t, d: 0.09, g: 0.05 }));
+      tone(a, { f: 230, f2: 190, type: 'sawtooth', t: 0.27, d: 0.3, g: 0.05 });
+      break;
+    case 'power':
+      [523, 659, 784, 1047].forEach((f, i) => tone(a, { f, type: 'triangle', t: i * 0.05, d: 0.16, g: 0.12 }));
+      break;
+    case 'powerdown':
+      tone(a, { f: 660, f2: 330, type: 'triangle', d: 0.25, g: 0.1 });
+      break;
     case 'cheer':
       // A big moment: a quick fanfare.
       [659, 784, 988, 1319].forEach((f, i) => tone(a, { f, type: 'triangle', t: i * 0.06, d: 0.22, g: 0.1 }));
