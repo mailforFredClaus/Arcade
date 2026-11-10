@@ -13,6 +13,10 @@
 //   5 in a line      a prism, which clears every gem of one colour
 // Swapping a power-up with anything sets it off; swapping two power-ups
 // together sets off a bigger combo; tapping one sets it off where it is.
+// Power-ups have no colour of their own, so they never join a line.
+//
+// A level can start with power-ups already on the board, and some crates
+// are treasure chests: break one open and the power-up inside is yours.
 //
 // After each clear, gems fall into the gaps (sliding sideways round crates
 // and chains when nothing can fall straight in), new gems drop in at the top
@@ -75,6 +79,7 @@ export class Board {
     this.color = new Int8Array(N).fill(-1);
     this.power = new Uint8Array(N);
     this.hp = new Uint8Array(N); // layers left on a crate
+    this.prize = new Uint8Array(N); // the power-up inside a crate that's a chest
     this.chain = new Uint8Array(N); // 1 if the gem is chained
     this.ice = new Uint8Array(N); // layers of ice under the cell
     this.exit = new Uint8Array(N); // coins leave from here
@@ -107,6 +112,7 @@ export class Board {
       if (level.crate && level.crate[i]) {
         this.kind[i] = CRATE;
         this.hp[i] = level.crate[i];
+        this.prize[i] = level.chest ? level.chest[i] : 0;
       } else if (level.coin && level.coin[i]) {
         this.kind[i] = COIN;
         this.id[i] = this.nextId++;
@@ -116,13 +122,23 @@ export class Board {
         this.chain[i] = level.chain && level.chain[i] ? 1 : 0;
       }
     }
-    if (fill) this.fill(level.gems);
+    if (fill) {
+      this.fill(level.gems);
+      // Power-ups the level starts with.
+      if (level.power) {
+        for (let i = 0; i < N; i++) {
+          if (!level.power[i] || this.kind[i] !== GEM || this.chain[i]) continue;
+          this.power[i] = level.power[i];
+          this.color[i] = -1;
+        }
+      }
+    }
   }
 
   clone() {
     const b = new Board(null);
     for (const k of ['w', 'h', 'N', 'nextId', 'moves', 'coinMax', 'coins', 'quiet', 'up', 'down', 'exit', 'on']) b[k] = this[k];
-    for (const k of ['kind', 'color', 'power', 'hp', 'chain', 'ice', 'id']) b[k] = this[k].slice();
+    for (const k of ['kind', 'color', 'power', 'hp', 'prize', 'chain', 'ice', 'id']) b[k] = this[k].slice();
     b.rand = new Rand(this.rand.s);
     b.palette = this.palette;
     b.goals = this.goals.map((g) => ({ ...g }));
@@ -135,7 +151,7 @@ export class Board {
     return this.on[i] ? i : -1;
   }
 
-  // Gems that can take part in a line (a prism has no colour).
+  // Gems that can take part in a line (power-ups have no colour).
   matchable(i) { return this.kind[i] === GEM && this.color[i] >= 0; }
   swappable(i) { return i >= 0 && this.kind[i] === GEM && !this.chain[i]; }
   movable(i) { return (this.kind[i] === GEM && !this.chain[i]) || this.kind[i] === COIN; }
@@ -402,7 +418,7 @@ export class Board {
         const i = pool.splice(this.rand.int(pool.length), 1)[0];
         const pw = isLine(p) ? (this.rand.int(2) ? LINE_H : LINE_V) : p;
         this.power[i] = pw;
-        if (pw === PRISM) this.color[i] = -1;
+        this.color[i] = -1;
         cells.push(i);
       }
       return [{ t: 'start', cells, snap: this.snap() }];
@@ -539,8 +555,10 @@ export class Board {
     if (make >= 0) {
       this.breakIce(make, T.gather * 0.5, ctx);
       const old = this.id[make];
+      // The gem it's made from is used up like the rest of the match.
+      this.addGoal('color', this.color[make], T.gather, make, ctx);
       this.power[make] = g.power;
-      if (g.power === PRISM) this.color[make] = -1;
+      this.color[make] = -1;
       this.id[make] = this.nextId++;
       this.made.push(g.power);
       ctx.ev.push({ at: T.gather, e: 'make', i: make, id: this.id[make], old, color: this.color[make], power: g.power });
@@ -585,6 +603,16 @@ export class Board {
         if (!this.hp[i]) {
           this.kind[i] = EMPTY;
           this.addGoal('crate', -1, at, i, ctx);
+          if (this.prize[i]) {
+            // A chest: the power-up inside is left where it stood.
+            this.kind[i] = GEM;
+            this.color[i] = -1;
+            this.power[i] = this.prize[i];
+            this.chain[i] = 0;
+            this.id[i] = this.nextId++;
+            this.prize[i] = 0;
+            ctx.ev.push({ at, e: 'chest', i, id: this.id[i], power: this.power[i] });
+          }
         }
         return;
       case GEM:
@@ -818,7 +846,7 @@ export class Board {
       }
     } else if (has(PRISM)) {
       const other = pa === PRISM ? pb : pa, oc = pa === PRISM ? cb : ca;
-      this.prism(i, 0, s, oc, other, ctx);
+      this.prism(i, 0, s, oc >= 0 ? oc : this.commonColour(), other, ctx);
     } else if (pa === FLY && pb === FLY) {
       for (let k = 0; k < 3; k++) this.fly(i, 0, s, ca, null, ctx, k);
     } else if (has(FLY)) {
@@ -939,7 +967,7 @@ export class Board {
 
   spawn(e) {
     const g = this.goals.find((x) => x.type === 'coin');
-    if (g && this.coins < this.coinMax && g.got + this.coins < g.need && this.rand.next() < 0.25) {
+    if (g && this.coins < this.coinMax && g.got + this.coins < g.need && this.rand.next() < 0.35) {
       this.kind[e] = COIN;
       this.color[e] = -1;
       this.coins++;

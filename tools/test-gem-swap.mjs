@@ -25,6 +25,8 @@ function settledProblems(b) {
     if (b.movable(i) && b.down[i] >= 0 && b.kind[b.down[i]] === EMPTY) out.push('a gem left floating');
     if ((b.kind[i] === GEM || b.kind[i] === COIN) && b.id[i] <= 0) out.push('a piece with no id');
     if (b.kind[i] === CRATE && !b.hp[i]) out.push('a crate with no layers');
+    if (b.prize[i] && b.kind[i] !== CRATE) out.push('a chest left behind with no crate');
+    if (b.kind[i] === GEM && b.power[i] && b.color[i] >= 0) out.push('a power-up with a colour');
   }
   const ids = new Set();
   for (let i = 0; i < b.N; i++) {
@@ -62,12 +64,21 @@ for (let n = from; n <= to; n++) {
   if (lv.moves < 10 || lv.moves > 45) problems.push(`odd number of moves (${lv.moves})`);
   if (!(lv.stars[0] >= 1 && lv.stars[1] > lv.stars[0] && lv.stars[1] <= lv.moves)) problems.push('star thresholds out of order');
   for (let i = 0; i < N; i++) if (!lv.on[i] && (lv.crate[i] || lv.ice[i] || lv.chain[i] || lv.coin[i])) problems.push('an obstacle in a hole');
+  // Chests are crates; power-ups to start with sit on plain, loose gems.
+  for (let i = 0; i < N; i++) {
+    if (lv.chest[i] && !lv.crate[i]) problems.push('a chest that is not a crate');
+    if (lv.power[i] && (!lv.on[i] || lv.crate[i] || lv.chain[i] || lv.coin[i])) problems.push('a starting power-up where no loose gem is');
+  }
+  if (lv.flavour === 'treat' && lv.colors.length !== 4) problems.push('a treasure level without four colours');
 
   // Random play: the board must always settle properly.
   for (let k = 0; k < 3; k++) {
     const b = new Board(lv, mix(lv.seed, 900 + k));
     const start = settledProblems(b);
     if (start.length) problems.push(`fresh board: ${start.join(', ')}`);
+    for (let i = 0; i < N; i++) if (lv.power[i] && b.power[i] !== lv.power[i]) problems.push('a starting power-up is missing');
+    const chests = lv.chest.filter(Boolean).length;
+    let opened = 0;
     if (!b.hasMove()) problems.push('fresh board has no move');
     const R = new Rand(mix(n, k, 77));
     const played = [];
@@ -79,11 +90,16 @@ for (let n = from; n <= to; n++) {
       const before = b.moves;
       const steps = b.play(m);
       if (!steps.length) continue;
+      for (const st of steps) if (st.t === 'clear') opened += st.events.filter((e) => e.e === 'chest').length;
       played.push(m);
       if (m.type === 'swap' && b.moves !== before - 1) problems.push('a swap did not cost one move');
       const bad = settledProblems(b);
       if (bad.length) { problems.push(`after a move: ${bad.join(', ')}`); break; }
     }
+    // Every chest that has gone gave up its power-up, and no others did.
+    let shut = 0;
+    for (let i = 0; i < N; i++) if (b.prize[i]) shut++;
+    if (opened + shut !== chests) problems.push('chests opened and chests left do not add up');
     // A saved game is its seed and its moves: replaying them must land on the same board.
     const again = new Board(lv, mix(lv.seed, 900 + k));
     again.quiet = true;

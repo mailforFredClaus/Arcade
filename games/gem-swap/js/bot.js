@@ -5,7 +5,8 @@
 
 import { Board, Rand, EMPTY, CRATE, COIN, NONE, LINE_H, LINE_V, BOMB, FLY, PRISM } from './engine.js';
 
-const MADE = { [LINE_H]: 6, [LINE_V]: 6, [BOMB]: 8.5, [FLY]: 7, [PRISM]: 13, [NONE]: 0 };
+// What a power-up is worth while it waits on the board.
+const MADE = { [LINE_H]: 5, [LINE_V]: 5, [BOMB]: 7, [FLY]: 6, [PRISM]: 11, [NONE]: 0 };
 
 // How much the goals still need, roughly counted in gems.
 export function work(b) {
@@ -34,7 +35,7 @@ export function work(b) {
         if (b.kind[i] !== COIN) continue;
         let d = 0;
         for (let x = b.down[i]; x >= 0; x = b.down[x]) if (b.kind[x] !== EMPTY) d++;
-        s += d * 1.6;
+        s += d * 3;
       }
     }
   }
@@ -46,8 +47,13 @@ export function judge(b, m, before = work(b)) {
   t.quiet = true;
   t.play(m, true);
   let s = before - work(t);
-  for (const p of t.made) s += MADE[p];
-  s -= t.fired * 3; // a power-up used is a power-up gone
+  // The more power-ups are lying about, the less another is worth, and
+  // the less it costs to use one: they're there to be set off.
+  let held = 0;
+  for (let i = 0; i < b.N; i++) if (b.power[i]) held++;
+  const worth = 1 / (1 + held / 2);
+  for (const p of t.made) s += MADE[p] * worth;
+  s -= t.fired * 4 * worth; // a power-up used is a power-up gone
   // Lower on the board shakes more down.
   const at = m.type === 'swap' ? Math.max(m.a, m.b) : m.i;
   s += 0.04 * Math.floor(at / b.w);

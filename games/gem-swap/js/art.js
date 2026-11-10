@@ -93,7 +93,7 @@ function roundPoly(p, pts, r) {
 // ---- sprites ---------------------------------------------------------------------------
 
 // Kept for the last few sizes in use: gems are drawn a little smaller than
-// crates and ice, and both are needed every frame.
+// crates and ice, glows bigger, and all are needed every frame.
 const caches = new Map();
 
 // A still picture at pixel size px, drawn once and reused.
@@ -102,7 +102,7 @@ export function sprite(key, px, paint) {
   if (!cache) {
     cache = new Map();
     caches.set(px, cache);
-    while (caches.size > 4) caches.delete(caches.keys().next().value);
+    while (caches.size > 6) caches.delete(caches.keys().next().value);
   }
   let c = cache.get(key);
   if (!c) {
@@ -134,8 +134,23 @@ export function paintGem(g, color) {
   grad.addColorStop(1, d.dark);
   g.fillStyle = grad;
   g.fill(body);
+  // Deeper colour towards the bottom edge and a bright rim along the top,
+  // so it reads as a cut stone rather than a flat badge.
+  g.save();
+  g.clip(body);
+  const depth = g.createRadialGradient(-0.08, -0.16, 0.18, 0, 0, 0.6);
+  depth.addColorStop(0, 'rgba(255,255,255,0)');
+  depth.addColorStop(0.62, 'rgba(255,255,255,0)');
+  depth.addColorStop(1, 'rgba(10, 0, 40, 0.38)');
+  g.fillStyle = depth;
+  g.fillRect(-0.5, -0.5, 1, 1);
+  g.translate(0, 0.035);
+  g.lineWidth = 0.05;
+  g.strokeStyle = 'rgba(255,255,255,0.5)';
+  g.stroke(body);
+  g.restore();
   g.lineJoin = 'round';
-  g.lineWidth = 0.04;
+  g.lineWidth = 0.045;
   g.strokeStyle = d.edge;
   g.stroke(body);
   // A raised facet in the middle.
@@ -162,88 +177,180 @@ export function paintGem(g, color) {
   g.fill();
 }
 
-function gemGradient(g, d, x0, y0, x1, y1) {
-  const grad = g.createLinearGradient(x0, y0, x1, y1);
-  grad.addColorStop(0, d.light);
-  grad.addColorStop(0.45, d.base);
-  grad.addColorStop(1, d.dark);
-  return grad;
-}
+// ---- power-ups ---------------------------------------------------------------------
+// They have no gem colour: each is its own thing, drawn nothing like a gem,
+// and on the board each sits in a glow (see paintGlow) so it can't be missed.
 
-// A line blaster: a capsule with an arrow at each end.
-export function paintLine(g, color, vertical) {
-  const d = GEMS[color];
-  shadow(g, 0.4, 0.34);
+const INK = '#1a1440';
+
+// A rocket (4 in a row): a nose cone at each end, pointing the way it blasts.
+export function paintRocket(g, vertical) {
+  shadow(g, 0.43, 0.3);
   g.save();
   if (vertical) g.rotate(Math.PI / 2);
-  g.fillStyle = 'rgba(255,255,255,0.55)';
-  g.beginPath();
-  g.roundRect(-0.47, -0.25, 0.94, 0.5, 0.25);
-  g.fill();
+  g.lineJoin = 'round';
+  // Fins, top and bottom.
+  for (const sy of [-1, 1]) {
+    const fin = new Path2D();
+    fin.moveTo(-0.13, sy * 0.15);
+    fin.lineTo(-0.06, sy * 0.33);
+    fin.lineTo(0.06, sy * 0.33);
+    fin.lineTo(0.13, sy * 0.15);
+    fin.closePath();
+    g.fillStyle = '#ffb320';
+    g.fill(fin);
+    g.lineWidth = 0.035;
+    g.strokeStyle = INK;
+    g.stroke(fin);
+  }
+  // The body.
   const body = new Path2D();
-  body.roundRect(-0.43, -0.21, 0.86, 0.42, 0.21);
-  g.fillStyle = gemGradient(g, d, 0, -0.21, 0, 0.21);
+  body.roundRect(-0.3, -0.19, 0.6, 0.38, 0.06);
+  const bg = g.createLinearGradient(0, -0.19, 0, 0.19);
+  bg.addColorStop(0, '#ffffff');
+  bg.addColorStop(0.55, '#e6ecfb');
+  bg.addColorStop(1, '#aab6da');
+  g.fillStyle = bg;
   g.fill(body);
-  g.lineWidth = 0.035;
-  g.strokeStyle = d.edge;
-  g.stroke(body);
-  // Arrows.
-  g.fillStyle = '#fff';
-  for (const s of [-1, 1]) {
+  // Noses.
+  for (const sx of [-1, 1]) {
+    const nose = new Path2D();
+    nose.moveTo(sx * 0.2, -0.2);
+    nose.quadraticCurveTo(sx * 0.4, -0.17, sx * 0.48, 0);
+    nose.quadraticCurveTo(sx * 0.4, 0.17, sx * 0.2, 0.2);
+    nose.closePath();
+    const ng = g.createLinearGradient(0, -0.2, 0, 0.2);
+    ng.addColorStop(0, '#ff8f9a');
+    ng.addColorStop(0.45, '#ff3355');
+    ng.addColorStop(1, '#b90f33');
+    g.fillStyle = ng;
+    g.fill(nose);
+    g.lineWidth = 0.035;
+    g.strokeStyle = INK;
+    g.stroke(nose);
+    g.fillStyle = 'rgba(255,255,255,0.75)';
     g.beginPath();
-    g.moveTo(s * 0.4, 0);
-    g.lineTo(s * 0.2, -0.15);
-    g.lineTo(s * 0.2, 0.15);
-    g.closePath();
+    g.ellipse(sx * 0.31, -0.09, 0.07, 0.025, sx * 0.35, 0, TAU);
     g.fill();
   }
-  g.fillRect(-0.2, -0.045, 0.4, 0.09);
-  g.fillStyle = 'rgba(255,255,255,0.5)';
+  g.lineWidth = 0.035;
+  g.strokeStyle = INK;
   g.beginPath();
-  g.roundRect(-0.3, -0.16, 0.6, 0.06, 0.03);
+  g.moveTo(-0.2, -0.19);
+  g.lineTo(0.2, -0.19);
+  g.moveTo(-0.2, 0.19);
+  g.lineTo(0.2, 0.19);
+  g.stroke();
+  // A gold band and a porthole in the middle.
+  const band = g.createLinearGradient(0, -0.19, 0, 0.19);
+  band.addColorStop(0, '#fff0a0');
+  band.addColorStop(0.5, '#ffc21a');
+  band.addColorStop(1, '#d48a00');
+  g.fillStyle = band;
+  g.fillRect(-0.105, -0.175, 0.21, 0.35);
+  g.fillStyle = INK;
+  g.beginPath();
+  g.arc(0, 0, 0.085, 0, TAU);
+  g.fill();
+  const win = g.createLinearGradient(0, -0.07, 0, 0.07);
+  win.addColorStop(0, '#bff3ff');
+  win.addColorStop(1, '#2f9bff');
+  g.fillStyle = win;
+  g.beginPath();
+  g.arc(0, 0, 0.058, 0, TAU);
   g.fill();
   g.restore();
 }
 
-export function paintBomb(g, color) {
-  const d = GEMS[color];
-  shadow(g, 0.42, 0.3);
-  // Fuse cap.
+// One half of a rocket in flight, nose towards +x, with its flame behind.
+export function paintRocketHead(g, flicker = 1) {
   g.save();
-  g.translate(0.17, -0.25);
-  g.rotate(0.6);
-  g.fillStyle = '#5b6178';
+  g.lineJoin = 'round';
+  const flame = new Path2D();
+  flame.moveTo(-0.1, -0.13);
+  flame.quadraticCurveTo(-0.3 - 0.25 * flicker, 0, -0.1, 0.13);
+  flame.closePath();
+  g.fillStyle = '#ffb320';
+  g.fill(flame);
+  g.fillStyle = '#fff6c4';
   g.beginPath();
-  g.roundRect(-0.08, -0.06, 0.16, 0.12, 0.03);
+  g.ellipse(-0.14, 0, 0.09 * flicker, 0.06, 0, 0, TAU);
   g.fill();
-  g.restore();
-  g.strokeStyle = '#6b4b2a';
-  g.lineWidth = 0.04;
-  g.lineCap = 'round';
-  g.beginPath();
-  g.moveTo(0.2, -0.29);
-  g.quadraticCurveTo(0.3, -0.42, 0.36, -0.35);
-  g.stroke();
   const body = new Path2D();
-  body.arc(0, 0.05, 0.34, 0, TAU);
-  const grad = g.createRadialGradient(-0.12, -0.08, 0.04, 0, 0.05, 0.36);
-  grad.addColorStop(0, d.light);
-  grad.addColorStop(0.5, d.base);
-  grad.addColorStop(1, d.dark);
+  body.roundRect(-0.12, -0.17, 0.3, 0.34, 0.04);
+  g.fillStyle = '#eef2ff';
+  g.fill(body);
+  g.lineWidth = 0.035;
+  g.strokeStyle = INK;
+  g.stroke(body);
+  const nose = new Path2D();
+  nose.moveTo(0.14, -0.18);
+  nose.quadraticCurveTo(0.36, -0.15, 0.46, 0);
+  nose.quadraticCurveTo(0.36, 0.15, 0.14, 0.18);
+  nose.closePath();
+  g.fillStyle = '#ff3355';
+  g.fill(nose);
+  g.stroke(nose);
+  g.restore();
+}
+
+// A bomb (an L or a T): black, round, with a lit fuse.
+export function paintBomb(g) {
+  shadow(g, 0.43, 0.3);
+  g.lineJoin = 'round';
+  // Fuse.
+  g.lineCap = 'round';
+  g.strokeStyle = INK;
+  g.lineWidth = 0.085;
+  g.beginPath();
+  g.moveTo(0.15, -0.27);
+  g.quadraticCurveTo(0.24, -0.43, 0.36, -0.36);
+  g.stroke();
+  g.strokeStyle = '#d9b27a';
+  g.lineWidth = 0.04;
+  g.stroke();
+  // Cap.
+  g.save();
+  g.translate(0.14, -0.25);
+  g.rotate(0.55);
+  const cap = new Path2D();
+  cap.roundRect(-0.1, -0.07, 0.2, 0.14, 0.03);
+  const cg = g.createLinearGradient(0, -0.07, 0, 0.07);
+  cg.addColorStop(0, '#fff0a0');
+  cg.addColorStop(1, '#d48a00');
+  g.fillStyle = cg;
+  g.fill(cap);
+  g.lineWidth = 0.03;
+  g.strokeStyle = INK;
+  g.stroke(cap);
+  g.restore();
+  const body = new Path2D();
+  body.arc(-0.02, 0.07, 0.35, 0, TAU);
+  const grad = g.createRadialGradient(-0.15, -0.08, 0.03, -0.02, 0.07, 0.37);
+  grad.addColorStop(0, '#8d86c9');
+  grad.addColorStop(0.35, '#4a437f');
+  grad.addColorStop(1, '#16122f');
   g.fillStyle = grad;
   g.fill(body);
   g.lineWidth = 0.04;
-  g.strokeStyle = d.edge;
+  g.strokeStyle = '#0a0820';
   g.stroke(body);
-  // A band round the middle.
+  // A hot rim along the bottom, as if lit from below.
   g.save();
   g.clip(body);
-  g.fillStyle = 'rgba(30, 20, 60, 0.28)';
-  g.fillRect(-0.4, 0.06, 0.8, 0.09);
-  g.restore();
-  g.fillStyle = 'rgba(255,255,255,0.85)';
+  g.strokeStyle = 'rgba(255, 120, 60, 0.9)';
+  g.lineWidth = 0.05;
   g.beginPath();
-  g.ellipse(-0.13, -0.11, 0.09, 0.05, -0.7, 0, TAU);
+  g.arc(-0.02, 0.07, 0.31, 0.25, Math.PI - 0.6);
+  g.stroke();
+  g.restore();
+  // Shine.
+  g.fillStyle = 'rgba(255,255,255,0.9)';
+  g.beginPath();
+  g.ellipse(-0.17, -0.09, 0.1, 0.055, -0.7, 0, TAU);
+  g.fill();
+  g.beginPath();
+  g.arc(-0.05, -0.19, 0.025, 0, TAU);
   g.fill();
 }
 
@@ -252,90 +359,110 @@ export function paintSpark(g, t) {
   const k = 0.75 + 0.25 * Math.sin(t / 60);
   g.save();
   g.translate(0.37, -0.36);
-  g.fillStyle = 'rgba(255, 200, 60, 0.55)';
+  g.fillStyle = 'rgba(255, 150, 40, 0.6)';
   g.beginPath();
-  g.arc(0, 0, 0.09 * k, 0, TAU);
+  g.arc(0, 0, 0.13 * k, 0, TAU);
+  g.fill();
+  g.fillStyle = '#fff6c4';
+  g.beginPath();
+  g.arc(0, 0, 0.055 * k, 0, TAU);
   g.fill();
   g.strokeStyle = '#fff6c4';
-  g.lineWidth = 0.025;
+  g.lineWidth = 0.03;
   g.lineCap = 'round';
   for (let j = 0; j < 4; j++) {
     const a = j * (Math.PI / 2) + t / 200;
     g.beginPath();
-    g.moveTo(Math.cos(a) * 0.03, Math.sin(a) * 0.03);
-    g.lineTo(Math.cos(a) * 0.09 * k, Math.sin(a) * 0.09 * k);
+    g.moveTo(Math.cos(a) * 0.05, Math.sin(a) * 0.05);
+    g.lineTo(Math.cos(a) * 0.13 * k, Math.sin(a) * 0.13 * k);
     g.stroke();
   }
   g.restore();
 }
 
-// A butterfly. flap 0..1: how open the wings are.
-export function paintFly(g, color, flap = 1, carry = 0) {
-  const d = GEMS[color] || GEMS[4];
+// A butterfly (a 2x2 square). flap 0..1: how open the wings are.
+// carry: a power-up it has picked up in a combo.
+export function paintFly(g, flap = 1, carry = 0) {
   const open = 0.45 + 0.55 * flap;
   g.save();
+  g.lineJoin = 'round';
   g.fillStyle = 'rgba(8, 10, 45, 0.22)';
   g.beginPath();
-  g.ellipse(0, 0.42, 0.26 * open, 0.05, 0, 0, TAU);
+  g.ellipse(0, 0.43, 0.26 * open, 0.05, 0, 0, TAU);
   g.fill();
   for (const s of [-1, 1]) {
     g.save();
     g.scale(s * open, 1);
     const up = new Path2D();
     up.moveTo(0.02, -0.04);
-    up.bezierCurveTo(0.1, -0.42, 0.46, -0.44, 0.42, -0.16);
-    up.bezierCurveTo(0.4, -0.02, 0.2, 0.02, 0.02, 0.0);
+    up.bezierCurveTo(0.1, -0.46, 0.5, -0.48, 0.46, -0.17);
+    up.bezierCurveTo(0.44, -0.02, 0.2, 0.02, 0.02, 0.0);
     up.closePath();
     const low = new Path2D();
     low.moveTo(0.02, 0.02);
-    low.bezierCurveTo(0.26, 0.02, 0.38, 0.14, 0.3, 0.3);
-    low.bezierCurveTo(0.22, 0.42, 0.06, 0.3, 0.02, 0.1);
+    low.bezierCurveTo(0.28, 0.02, 0.42, 0.15, 0.33, 0.32);
+    low.bezierCurveTo(0.24, 0.45, 0.06, 0.32, 0.02, 0.1);
     low.closePath();
     for (const wing of [low, up]) {
-      g.fillStyle = gemGradient(g, d, 0.1, -0.4, 0.4, 0.3);
+      const wg = g.createLinearGradient(0.05, -0.42, 0.42, 0.34);
+      wg.addColorStop(0, '#fff0fb');
+      wg.addColorStop(0.3, '#ff7fd6');
+      wg.addColorStop(0.7, '#f036b4');
+      wg.addColorStop(1, '#8d2be0');
+      g.fillStyle = wg;
       g.fill(wing);
-      g.lineWidth = 0.035;
-      g.strokeStyle = d.edge;
+      g.lineWidth = 0.04;
+      g.strokeStyle = INK;
       g.stroke(wing);
     }
-    g.fillStyle = 'rgba(255,255,255,0.85)';
+    g.fillStyle = '#7df0ff';
     g.beginPath();
-    g.arc(0.27, -0.2, 0.055, 0, TAU);
-    g.arc(0.19, 0.17, 0.04, 0, TAU);
+    g.arc(0.29, -0.22, 0.065, 0, TAU);
+    g.arc(0.2, 0.19, 0.045, 0, TAU);
+    g.fill();
+    g.fillStyle = '#ffffff';
+    g.beginPath();
+    g.arc(0.27, -0.24, 0.025, 0, TAU);
+    g.arc(0.37, -0.1, 0.022, 0, TAU);
     g.fill();
     g.restore();
   }
   // Body and feelers.
-  g.fillStyle = '#2a2d4a';
+  const bg = g.createLinearGradient(0, -0.18, 0, 0.22);
+  bg.addColorStop(0, '#ffe27a');
+  bg.addColorStop(1, '#e08a00');
+  g.fillStyle = bg;
   g.beginPath();
-  g.ellipse(0, 0.02, 0.05, 0.2, 0, 0, TAU);
+  g.ellipse(0, 0.02, 0.055, 0.2, 0, 0, TAU);
   g.fill();
-  g.strokeStyle = '#2a2d4a';
-  g.lineWidth = 0.025;
+  g.lineWidth = 0.03;
+  g.strokeStyle = INK;
+  g.stroke();
+  g.lineWidth = 0.028;
   g.lineCap = 'round';
   g.beginPath();
   g.moveTo(-0.02, -0.16);
-  g.quadraticCurveTo(-0.06, -0.3, -0.13, -0.33);
+  g.quadraticCurveTo(-0.06, -0.3, -0.14, -0.34);
   g.moveTo(0.02, -0.16);
-  g.quadraticCurveTo(0.06, -0.3, 0.13, -0.33);
+  g.quadraticCurveTo(0.06, -0.3, 0.14, -0.34);
   g.stroke();
   if (carry) {
     g.save();
     g.translate(0, 0.3);
     g.scale(0.42, 0.42);
-    if (carry === BOMB) paintBomb(g, color);
-    else paintLine(g, color, carry === LINE_V);
+    if (carry === BOMB) paintBomb(g);
+    else paintRocket(g, carry === LINE_V);
     g.restore();
   }
   g.restore();
 }
 
 let conic = null;
-// A prism: a rainbow orb. t turns its colours.
+// A prism (5 in a row): a rainbow orb. t turns its colours.
 export function paintPrism(g, t) {
-  shadow(g, 0.42, 0.3);
+  shadow(g, 0.43, 0.3);
   const body = new Path2D();
-  body.arc(0, 0, 0.39, 0, TAU);
+  body.arc(0, 0, 0.4, 0, TAU);
   g.save();
   g.clip(body);
   if (conic === null) conic = typeof g.createConicGradient === 'function';
@@ -364,16 +491,74 @@ export function paintPrism(g, t) {
   for (let j = 0; j < 6; j++) {
     const a = (j * Math.PI) / 3 + t / 1500;
     g.moveTo(Math.cos(a) * 0.15, Math.sin(a) * 0.15);
-    g.lineTo(Math.cos(a) * 0.38, Math.sin(a) * 0.38);
+    g.lineTo(Math.cos(a) * 0.39, Math.sin(a) * 0.39);
   }
   g.stroke();
-  g.lineWidth = 0.045;
+  g.lineWidth = 0.05;
   g.strokeStyle = '#ffffff';
   g.stroke(body);
+  g.lineWidth = 0.02;
+  g.strokeStyle = INK;
+  g.beginPath();
+  g.arc(0, 0, 0.43, 0, TAU);
+  g.stroke();
   g.fillStyle = '#fff';
   g.beginPath();
   for (let j = 0; j < 8; j++) {
-    const a = -Math.PI / 2 + (j * Math.PI) / 4, r = j % 2 ? 0.06 : 0.16;
+    const a = -Math.PI / 2 + (j * Math.PI) / 4, r = j % 2 ? 0.06 : 0.17;
+    g[j ? 'lineTo' : 'moveTo'](Math.cos(a) * r, Math.sin(a) * r);
+  }
+  g.closePath();
+  g.fill();
+}
+
+// Any power-up, as a still picture (for cards and the like).
+export function paintPower(g, power, t = 400) {
+  if (power === PRISM) paintPrism(g, t);
+  else if (power === FLY) paintFly(g, 1);
+  else if (power === BOMB) {
+    paintBomb(g);
+    paintSpark(g, t);
+  } else paintRocket(g, power === LINE_V);
+}
+
+// The colour each power-up glows.
+const GLOW = { [LINE_H]: '255, 214, 92', [LINE_V]: '255, 214, 92', [BOMB]: '255, 128, 64', [FLY]: '255, 120, 220', [PRISM]: '255, 255, 255' };
+
+// The glow a power-up sits in (drawn in a square twice the cell's size).
+export function paintGlow(g, power) {
+  const c = GLOW[power] || GLOW[PRISM];
+  const rg = g.createRadialGradient(0, 0, 0.03, 0, 0, 0.5);
+  rg.addColorStop(0, `rgba(${c}, 0.95)`);
+  rg.addColorStop(0.35, `rgba(${c}, 0.55)`);
+  rg.addColorStop(0.7, `rgba(${c}, 0.16)`);
+  rg.addColorStop(1, `rgba(${c}, 0)`);
+  g.fillStyle = rg;
+  g.fillRect(-0.5, -0.5, 1, 1);
+}
+
+// Rays of light fanning out from a power-up (the caller turns them).
+export function paintRays(g, n = 8) {
+  const rg = g.createRadialGradient(0, 0, 0.1, 0, 0, 0.5);
+  rg.addColorStop(0, 'rgba(255,255,255,0.5)');
+  rg.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = rg;
+  g.beginPath();
+  for (let j = 0; j < n; j++) {
+    const a = (j * TAU) / n, d = TAU / n / 4.2;
+    g.moveTo(0, 0);
+    g.lineTo(Math.cos(a - d) * 0.5, Math.sin(a - d) * 0.5);
+    g.lineTo(Math.cos(a + d) * 0.5, Math.sin(a + d) * 0.5);
+    g.closePath();
+  }
+  g.fill();
+}
+
+// A four-pointed twinkle, size 1 across.
+export function paintTwinkle(g) {
+  g.beginPath();
+  for (let j = 0; j < 8; j++) {
+    const a = (j * Math.PI) / 4, r = j % 2 ? 0.09 : 0.5;
     g[j ? 'lineTo' : 'moveTo'](Math.cos(a) * r, Math.sin(a) * r);
   }
   g.closePath();
@@ -506,6 +691,79 @@ export function paintCrate(g, hp) {
   g.fill();
 }
 
+// A treasure chest: a crate with a power-up inside. hp 2: bound in iron.
+export function paintChest(g, hp) {
+  g.lineJoin = 'round';
+  const box = new Path2D();
+  box.roundRect(-0.45, -0.1, 0.9, 0.54, 0.07);
+  const lid = new Path2D();
+  lid.moveTo(-0.45, -0.06);
+  lid.lineTo(-0.45, -0.2);
+  lid.quadraticCurveTo(-0.45, -0.44, -0.2, -0.44);
+  lid.lineTo(0.2, -0.44);
+  lid.quadraticCurveTo(0.45, -0.44, 0.45, -0.2);
+  lid.lineTo(0.45, -0.06);
+  lid.closePath();
+  const wood = g.createLinearGradient(0, -0.44, 0, 0.44);
+  wood.addColorStop(0, '#c9782f');
+  wood.addColorStop(0.5, '#9a4f1c');
+  wood.addColorStop(1, '#6e3210');
+  for (const part of [box, lid]) {
+    g.fillStyle = wood;
+    g.fill(part);
+  }
+  // Planks.
+  g.save();
+  g.clip(box);
+  g.strokeStyle = 'rgba(50, 20, 4, 0.45)';
+  g.lineWidth = 0.02;
+  g.beginPath();
+  for (const y of [0.08, 0.26]) {
+    g.moveTo(-0.45, y);
+    g.lineTo(0.45, y);
+  }
+  g.stroke();
+  g.restore();
+  // Bands: gold, or iron on a chest that takes two hits.
+  const metal = g.createLinearGradient(0, -0.44, 0, 0.44);
+  if (hp >= 2) {
+    metal.addColorStop(0, '#e3e8f2');
+    metal.addColorStop(1, '#69738a');
+  } else {
+    metal.addColorStop(0, '#fff3a8');
+    metal.addColorStop(0.5, '#ffc928');
+    metal.addColorStop(1, '#c98200');
+  }
+  g.fillStyle = metal;
+  for (const x of [-0.3, 0.3]) g.fillRect(x - 0.055, -0.44, 0.11, 0.88);
+  g.fillRect(-0.45, -0.12, 0.9, 0.09);
+  g.save();
+  g.clip(lid);
+  g.fillStyle = 'rgba(255,255,255,0.28)';
+  g.fillRect(-0.45, -0.44, 0.9, 0.07);
+  g.restore();
+  g.lineWidth = 0.04;
+  g.strokeStyle = '#3a1a06';
+  g.stroke(box);
+  g.stroke(lid);
+  // The lock.
+  const lock = new Path2D();
+  lock.roundRect(-0.1, -0.17, 0.2, 0.22, 0.04);
+  const lg = g.createLinearGradient(0, -0.17, 0, 0.05);
+  lg.addColorStop(0, '#fff3a8');
+  lg.addColorStop(1, '#e09a00');
+  g.fillStyle = lg;
+  g.fill(lock);
+  g.lineWidth = 0.03;
+  g.strokeStyle = '#3a1a06';
+  g.stroke(lock);
+  g.fillStyle = '#3a1a06';
+  g.beginPath();
+  g.arc(0, -0.08, 0.03, 0, TAU);
+  g.fill();
+  g.fillRect(-0.012, -0.08, 0.024, 0.07);
+}
+
 // Two chains crossed over a gem.
 export function paintChain(g) {
   const link = (x, y, a, big) => {
@@ -606,16 +864,18 @@ export function paintIce(g, layers) {
   g.restore();
 }
 
-// The picture for a piece. power: NONE, a line, BOMB, FLY or PRISM.
+// The picture for a piece. power: NONE, a rocket (LINE_H or LINE_V), BOMB, FLY or PRISM.
 export function pieceSprite(px, color, power) {
   if (power === PRISM) return null; // drawn live, it shimmers
   if (power === FLY) return null; // drawn live, it flaps
-  return sprite(`p${color}:${power}`, px, (g) => {
-    if (power === LINE_H || power === LINE_V) paintLine(g, color, power === LINE_V);
-    else if (power === BOMB) paintBomb(g, color);
-    else paintGem(g, color);
-  });
+  if (power === LINE_H || power === LINE_V) return sprite(`rocket${power}`, px, (g) => paintRocket(g, power === LINE_V));
+  if (power === BOMB) return sprite('bomb', px, paintBomb);
+  return sprite(`p${color}`, px, (g) => paintGem(g, color));
 }
+
+export const glowSprite = (px, power) => sprite(`glow${GLOW[power] || ''}`, px, (g) => paintGlow(g, power));
+export const raysSprite = (px) => sprite('rays', px, (g) => paintRays(g));
+export const chestSprite = (px, hp) => sprite(`chest${hp}`, px, (g) => paintChest(g, hp));
 
 export const coinSprite = (px) => sprite('coin', px, paintCoin);
 export const crateSprite = (px, hp) => sprite(`crate${hp}`, px, (g) => paintCrate(g, hp));
