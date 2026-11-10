@@ -294,6 +294,30 @@ export function sfx(name, k = 0) {
     case 'powerdown':
       tone(a, { f: 660, f2: 330, type: 'triangle', d: 0.25, g: 0.1 });
       break;
+    // Prism Break.
+    case 'brick': {
+      // Each brick in a combo rings a step higher.
+      const f = 520 * 2 ** (Math.min(18, k) / 12);
+      tone(a, { f, type: 'triangle', d: 0.09, g: 0.13 });
+      tone(a, { f: f * 2, type: 'sine', d: 0.06, g: 0.05 });
+      break;
+    }
+    case 'pad':
+      tone(a, { f: 220, f2: 330, type: 'triangle', d: 0.08, g: 0.16 });
+      break;
+    case 'wallb':
+      tone(a, { f: 300, type: 'sine', d: 0.04, g: 0.05 });
+      break;
+    case 'tink':
+      tone(a, { f: 1500, f2: 1100, type: 'square', d: 0.05, g: 0.035 });
+      tone(a, { f: 2300, type: 'sine', t: 0.01, d: 0.07, g: 0.04 });
+      break;
+    case 'zap':
+      tone(a, { f: 1400, f2: 500, type: 'sawtooth', d: 0.07, g: 0.035 });
+      break;
+    case 'ouch':
+      tone(a, { f: 300, f2: 140, type: 'sawtooth', d: 0.25, g: 0.08 });
+      break;
     case 'cheer':
       // A big moment: a quick fanfare.
       [659, 784, 988, 1319].forEach((f, i) => tone(a, { f, type: 'triangle', t: i * 0.06, d: 0.22, g: 0.1 }));
