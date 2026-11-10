@@ -20,6 +20,7 @@ export function cashShort(n) {
   const v = Math.abs(n), sign = n < 0 ? '−' : '';
   if (v >= 1e9) return `${sign}$${(v / 1e9).toFixed(1)}B`;
   if (v >= 1e6) return `${sign}$${(v / 1e6).toFixed(v >= 1e7 ? 1 : 2)}M`;
+  if (v >= 999500) return `${sign}$1.00M`;
   if (v >= 1e5) return `${sign}$${Math.round(v / 1e3)}k`;
   return money(n);
 }
@@ -247,7 +248,7 @@ export const HOMES = {
 export const ITEMS = {
   bike: { name: 'Bicycle', icon: '🚲', price: 400, at: 'highstreet', sec: 'Getting about', blurb: 'One more block of time every season.' },
   car: { name: 'Second-hand hatchback', icon: '🚗', price: 9000, at: 'highstreet', sec: 'Getting about', blurb: 'Two more blocks of time every season. Costs $300 a season to run.' },
-  sportscar: { name: 'Sports car', icon: '🏎️', price: 85000, at: 'highstreet', sec: 'Getting about', blurb: 'Two more blocks of time, heads turn (Charm grows faster), and it cheers you up.' },
+  sportscar: { name: 'Sports car', icon: '🏎️', price: 85000, at: 'highstreet', sec: 'Getting about', blurb: 'Two more blocks of time, heads turn (Charm grows faster), and it cheers you up. Costs $1,200 a season to run.' },
   phone: { name: 'Phone', icon: '📱', price: 600, at: 'highstreet', sec: 'Handy', blurb: 'Friends drift away more slowly, and you can try the dating app.' },
   laptop: { name: 'Laptop', icon: '💻', price: 1400, at: 'highstreet', sec: 'Handy', blurb: 'Take freelance gigs, and write a novel at home.' },
   books: { name: 'Shelf of good books', icon: '📚', price: 450, at: 'highstreet', sec: 'Handy', blurb: 'Smarts grows a little faster.' },
@@ -442,7 +443,7 @@ export const RIBBONS = [
     heir: { name: 'Signet ring', icon: '💍', desc: 'Start with $6,000 more, and savings earn more.' } },
   { id: 'star', name: 'The Star', icon: '🌟', desc: 'Died famous (70 fame).', test: (L) => L.s.fame >= 70,
     heir: { name: 'Signed guitar', icon: '🎸', desc: 'Start with a guitar; Craft grows faster.' } },
-  { id: 'mayor', name: 'Pillar of the Bay', icon: '🏛️', desc: 'Was mayor, or a saint.', test: (L) => !!L.s.f.wasMayor || L.s.karma >= 80,
+  { id: 'mayor', name: 'Pillar of the Bay', icon: '🏛️', desc: 'Was mayor, or loved by the whole town.', test: (L) => !!L.s.f.wasMayor || L.s.karma >= 80,
     heir: { name: 'Key to the town', icon: '🗝️', desc: 'Charm grows faster.' } },
   { id: 'healer', name: 'The Healer', icon: '🩺', desc: 'Became a doctor.', test: (L) => !!L.s.f.wasDoctor,
     heir: { name: "Old doctor's bag", icon: '💼', desc: 'Hospital visits cost half and do more good.' } },

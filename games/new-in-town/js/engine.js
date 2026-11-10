@@ -132,11 +132,14 @@ def('quit', {
   run(L) { const t = L.jobTitle(); L.s.job = null; L.note(`Quit as ${t}.`); return `You leave your job as ${t}. The leaving card has four signatures.`; },
 });
 def('retire', {
-  place: 'townhall', sec: 'Work', icon: '🌅', title: 'Retire', desc: (L) => `Stop work for good on a pension of ${money(L.pensionFor())} a season.`, time: 0,
+  place: 'townhall', sec: 'Work', icon: '🌅', title: 'Retire', desc: (L) => `Stop work, on a pension of ${money(Math.max(L.pensionFor(), L.s.f.jobPension || 0))} a season.`, time: 0,
   show: (L) => !!L.s.job && L.s.age >= 65,
   run(L) {
-    const s = L.s, t = L.jobTitle(), p = L.pensionFor();
-    s.pension += p; s.job = null; s.retired = true; L.joy(8);
+    // (Only the best pension you have earned counts: retiring twice doesn't pay twice.)
+    const s = L.s, t = L.jobTitle(), had = s.f.jobPension || 0, p = Math.max(L.pensionFor(), had);
+    s.pension += p - had; s.f.jobPension = p; s.job = null;
+    if (!s.retired) L.joy(8);
+    s.retired = true;
     L.note(`Retired as ${t} on a pension of ${money(p)} a season.`, 'big');
     return `They give you a clock and a cake. After all those years as ${t}, your time is your own.`;
   },
@@ -161,7 +164,11 @@ def('adopt', {
 def('mayor', {
   place: 'townhall', sec: 'Work', icon: '🗳️', title: 'Stand for mayor', desc: (L) => `Run a campaign. Your chances: ${Math.round(L.mayorOdds() * 100)}%.`, cost: 20000, time: 2,
   show: (L) => L.s.job && L.s.job.c === 'politics' && L.s.job.r === 3 && !L.s.f.elected,
-  why: (L) => (L.s.t - (L.s.f.ran ?? -99) < 8 ? 'The next election is a while off.' : null),
+  why(L) {
+    if (L.s.t - (L.s.f.ran ?? -99) < 8) return 'The next election is a while off.';
+    const miss = L.nextRung().list.find((n) => !n.ok && !n.text.startsWith('Win'));
+    return miss ? `First: ${miss.text}.` : null;
+  },
   run(L) {
     L.s.f.ran = L.s.t;
     if (L.chance(L.mayorOdds())) {
@@ -518,11 +525,11 @@ def('slots', {
     }
     let mult = 0;
     if (reels[0] === reels[1] && reels[1] === reels[2]) mult = REEL_PAYS[reels[0]];
-    else if (reels.filter((k) => k === 0).length === 2) mult = s.heir === 'rogue' ? 3 : 2;
+    else if (reels.filter((k) => k === 0).length === 2) mult = s.heir === 'rogue' ? 2.5 : 2;
     const win = bet * mult;
     s.n.casino += win - bet;
     L.out = { reels: reels.map((k) => REEL[k]), win };
-    if (win) { L.cash(win); L.joy(mult >= 15 ? 6 : 1); } else L.joy(-0.3);
+    if (win) { L.cash(win); L.joy(mult >= 15 ? 6 : 0.5); } else L.joy(-0.3);
     if (reels[0] === 5 && mult) { s.f.jackpot = 1; L.note(`Hit the jackpot on the slots: ${money(win)}.`, 'big'); return `JACKPOT! Three diamonds! ${money(win)}!`; }
     return win ? `A win! ${money(win)}.` : L.pick(['Nothing.', 'So close.', 'Not this time.', 'The machine plays a sad little tune.']);
   },
@@ -553,7 +560,7 @@ def('hiloGuess', {
 def('hiloCash', {
   time: 0,
   why: (L) => (L.s.hilo ? null : 'Nothing to cash.'),
-  run(L) { const h = L.s.hilo; L.s.hilo = null; L.cash(h.pot); L.s.n.casino += h.pot - h.bet; if (h.pot > h.bet) L.joy(Math.min(6, h.streak)); return `You walk away with ${money(h.pot)}.`; },
+  run(L) { const h = L.s.hilo; L.s.hilo = null; L.cash(h.pot); L.s.n.casino += h.pot - h.bet; if (h.streak >= 3) L.joy(Math.min(6, h.streak)); return `You walk away with ${money(h.pot)}.`; },
 });
 
 // -- lists: jobs, courses, homes, shops, trips, pets, the bank
@@ -932,6 +939,7 @@ export class Life {
     return Math.max(3, t);
   }
 
+  savingsRate() { return SAVINGS_RATE + (this.s.heir === 'tycoon' ? 0.004 : 0); }
   // For five years after going bankrupt the bank will not lend.
   blacklisted() { return this.s.f.bustAt != null && this.s.t - this.s.f.bustAt < 20; }
   sharesWorth() { const k = this.s.stk; return Object.keys(k.own).reduce((a, sym) => a + k.own[sym] * k.p[sym], 0); }
@@ -1081,7 +1089,7 @@ export class Life {
     return null;
   }
   move(x) {
-    const s = this.s, h = HOMES[x.id], up = h.tier > HOMES[s.home].tier;
+    const s = this.s, h = HOMES[x.id], was = HOMES[s.home].tier;
     let text = '';
     if (x.buy) {
       const p = this.buyPlan(x.id);
@@ -1101,7 +1109,8 @@ export class Life {
       text += `You move into the ${h.name.toLowerCase()}. ${h.blurb}`;
       this.note(`Moved into the ${h.name.toLowerCase()}.`);
     }
-    this.joy(up ? 6 : -3);
+    for (const p of s.people) if (p.kind === 'spouse') p.live = x.id !== 'hostel';
+    this.joy(h.tier > was ? 6 : h.tier < was ? -3 : 0);
     return text;
   }
 
@@ -1132,18 +1141,23 @@ export class Life {
     const s = this.s;
     s.f.jailed = 1; s.record++;
     if (s.job) { this.note(`Lost the job as ${this.jobTitle()}.`); s.job = null; }
-    s.hilo = null;
     for (let i = 0; i < n && !s.dead; i++) {
       this.gain('fitness', 1.5); this.gain('smarts', 1); this.joy(-6);
       for (const p of s.people) this.bond(p, p.kind === 'parent' || p.kind === 'child' ? -3 : -7);
       this.endSeason(true);
     }
     s.time = this.timeMax();
-    if (!s.owned && s.home !== 'hostel') {
-      s.home = 'hostel';
-      for (const p of s.people) if (p.kind === 'partner') p.live = false;
-    }
-    this.note(`Served ${n} season${n > 1 ? 's' : ''} in prison.`, 'big');
+    if (!s.owned && s.home !== 'hostel' && !s.dead) this.downAndOut();
+    if (!s.dead) this.note(`Served ${n} season${n > 1 ? 's' : ''} in prison.`, 'big');
+  }
+  // Losing a rented home: back to the hostel, or somewhere small if there are children.
+  downAndOut() {
+    const s = this.s;
+    s.owned = false;
+    if (this.kids().some((c) => c.age < 18)) { if (HOMES[s.home].tier > HOMES.flat.tier) s.home = 'flat'; return; }
+    s.home = 'hostel';
+    for (const p of s.people) if (p.kind === 'partner' || p.kind === 'spouse') p.live = false;
+    if (s.pet) { this.note(`${s.pet.name} went to live with a neighbour.`); s.pet = null; }
   }
   sicken(name, sev) { if (!this.s.ill || this.s.ill.sev < sev) this.s.ill = { name, sev }; }
 
@@ -1289,7 +1303,7 @@ export class Life {
     if (v.opts[i].cost) this.cash(-v.opts[i].cost);
     const win = v.opts[i].chance == null ? true : this.chance(v.opts[i].chance);
     const text = o.run ? o.run(this, x, win) || '' : '';
-    if (e.log !== false && text) this.note(`${v.title}: ${text}`);
+    if (e.log !== false && text && !s.dead) this.note(`${v.title}: ${text}`);
     this.after();
     return { ok: true, text, win: v.opts[i].chance == null ? null : win, changes: this.diff(before), news: this.takeNews() };
   }
@@ -1324,8 +1338,7 @@ export class Life {
     if (!jailed && s.time > 0) { const r = Math.min(s.time, 4); this.hp(r); this.joy(r); }
 
     // Money in, money out.
-    const rate = SAVINGS_RATE + (s.heir === 'tycoon' ? 0.004 : 0);
-    const interest = Math.floor(s.bank * rate), rents = this.propIncome();
+    const interest = Math.floor(s.bank * this.savingsRate()), rents = this.propIncome();
     s.bank += interest;
     if (interest) lines.push(['Savings interest', interest]);
     if (s.pension) { s.cash += s.pension; lines.push(['Pension', s.pension]); }
@@ -1375,7 +1388,8 @@ export class Life {
     if (s.due && s.t >= s.due.t && !jailed) {
       const adopt = !!s.due.adopt;
       s.due = null;
-      if (this.partner() || adopt) this.queue('baby', { names: [this.pick(NAMES), this.pick(NAMES)], adopt, age: adopt ? this.int(1, 6) : 0 });
+      const one = this.pick(NAMES), two = this.pick(NAMES.filter((n) => n !== one));
+      if (this.partner() || adopt) this.queue('baby', { names: [one, two], adopt, age: adopt ? this.int(1, 6) : 0 });
     }
     const fiance = s.people.find((p) => p.eng && p.kind === 'partner');
     if (fiance && !jailed) this.queue('wedding', fiance.id);
@@ -1483,7 +1497,7 @@ export class Life {
       // (Broke again within a few years of going bankrupt: the same, more quietly.)
       const again = this.blacklisted();
       s.debt = 0; s.cash = 0; s.f.bust = 1; s.f.bustAt = s.t; this.karma(again ? -1 : -5); this.joy(again ? -8 : -20);
-      if (!s.owned && !this.kids().some((c) => c.age < 18)) { s.home = 'hostel'; for (const p of s.people) if (p.kind === 'partner') p.live = false; if (s.pet) { this.note(`${s.pet.name} went to live with a neighbour.`); s.pet = null; } }
+      if (!s.owned) this.downAndOut();
       if (again) this.note('Could not pay the bills again. What you owed was written off.');
       else {
         this.note('Declared bankrupt. The debts are wiped, and so is nearly everything else.', 'big');

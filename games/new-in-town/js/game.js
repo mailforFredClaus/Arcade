@@ -6,7 +6,7 @@
 import { Life } from './engine.js';
 import {
   money, cashShort, SEASONS, SEASON_ICON, STATS, STAT_NAME, STAT_ICON, PLACES, CAREERS, COURSES, HOMES, ITEMS,
-  STOCKS, PROPS, PETS, TRAITS, BACKGROUNDS, LOOKS, DREAMS, QUESTS, TROPHIES, RIBBONS, RIBBON, NAMES, SAVINGS_RATE, LOAN_RATE,
+  STOCKS, PROPS, PETS, TRAITS, BACKGROUNDS, LOOKS, DREAMS, QUESTS, TROPHIES, RIBBONS, RIBBON, NAMES, LOAN_RATE,
 } from './data.js';
 import { townSvg, face, spark, placeTier } from './art.js';
 import { store, sfx, haptic, unlockAudio, lockViewport, registerOffline } from '../../../shared/arcade.js';
@@ -67,7 +67,7 @@ function renderTop() {
   $('pips').innerHTML = `<small>Time</small>${Array.from({ length: max }, (_, i) => `<i class="${i < s.time ? 'on' : ''}"></i>`).join('')}`;
   const q = QUESTS[s.quest];
   const todo = $('todo');
-  if (s.ill) { todo.className = 'todo ill'; todo.innerHTML = `<i>🤒</i><span>You have ${esc(s.ill.name)}. The hospital can treat it.</span>`; }
+  if (s.ill) { todo.className = 'todo ill'; todo.innerHTML = `<i>🤒</i><span>${esc(s.ill.name[0].toUpperCase() + s.ill.name.slice(1))}: the hospital can treat it.</span>`; }
   else if (q) { todo.className = 'todo'; todo.innerHTML = `<i>🎯</i><span>${esc(q.text)}</span><b>${money(q.cash)}</b>`; }
   else { todo.className = 'todo'; todo.innerHTML = `<i>✨</i><span>Dreams: ${s.dreams.map((id) => `${DREAMS[id].icon}${s.dreamDone[id] ? '✓' : ''}`).join(' ')}</span>`; }
   $('nextSub').textContent = SEASONS[(life.season + 1) % 4].toLowerCase();
@@ -249,7 +249,7 @@ const SHEET = {
     const s = life.s, lim = life.creditLimit(), room = Math.max(0, lim - s.debt);
     const amounts = (id, max, all) => [1000, 10000, 100000].filter((n) => n < max).map((n) => pick(cashShort(n), id, n)).join('') + (max >= 1 ? pick(all, id, Math.floor(max)) : '<span class="note">Nothing to move</span>');
     const body = `
-      <div class="item"><div class="item-top"><span class="act-ico">🐷</span><div><b>Savings: ${money(s.bank)}</b><small>Earns ${SAVINGS_RATE * 100}% every season, and cannot be burgled. Anything your cash will not cover is paid from here. Cash on you: ${money(s.cash)}.</small></div></div>
+      <div class="item"><div class="item-top"><span class="act-ico">🐷</span><div><b>Savings: ${money(s.bank)}</b><small>Earns ${+(life.savingsRate() * 100).toFixed(1)}% every season, and cannot be burgled. Anything your cash will not cover is paid from here. Cash on you: ${money(s.cash)}.</small></div></div>
         <h4>Pay in</h4><div class="picks">${amounts('deposit', s.cash, 'All')}</div>
         <h4>Take out</h4><div class="picks">${amounts('withdraw', s.bank, 'All')}</div></div>
       <div class="item"><div class="item-top"><span class="act-ico">🧾</span><div><b>Loan: ${money(s.debt)}</b><small>Costs ${LOAN_RATE * 100}% every season. The bank will lend you up to ${money(lim)}, going by your pay and what you own. Owe more than that and it starts selling your things.</small></div></div>
@@ -529,11 +529,11 @@ function meHtml() {
   const rep = s.karma >= 60 ? 'A saint' : s.karma >= 20 ? 'Well thought of' : s.karma > -20 ? 'Nobody special' : s.karma > -50 ? 'A bit shifty' : 'Notorious';
   const row = (label, n, cls = '') => (n ? `<div class="line ${cls}"><span>${label}</span><b>${money(n)}</b></div>` : '');
   const bills = life.bills(), out = bills.reduce((a, [, n]) => a + n, 0);
-  const comeIn = (s.pension || 0) + life.propIncome() + Math.floor(s.bank * SAVINGS_RATE);
+  const comeIn = (s.pension || 0) + life.propIncome() + Math.floor(s.bank * life.savingsRate());
   const items = Object.keys(s.items).filter((id) => ITEMS[id]);
   return `
   <div class="box hero"><span class="ava big">${face(s.look, s.age, s.happy)}</span><div><h2>${esc(s.name)}</h2><p>Age ${s.age}${s.gen > 1 ? ` · generation ${s.gen}` : ''}<br>${rep}${s.fame >= 1 ? ` · 🌟 Fame ${Math.round(s.fame)}` : ''}${s.record ? ' · has a record' : ''}</p></div></div>
-  ${s.ill ? `<div class="box warn">🤒 You have ${esc(s.ill.name)}. It costs you health every season${s.ill.sev >= 3 ? ', and it could kill you' : ''}. St Wren’s can treat it.</div>` : ''}
+  ${s.ill ? `<div class="box warn">🤒 ${esc(s.ill.name[0].toUpperCase() + s.ill.name.slice(1))}: it costs you health every season${s.ill.sev >= 3 ? ', and it could kill you' : ''}. St Wren’s can treat it.</div>` : ''}
   <div class="box"><h3>Skills</h3>${STATS.map((k) => `<div class="skill"><i>${STAT_ICON[k]}</i><span>${STAT_NAME[k]}</span><span class="bar"><span style="width:${s.st[k]}%"></span></span><b>${Math.floor(s.st[k])}</b></div>`).join('')}
     <p class="fine">Skills grow by doing things, more slowly the higher they get, and faster when you are happy.</p></div>
   <div class="box"><h3>Work</h3>${job ? `<div class="line"><span>${job.icon} ${life.jobTitle()}, ${PLACES[job.place].name}</span><b>${money(life.shiftPay())} a shift</b></div>
@@ -544,7 +544,7 @@ function meHtml() {
   <div class="box"><h3>Money</h3>
     ${row('Cash on you', s.cash) || '<div class="line"><span>Cash on you</span><b>$0</b></div>'}${row('Savings', s.bank)}${row('Shares', life.sharesWorth())}${row('Rental property', life.propsWorth())}${row('Your home', life.homeWorth())}${row('Loan', -s.debt, 'down')}
     <div class="line total"><span>Worth, all told</span><b>${money(life.netWorth())}</b></div>
-    <h4>Every season</h4>${bills.map(([what, n]) => row(esc(what), -n, 'down')).join('')}${row('Pension', s.pension, 'up')}${row('Rent from property', life.propIncome(), 'up')}${row('Savings interest', Math.floor(s.bank * SAVINGS_RATE), 'up')}
+    <h4>Every season</h4>${bills.map(([what, n]) => row(esc(what), -n, 'down')).join('')}${row('Pension', s.pension, 'up')}${row('Rent from property', life.propIncome(), 'up')}${row('Savings interest', Math.floor(s.bank * life.savingsRate()), 'up')}
     <div class="line total"><span>Before any work</span><b>${money(comeIn - out)}</b></div></div>
   <div class="box"><h3>Dreams</h3>${s.dreams.map((id) => `<div class="dream${s.dreamDone[id] ? ' done' : ''}"><i>${DREAMS[id].icon}</i><div><b>${DREAMS[id].name}</b><small>${s.dreamDone[id] ? `Came true at ${s.dreamDone[id]}` : DREAMS[id].desc}</small></div><em>${s.dreamDone[id] ? '✓' : ''}</em></div>`).join('')}</div>
   <div class="box"><h3>Belongings</h3>${items.length ? `<div class="things">${items.map((id) => `<span title="${ITEMS[id].name}">${ITEMS[id].icon}<small>${ITEMS[id].name}</small></span>`).join('')}</div>` : '<p class="sub">One suitcase. The High Street can fix that.</p>'}
@@ -592,7 +592,7 @@ const ui = cards({
     ui.show(`<h2>Start a new life?</h2><p>${esc(life.s.name)}'s story will end here, unfinished. Trophies and ribbons you have earned are kept.</p>
       <div class="actions"><button class="btn btn-primary" data-action="freshYes">Yes, start again</button><button class="btn btn-soft" data-action="menu">No, go back</button></div>`);
   },
-  freshYes() { ui.close(); life = null; save.next = null; persist(); showStart(); },
+  freshYes() { ui.close(); life = null; save.next = null; save.counted = false; save.fresh = false; persist(); showStart(); },
   begin() {
     ui.close(); sfx('win');
     // The very first time, say how it all works.
@@ -747,6 +747,7 @@ function showEnd() {
   newsQueue.length = 0;
   $('news').innerHTML = '';
   const big = s.log.filter((e) => e.k === 'big' || e.k === 'love').slice(1, -1).slice(-9);
+  $('app').hidden = true;
   $('end').hidden = false;
   $('end').innerHTML = `<div class="start-in end-in">
     <p class="rip">In loving memory</p>

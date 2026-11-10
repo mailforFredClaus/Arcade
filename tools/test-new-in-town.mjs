@@ -142,6 +142,9 @@ const fresh = (o = {}) => Life.create({ seed: 7, name: 'Test', ...o });
   check(L.placeActions('townhall').some((a) => a.id === 'retire'), 'at 65 you can retire');
   L.act('retire');
   check(!s.job && s.retired && s.pension > 0, 'retiring swaps the job for a pension');
+  const pension = s.pension;
+  s.time = 6; L.act('apply', 'kitchen'); L.act('retire');
+  check(s.pension === pension, 'retiring a second time does not pay a second pension');
 }
 
 // ---- study ------------------------------------------------------------------------------
@@ -160,6 +163,7 @@ const fresh = (o = {}) => Life.create({ seed: 7, name: 'Test', ...o });
   const r = L.act('class');
   check(s.edu.firstaid && !s.course && r.news.some((n) => n.text.includes('First Aid')), 'the last class earns the certificate');
   check(!L.hasDegree(), 'a certificate is not a degree');
+  check(cashShort(999700) === '$1.00M' && cashShort(99999) === '$99,999', 'short money never reads as a thousand thousands');
   s.edu.business = 30;
   check(L.hasDegree(), 'a business degree is');
 }
@@ -270,6 +274,12 @@ const fresh = (o = {}) => Life.create({ seed: 7, name: 'Test', ...o });
   check(L.event().id === 'wedding' && L.event().opts.length === 4, 'the wedding comes next season');
   L.choose(0);
   check(p.kind === 'spouse' && s.f.wed, 'and then you are married');
+  p.live = false; s.home = 'hostel'; s.time = 6; s.cash = 99999;
+  const mood = s.happy;
+  L.act('move', { id: 'flat', buy: false });
+  check(p.live, 'a husband or wife moves with you out of the hostel');
+  L.act('move', { id: 'flat', buy: true });
+  check(s.owned && s.happy >= Math.min(100, mood + 6), 'buying the place you rent is no step down');
   s.time = 6; s.pend = [];
   // A baby.
   let tries = 0;
