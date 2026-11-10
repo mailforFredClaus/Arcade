@@ -622,14 +622,13 @@ canvas.addEventListener('pointerdown', (e) => {
   try { canvas.setPointerCapture(e.pointerId); } catch { /* not supported */ }
 });
 canvas.addEventListener('pointermove', (e) => {
-  if (!swipe || swipe.id !== e.pointerId) return;
+  // One swipe is one move, however far the finger travels: lift it to
+  // swipe again.
+  if (!swipe || swipe.id !== e.pointerId || swipe.moved) return;
   const dx = e.clientX - swipe.x, dy = e.clientY - swipe.y;
   if (Math.max(Math.abs(dx), Math.abs(dy)) < 18) return;
   swipe.moved = true;
   act(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : dy > 0 ? 'down' : 'up');
-  // Carry on from here, so one drag can make several moves.
-  swipe.x = e.clientX;
-  swipe.y = e.clientY;
 });
 const endSwipe = (e) => {
   if (!swipe || swipe.id !== e.pointerId) return;
