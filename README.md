@@ -175,6 +175,18 @@ Each stage, forty enemies fly in in five waves and line up: four bosses on top, 
 
 **The rules are checked against the arcade's.** `node tools/test-star-swarm.mjs` checks that every stage brings in the right forty in the right places, the points for everything, the two-hit bosses, the Challenging Stage bonuses, capture and rescue, and when extra fighters come; then a simple robot player plays a dozen whole games, twice each, to check that nothing ever jams and that the same game always plays out the same way.
 
+## Snake
+
+The classic: the snake never stops, you steer it, and every apple makes it one longer. Swipe anywhere to turn (one long drag can make several turns); on a computer use the arrow keys or W A S D, and Space or P to pause.
+
+- **Apples** score 10 and the snake speeds up a little as it grows.
+- **Gold stars** turn up every fifth apple and only stay a short while: up to 50 points, more the sooner you reach one, and they don't make you longer.
+- **Edges:** with Walls, running into the edge ends the game; with No walls you come back in on the other side.
+- **Speed:** Slow, Normal or Fast. Each mix of edges and speed keeps its own best score.
+- Running into yourself ends the game, but following your own tail round is safe: it moves out of the way first.
+
+`node tools/test-snake.mjs` checks the rules one by one (turning, growing, walls and wrapping, stars and scoring), then a simple robot plays thirty whole games, checking after every step that the snake is still in one piece and that the same game always plays out the same way.
+
 ## Files
 
 - `index.html`: the arcade menu
@@ -187,6 +199,7 @@ Each stage, forty enemies fly in in five waves and line up: four bosses on top, 
 - `games/nonogram/`: Nonogram (`logic.js` has the rules, the line-by-line solver, the hints and the puzzle maker; `pictures.js` draws the pictures, including the hand-drawn 10×10 icons; `game.js` is the board)
 - `games/minesweeper/`: Minesweeper (`logic.js` makes no-guess boards and solves them; `game.js` draws the board and handles touch)
 - `games/star-swarm/`: Star Swarm (`engine.js` is the whole game as plain numbers, stepped 60 times a second: flight scripts, the formation, attacks, the tractor beam, scoring; `sprites.js` is the pixel art and the arcade font; `game.js` draws it and handles the controls)
+- `games/snake/`: Snake (`engine.js` has the rules: steps, turns, apples, stars, walls and wrapping; `game.js` draws the snake sliding from cell to cell and handles swipes and keys)
 - `shared/`: sound, haptics, saving and offline support used by every game (`arcade.js`), plus the screen frame, pop-up cards and confetti used by the newer games (`screen.css`, `ui.js`)
 - `sw.js`: the offline file list. Regenerate it after any change with `node tools/build-sw.mjs`
 - `tools/`: the local server, the tests for each game, and the icon maker (`tools/make-icons.ps1`)

@@ -1,0 +1,13 @@
+/* Snake: the score in the bar, and the bits of its cards. */
+
+.stat { font-size: 24px; gap: 7px; }
+.stat svg { width: 22px; height: 26px; }
+.lvl { font-size: 17px; }
+
+/* Marks where the bottom of the playing area is (above the home bar). */
+.foot { position: fixed; left: 0; right: 0; bottom: calc(var(--safe-bottom) + 14px); height: 0; pointer-events: none; }
+
+.row .seg { flex: 1; max-width: 220px; }
+.how { text-align: left; display: grid; gap: 8px; margin: 4px 0 6px; }
+.how p { margin: 0; font-size: 15px; }
+.how b { color: var(--ink); }

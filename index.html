@@ -389,6 +389,29 @@
         </div>
       </a>
 
+      <a class="game game-main" href="games/snake/index.html">
+        <div class="thumb" aria-hidden="true">
+          <svg viewBox="0 0 100 100">
+          <rect x="6" y="6" width="88" height="88" rx="16" fill="#2e7d4f"/>
+          <rect x="11" y="11" width="78" height="78" rx="10" fill="#a8dc66"/>
+          <path fill="#9dd35a" d="M24 11h13v13H24zM50 11h13v13H50zM76 11h13v13H76zM11 24h13v13H11zM37 24h13v13H37zM63 24h13v13H63zM24 37h13v13H24zM50 37h13v13H50zM76 37h13v13H76zM11 50h13v13H11zM37 50h13v13H37zM63 50h13v13H63zM24 63h13v13H24zM50 63h13v13H50zM76 63h13v13H76zM11 76h13v13H11zM37 76h13v13H37zM63 76h13v13H63z"/>
+          <path d="M17.500 69.500h39v-26h-26v-13h26" fill="none" stroke="#2638a8" stroke-width="11.500" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M17.500 69.500h39v-26h-26v-13h26" fill="none" stroke="#4a6cf7" stroke-width="8.500" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="57.500" cy="30.500" r="7" fill="#5876ff" stroke="#2638a8" stroke-width="1.500"/>
+          <circle cx="59" cy="27.600" r="2" fill="#fff"/><circle cx="59" cy="33.400" r="2" fill="#fff"/>
+          <circle cx="59.700" cy="27.600" r="1" fill="#141a3a"/><circle cx="59.700" cy="33.400" r="1" fill="#141a3a"/>
+          <circle cx="76" cy="31" r="5.500" fill="#ff4d55" stroke="#8f1220" stroke-width="1.200"/>
+          <path d="M76 25.500q.5-2.500 2.500-3.500" fill="none" stroke="#6b3d1a" stroke-width="1.400" stroke-linecap="round"/>
+          <path d="M77 23.500q3-2.500 5.500-.5-2.500 2-5.500.5z" fill="#3fae4f"/>
+          </svg>
+        </div>
+        <div>
+          <h2>Snake</h2>
+          <p>Swipe to steer, eat the apples, grab the gold stars, and don't bite your tail.</p>
+          <div class="meta"><span class="pill" id="snLong">New</span><span class="pill gold" id="snBest">Best 0</span></div>
+        </div>
+      </a>
+
       <div class="soon">More games coming soon</div>
     </div>
 
@@ -479,6 +502,11 @@
     const ss = store.get('starswarm', null) || {};
     document.getElementById('ssHigh').textContent = `High ${(ss.high || 20000).toLocaleString()}`;
     document.getElementById('ssStage').textContent = ss.run ? `On stage ${ss.run.stage}` : ss.stage ? `Best: stage ${ss.stage}` : 'New';
+
+    // Snake: the best score of all, and the longest snake.
+    const sn = store.get('snake', null) || {};
+    document.getElementById('snBest').textContent = `Best ${Math.max(0, ...Object.values(sn.best || {}))}`;
+    document.getElementById('snLong').textContent = sn.long ? `Longest ${sn.long}` : 'New';
 
     const dot = document.getElementById('statusDot');
     const text = document.getElementById('statusText');
