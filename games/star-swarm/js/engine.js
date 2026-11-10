@@ -12,6 +12,9 @@
 
 export const W = 224, H = 288;
 export const PLAYER_Y = 258;
+export const PLAYER_V = 1.84; // the fighter crosses the screen in a little under two seconds
+export const SHOT_V = 6.75; // its shots
+const LEAN = 0.27; // how far an enemy's shot can lean: this much sideways for each pixel down
 export const BEE = 0, FLY = 1, BOSS = 2, MORPH = 3, ROGUE = 4, GUEST = 5;
 
 const D = Math.PI / 180, PI = Math.PI, TAU = 2 * PI;
@@ -77,11 +80,15 @@ export const ENTRIES = {
 // The tail a straggler flies instead of going home: straight into an attack.
 const STRAGGLER = [['F', 15, 12], ['A', 40], ['S'], ['Y', H + 14], ['W']];
 
+// Attackers don't come straight down: they swing out to one side and back
+// across, which is what leaves room to slip in under them. And they fire on
+// the way down, not as they set off.
+const SWOOP = [['F', 12, 4.4], ['F', 12, -4.4], ['S'], ['F', 24, -4.4], ['S'], ['F', 24, 4.4]];
 const DIVES = {
-  bee: [['F', 14, -13], ['L'], ['A', 38], ['S'], ['Y', 150], ['S'], ['Y', 236], ['C', 250, 9], ['H']],
-  beeLong: [['F', 14, -13], ['L'], ['A', 38], ['S'], ['Y', 170], ['S'], ['Y', H + 14], ['W']],
-  fly: [['F', 14, -13], ['L'], ['A', 30], ['S'], ['Y', 120], ['F', 14, 4.5], ['F', 28, -4.5], ['S'], ['F', 28, 4.5], ['F', 14, -4.5], ['Y', H + 14], ['W']],
-  boss: [['F', 16, -11.25], ['F', 8, 0], ['F', 45, 8], ['L'], ['A', 40], ['S'], ['Y', 190], ['S'], ['Y', H + 14], ['W']],
+  bee: [['F', 14, -13], ['L'], ['A', 38], ...SWOOP, ['Y', 236], ['C', 250, 9], ['H']],
+  beeLong: [['F', 14, -13], ['L'], ['A', 38], ...SWOOP, ['Y', H + 14], ['W']],
+  fly: [['F', 14, -13], ['L'], ['A', 30], ['F', 13, 4.5], ['S'], ['F', 26, -4.5], ['F', 13, 4.5], ['S'], ['F', 13, 4.5], ['F', 26, -4.5], ['F', 13, 4.5], ['Y', H + 14], ['W']],
+  boss: [['F', 16, -11.25], ['F', 8, 0], ['F', 45, 8], ['L'], ['A', 40], ...SWOOP, ['Y', H + 14], ['W']],
   beam: [['F', 16, -11.25], ['G'], ['B'], ['A', 30], ['Y', H + 14], ['W']],
   rogue: [['F', 14, -13], ['A', 30], ['S'], ['Y', 120], ['F', 14, 4.5], ['F', 28, -4.5], ['S'], ['F', 28, 4.5], ['F', 14, -4.5], ['X']],
   morph: [['A', 30], ['Y', 110], ['F', 14, 4.5], ['F', 28, -4.5], ['S'], ['F', 28, 4.5], ['F', 14, -4.5], ['X']],
@@ -193,11 +200,16 @@ export class Game {
     this.stageHits = 0;
     this.stageKills = 0;
     // How hard this stage is.
-    this.diveV = Math.min(3.2, 1.9 + 0.07 * s);
-    this.shotV = Math.min(3.6, 2.2 + 0.06 * s);
+    this.diveV = Math.min(3.2, 2.1 + 0.06 * s);
+    // Shots fall a good deal faster than the attackers come down, so a
+    // shot is well clear before whoever fired it arrives.
+    this.shotV = Math.min(4.6, 3.2 + 0.07 * s);
     this.maxGroups = Math.min(5, 2 + Math.floor(s / 3));
     this.launchGap = Math.max(34, 100 - 4 * s);
-    this.ammo = s < 3 ? 1 : s < 8 ? 2 : 3;
+    // Nobody shoots on stage 1. After that more and more of the attackers
+    // carry a shot, and later two or three.
+    this.ammo = s < 2 ? 0 : s < 5 ? 1 : s < 10 ? 2 : 3;
+    this.armed = s < 2 ? 0 : Math.min(1, 0.3 + 0.1 * s);
     this.maxShots = Math.min(10, 3 + s);
     this.frenzyAt = s < 6 ? 3 : s < 14 ? 4 : 5;
     this.waves = this.challenge ? this.challengeWaves() : this.stageWaves();
@@ -367,7 +379,7 @@ export class Game {
     if (p.cool > 0) p.cool--;
     if (p.st === 'alive') {
       const edge = p.dual ? 18 : 10;
-      p.x = clamp(p.x + ((input.right ? 2 : 0) - (input.left ? 2 : 0)), edge, W - edge);
+      p.x = clamp(p.x + ((input.right ? PLAYER_V : 0) - (input.left ? PLAYER_V : 0)), edge, W - edge);
       if (input.fire && p.cool === 0 && this.phase !== 'results') {
         const live = new Set(this.pShots.map((s) => s.v));
         if (live.size < 2) {
@@ -497,7 +509,7 @@ export class Game {
           if (e.loop >= 0 && p.st === 'alive' && this.phase === 'battle' && this.enemies.length <= this.frenzyAt) {
             e.x = clamp(p.x + (this.rand() - 0.5) * 80, 16, W - 16);
             e.pc = e.loop;
-            e.ammo = this.ammo;
+            e.ammo = this.rand() < this.armed ? this.ammo : 0;
             if (e.squad) e.squad.aim = null;
           } else {
             e.x = clamp(this.slot(e.row, e.col)[0], 8, W - 8);
@@ -520,7 +532,8 @@ export class Game {
     if (e.ammo <= 0 || this.challenge || p.st !== 'alive' || e.y > 196 || this.eShots.length >= this.maxShots) return;
     e.ammo--;
     const vy = this.shotV, frames = (p.y - e.y) / vy;
-    this.eShots.push({ x: e.x, y: e.y + 6, vx: clamp((p.x - e.x) / frames, -vy * 0.45, vy * 0.45), vy });
+    // Aimed at where the player is, but it can only lean so far.
+    this.eShots.push({ x: e.x, y: e.y + 6, vx: clamp((p.x - e.x) / frames, -vy * LEAN, vy * LEAN), vy });
   }
 
   // The boss's tractor beam. True while it's still going.
@@ -631,7 +644,7 @@ export class Game {
     e.mir = mir;
     e.v = this.diveV;
     e.loop = -1;
-    e.ammo = this.ammo;
+    e.ammo = this.rand() < this.armed ? this.ammo : 0;
   }
 
   // A bee turns into three of something else, which dive together.
@@ -703,7 +716,7 @@ export class Game {
   // ---- shots, the freed fighter, and things running into each other -------------------
 
   stepShots() {
-    for (const s of this.pShots) s.y -= 8;
+    for (const s of this.pShots) s.y -= SHOT_V;
     this.pShots = this.pShots.filter((s) => s.y > 8);
     for (const s of this.eShots) { s.x += s.vx; s.y += s.vy; }
     this.eShots = this.eShots.filter((s) => s.y < H);
