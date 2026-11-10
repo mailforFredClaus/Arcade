@@ -1,0 +1,70 @@
+/* Star Swarm: a dark page round the arcade screen, and the controls under it. */
+
+body.theme-night { background: linear-gradient(180deg, #05060f 0%, #0a0d24 60%, #10143a 100%); }
+
+.name { font-weight: 900; font-size: 18px; letter-spacing: .01em; white-space: nowrap; }
+
+/* The arcade screen: 224 x 288 pixels, blown up so every pixel stays square
+   and sharp. game.js sizes and places it. */
+#screen {
+  position: fixed;
+  display: block;
+  background: #000;
+  border-radius: 6px;
+  box-shadow: 0 0 0 2px #1b2156, 0 0 28px rgba(60, 90, 255, .25);
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  touch-action: none;
+}
+
+.pad {
+  position: fixed;
+  z-index: 5;
+  left: 50%;
+  bottom: calc(var(--safe-bottom) + 12px);
+  transform: translateX(-50%);
+  width: min(100% - 24px, 430px);
+  height: 104px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  touch-action: none;
+}
+/* Hold the left half to go left, the right half to go right; slide across to
+   change direction without lifting. */
+.move {
+  flex: 1;
+  max-width: 250px;
+  height: 92px;
+  border-radius: 26px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: linear-gradient(180deg, #43357e, #241a4d);
+  box-shadow: 0 4px 0 #120c2b, inset 0 0 0 2px rgba(255, 224, 138, .18);
+  overflow: hidden;
+  touch-action: none;
+  cursor: pointer;
+}
+.move svg { width: 100%; height: 100%; padding: 22px; fill: #ffe08a; opacity: .8; }
+.move svg + svg { border-left: 2px solid rgba(255, 224, 138, .14); }
+.move.left svg:first-child, .move.right svg:last-child { background: rgba(255, 224, 138, .16); opacity: 1; }
+.fire {
+  flex: none;
+  width: 96px;
+  height: 96px;
+  border: 0;
+  border-radius: 50%;
+  color: #fff;
+  font-weight: 900;
+  font-size: 19px;
+  letter-spacing: .06em;
+  background: radial-gradient(circle at 50% 35%, #ff6b6b, #d21f3c);
+  box-shadow: 0 5px 0 #7d0f22, 0 0 0 4px rgba(255, 255, 255, .08);
+  touch-action: none;
+  cursor: pointer;
+}
+.fire.down { transform: translateY(4px); box-shadow: 0 1px 0 #7d0f22, 0 0 0 4px rgba(255, 255, 255, .08); }
+
+.pts { display: grid; grid-template-columns: auto 1fr 1fr; gap: 6px 12px; align-items: center; margin: 4px 0 10px; text-align: left; font-weight: 800; font-size: 15px; }
+.pts i { font-style: normal; color: var(--muted); font-size: 12.5px; }
