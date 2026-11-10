@@ -144,6 +144,39 @@ for (const [no, s] of [3, 7, 11, 15, 19, 23, 27, 31, 35].entries()) {
   console.log('Capture: the beam takes a fighter, shooting the boss mid-dive wins it back as a dual fighter');
 }
 
+// ---- shots outrun the attackers ---------------------------------------------------------
+{
+  let ok = true, lean = 0, early = 0;
+  for (let s = 1; s <= 30; s++) {
+    const g = quiet({ seed: s, stage: s });
+    // A shot must be well clear before whoever fired it gets there.
+    if (!(g.shotV >= g.diveV * 1.4)) ok = false;
+    if (s === 1 && (g.ammo !== 0 || g.armed !== 0)) early++;
+    if (s === 2 && !(g.ammo === 1 && g.armed > 0 && g.armed < 1)) early++;
+  }
+  check(ok, 'on every stage shots fall well faster than attackers fly');
+  check(early === 0, 'nobody shoots on stage 1, and only some of them on stage 2');
+  // Play a stage without firing and look at every shot the enemies fire.
+  const g = new Game({ seed: 5, stage: 4 });
+  g.collide = () => {}; // nothing can touch the player
+  const seen = new Set();
+  let n = 0, high = 0;
+  run(g, (q) => {
+    for (const sh of q.eShots) {
+      if (seen.has(sh)) continue;
+      seen.add(sh);
+      n++;
+      lean = Math.max(lean, Math.abs(sh.vx / sh.vy));
+      if (sh.y < 100 && q.phase === 'battle') high++;
+    }
+    return n >= 40;
+  }, 60 * 120);
+  check(n >= 40, `attackers do shoot on stage 4 (${n} shots)`);
+  check(lean <= 0.2701, `a shot leans at most 0.27 sideways per pixel down (${lean.toFixed(2)})`);
+  check(high <= n * 0.1, `attackers fire on the way down, not as they set off (${high} of ${n} from the formation)`);
+  console.log(`Shots: fall ${quiet({ seed: 1, stage: 2 }).shotV.toFixed(2)} px a frame on stage 2 against attackers flying at ${quiet({ seed: 1, stage: 2 }).diveV.toFixed(2)}`);
+}
+
 // ---- a robot plays -----------------------------------------------------------------------
 
 function robot(g) {

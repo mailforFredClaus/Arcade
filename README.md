@@ -158,6 +158,8 @@ Dig out every square that isn't a mine. Each number says how many of the 8 squar
 
 A shooter in the style of the 1981 arcade classic, played on a 224 × 288 screen like the machine's, with its own pixel art, sounds and name. Slide your thumb on the left pad to move, and tap **FIRE** (or the screen itself) to shoot; only two shots can be in the air at once, so aim. On a computer: arrow keys (or A and D) and Space, and P to pause.
 
+Attackers swing out to one side and back across as they come down, and fire on the way, not as they set off. Their shots fall about twice as fast as they do and can only lean a little towards you, so a shot is well clear before whoever fired it arrives: dodge the shot, then slip back under and shoot. Nobody shoots on stage 1; after that more and more of the attackers carry a shot. (These speeds and timings were measured from a home-console version of the arcade game and matched to it.)
+
 Each stage, forty enemies fly in in five waves and line up: four bosses on top, two rows of butterflies, two rows of bees. Then they peel off and dive at you, shooting. Clear them all to go on to the next stage; they get faster, more of them dive at once, and they fire more.
 
 | | In line | Diving |
