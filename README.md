@@ -187,6 +187,19 @@ The classic: the snake never stops, you steer it, and every apple makes it one l
 
 `node tools/test-snake.mjs` checks the rules one by one (turning, growing, walls and wrapping, stars and scoring), then a simple robot plays thirty whole games, checking after every step that the snake is still in one piece and that the same game always plays out the same way.
 
+## Honey Run
+
+An endless runner in 3D. A bear cub has made off with a pot of honey and is dashing down a three-lane country railway with the bees after it. Swipe left or right to change lane, up to jump and down to roll (in the air, down drops you fast). On a computer: the arrow keys or W A S D, Space to jump, P to pause.
+
+- **In the way:** jump the fences and hay carts, roll under the striped barriers, and go round the wagons, or run up a ramp and along their roofs, where the best coins are. Some trains roll towards you: their lamps are lit.
+- **Bees:** run into something head-on and the run is over. Swipe sideways into a wagon and you only stumble, but the bees close in, and a second stumble while they're near ends the run.
+- **Power-ups:** a magnet pulls in coins from every lane, balloons float you over everything along a trail of coins, boots make a jump high enough to land on the roofs, double doubles the score, and a bubble shrugs off one crash.
+- **Coins** buy longer-lasting power-ups and new cubs in the shop, and after a crash you can pay to carry on from where you were.
+- **Goals:** there are always three in hand. Finish all three and your score multiplier goes up by one for good.
+- The line runs through the seasons, 520 metres each: meadow, blossom, autumn, sunset and snow, then round again, getting faster and busier as it goes.
+
+**There is always a way through.** The line is laid a beat at a time, and one lane is always passable on foot: clear, or with a fence to jump, a barrier to roll under or a cart to hop. A train never starts in a lane with no way out to the side. `node tools/test-honey-run.mjs` checks the rules one by one, then a practice player that keeps to that promised lane runs forty different lines for six kilometres each without being stopped.
+
 ## Files
 
 - `index.html`: the arcade menu
@@ -200,6 +213,7 @@ The classic: the snake never stops, you steer it, and every apple makes it one l
 - `games/minesweeper/`: Minesweeper (`logic.js` makes no-guess boards and solves them; `game.js` draws the board and handles touch)
 - `games/star-swarm/`: Star Swarm (`engine.js` is the whole game as plain numbers, stepped 60 times a second: flight scripts, the formation, attacks, the tractor beam, scoring; `sprites.js` is the pixel art and the arcade font; `game.js` draws it and handles the controls)
 - `games/snake/`: Snake (`engine.js` has the rules: steps, turns, apples, stars, walls and wrapping; `game.js` draws the snake sliding from cell to cell and handles swipes and keys)
+- `games/honey-run/`: Honey Run (`engine.js` has the rules and lays the line; `gl.js` is a small WebGL renderer: flat-shaded models, fog, a world that bends away, shadows; `models.js` builds the cub, wagons and power-ups, `world.js` the countryside and its seasons; `game.js` is the camera, controls, shop and goals)
 - `shared/`: sound, haptics, saving and offline support used by every game (`arcade.js`), plus the screen frame, pop-up cards and confetti used by the newer games (`screen.css`, `ui.js`)
 - `sw.js`: the offline file list. Regenerate it after any change with `node tools/build-sw.mjs`
 - `tools/`: the local server, the tests for each game, and the icon maker (`tools/make-icons.ps1`)

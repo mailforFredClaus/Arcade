@@ -412,6 +412,33 @@
         </div>
       </a>
 
+      <a class="game game-main" href="games/honey-run/index.html">
+        <div class="thumb" aria-hidden="true">
+          <svg viewBox="0 0 100 100">
+          <defs><clipPath id="hrClip"><rect x="6" y="6" width="88" height="88" rx="16"/></clipPath></defs>
+          <g clip-path="url(#hrClip)">
+          <rect x="6" y="6" width="88" height="88" fill="#4a9bf0"/>
+          <rect x="6" y="34" width="88" height="20" fill="#cdeeff"/>
+          <ellipse cx="22" cy="20" rx="11" ry="4.500" fill="#fff"/><ellipse cx="74" cy="15" rx="9" ry="3.500" fill="#fff"/>
+          <path d="M6 50q22-14 44 0t44-4v48H6z" fill="#62b85c"/>
+          <path d="M6 54h88v40H6z" fill="#7ed058"/>
+          <path d="M42 50h16l30 44H12z" fill="#b9ae9b"/>
+          <path d="M46 50l-18 44M54 50l18 44M50 50v44" stroke="#eef1f6" stroke-width="1.600"/>
+          <rect x="52" y="38" width="13" height="16" rx="1.500" fill="#e24b3b"/><rect x="52" y="38" width="13" height="3" fill="#f2d9d4"/>
+          <path d="M50 58l6 3.500v7l-6 3.500-6-3.500v-7z" fill="#ffc928" stroke="#b97a00" stroke-width="1.200"/>
+          <circle cx="39" cy="68" r="4" fill="#c9803f"/><circle cx="61" cy="68" r="4" fill="#c9803f"/>
+          <circle cx="50" cy="78" r="13" fill="#c9803f"/>
+          <path d="M39 86q11 6 22 0v8H39z" fill="#e5383b"/>
+          </g>
+          </svg>
+        </div>
+        <div>
+          <h2>Honey Run</h2>
+          <p>Dash down the line in 3D: dodge the wagons, run the roofs, and keep ahead of the bees.</p>
+          <div class="meta"><span class="pill" id="hrFar">New</span><span class="pill gold" id="hrBest">Best 0</span></div>
+        </div>
+      </a>
+
       <div class="soon">More games coming soon</div>
     </div>
 
@@ -507,6 +534,11 @@
     const sn = store.get('snake', null) || {};
     document.getElementById('snBest').textContent = `Best ${Math.max(0, ...Object.values(sn.best || {}))}`;
     document.getElementById('snLong').textContent = sn.long ? `Longest ${sn.long}` : 'New';
+
+    // Honey Run: the best score, and the furthest run.
+    const hr = store.get('honeyrun', null) || {};
+    document.getElementById('hrBest').textContent = `Best ${(hr.best || 0).toLocaleString()}`;
+    document.getElementById('hrFar').textContent = hr.far ? `${hr.far.toLocaleString()} m` : 'New';
 
     const dot = document.getElementById('statusDot');
     const text = document.getElementById('statusText');
