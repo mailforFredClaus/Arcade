@@ -219,7 +219,7 @@ A brick breaker. Slide your finger to move the paddle and lift it to launch the 
 
 A whole life in a small seaside town. You step off the train at Starling Bay at 18 with one suitcase, $1,500 and a bunk in the hostel, and live it a season at a time until the end.
 
-- **Seasons and time:** each season gives you a few blocks of time. Tap a place on the map and spend them: work a shift, study, train, see people. Tap **Next** when you're done (on a computer, **N** or Enter); time left over counts as rest. Four seasons make a year, and the town changes with them. A bicycle or a car gives you more time every season.
+- **Seasons and time:** each season gives you a few blocks of time. Tap a place on the map and spend them: work a shift, study, train, see people. Tap **Next** when you're done (on a computer, **N**); time left over counts as rest. Four seasons make a year, and the town changes with them. A bicycle or a car gives you more time every season.
 - **Four skills** open the doors: Smarts, Fitness, Charm and Craft. They grow by doing things, more slowly the higher they get, and faster when you're happy.
 - **Thirteen careers,** each a ladder of five or six jobs: kitchens, retail, building, tech, medicine, police, law, music, sport, teaching, the sea, banking and politics. A step up needs skills, shifts worked and sometimes a course from the college (twelve of them, from first aid to a medical degree). You do your job at the place it belongs to, which is marked on the map. **Me** shows what the next step still needs.
 - **Health and mood:** health falls with age, overwork and illness, and when it runs out the life is over. Mood follows how life is going: a better home, friends, love, children, a pet. Being miserable slows everything down.

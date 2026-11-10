@@ -412,6 +412,7 @@ function landed(r, quiet = false) {
 }
 
 function spin(r) {
+  persist();
   spinning = true;
   slotShow = null;
   renderSheet();
@@ -488,7 +489,7 @@ function nextSeason() {
   if (!life || busy || spinning || ui.isOpen()) return;
   if (life.s.dead || life.event()) { pump(); return; }
   closeSheets();
-  const worthWas = life.netWorth();
+  if (life.s.time >= 3 && !save.restTip) { save.restTip = true; toast('Time you do not use is rest: good for health and mood.', 4200); }
   const r = life.endSeason();
   persist();
   tab = 'town';
@@ -505,7 +506,7 @@ function nextSeason() {
   busy = true;
   setTimeout(() => {
     busy = false;
-    if (life.s.dead) { sfx('lose'); showEnd(); } else if (r.birthday) showBirthday(worthWas); else pump();
+    if (life.s.dead) { sfx('lose'); showEnd(); } else if (r.birthday) showBirthday(); else pump();
   }, life.s.dead ? 1200 : 650);
 }
 
@@ -592,7 +593,11 @@ const ui = cards({
       <div class="actions"><button class="btn btn-primary" data-action="freshYes">Yes, start again</button><button class="btn btn-soft" data-action="menu">No, go back</button></div>`);
   },
   freshYes() { ui.close(); life = null; save.next = null; persist(); showStart(); },
-  begin() { ui.close(); sfx('win'); pump(); },
+  begin() {
+    ui.close(); sfx('win');
+    // The very first time, say how it all works.
+    if (!save.seenHow) { save.seenHow = true; persist(); showHow(); } else pump();
+  },
 });
 
 function showMenu() {
@@ -615,7 +620,7 @@ function showHow() {
     <p><b>Bills fall due every season.</b> Save at the bank, buy shares or property, or borrow. A bicycle or a car gives you more time.</p>
     <p><b>Life happens.</b> Cards turn up with choices. A percentage shows your chance where a skill decides it.</p>
     <p><b>At the end</b> your life earns a ribbon, and each ribbon unlocks an heirloom that a later life can carry. Your heir inherits a share of what you leave.</p></div>
-    <div class="actions"><button class="btn btn-primary" data-action="${life ? 'close' : 'close'}">Got it</button></div>`);
+    <div class="actions"><button class="btn btn-primary" data-action="close">Got it</button></div>`);
 }
 
 function showTrophies() {
@@ -816,7 +821,7 @@ document.addEventListener('click', (e) => {
 window.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT') return;
   if (e.key === 'Escape' && !ui.isOpen() && sheets.length) closeSheets();
-  if ((e.key === 'n' || e.key === 'N' || e.key === 'Enter') && life && !$('app').hidden && !ui.isOpen() && !sheets.length) nextSeason();
+  if ((e.key === 'n' || e.key === 'N') && life && !$('app').hidden && !ui.isOpen() && !sheets.length) nextSeason();
 });
 
 // ---- off we go --------------------------------------------------------------------------

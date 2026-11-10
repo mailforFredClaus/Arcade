@@ -438,7 +438,7 @@ export const TROPHIES = {
 export const RIBBONS = [
   { id: 'young', name: 'Gone Too Soon', icon: '🕯️', desc: 'Died before 45.', test: (L) => L.s.age < 45,
     heir: { name: 'Lucky horseshoe', icon: '🧲', desc: 'Start with better health, and it holds up longer.' } },
-  { id: 'tycoon', name: 'The Tycoon', icon: '👑', desc: 'Died worth $5,000,000 or more.', test: (L) => L.netWorth() >= 5e6,
+  { id: 'tycoon', name: 'The Tycoon', icon: '👑', desc: 'Died worth $10,000,000 or more.', test: (L) => L.netWorth() >= 1e7,
     heir: { name: 'Signet ring', icon: '💍', desc: 'Start with $6,000 more, and savings earn more.' } },
   { id: 'star', name: 'The Star', icon: '🌟', desc: 'Died famous (70 fame).', test: (L) => L.s.fame >= 70,
     heir: { name: 'Signed guitar', icon: '🎸', desc: 'Start with a guitar; Craft grows faster.' } },

@@ -1189,6 +1189,9 @@ export class Life {
         out.push(Object.assign(v, { icon: t.icon, title: t.name, desc: `${this.s.trips[id] ? 'Been before. ' : ''}A real lift${t.stat ? `, and some ${STAT_NAME[t.stat]}` : ''}.`, sec: 'Holidays' }));
       }
     }
+    // Keep each section's rows together, in the order the sections first appear.
+    const secs = [...new Set(out.map((a) => a.sec))];
+    out.sort((p, q) => secs.indexOf(p.sec) - secs.indexOf(q.sec));
     return out;
   }
   personActions(p) {
@@ -1258,7 +1261,10 @@ export class Life {
   // The card waiting to be answered, if there is one.
   event() {
     const s = this.s;
-    while (s.pend.length && !(EVENT[s.pend[0].id] && (!EVENT[s.pend[0].id].ok || EVENT[s.pend[0].id].ok(this, s.pend[0].x)))) s.pend.shift();
+    // Drop any card that no longer makes sense: its person has gone, or
+    // an earlier card changed what it was about.
+    const stale = ({ id, x }) => { const e = EVENT[id]; return !e || (e.ok && !e.ok(this, x)) || (e.w && e.when && !e.when(this)); };
+    while (s.pend.length && stale(s.pend[0])) s.pend.shift();
     if (!s.pend.length || s.dead) return null;
     const { id, x } = s.pend[0], e = EVENT[id];
     return {
@@ -1418,8 +1424,8 @@ export class Life {
 
   moodBase() {
     const s = this.s, pt = this.partner();
-    let b = 45 + HOMES[s.home].comfort;
-    b += Math.min(9, this.friends().filter((p) => p.bond >= 40).length * 3);
+    let b = 44 + HOMES[s.home].comfort;
+    b += Math.min(6, this.friends().filter((p) => p.bond >= 40).length * 2);
     if (pt) b += Math.min(10, pt.bond / 8);
     b += Math.min(6, this.kids().length * 2);
     if (s.pet) b += 4;
@@ -1474,10 +1480,15 @@ export class Life {
       sold.push('your home');
     }
     if (!settle()) {
-      s.debt = 0; s.cash = 0; s.f.bust = 1; s.f.bustAt = s.t; this.karma(-5); this.joy(-20);
+      // (Broke again within a few years of going bankrupt: the same, more quietly.)
+      const again = this.blacklisted();
+      s.debt = 0; s.cash = 0; s.f.bust = 1; s.f.bustAt = s.t; this.karma(again ? -1 : -5); this.joy(again ? -8 : -20);
       if (!s.owned && !this.kids().some((c) => c.age < 18)) { s.home = 'hostel'; for (const p of s.people) if (p.kind === 'partner') p.live = false; if (s.pet) { this.note(`${s.pet.name} went to live with a neighbour.`); s.pet = null; } }
-      this.note('Declared bankrupt. The debts are wiped, and so is nearly everything else.', 'big');
-      this.queue('bust', sold.join(', '));
+      if (again) this.note('Could not pay the bills again. What you owed was written off.');
+      else {
+        this.note('Declared bankrupt. The debts are wiped, and so is nearly everything else.', 'big');
+        this.queue('bust', sold.join(', '));
+      }
     } else {
       this.joy(-10);
       this.note(`The bank called in its loan and sold ${sold.join(', ')}.`, 'big');
