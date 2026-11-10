@@ -215,6 +215,23 @@ A brick breaker. Slide your finger to move the paddle and lift it to launch the 
 
 `node tools/test-prism-break.mjs` checks every level's map, the bounces, each kind of brick and power-up, and then a practice player clears all fifty levels and twenty more, which proves no brick is out of reach and no ball can get stuck for ever.
 
+## New in Town
+
+A whole life in a small seaside town. You step off the train at Starling Bay at 18 with one suitcase, $1,500 and a bunk in the hostel, and live it a season at a time until the end.
+
+- **Seasons and time:** each season gives you a few blocks of time. Tap a place on the map and spend them: work a shift, study, train, see people. Tap **Next** when you're done (on a computer, **N**); time left over counts as rest. Four seasons make a year, and the town changes with them. A bicycle or a car gives you more time every season.
+- **Four skills** open the doors: Smarts, Fitness, Charm and Craft. They grow by doing things, more slowly the higher they get, and faster when you're happy.
+- **Thirteen careers,** each a ladder of five or six jobs: kitchens, retail, building, tech, medicine, police, law, music, sport, teaching, the sea, banking and politics. A step up needs skills, shifts worked and sometimes a course from the college (twelve of them, from first aid to a medical degree). You do your job at the place it belongs to, which is marked on the map. **Me** shows what the next step still needs.
+- **Health and mood:** health falls with age, overwork and illness, and when it runs out the life is over. Mood follows how life is going: a better home, friends, love, children, a pet. Being miserable slows everything down.
+- **Money:** rent and bills come out every season. Seven homes, from the hostel bunk to Starling Manor, to rent or to buy with a loan from the bank. Savings earn interest, five local companies sell shares whose prices move every season, and you can buy property to rent out. Owe the bank more than it will stand and it starts selling your things.
+- **People:** make friends at the pub, the park or hack night, and keep in touch or they drift away. Friends can become partners; you can move in together, marry and raise children, who grow up as you grow old. There are pets at the shelter in the park.
+- **Things happen:** about a hundred events turn up as cards with choices, some of them gambles on a skill (the card shows your chance). There are three longer stories to find: old Marlow on the pier, a bottle on the tideline, and a busker with a saxophone. Shady Sal at the harbour pays well for errands, until the constable turns up.
+- **Also:** fishing, busking, painting and selling the paintings, writing a novel, holidays from the station, slots and Higher or Lower on the pier, standing for mayor.
+- **Dreams, a to-do list and trophies:** each life picks three dreams to chase. A to-do list walks you through the first few years. Forty-odd trophies are kept across every life.
+- **The end, and what comes after:** each life ends with one of fifteen ribbons (The Tycoon, The Healer, Heart of the Family, A Quiet Life...). Every ribbon unlocks an heirloom that a later life can bring along, and your heir inherits a share of what you left.
+
+`node tools/test-new-in-town.mjs` checks the rules one at a time, then practice players live whole lives: one sets out to climb each career, which proves every ladder can be climbed, and one does things at random, which proves nothing it can do breaks the game. A saved life, loaded again, must carry on exactly the same.
+
 ## Files
 
 - `index.html`: the arcade menu
@@ -230,6 +247,7 @@ A brick breaker. Slide your finger to move the paddle and lift it to launch the 
 - `games/snake/`: Snake (`engine.js` has the rules: steps, turns, apples, stars, walls and wrapping; `game.js` draws the snake sliding from cell to cell and handles swipes and keys)
 - `games/honey-run/`: Honey Run (`engine.js` has the rules and lays the line; `gl.js` is a small WebGL renderer: flat-shaded models, fog, a world that bends away, shadows; `models.js` builds the cub, wagons and power-ups, `world.js` the countryside and its seasons; `game.js` is the camera, controls, shop and goals)
 - `games/prism-break/`: Prism Break (`engine.js` is the physics and the rules; `levels.js` the fifty maps and the ones built after; `bot.js` the practice player, which also plays behind the title; `art.js` paints the bricks, capsules and backdrops; `game.js` is the screen)
+- `games/new-in-town/`: New in Town (`data.js` lists everything in the town: places, careers, courses, homes, shops, dreams, trophies and ribbons; `events.js` is the cards that turn up; `engine.js` has the rules of a life, with no screen; `art.js` draws the map and the faces; `game.js` is the screen)
 - `shared/`: sound, haptics, saving and offline support used by every game (`arcade.js`), plus the screen frame, pop-up cards and confetti used by the newer games (`screen.css`, `ui.js`)
 - `sw.js`: the offline file list. Regenerate it after any change with `node tools/build-sw.mjs`
 - `tools/`: the local server, the tests for each game, and the icon maker (`tools/make-icons.ps1`)

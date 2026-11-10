@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Arcade">
+  <meta name="theme-color" content="#fffaf0">
+  <title>New in Town</title>
+  <link rel="manifest" href="../../manifest.webmanifest">
+  <link rel="icon" href="../../icons/icon-192.png">
+  <link rel="apple-touch-icon" href="../../icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="../../shared/arcade.css">
+  <link rel="stylesheet" href="../../shared/screen.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- A life in progress. -->
+  <div class="app" id="app" hidden>
+    <header class="top">
+      <div class="top-row">
+        <a class="ico-btn" href="../../index.html" aria-label="Back to the arcade" id="backBtn"></a>
+        <button class="who" id="whoBtn" data-do="tab" data-tab="me">
+          <span class="ava" id="ava"></span>
+          <span class="who-text"><b id="whoName"></b><small id="whoSub"></small></span>
+        </button>
+        <div class="purse"><b id="cash"></b><small id="date"></small></div>
+        <button class="ico-btn" id="menuBtn" data-do="menu" aria-label="Menu"></button>
+      </div>
+      <div class="top-row meters">
+        <div class="meter" id="mHealth" aria-label="Health"><i>❤️</i><span class="bar"><span></span></span><b></b></div>
+        <div class="meter" id="mHappy" aria-label="Mood"><i>🙂</i><span class="bar"><span></span></span><b></b></div>
+        <div class="pips" id="pips" aria-label="Time left this season"></div>
+      </div>
+      <button class="todo" id="todo" data-do="goals"></button>
+    </header>
+
+    <main class="view" id="view">
+      <section class="panel" id="pTown"><div class="map" id="map"><div id="mapArt"></div><div class="me" id="me"></div><div class="season" id="season"></div></div></section>
+      <section class="panel scroll" id="pMe" hidden></section>
+      <section class="panel scroll" id="pPeople" hidden></section>
+      <section class="panel scroll" id="pJournal" hidden></section>
+    </main>
+
+    <nav class="tabs">
+      <button class="tab" data-do="tab" data-tab="town"><i>🗺️</i>Town</button>
+      <button class="tab" data-do="tab" data-tab="me"><i>🙂</i>Me</button>
+      <button class="tab" data-do="tab" data-tab="people"><i>👥</i>People</button>
+      <button class="tab" data-do="tab" data-tab="journal"><i>📖</i>Journal</button>
+      <button class="next" id="nextBtn" data-do="next"><b>Next</b><small id="nextSub">season</small></button>
+    </nav>
+
+    <!-- A place, a person, a shop: slides up from the bottom. -->
+    <div class="sheet-back" id="sheetBack" hidden>
+      <section class="sheet" id="sheet">
+        <header class="sheet-top">
+          <button class="sheet-btn" id="sheetBackBtn" data-do="back" aria-label="Back"></button>
+          <span class="sheet-ico" id="sheetIco"></span>
+          <div class="sheet-title"><b id="sheetTitle"></b><small id="sheetSub"></small></div>
+          <button class="sheet-btn" data-do="close" aria-label="Close">✕</button>
+        </header>
+        <div class="result" id="result" hidden></div>
+        <div class="sheet-body" id="sheetBody"></div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Starting a life, and the end of one. -->
+  <div class="full" id="start" hidden></div>
+  <div class="full" id="end" hidden></div>
+
+  <div class="news" id="news" aria-live="polite"></div>
+  <div class="toast" id="toast" role="status"></div>
+  <div class="overlay" id="overlay" hidden><div class="card" id="card"></div></div>
+  <canvas id="confetti" class="confetti"></canvas>
+
+  <script type="module" src="js/game.js"></script>
+</body>
+</html>
