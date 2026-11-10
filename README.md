@@ -79,24 +79,26 @@ Drag to move around a big board, pinch (or scroll) to zoom, and **Fit** shows th
 
 Swap two neighbouring gems to make a line of three or more of the same colour. Each level has goals at the top (collect so many of a colour, break the crates, crack the ice, free the chained gems or bring the coins down) and a number of moves to do it in.
 
+You play your way through the castle, ten levels to a chapter, each with its own painted scene behind the board: the Palace Garden, the Great Hall, the Moonlit Courtyard, the Crystal Cavern, the Royal Harbour and the Snowy Keep (then round again). The level card shows how far through the chapter you are.
+
 Bigger matches leave a power-up behind:
 
 | Match | Power-up | What it does |
 |---|---|---|
-| 4 in a row | Line blaster | Clears a whole row or column, the way its arrows point. |
+| 4 in a row | Rocket | Blasts a whole row or column, the way it points. |
 | L or T shape | Bomb | Clears everything around it. |
 | 2×2 square | Butterfly | Clears the gems around it, then flies off to hit something a goal still needs. |
 | 5 in a row | Prism | Swap it with a gem to clear every gem of that colour. |
 
-Swap a power-up with any gem to set it off, or tap it to set it off where it is (that's a move too). Swap two power-ups together for a combo: two line blasters clear a row and a column, a line blaster and a bomb clear three of each, two bombs make one enormous blast, a butterfly carries the other power-up off to its target, a prism turns every gem of a colour into the other power-up, and two prisms clear the whole board.
+Power-ups look nothing like gems: each sits in a glow with rays of light turning behind it, and they twinkle. They have no colour of their own, so they never join a line. Swap one with any gem to set it off, or tap it to set it off where it is (that's a move too). Swap two power-ups together for a combo: two rockets clear a row and a column, a rocket and a bomb clear three of each, two bombs make one enormous blast, a butterfly carries the other power-up off to its target, a prism turns every gem of a colour into the other power-up, and two prisms clear the whole board.
 
-- **In the way:** crates break when you make a match next to them or blast them, and the tougher ones take two or three hits. Chained gems can't be moved, but they can be matched. Ice breaks when the gem sitting on it is cleared (thick ice takes two goes). Coins have to be brought down and out through the bottom of the board.
-- **Levels** bring in one new thing at a time, with a card explaining it. Every 5th level from 10 is HARD (red) and every 20th SUPER HARD (dark). Finish with moves to spare for more stars; each level's card says how many you need for three. Any moves left over at the end go off as line blasters.
-- **Help:** each level gives you one Hammer (smash any square), one Row blast and one Shuffle, and none of them costs a move. Hint points out a good move, and the game shows you one by itself if you stop for a few seconds. Run out of moves and you can take 5 more to finish the level, for one star.
-- **Win streak:** win levels in a row and the next one starts with power-ups already on the board: a line blaster after one win, a bomb as well after two, and a prism too after three or more. Taking extra moves, or giving up on a level part way through, ends the streak.
+- **In the way:** crates break when you make a match next to them or blast them, and the tougher ones take two or three hits. Some crates are treasure chests: break one open and the power-up inside is yours. Chained gems can't be moved, but they can be matched. Ice breaks when the gem sitting on it is cleared (thick ice takes two goes). Coins have to be brought down and out through the bottom of the board.
+- **Levels** bring in one new thing at a time, with a card explaining it. Some start with power-ups already lying on the board. Every 5th level from 10 is HARD (crimson) and every 20th SUPER HARD (midnight); the level after a hard one is a TREASURE level (gold): four colours, chests to crack open, power-ups to start you off and moves to spare. Finish with moves to spare for more stars; each level's card says how many you need for three. Any moves left over at the end go off as rockets.
+- **Help:** each level gives you one Hammer (smash any square), one Rocket (clears a row) and one Shuffle, and none of them costs a move. Hint points out a good move, and the game shows you one by itself if you stop for a few seconds. Run out of moves and you can take 5 more to finish the level, for one star.
+- **Win streak:** win levels in a row and the next one starts with power-ups already on the board: a rocket after one win, a bomb as well after two, and a prism too after three or more. Taking extra moves, or giving up on a level part way through, ends the streak.
 - Levels are made from their number, so the same number is always the same level. The gems are dealt differently each time you try, and a level in progress is saved move by move.
 
-**Every level is tried out before you play it.** A practice player has a dozen goes at each level, and the number of moves is set so that it wins nearly every time on a normal level, about half the time on a hard one and less on a super hard one. `node tools/test-gem-swap.mjs 1 60` rebuilds levels 1–60, plays random moves on each to check the board always settles properly (nothing left floating, nothing left matched), checks that a saved game replays exactly, and lets the practice player have a go at each.
+**Every level is tried out before you play it.** A practice player has a dozen goes at each level. A level it finishes in a handful of moves is given more to do, and one that swings between quick and endless (so it would come down to luck) is thrown away for another. Then the number of moves is set so that it wins nearly every time on a normal level, about half the time on a hard one and less on a super hard one. `node tools/test-gem-swap.mjs 1 60` rebuilds levels 1–60, plays random moves on each to check the board always settles properly (nothing left floating, nothing left matched), checks that a saved game replays exactly, and lets the practice player have a go at each.
 
 ## Water Sort
 
@@ -178,7 +180,7 @@ Each stage, forty enemies fly in in five waves and line up: four bosses on top, 
 - `index.html`: the arcade menu
 - `games/arrow-cube/`: Arrow Cube (`topology.js` turns a shape into cells and planes, `rules.js` holds the rules, `generator.js` builds the shapes and levels, `render.js` draws them with WebGL)
 - `games/hexit/`: Hexit (`hex.js` is the honeycomb geometry and board shapes, `rules.js` holds the rules, `levels.js` builds the boards backwards, `draw.js` draws the tiles, `game.js` is the screen)
-- `games/gem-swap/`: Gem Swap (`engine.js` has the rules: matches, power-ups, combos, falling gems and everything in the way; `levels.js` builds the levels and `bot.js` is the practice player that sets their moves; `art.js` draws the gems; `game.js` plays it all out on screen)
+- `games/gem-swap/`: Gem Swap (`engine.js` has the rules: matches, power-ups, combos, falling gems and everything in the way; `levels.js` builds the levels and `bot.js` is the practice player that sets their moves; `art.js` draws the gems and power-ups and `scenes.js` the places behind the board; `game.js` plays it all out on screen)
 - `games/water-sort/`: Water Sort (`logic.js` has the rules, level generator and solver; `game.js` draws and animates the tubes)
 - `games/car-park/`: Car Park (`logic.js` has the rules, the exact solver and the puzzle maker, `seeds.js` the bank of hard and expert car parks, `worker.js` builds puzzles off the main thread, `game.js` draws the car park and handles dragging)
 - `games/sudoku/`: Sudoku (`logic.js` makes and grades puzzles; `game.js` is the board)

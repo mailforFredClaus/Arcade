@@ -8,6 +8,7 @@
 import { Board, mix, NONE, LINE_H, LINE_V, BOMB, FLY, PRISM, EMPTY, GEM, CRATE, COIN, T } from './engine.js';
 import { bestMove } from './bot.js';
 import { intros, GEN_VERSION, makeLevel } from './levels.js';
+import { chapterFor, paintScene, paintDrift } from './scenes.js';
 import * as art from './art.js';
 import { store, settings, sfx, haptic, unlockAudio, lockViewport, registerOffline } from '../../../shared/arcade.js';
 import { cards, switchRow, toast, confetti, ICON } from '../../../shared/ui.js';
@@ -182,9 +183,11 @@ async function startLevel(n, resume = false) {
   selected = -1;
   armed = '';
   celebrating = false;
-  for (const t of ['red', 'night']) document.body.classList.toggle(`theme-${t}`, (t === 'red' && lv.tier === 'hard') || (t === 'night' && lv.tier === 'super'));
+  const treat = lv.flavour === 'treat';
+  for (const t of ['red', 'night', 'treat']) document.body.classList.toggle(`theme-${t}`, (t === 'red' && lv.tier === 'hard') || (t === 'night' && lv.tier === 'super') || (t === 'treat' && treat));
   $('levelLabel').textContent = `LEVEL ${n}`;
-  $('tierTag').textContent = lv.tier === 'hard' ? 'HARD' : lv.tier === 'super' ? 'SUPER HARD' : '';
+  $('tierTag').textContent = lv.tier === 'hard' ? 'HARD' : lv.tier === 'super' ? 'SUPER HARD' : treat ? 'TREASURE' : '';
+  $('chapterLabel').textContent = chapterFor(n).name;
   buildGoals();
   layout();
   syncFrom(board);
@@ -350,14 +353,31 @@ function layout() {
     c.height = Math.round(H * dpr);
   }
   if (!level) return;
-  const goalsBox = $('goals').getBoundingClientRect();
-  const top = (goalsBox.height ? goalsBox.bottom : $('topbar').getBoundingClientRect().bottom) + 12;
-  const bottom = $('tools').getBoundingClientRect().top - 16;
+  paintBackdrop();
+  const top = $('hud').getBoundingClientRect().bottom + 16;
+  const bottom = $('tools').getBoundingClientRect().top - 18;
   const coins = board && board.goals.some((gl) => gl.type === 'coin') ? 0.45 : 0;
-  const s = Math.floor(Math.min((W - 14) / level.w, (bottom - top) / (level.h + coins), 64));
+  const s = Math.floor(Math.min((W - 20) / level.w, (bottom - top) / (level.h + coins), 64));
   geo = { s, ox: Math.round((W - s * level.w) / 2), oy: Math.round(top + (bottom - top - s * (level.h + coins)) / 2) };
   buildTray();
   requestDraw();
+}
+
+// The scene behind everything: painted once for each chapter and window size.
+function paintBackdrop() {
+  const sc = $('scene'), ch = chapterFor(level.n), k = Math.min(dpr, 2);
+  const key = `${W}x${H}@${k}:${ch.index % 6}`;
+  if (sc.dataset.key === key) return;
+  sc.dataset.key = key;
+  sc.width = Math.round(W * k);
+  sc.height = Math.round(H * k);
+  const c = sc.getContext('2d');
+  c.setTransform(k, 0, 0, k, 0, 0);
+  const top = paintScene(c, W, H, ch.index);
+  // The strip behind the phone's clock matches the top of the scene.
+  document.body.style.background = top;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = top;
 }
 
 function buildTray() {
@@ -370,20 +390,44 @@ function buildTray() {
   const pad = Math.max(3, s * 0.1);
   const cells = [];
   for (let r = 0; r < h; r++) for (let k = 0; k < w; k++) if (on[r * w + k]) cells.push([ox + k * s, oy + r * s, r, k]);
-  t.fillStyle = 'rgba(255, 255, 255, 0.55)';
-  for (const [x, y] of cells) {
-    t.beginPath();
-    t.roundRect(x - pad - 2, y - pad - 2, s + 2 * pad + 4, s + 2 * pad + 4, pad * 2);
-    t.fill();
-  }
-  t.fillStyle = '#262b78';
-  for (const [x, y] of cells) {
-    t.beginPath();
-    t.roundRect(x - pad, y - pad, s + 2 * pad, s + 2 * pad, pad * 1.6);
-    t.fill();
-  }
+  // The board's outline, grown by `more` all round.
+  const outline = (more) => {
+    for (const [x, y] of cells) {
+      t.beginPath();
+      t.roundRect(x - pad - more, y - pad - more, s + 2 * (pad + more), s + 2 * (pad + more), (pad + more) * 1.6);
+      t.fill();
+    }
+  };
+  // A soft shadow, lifting the board off the scene.
+  t.save();
+  t.shadowColor = 'rgba(8, 4, 50, 0.6)';
+  t.shadowBlur = 22;
+  t.shadowOffsetY = 8;
+  t.fillStyle = '#2a1668';
+  outline(3);
+  t.restore();
+  // A golden frame.
+  t.fillStyle = '#8a5200';
+  outline(5.5);
+  const gold = t.createLinearGradient(0, oy - pad, 0, oy + h * s + pad);
+  gold.addColorStop(0, '#fff6b8');
+  gold.addColorStop(0.3, '#ffd23f');
+  gold.addColorStop(0.7, '#f0a818');
+  gold.addColorStop(1, '#c47f00');
+  t.fillStyle = gold;
+  outline(4);
+  t.fillStyle = '#7a4800';
+  outline(1);
+  t.fillStyle = '#1b1c5e';
+  outline(0);
+  // The cells: each a shallow well, lighter and darker by turns.
   for (const [x, y, r, k] of cells) {
-    t.fillStyle = (r + k) % 2 ? '#3a40a6' : '#343a9a';
+    const well = t.createLinearGradient(0, y, 0, y + s);
+    const odd = (r + k) % 2;
+    well.addColorStop(0, odd ? '#2a2f8c' : '#252a80');
+    well.addColorStop(0.2, odd ? '#3a41ac' : '#343a9e');
+    well.addColorStop(1, odd ? '#444cba' : '#3c43ab');
+    t.fillStyle = well;
     t.beginPath();
     t.roundRect(x + 1, y + 1, s - 2, s - 2, s * 0.16);
     t.fill();
@@ -572,7 +616,7 @@ function swapAnim(st, now) {
 }
 
 // How long each kind of event keeps its pieces busy.
-const BUSY = { pop: 250, gather: T.gather + 30, make: 260, fire: 230, convert: 160, crate: 200, chain: 200, ice: 200, hammer: 140 };
+const BUSY = { pop: 250, gather: T.gather + 30, make: 260, chest: 300, fire: 230, convert: 160, crate: 200, chain: 200, ice: 200, hammer: 140 };
 
 function clearAnim(st, now) {
   let end = 0;
@@ -606,7 +650,20 @@ function onEvent(ev, now, cascade) {
       pieces.set(ev.id, np);
       cellId[ev.i] = ev.id;
       ring(ev.i, now, '#ffffff');
+      ring(ev.i, now + 90, '#ffe27a', 1.7);
+      burst(ev.i, '#fff6c4', 8, now, { colors: ['#ffffff', '#fff6c4', '#ffd23f'], shape: 'spark', speed: 1.1 });
       sound('pop');
+      break;
+    }
+    case 'chest': {
+      // A chest breaks open: there's the power-up that was inside.
+      const np = makePiece(ev.id, GEM, -1, ev.power, ev.i);
+      np.app = now;
+      pieces.set(ev.id, np);
+      cellId[ev.i] = ev.id;
+      ring(ev.i, now, '#fff6b0', 1.8);
+      burst(ev.i, '#ffd23f', 12, now, { colors: ['#ffffff', '#fff6c4', '#ffd23f'], shape: 'spark', speed: 1.3 });
+      sound('chime');
       break;
     }
     case 'fire':
@@ -805,6 +862,7 @@ function beam(ev, now) {
     const core = s * 0.07;
     if (ev.horiz) g.fillRect(c.x - r0, c.y - core, r0 + r1, core * 2);
     else g.fillRect(c.x - core, c.y - r0, core * 2, r0 + r1);
+    const heads = [];
     if (t < run) {
       for (const [sg, rr, lim] of [[-1, r0, back], [1, r1, fwd]]) {
         if (reach >= lim) continue;
@@ -817,9 +875,19 @@ function beam(ev, now) {
         g.beginPath();
         g.arc(hx, hy, s * 0.5, 0, TAU);
         g.fill();
+        heads.push([hx, hy, sg]);
       }
     }
     g.restore();
+    // Half a rocket flies each way at the head of the blast.
+    for (const [hx, hy, sg] of heads) {
+      g.save();
+      g.translate(hx, hy);
+      g.rotate((ev.horiz ? 0 : Math.PI / 2) + (sg < 0 ? Math.PI : 0));
+      g.scale(s, s);
+      art.paintRocketHead(g, 0.7 + 0.3 * Math.sin(t / 22));
+      g.restore();
+    }
   });
 }
 
@@ -865,11 +933,11 @@ function flight(ev, now) {
     g.rotate(Math.max(-0.5, Math.min(0.5, dx / (s * 12))));
     const size = s * (1 + 0.25 * Math.sin(k * Math.PI));
     g.scale(size, size);
-    art.paintFly(g, ev.color, Math.abs(Math.sin(t / 42)), ev.carry);
+    art.paintFly(g, Math.abs(Math.sin(t / 42)), ev.carry);
     g.restore();
     if (t - lastTrail > 30) {
       lastTrail = t;
-      parts.push({ x, y, vx: 0, vy: s * 0.5, grav: 0, t0: performance.now(), life: 360, size: s * 0.07, color: art.GEMS[ev.color] ? art.GEMS[ev.color].light : '#fff', rot: 0, vr: 3, shape: 'spark' });
+      parts.push({ x, y, vx: 0, vy: s * 0.5, grav: 0, t0: performance.now(), life: 360, size: s * 0.07, color: Math.random() < 0.5 ? '#ffb3ea' : '#ffffff', rot: 0, vr: 3, shape: 'spark' });
     }
   });
 }
@@ -994,8 +1062,8 @@ function requestDraw() {
   if (!raf) raf = requestAnimationFrame(frame);
 }
 
-// Power-ups twinkle even when nothing else is happening; that's drawn at a
-// gentler rate, to go easy on the battery.
+// The scene drifts and the power-ups glow even when nothing else is
+// happening; that's drawn at a gentler rate, to go easy on the battery.
 let ambient = false, ambientTimer = 0;
 
 function frame(now) {
@@ -1037,12 +1105,16 @@ function draw(now, dt) {
       live = true;
     }
   }
+  // Petals, fireflies or snow drifting across the scene, behind the board.
+  paintDrift(g, W, H, chapterFor(level.n).index, now / 1000);
+  ambient = true;
   g.translate(sx, sy);
   g.save();
   g.setTransform(1, 0, 0, 1, sx * dpr, sy * dpr);
   g.drawImage(tray, 0, 0);
   g.restore();
   const px = Math.max(8, Math.round(s * dpr));
+  const secs = now / 1000;
 
   // Ice under the cells.
   for (let i = 0; i < N; i++) {
@@ -1079,10 +1151,23 @@ function draw(now, dt) {
         live = true;
       }
     }
+    const chest = level.chest && level.chest[i];
     g.save();
     g.translate(x, y);
     g.rotate(rot);
-    g.drawImage(art.crateSprite(px, vHp[i]), -s / 2, -s / 2, s, s);
+    g.drawImage(chest ? art.chestSprite(px, vHp[i]) : art.crateSprite(px, vHp[i]), -s / 2, -s / 2, s, s);
+    if (chest) {
+      // A chest glints, so it stands out from the plain crates.
+      const k = (secs * 0.45 + i * 0.37) % 1;
+      if (k < 0.3) {
+        const z = s * 0.5 * Math.sin((Math.PI * k) / 0.3);
+        g.translate(s * 0.26, -s * 0.28);
+        g.rotate(k * 3);
+        g.scale(z, z);
+        g.fillStyle = '#ffffff';
+        art.paintTwinkle(g);
+      }
+    }
     g.restore();
   }
 
@@ -1092,6 +1177,27 @@ function draw(now, dt) {
   const gemPx = Math.max(8, Math.round(s * 0.94 * dpr)), gs = s * 0.94;
   let hintOff = null;
   if (hint) hintOff = hintOffsets(now);
+  // Every power-up sits in a glow, with rays of light turning behind it:
+  // drawn first, so the glow is under the gems around it too.
+  const glowPx = Math.max(16, Math.round(s * 1.8 * dpr));
+  for (const p of pieces.values()) {
+    if (!p.power || p.kind !== GEM) continue;
+    let { x, y } = p;
+    if (p.path) ({ x, y } = pathAt(p.path, now));
+    let a = 1;
+    if (p.van) a = 1 - Math.min(1, Math.max(0, (now - p.van.t0) / p.van.dur));
+    if (p.app) a *= Math.min(1, (now - p.app) / 200);
+    const beat = secs + p.id * 0.61, breathe = Math.sin(beat * 3.4);
+    const cx = ox + (x + 0.5) * s, cy = oy + (y + 0.5) * s, z = s * 1.8 * (1 + 0.07 * breathe);
+    g.save();
+    g.globalAlpha = a * (0.82 + 0.18 * breathe);
+    g.drawImage(art.glowSprite(glowPx, p.power), cx - z / 2, cy - z / 2, z, z);
+    g.translate(cx, cy);
+    g.rotate(beat * 0.55);
+    g.globalAlpha = a * 0.9;
+    g.drawImage(art.raysSprite(glowPx), -z * 0.6, -z * 0.6, z * 1.2, z * 1.2);
+    g.restore();
+  }
   for (const p of pieces.values()) {
     let { x, y } = p;
     if (p.path) {
@@ -1172,17 +1278,47 @@ function draw(now, dt) {
       g.fill();
     }
     if (p.kind === COIN) g.drawImage(art.coinSprite(gemPx), -gs / 2, -gs / 2, gs, gs);
-    else if (p.power === FLY || p.power === PRISM) {
-      g.scale(gs, gs);
-      if (p.power === FLY) art.paintFly(g, p.color, 0.75 + 0.25 * Math.sin(now / 140 + p.id));
-      else art.paintPrism(g, now);
-      ambient = true;
+    else if (p.power) {
+      // A power-up: bigger than a gem, breathing, and twinkling.
+      const beat = secs + p.id * 0.61;
+      const z = gs * 1.1 * (1 + 0.045 * Math.sin(beat * 3.4));
+      g.save();
+      if (p.power === FLY) {
+        g.scale(z, z);
+        art.paintFly(g, 0.75 + 0.25 * Math.sin(now / 140 + p.id));
+      } else if (p.power === PRISM) {
+        g.scale(z, z);
+        art.paintPrism(g, now);
+      } else {
+        g.drawImage(art.pieceSprite(gemPx, -1, p.power), -z / 2, -z / 2, z, z);
+        if (p.power === BOMB) {
+          g.scale(z, z);
+          art.paintSpark(g, now + p.id * 50);
+        }
+      }
+      g.restore();
+      g.fillStyle = '#ffffff';
+      for (let j = 0; j < 2; j++) {
+        const k = (beat * 0.6 + j * 0.5) % 1, turn = Math.floor(beat * 0.6 + j * 0.5) * 2.4 + j * 1.9 + p.id;
+        const tz = gs * 0.34 * Math.sin(Math.PI * k);
+        g.save();
+        g.translate(Math.cos(turn) * gs * 0.36, Math.sin(turn) * gs * 0.36);
+        g.rotate(k * 1.5);
+        g.scale(tz, tz);
+        art.paintTwinkle(g);
+        g.restore();
+      }
     } else {
-      g.drawImage(art.pieceSprite(gemPx, p.color, p.power), -gs / 2, -gs / 2, gs, gs);
-      if (p.power === BOMB) {
-        g.scale(gs, gs);
-        art.paintSpark(g, now + p.id * 50);
-        ambient = true;
+      g.drawImage(art.pieceSprite(gemPx, p.color, NONE), -gs / 2, -gs / 2, gs, gs);
+      // Now and then a gem catches the light.
+      const k = (secs * 0.12 + p.id * 0.618034) % 1;
+      if (k < 0.065 && !p.van && art.GEMS[p.color]) {
+        const [gx, gy] = art.GEMS[p.color].glint, tz = gs * 0.42 * Math.sin((Math.PI * k) / 0.065);
+        g.translate(gx * gs, gy * gs);
+        g.rotate(k * 12);
+        g.scale(tz, tz);
+        g.fillStyle = '#ffffff';
+        art.paintTwinkle(g);
       }
     }
     g.restore();
@@ -1490,7 +1626,7 @@ function arm(kind) {
   armed = armed === kind ? '' : kind;
   selected = -1;
   if (armed === 'hammer') toast('Tap any square to smash it.');
-  if (armed === 'row') toast('Tap a square to clear its whole row.');
+  if (armed === 'row') toast('Tap a square to fire a rocket along its row.');
   updateTools();
   requestDraw();
 }
@@ -1585,9 +1721,11 @@ function winCard() {
   const note = extra ? 'You used extra moves, so that’s one star. Try again for more?'
     : stars === 3 ? `${left} to spare. Superb!` : `${left} to spare. Finish with ${level.stars[stars === 1 ? 0 : 1]} or more for ${stars === 1 ? 'two' : 'three'} stars.`;
   const streak = !extra && save.streak ? `<p class="tip streak-tip">Win streak ×${save.streak}! ${save.streak <= 3 ? `The next level starts with ${listOf(streakGift().map((p) => POWER_NAME[p]))}.` : 'The next level starts with all three power-ups.'}</p>` : '';
+  const ch = chapterFor(level.n);
+  const chapter = level.n === ch.last ? `<p class="tip chapter-done">${ch.name} complete! Next stop: the ${chapterFor(level.n + 1).name}.</p>` : '';
   ui.show(`<h2>Level ${level.n} complete!</h2>
     <div class="win-stars">${[1, 2, 3].map((k) => STAR(k <= stars)).join('')}</div>
-    <p>${note}${better ? ' A new best!' : ''}</p>${streak}
+    <p>${note}${better ? ' A new best!' : ''}</p>${chapter}${streak}
     <div class="actions"><button class="btn btn-primary" data-action="next">Next level</button>
     <button class="btn btn-soft" data-action="replay">Play again</button></div>`);
   sfx('win');
@@ -1617,10 +1755,10 @@ function goalRow(left) {
   }).join('')}</div>`;
 }
 
-const POWER_NAME = { [LINE_H]: 'a Line Blaster', [LINE_V]: 'a Line Blaster', [BOMB]: 'a Bomb', [PRISM]: 'a Prism' };
+const POWER_NAME = { [LINE_H]: 'a Rocket', [LINE_V]: 'a Rocket', [BOMB]: 'a Bomb', [PRISM]: 'a Prism' };
 const powerIcon = (p) => {
   const key = `pw${p}`;
-  if (!iconCache.has(key)) iconCache.set(key, art.icon(96, (c) => (p === PRISM ? art.paintPrism(c, 300) : p === BOMB ? art.paintBomb(c, 1) : art.paintLine(c, 4, false))));
+  if (!iconCache.has(key)) iconCache.set(key, art.icon(96, (c) => art.paintPower(c, p, 300)));
   return iconCache.get(key);
 };
 const listOf = (xs) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
@@ -1632,10 +1770,21 @@ function streakNote() {
     <span><b>Win streak ×${save.streak}!</b> You start with ${listOf(powers.map((p) => POWER_NAME[p]))}.</span></div>`;
 }
 
+// Where this level sits in its chapter: ten dots, gold for the ones won.
+function chapterRow() {
+  const ch = chapterFor(level.n);
+  const pips = Array.from({ length: 10 }, (_, k) => {
+    const m = ch.first + k;
+    return `<i class="${m === level.n ? 'now' : save.best[m] ? 'done' : ''}"></i>`;
+  }).join('');
+  return `<p class="chapter-line">${ch.name}</p><div class="pips">${pips}</div>`;
+}
+
 function levelCard() {
-  const tier = level.tier === 'hard' ? '<p class="tip" style="color:var(--red-2)">Hard level: fewer moves than usual.</p>'
-    : level.tier === 'super' ? '<p class="tip" style="color:#5228a8">Super hard level! Every move counts.</p>' : '';
-  ui.show(`<h2>Level ${level.n}</h2>${tier}${goalRow(false)}
+  const tier = level.tier === 'hard' ? '<p class="tip flavour" style="color:var(--red-2)">Hard level: fewer moves than usual.</p>'
+    : level.tier === 'super' ? '<p class="tip flavour" style="color:#5228a8">Super hard level! Every move counts.</p>'
+      : level.flavour === 'treat' ? '<p class="tip flavour" style="color:#b86a00">Treasure level! Crack open the chests and let rip.</p>' : '';
+  ui.show(`<h2>Level ${level.n}</h2>${chapterRow()}${tier}${goalRow(false)}
     <p class="level-info">${level.moves} moves</p>${streakNote()}
     <p class="tip"><span class="star-goal">${'<svg viewBox="0 0 24 24"><path d="M12 2.6l2.85 5.8 6.4.93-4.63 4.5 1.1 6.37L12 17.2l-5.72 3 1.1-6.37-4.63-4.5 6.4-.93z"/></svg>'.repeat(3)}</span>
       with ${level.stars[1]} or more moves to spare</p>
@@ -1648,7 +1797,7 @@ function scene(items, wpx = 440, hpx = 156) {
   c.width = wpx;
   c.height = hpx;
   const t = c.getContext('2d');
-  t.fillStyle = '#2f3488';
+  t.fillStyle = '#2a2f8a';
   t.fillRect(0, 0, wpx, hpx);
   const size = hpx * 0.42;
   let x = (wpx - items.reduce((s, it) => s + (it === '>' ? size * 0.75 : it === '+' ? size * 0.6 : size * (it.k || 1)), 0)) / 2;
@@ -1674,8 +1823,15 @@ function scene(items, wpx = 440, hpx = 156) {
 }
 
 const gem = (c, opts = {}) => ({ paint: (t) => art.paintGem(t, c), ...opts });
-const pw = (p, c = 0, opts = {}) => ({
-  paint: (t) => (p === FLY ? art.paintFly(t, c, 1) : p === PRISM ? art.paintPrism(t, 400) : p === BOMB ? art.paintBomb(t, c) : art.paintLine(t, c, p === LINE_V)),
+// A power-up in its glow.
+const pw = (p, opts = {}) => ({
+  paint: (t) => {
+    t.save();
+    t.scale(1.7, 1.7);
+    art.paintGlow(t, p);
+    t.restore();
+    art.paintPower(t, p);
+  },
   ...opts,
 });
 // A 2x2 block or an L drawn as one item.
@@ -1694,14 +1850,15 @@ const block = (cells, color) => ({
 
 const INTRO_CARD = {
   basics: () => ({ title: 'How to play', art: scene([gem(0), gem(0), gem(3), '>', gem(0), gem(0), gem(0)]), text: 'Swap two neighbouring gems to make a line of 3 or more of the same colour. Hit every goal at the top before your moves run out.' }),
-  line: () => ({ title: 'Line Blaster', art: scene([gem(4), gem(4), gem(4), gem(4), '>', pw(LINE_V, 4)]), text: 'Match 4 in a row to make a Line Blaster. Swap it, or tap it, and it clears a whole row or column (the way its arrows point).' }),
-  bomb: () => ({ title: 'Bomb', art: scene([block([[0, 0], [0, 1], [0, 2], [1, 2], [2, 2]].map(([x, y]) => [x * 0.66, y * 0.66]), 1), '>', pw(BOMB, 1)]), text: 'Match an L or T shape to make a Bomb. It blows up everything around it.' }),
+  line: () => ({ title: 'Rocket', art: scene([gem(4), gem(4), gem(4), gem(4), '>', pw(LINE_V)]), text: 'Match 4 in a row to make a Rocket. Swap it with any gem, or tap it, and it blasts a whole row or column (the way it points). Power-ups glow, so you can’t miss them.' }),
+  bomb: () => ({ title: 'Bomb', art: scene([block([[0, 0], [0, 1], [0, 2], [1, 2], [2, 2]].map(([x, y]) => [x * 0.66, y * 0.66]), 1), '>', pw(BOMB)]), text: 'Match an L or T shape to make a Bomb. It blows up everything around it.' }),
   crate: () => ({ title: 'Crates', art: scene([{ paint: (t) => art.paintCrate(t, 1) }, gem(2), gem(2), gem(2)]), text: 'Crates break when you make a match right next to them, or hit them with a power-up.' }),
-  fly: () => ({ title: 'Butterfly', art: scene([block([[0, 0], [1, 0], [0, 1], [1, 1]], 3), '>', pw(FLY, 3)]), text: 'Match a 2×2 square to make a Butterfly. It clears the gems around it, then flies off to hit something you still need.' }),
+  fly: () => ({ title: 'Butterfly', art: scene([block([[0, 0], [1, 0], [0, 1], [1, 1]], 3), '>', pw(FLY)]), text: 'Match a 2×2 square to make a Butterfly. It clears the gems around it, then flies off to hit something you still need.' }),
   prism: () => ({ title: 'Prism', art: scene([gem(5, { k: 0.8 }), gem(5, { k: 0.8 }), gem(5, { k: 0.8 }), gem(5, { k: 0.8 }), gem(5, { k: 0.8 }), '>', pw(PRISM)]), text: 'Match 5 in a row to make a Prism. Swap it with any gem to clear every gem of that colour.' }),
   ice: () => ({ title: 'Ice', art: scene([{ paint: (t) => { art.paintIce(t, 1); t.save(); t.scale(0.9, 0.9); art.paintGem(t, 4); t.restore(); } }, gem(4), gem(4)]), text: 'Clear the gems sitting on ice to crack it. Break every tile of ice to win.' }),
-  combo: () => ({ title: 'Combos!', art: scene([pw(LINE_H, 0), '+', pw(BOMB, 2), '>', { paint: (t) => { t.fillStyle = '#ffe14d'; t.font = '900 0.5px system-ui'; t.textAlign = 'center'; t.textBaseline = 'middle'; t.fillText('✸', 0, 0); } }]), text: 'Swap two power-ups together for a giant combo. A Line Blaster with a Bomb clears three rows and three columns, and a Prism with anything turns a whole colour into it!' }),
+  combo: () => ({ title: 'Combos!', art: scene([pw(LINE_H), '+', pw(BOMB), '>', { paint: (t) => { t.fillStyle = '#ffe14d'; t.font = '900 0.5px system-ui'; t.textAlign = 'center'; t.textBaseline = 'middle'; t.fillText('✸', 0, 0); } }]), text: 'Swap two power-ups together for a giant combo. A Rocket with a Bomb clears three rows and three columns, and a Prism with anything turns a whole colour into it!' }),
   crate2: () => ({ title: 'Tougher crates', art: scene([{ paint: (t) => art.paintCrate(t, 2) }]), text: 'Crates with iron straps take two hits to break.' }),
+  chest: () => ({ title: 'Treasure chests', art: scene([{ paint: (t) => art.paintChest(t, 1) }, '>', pw(BOMB)]), text: 'Some crates are treasure chests. Break one open like any crate and the power-up inside is yours.' }),
   chain: () => ({ title: 'Chains', art: scene([{ paint: (t) => { art.paintGem(t, 3); art.paintChain(t); } }, gem(3), gem(3)]), text: 'Chained gems can’t be moved. Match them with other gems, or blast them, to break the chains.' }),
   coin: () => ({ title: 'Coins', art: scene([{ paint: (t) => art.paintCoin(t) }, '>', { paint: (t) => { t.fillStyle = '#ffc93c'; t.beginPath(); t.moveTo(-0.2, -0.1); t.lineTo(0.2, -0.1); t.lineTo(0, 0.2); t.closePath(); t.fill(); } }]), text: 'Clear the gems under the coins to drop them down. Coins that reach the bottom of the board are collected.' }),
   ice2: () => ({ title: 'Thick ice', art: scene([{ paint: (t) => art.paintIce(t, 2) }]), text: 'Thick ice takes two hits: the first leaves thin ice behind.' }),
@@ -1725,13 +1882,14 @@ function showRules() {
   ui.show(`<h2>How to play</h2>
     <div class="rules">
       ${row(small([gem(0, { k: 0.8 }), gem(0, { k: 0.8 }), gem(0, { k: 0.8 })]), 'Match 3', 'Swap neighbouring gems to make lines of 3 or more. Hit the goals before the moves run out.')}
-      ${row(small([pw(LINE_H, 4, { k: 1.6 })]), '4 in a row', 'makes a Line Blaster: clears a row or column.')}
-      ${row(small([pw(BOMB, 1, { k: 1.6 })]), 'L or T shape', 'makes a Bomb: clears all around it.')}
-      ${row(small([pw(FLY, 3, { k: 1.6 })]), '2×2 square', 'makes a Butterfly: flies off to hit what you need.')}
-      ${row(small([pw(PRISM, 0, { k: 1.6 })]), '5 in a row', 'makes a Prism: swap it with a gem to clear that whole colour.')}
-      ${row(small([pw(LINE_V, 2), pw(BOMB, 5)]), 'Combos', 'Swap two power-ups together. Tap a power-up to set it off where it is.')}
+      ${row(small([pw(LINE_H, { k: 1.5 })]), '4 in a row', 'makes a Rocket: blasts a row or column.')}
+      ${row(small([pw(BOMB, { k: 1.5 })]), 'L or T shape', 'makes a Bomb: clears all around it.')}
+      ${row(small([pw(FLY, { k: 1.5 })]), '2×2 square', 'makes a Butterfly: flies off to hit what you need.')}
+      ${row(small([pw(PRISM, { k: 1.5 })]), '5 in a row', 'makes a Prism: swap it with a gem to clear that whole colour.')}
+      ${row(small([pw(LINE_V), pw(BOMB)]), 'Combos', 'Swap two power-ups together. Tap a power-up to set it off where it is.')}
+      ${row(small([{ k: 1.5, paint: (t) => art.paintChest(t, 1) }]), 'Chests', 'are crates with a power-up inside.')}
     </div>
-    <p class="tip">Each level gives you one Hammer, one Row blast and one Shuffle, and they don't cost a move. Win levels in a row and the next one starts with power-ups already on the board.</p>
+    <p class="tip">Power-ups glow and have no colour: swap one with anything, or tap it. Each level gives you one Hammer, one Rocket and one Shuffle, and they don't cost a move. Win levels in a row and the next one starts with power-ups already on the board.</p>
     <div class="actions"><button class="btn btn-primary" data-action="close">Got it</button></div>`);
 }
 
