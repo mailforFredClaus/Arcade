@@ -28,6 +28,7 @@ import { install as installPier } from './pier.js';
 import { install as installFame } from './fame.js';
 import { install as installTown } from './town.js';
 import { install as installLegacy } from './legacy.js';
+import { install as installKin } from './kin.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const val = (v, L, x, y) => (typeof v === 'function' ? v(L, x, y) : v);
@@ -725,12 +726,13 @@ export class Life {
 
   // name, sex ('m' or 'f'), into: who you fall for ('m', 'f' or 'b' for both),
   // look {skin, hair, top, style, beard}, bg: a background from data.js,
+  // sibs: your brothers and sisters, if they are known (else it is left to chance),
   // gifts: what the family has given the town before now ({ id: whose name is on it }),
   // dreams: three ids, heir: the heirloom brought along (a ribbon id),
   // inherit: money left by the last life, gen: which generation this is,
   // parent: one still living from the life before, raised: the skills you
   // were brought up with, if you are the child of the last life.
-  static create({ name = 'Sam', sex = 'm', into = null, look = null, bg = 'allrounder', dreams = [], heir = null, inherit = 0, gen = 1, seed = 1, parent = null, raised = null, gifts = null } = {}) {
+  static create({ name = 'Sam', sex = 'm', into = null, look = null, bg = 'allrounder', dreams = [], heir = null, inherit = 0, gen = 1, seed = 1, parent = null, raised = null, gifts = null, sibs = null } = {}) {
     const s = {
       v: 3, rng: seed >>> 0, name, sex, into: into || (sex === 'm' ? 'f' : 'm'), look, bg, gen, heir,
       t: 0, age: 18, time: 0,
@@ -774,6 +776,7 @@ export class Life {
     else if (gen === 1) {
       for (const [who, x] of [['Mum', 'f'], ['Dad', 'm']]) s.people.push(L.makePerson({ name: who, sex: x, kind: 'parent', bond: 60, age: 18 + L.int(24, 32), trait: 'kind', single: false }));
     }
+    L.addSiblings(sibs);
     for (const [sym, k] of Object.entries(STOCKS)) { s.stk.p[sym] = k.start; s.stk.h[sym] = [k.start]; }
     s.time = L.timeMax();
     L.note(`Stepped off the train at Starling Bay with one suitcase and ${money(s.cash)}.`, 'big');
@@ -906,7 +909,7 @@ export class Life {
   // A course counts if you hold it, or hold something that covers it.
   hasEdu(id) { return !!this.s.edu[id] || Object.keys(this.s.edu).some((k) => (COURSES[k].covers || []).includes(id)); }
   // Knowing the right people: someone close who works in that career.
-  perk(c) { return this.s.people.some((p) => p.job === c && p.bond >= 60 && (p.kind === 'friend' || p.kind === 'partner' || p.kind === 'spouse' || (p.kind === 'child' && p.age >= 18))); }
+  perk(c) { return this.s.people.some((p) => p.job === c && p.bond >= 60 && (p.kind === 'friend' || p.kind === 'partner' || p.kind === 'spouse' || p.kind === 'sibling' || ((p.kind === 'child' || p.kind === 'grandchild') && p.age >= 18))); }
 
   timeMax() { return this.timeMaxWithout(null); }
   timeMaxWithout(skip) {
@@ -1364,7 +1367,7 @@ export class Life {
     for (const p of s.people.slice()) {
       // A good school shows, a season at a time.
       if (p.kind === 'child' && p.priv) { p.st.smarts = Math.min(100, p.st.smarts + 0.4); p.st.charm = Math.min(100, p.st.charm + 0.15); }
-      const drop = p.kind === 'friend' ? 2 * phone : p.kind === 'partner' ? (p.live ? 1 : 2) : p.kind === 'parent' ? 0.5 : 1;
+      const drop = p.kind === 'friend' ? 2 * phone : p.kind === 'partner' ? (p.live ? 1 : 2) : ['parent', 'sibling', 'grandchild'].includes(p.kind) ? 0.5 : 1;
       this.bond(p, -drop);
       if (p.kind === 'friend' && p.bond <= 0) {
         s.people.splice(s.people.indexOf(p), 1);
@@ -1420,6 +1423,7 @@ export class Life {
       if (p.kind === 'parent' && p.age >= 68 && this.chance((p.age - 66) ** 2 / 1500)) this.queue('parentDies', p.id);
       else if ((p.kind === 'spouse' || p.kind === 'partner') && p.age >= 72 && this.chance((p.age - 70) ** 2 / 2200)) this.queue('spouseDies', p.id);
       else if (p.kind === 'child') this.growUp(p);
+      else if (p.kind === 'sibling' || p.kind === 'grandchild') this.kinYear(p);
       // Friends pair off, and come unstuck, without consulting you.
       else if (p.kind === 'friend' && this.chance(0.08)) p.single = !p.single;
     }
@@ -1444,7 +1448,7 @@ export class Life {
     let b = 44 + this.comfort() + FOOD[s.food].mood - this.feudGloom();
     b += Math.min(6, this.friends().filter((p) => p.bond >= 40).length * 2);
     if (pt) b += Math.min(10, pt.bond / 8);
-    b += Math.min(6, this.kids().length * 2);
+    b += Math.min(6, this.kids().length * 2) + Math.min(3, this.grandkids().length);
     if (s.pet) b += 4;
     if (s.items.sportscar) b += 3;
     if (s.heir === 'heart') b += 6;
@@ -1559,6 +1563,8 @@ export class Life {
       kids: kids.length, spouse: spouse ? spouse.name : null,
       inherit: Math.max(0, Math.min(kids.length ? 150000 : 60000, Math.round(worth * (kids.length ? 0.1 : 0.05) / 100) * 100)),
       heir: heirKid ? { name: heirKid.name.split(' ')[0], look: heirKid.look, sex: heirKid.sex, st: heirKid.st } : null,
+      // An heir's brothers and sisters are the other children, if they are old enough to be out in the world.
+      sibs: heirKid ? kids.filter((k) => k !== heirKid && k.age >= 16).slice(0, 3).map((k) => ({ name: k.name.split(' ')[0], sex: k.sex, age: k.age, look: k.look, job: k.job, trait: k.trait })) : null,
       parent: spouse ? { name: spouse.name, age: spouse.age, look: spouse.look, sex: spouse.sex } : null,
       gifts: s.gifts,
     };
@@ -1567,6 +1573,6 @@ export class Life {
 
 install({ def, A, Life, clamp });
 installVice({ def, A, Life, clamp });
-for (const add of [installInside, installFeuds, installPier, installFame, installTown, installLegacy]) add({ def, A, Life, clamp });
+for (const add of [installInside, installFeuds, installPier, installFame, installTown, installLegacy, installKin]) add({ def, A, Life, clamp });
 
 export { A as ACTIONS, money, cashShort };

@@ -569,6 +569,8 @@ const SHEET = {
     if (p.kind === 'child' && p.age < 18) {
       facts.push(...STATS.map((k) => `<span>${STAT_ICON[k]} ${STAT_NAME[k]} ${Math.floor(p.st[k])}</span>`));
       if (p.priv) facts.push('<span>🏫 At St Wren’s School</span>');
+    } else if (p.kind === 'grandchild' && p.age < 18) {
+      facts.push(`<span>${p.age < 1 ? 'A new baby' : p.age < 5 ? 'Into everything' : p.age < 13 ? 'At school' : 'A teenager'}</span>`);
     } else if (p.kind !== 'parent') {
       if (p.job) facts.push(`<span>💼 ${life.jobOf(p)}</span>`);
       if (p.kind !== 'child') facts.push(`<span>${TRAITS[p.trait].icon} ${TRAITS[p.trait].name}</span>`);
@@ -578,7 +580,7 @@ const SHEET = {
       if ((p.kind === 'partner' || p.kind === 'spouse') && p.bond >= 50) facts.push(`<span>${p.wish ? 'Wants children' : 'Does not want children'}</span>`);
     }
     const foe = p.kind === 'enemy';
-    const perk = p.job && !['parent', 'ex', 'enemy'].includes(p.kind) && !(p.kind === 'child' && p.age < 18) ? `<p class="fine">${life.perk(p.job) && p.bond >= 60 ? '✓ ' : ''}Someone close in ${CAREERS[p.job].name.toLowerCase()} (60 bond) gets you ${PERKS[p.job]}.</p>` : '';
+    const perk = p.job && !['parent', 'ex', 'enemy'].includes(p.kind) && p.age >= 18 ? `<p class="fine">${life.perk(p.job) && p.bond >= 60 ? '✓ ' : ''}Someone close in ${CAREERS[p.job].name.toLowerCase()} (60 bond) gets you ${PERKS[p.job]}.</p>` : '';
     const body = `<div class="bondbar big${foe ? ' grudge' : ''}"><span style="width:${foe ? p.grudge : p.bond}%"></span></div><p class="lead">${bondWord(p)} · ${foe ? `grudge ${Math.round(p.grudge)}. It cools with time, faster if the town thinks well of you; while it lasts, ${p.sex === 'm' ? 'he' : 'she'} will do you small harms.` : `bond ${Math.round(p.bond)}`}${p.kind === 'child' && p.age >= 18 ? ` · ${He} takes after what you taught ${p.sex === 'm' ? 'him' : 'her'}` : ''}</p>
       <div class="facts">${facts.join('')}</div>${perk}${p.kind === 'child' && p.age < 18 ? `<p class="fine">What ${first} learns now, ${p.sex === 'm' ? 'he' : 'she'} keeps: a child who carries on the family starts with some of it.</p>` : ''}
       ${sections(life.personActions(p))}`;
@@ -592,6 +594,8 @@ const sexMark = (p) => `<i class="sx ${p.sex}">${p.sex === 'm' ? '♂' : '♀'}<
 function relation(p) {
   const m = p.sex === 'm';
   if (p.kind === 'friend') return 'Friend';
+  if (p.kind === 'sibling') return m ? 'Your brother' : 'Your sister';
+  if (p.kind === 'grandchild') return m ? 'Your grandson' : 'Your granddaughter';
   if (p.kind === 'enemy') return 'No friend of yours';
   if (p.kind === 'ex') return p.was === 'spouse' ? (m ? 'Your ex-husband' : 'Your ex-wife') : `Your ex-${m ? 'boyfriend' : 'girlfriend'}`;
   if (p.kind === 'partner') return p.eng ? (m ? 'Your fiancé' : 'Your fiancée') : `Your ${m ? 'boyfriend' : 'girlfriend'}${p.live ? ' (you live together)' : ''}`;
@@ -880,13 +884,13 @@ function meHtml() {
 function peopleHtml() {
   const s = life.s;
   const card = (p) => `<button class="box person" data-do="person" data-id="${p.id}"><span class="ava">${face(p.look, p.age, p.kind === 'enemy' ? 12 : 40 + p.bond * 0.6, p.sex)}</span>
-      <div><b>${esc(p.name)} ${sexMark(p)}</b><small>${relation(p)}, ${p.age}${p.kind === 'friend' && life.fancy(p) && p.single && !life.partner() ? ' · 💗 single' : ''}${p.job && p.kind !== 'parent' && !(p.kind === 'child' && p.age < 18) ? ` · ${life.jobOf(p)}` : ''}</small><span class="bondbar${p.kind === 'enemy' ? ' grudge' : ''}"><span style="width:${p.kind === 'enemy' ? p.grudge : p.bond}%"></span></span></div><i class="go">›</i></button>`;
+      <div><b>${esc(p.name)} ${sexMark(p)}</b><small>${relation(p)}, ${p.age}${p.kind === 'friend' && life.fancy(p) && p.single && !life.partner() ? ' · 💗 single' : ''}${p.job && p.kind !== 'parent' && p.age >= 18 ? ` · ${life.jobOf(p)}` : ''}</small><span class="bondbar${p.kind === 'enemy' ? ' grudge' : ''}"><span style="width:${p.kind === 'enemy' ? p.grudge : p.bond}%"></span></span></div><i class="go">›</i></button>`;
   const group = (title, kinds) => { const l = s.people.filter((p) => kinds.includes(p.kind)).sort((a, b) => b.bond - a.bond); return l.length ? `<h3 class="group">${title}</h3>${l.map(card).join('')}` : ''; };
   let out = '';
   if (s.due) out += `<div class="box warn good">🍼 ${s.due.adopt ? 'A child is coming to live with you soon.' : 'A baby is on the way!'}</div>`;
   const love = group('Your sweetheart', ['partner', 'spouse']);
   out += love || `<div class="box"><p class="sub">💘 Nobody special just now. Chat someone up at the Gull & Anchor${s.items.phone ? ', try Seaside Singles at home' : ', buy a phone for the dating app'}, or ask out a friend who is single.</p></div>`;
-  out += group('Family', ['child', 'parent']);
+  out += group('Family', ['child', 'grandchild', 'parent', 'sibling']);
   if (s.pet) out += `<div class="box person pet"><span class="act-ico">${PETS[s.pet.kind].icon}</span><div><b>${esc(s.pet.name)}</b><small>Your ${PETS[s.pet.kind].name}, ${s.pet.age}. Always pleased to see you.</small></div></div>`;
   out += group(`Friends (${life.friends().length})`, ['friend']) || '<div class="box"><p class="sub">No friends in Starling Bay yet. Chat to the regulars at the Gull & Anchor, sit by the pond in the park, or go to hack night at the Labs.</p></div>';
   out += group('Old flames', ['ex']) + group('Bad blood', ['enemy']);
@@ -1061,7 +1065,7 @@ function beginLife() {
   if (!d.name.trim() || d.dreams.length !== 3) { sfx('nope'); toast(!d.name.trim() ? 'Choose a name first.' : 'Pick three dreams.'); return; }
   life = Life.create({
     name: d.name.trim().slice(0, 16), sex: d.sex, into: d.into, look: d.look, bg: d.bg, dreams: d.dreams, heir: d.heir,
-    inherit: nx ? nx.inherit : 0, gen: nx ? nx.gen : 1, parent: nx ? nx.parent : null, raised: nx ? nx.st : null, gifts: nx ? nx.gifts : null,
+    inherit: nx ? nx.inherit : 0, gen: nx ? nx.gen : 1, parent: nx ? nx.parent : null, raised: nx ? nx.st : null, gifts: nx ? nx.gifts : null, sibs: nx && nx.sibs ? nx.sibs : nx ? [] : null,
     seed: (Math.random() * 2 ** 32) >>> 0,
   });
   save.next = null;
@@ -1103,7 +1107,7 @@ function showEnd() {
     m.hall.unshift({ name: s.name, age: o.age, ribbon: o.ribbon.id, score: o.score, gen: s.gen, title: o.title, worth: o.worth });
     m.hall.length = Math.min(m.hall.length, 40);
     save.fresh = fresh;
-    save.next = { gifts: o.gifts, gen: s.gen + 1, inherit: o.inherit, from: s.name, name: o.heir ? o.heir.name : '', look: o.heir ? o.heir.look : null, sex: o.heir ? o.heir.sex : null, st: o.heir ? o.heir.st : null, parent: o.parent };
+    save.next = { sibs: o.sibs, gifts: o.gifts, gen: s.gen + 1, inherit: o.inherit, from: s.name, name: o.heir ? o.heir.name : '', look: o.heir ? o.heir.look : null, sex: o.heir ? o.heir.sex : null, st: o.heir ? o.heir.st : null, parent: o.parent };
     persist();
   } else fresh = !!save.fresh;
   closeSheets();

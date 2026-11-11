@@ -30,7 +30,7 @@ const check = (ok, what) => {
 // Answers a first date, playing it the way the other person would like (or not).
 const date = (X, right = true) => { const ev = X.event(); if (!ev || ev.id !== 'date') return null; const p = X.dateWith(); return X.choose(X.dateLines().findIndex((l) => (l.k === p.trait) === right)); };
 // A fresh life, with the to-do list's rewards out of the way so sums are plain.
-const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', ...o }); L.s.quest = QUESTS.length; return L; };
+const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', sibs: [], ...o }); L.s.quest = QUESTS.length; return L; };
 
 // ---- the lists hang together ------------------------------------------------------------
 
@@ -1293,6 +1293,62 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', ...o 
   check(EVENTS.find((e) => e.id === 'headhunt').when(H), 'in a boom, other firms come calling');
   H.queue('headhunt'); H.choose(2);
   check(H.s.job.perf === 66, 'and loyalty is noticed');
+}
+
+// ---- the rest of the family -------------------------------------------------------------
+
+{
+  let none = 0, one = 0, two = 0;
+  for (let i = 0; i < 300; i++) { const n = Life.create({ seed: 900 + i, name: 'S' }).siblings().length; if (n === 0) none++; else if (n === 1) one++; else two++; }
+  check(none > 60 && one > 80 && two > 20 && none + one + two === 300, `some start with a brother or sister, some with two, some with none (${none}/${one}/${two})`);
+  const L = Life.create({ seed: 5, name: 'Kin', sibs: [{ name: 'Molly', sex: 'f', age: 24, job: 'medicine', trait: 'kind' }] });
+  L.s.quest = QUESTS.length;
+  const sis = L.siblings()[0];
+  check(sis.name === 'Molly' && sis.kind === 'sibling' && sis.job === 'medicine' && sis.bond === 48 && sis.likes.length === 2, 'a sister, known in advance, arrives as herself');
+  const acts = L.personActions(sis).map((a) => a.id);
+  check(acts.includes('out') && acts.includes('call') && acts.includes('gift') && !acts.includes('askout') && !acts.includes('forget') && !acts.includes('treat'), 'a sister can be seen and telephoned, and is not a friend to be dropped');
+  check(!L.perk('medicine'), 'a sister in medicine is no help until you are close');
+  sis.bond = 70;
+  check(L.perk('medicine') && L.medCost(1000) === 700, 'and then she is');
+  const mum = L.s.people.find((q) => q.kind === 'parent'), cash = L.s.cash, share = Math.round((3000 + mum.bond * 120) / 2 / 100) * 100;
+  L.queue('parentDies', mum.id); L.choose(0);
+  check(L.s.cash === cash + share, 'what a parent leaves is shared with her');
+  let wed = false;
+  for (const e of ['sibWed', 'sibSofa']) { const ev = EVENTS.find((q) => q.id === e); L.s.home = 'flat'; sis.single = true; check(ev.when(L) && ev.ctx(L) === sis.id, `${e}: can happen to someone with a sister`); }
+  L.queue('sibWed', sis.id); L.s.cash = 5000; L.choose(1);
+  wed = !sis.single;
+  check(wed && sis.bond > 70, 'a sister’s wedding');
+  sis.age = 99;
+  let died = false;
+  for (let i = 0; i < 12 && !died; i++) { L.newYear(); died = L.s.pend.some((e) => e.id === 'sibDies'); L.s.pend = L.s.pend.filter((e) => e.id === 'sibDies'); if (L.s.dead) break; }
+  if (!L.s.dead) { check(died, 'brothers and sisters grow old too'); L.choose(0); check(!L.siblings().length, 'and are missed'); }
+
+  // Grandchildren.
+  const G = fresh();
+  const kid = G.meet({ kind: 'child', sex: 'f', age: 30, name: 'Rose', bond: 60 });
+  G.queue('grandchild', kid.id); G.choose(0);
+  const gk = G.grandkids()[0];
+  check(gk && gk.kind === 'grandchild' && gk.age === 0 && gk.of === kid.id && !gk.job && G.s.f.grand === 1 && G.s.ach.grand, 'a grandchild is a person, not just news');
+  check(G.personActions(gk).map((a) => a.id).join() === 'gift,treat' || G.personActions(gk).some((a) => a.id === 'treat'), 'who can be taken out for the day');
+  check(!G.personActions(gk).some((a) => ['scrounge', 'out', 'call', 'askout'].includes(a.id)), 'and not asked for money');
+  const base = (() => { const X = fresh(); return X.moodBase(); })();
+  const joy = G.s.happy, bond = gk.bond, kb = kid.bond;
+  G.act('treat', gk.id);
+  check(G.s.happy > joy && gk.bond === bond + 9 && kid.bond === kb + 3 && G.can('treat', gk.id).includes('Once a season'), 'a day out does you both good, once a season');
+  gk.age = 17;
+  G.newYear(); G.s.pend = [];
+  check(gk.age === 18 && gk.job && gk.likes && G.personActions(gk).some((a) => a.id === 'out') && !G.personActions(gk).some((a) => a.id === 'treat'), 'at eighteen a grandchild is a grown-up, with a job');
+  // An heir's brothers and sisters are the other children.
+  const P1 = fresh();
+  P1.s.age = 70;
+  P1.meet({ kind: 'child', sex: 'f', age: 40, name: 'Ann', bond: 90, job: 'law' });
+  P1.meet({ kind: 'child', sex: 'm', age: 37, name: 'Bob', bond: 50, job: 'sea' });
+  P1.meet({ kind: 'child', sex: 'm', age: 9, name: 'Tim', bond: 40 });
+  P1.die('old age');
+  const o = P1.obituary();
+  check(o.heir.name === 'Ann' && o.sibs.length === 1 && o.sibs[0].name === 'Bob' && o.sibs[0].job === 'sea', 'the heir is the child who loved you best; the grown-up others are her brothers and sisters');
+  const H = Life.create({ seed: 9, name: 'Ann', gen: 2, sibs: o.sibs });
+  check(H.siblings().length === 1 && H.siblings()[0].name === 'Bob' && H.siblings()[0].job === 'sea' && H.siblings()[0].age === 37, 'and are there when she steps off the train');
 }
 
 // ---- what you leave behind, and work on the side ----------------------------------------

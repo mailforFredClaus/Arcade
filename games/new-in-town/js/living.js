@@ -43,6 +43,7 @@ export function install({ def, A, Life, clamp }) {
         if (!p.st) p.st = Object.fromEntries(STATS.map((k) => [k, Math.min(40, 5 + p.age * 1.4)]));
         if (p.age < 18) return p;
       }
+      if (p.kind === 'grandchild' && p.age < 18) return p;
       if (!p.job) p.job = this.pick(Object.keys(CAREERS));
       if (!p.likes) {
         const first = { bookish: 'talk', sporty: 'walk', witty: 'pub', arty: 'film', kind: 'coffee' }[p.trait];
@@ -182,7 +183,7 @@ export function install({ def, A, Life, clamp }) {
     who: true, sec: 'Do something together',
     icon: (L, p, x) => OUTINGS[x.a].icon, title: (L, p, x) => OUTINGS[x.a].name, cost: (L, p, x) => OUTINGS[x.a].cost,
     desc: (L, p, x) => (p.known[x.a] ? (p.likes.includes(x.a) ? `♥ ${p.name.split(' ')[0]} loves this.` : 'Pleasant enough.') : 'See how it goes down.'),
-    show: (L, p) => CLOSE.includes(p.kind) || (p.kind === 'child' && p.age >= 18),
+    show: (L, p) => CLOSE.includes(p.kind) || p.kind === 'sibling' || ((p.kind === 'child' || p.kind === 'grandchild') && p.age >= 18),
     why: (L, p, x) => (!OUTINGS[x.a] ? 'No such thing.' : OUTINGS[x.a].not === L.season ? 'Not in winter.' : null),
     run(L, p, x) {
       const o = OUTINGS[x.a], loved = p.likes.includes(x.a), first = !p.known[x.a];
@@ -216,7 +217,7 @@ export function install({ def, A, Life, clamp }) {
   });
   def('call', {
     who: true, sec: 'Keep in touch', title: 'Call for a chat', icon: '📞', desc: 'A good long natter.',
-    show: (L, p) => p.kind === 'parent' || (p.kind === 'child' && p.age >= 18),
+    show: (L, p) => p.kind === 'parent' || p.kind === 'sibling' || ((p.kind === 'child' || p.kind === 'grandchild') && p.age >= 16),
     run(L, p) { L.bond(p, 7); L.joy(2); return p.kind === 'parent' ? `${p.name} asks if you are eating properly. You lie.` : `${p.name} tells you all ${his(p)} news. You hang up smiling.`; },
   });
   def('gift', {
@@ -267,7 +268,7 @@ export function install({ def, A, Life, clamp }) {
     show: (L, p) => p.kind === 'friend' || p.kind === 'ex',
     run(L, p) { L.s.people.splice(L.s.people.indexOf(p), 1); return p.kind === 'ex' ? `You tear the page out of your address book. ${p.name} is the past.` : `You stop calling. So does ${p.name}. It happens.`; },
   });
-  const PEOPLE = ['out', 'kid', 'askout', 'movein', 'propose', 'baby', 'split', 'school', 'call', 'gift', 'winback', 'oldtimes', 'mend', 'prank', 'rumour', 'thump', 'lean', 'forget', 'scrounge'];
+  const PEOPLE = ['out', 'kid', 'askout', 'movein', 'propose', 'baby', 'split', 'school', 'call', 'gift', 'treat', 'winback', 'oldtimes', 'mend', 'prank', 'rumour', 'thump', 'lean', 'forget', 'scrounge'];
 
   // Meeting someone with romance in mind, no friendship first.
   def('chatup', {

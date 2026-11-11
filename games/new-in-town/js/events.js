@@ -24,7 +24,7 @@ const has = (L, id) => !!L.person(id);
 // Still your sweetheart (not an ex by now).
 const mine = (L, id) => has(L, id) && ['partner', 'spouse'].includes(L.person(id).kind);
 // Someone who might take you aside: a friend, a sweetheart, family.
-const close = (p) => ['friend', 'partner', 'spouse', 'parent'].includes(p.kind) || (p.kind === 'child' && p.age >= 18);
+const close = (p) => ['friend', 'partner', 'spouse', 'parent', 'sibling'].includes(p.kind) || ((p.kind === 'child' || p.kind === 'grandchild') && p.age >= 18);
 const aFriend = (L) => { const f = L.friends(); return f.length ? L.pick(f).id : null; };
 const aKid = (lo, hi) => (L) => { const k = L.kids().filter((c) => c.age >= lo && c.age <= hi); return k.length ? L.pick(k).id : null; };
 const aParent = (L) => { const k = L.s.people.filter((p) => p.kind === 'parent'); return k.length ? L.pick(k).id : null; };
@@ -967,7 +967,7 @@ export const EVENTS = [
   },
   {
     id: 'gVisit', icon: '🪟', title: 'Visiting day', gaol: true, w: 4, cd: 3,
-    ctx: (L) => { const l = L.s.people.filter((p) => ['partner', 'spouse', 'parent', 'friend'].includes(p.kind) || (p.kind === 'child' && p.age >= 16)).filter((p) => p.bond >= 25); return { p: l.length ? L.pick(l).id : 0 }; },
+    ctx: (L) => { const l = L.s.people.filter((p) => ['partner', 'spouse', 'parent', 'friend', 'sibling'].includes(p.kind) || ((p.kind === 'child' || p.kind === 'grandchild') && p.age >= 16)).filter((p) => p.bond >= 25); return { p: l.length ? L.pick(l).id : 0 }; },
     text: (L, x) => (has(L, x.p) ? `${P(L, x.p).name} is on the other side of the glass, in ${his(P(L, x.p))} good coat, holding the telephone as if it might bite.` : 'Nobody has put in to see you. The chaplain, who has noticed, sits down instead and asks how you are keeping.'),
     opts: [
       { t: 'Put a brave face on it', run(L, x) { L.joy(4); if (has(L, x.p)) { L.bond(P(L, x.p), 8); return 'You talk about the weather, the neighbours, the dog. Twenty minutes. It is the best twenty minutes of the season.'; } return 'He talks about cricket. It is oddly restful.'; } },
@@ -1067,6 +1067,42 @@ export const EVENTS = [
       return `You have known ${p.name} long enough to know ${he(p)} is ${kind} through and through. Friday comes. How do you play it?`;
     },
     opts: [0, 1, 2].map((i) => ({ t: (L) => L.dateLines()[i].t, run: (L) => L.dateGo(L.dateLines()[i].k) })),
+  },
+  // ---- brothers and sisters ----
+  {
+    id: 'sibWed', icon: '💒', title: 'Wedding bells', w: 3, cd: 40, when: (L) => L.siblings().some((p) => p.single && p.age >= 20),
+    ctx: (L) => L.pick(L.siblings().filter((p) => p.single && p.age >= 20)).id, ok: (L, x) => has(L, x) && P(L, x).kind === 'sibling',
+    text: (L, x) => `Your ${P(L, x).sex === 'm' ? 'brother' : 'sister'} ${P(L, x).name} is getting married, and wants you to say a few words.`,
+    opts: [
+      { t: 'Make the speech', check: ['charm', 45], run(L, x, win) { const p = P(L, x); p.single = false; if (win) { L.bond(p, 12); L.joy(6); L.fame(0.5); return `You tell the story about the canoe. ${p.name} cries laughing, and so does everybody’s gran.`; } L.bond(p, 4); L.joy(1); return `You tell the story about the canoe. ${p.name} had hoped you would not.`; } },
+      { t: 'Give them something handsome', cost: 800, run(L, x) { const p = P(L, x); p.single = false; L.bond(p, 10); L.joy(3); return 'A proper dinner service. They will still be eating off it in forty years.'; } },
+      { t: 'Send a card', run(L, x) { const p = P(L, x); p.single = false; L.bond(p, -8); return `It arrives the day after. ${p.name} notices.`; } },
+    ],
+  },
+  {
+    id: 'sibSofa', icon: '🛋️', title: 'Just for a few nights', w: 3, cd: 24, when: (L) => L.siblings().length > 0 && L.s.home !== 'hostel',
+    ctx: (L) => L.pick(L.siblings()).id, ok: (L, x) => has(L, x) && P(L, x).kind === 'sibling',
+    text: (L, x) => `${P(L, x).name} is on your doorstep with a holdall and a face. "It is only until I get straight."`,
+    opts: [
+      { t: 'The sofa is yours', run(L, x) { const p = P(L, x); L.bond(p, 12); L.joy(-2); busy(L, 1); return `Three weeks. ${He(p)} eats everything, fixes your dripping tap, and cries once. You are glad you said yes.`; } },
+      { t: 'Pay for a room at the Gull', cost: 400, run(L, x) { L.bond(P(L, x), 5); return 'It is the grown-up answer. It does not quite feel like the right one.'; } },
+      { t: 'It is not a good time', run(L, x) { const p = P(L, x); L.bond(p, -14); return `${He(p)} says ${he(p)} understands. ${He(p)} does not ring for a long while.`; } },
+    ],
+  },
+  {
+    id: 'sibRow', icon: '🫖', title: 'What Mum would have wanted', w: 3, once: true, when: (L) => L.siblings().length > 0 && !L.s.people.some((p) => p.kind === 'parent') && L.s.gen === 1 && L.s.age >= 35,
+    ctx: (L) => L.pick(L.siblings()).id, ok: (L, x) => has(L, x) && P(L, x).kind === 'sibling',
+    text: (L, x) => `It is about the teapot. It was never about the teapot. ${P(L, x).name} has it, and says it was promised.`,
+    opts: [
+      { t: 'Let it go', run(L, x) { const p = P(L, x); L.bond(p, 6); L.karma(1); return `"Keep it," you say, and mean it. ${He(p)} sends you a photograph of it every Christmas.`; } },
+      { t: 'Have it out', check: ['charm', 50], run(L, x, win) { const p = P(L, x); if (win) { L.bond(p, 10); L.joy(3); return 'Two hours, a lot of shouting, and then you are both laughing about the summer of the wasps. The teapot is forgotten.'; } L.bond(p, -20); return 'Things are said that have been waiting thirty years to be said.'; } },
+      { t: 'Take it back when nobody is looking', run(L, x) { const p = P(L, x); L.bond(p, -25); L.karma(-2); L.joy(2); return 'It looks very well on your shelf. Nobody visits to see it.'; } },
+    ],
+  },
+  {
+    id: 'sibDies', icon: '🕊️', title: 'A letter with a black edge', ok: (L, x) => has(L, x) && P(L, x).kind === 'sibling',
+    text: (L, x) => `Your ${P(L, x).sex === 'm' ? 'brother' : 'sister'} ${P(L, x).name} has died, at ${P(L, x).age}.`,
+    opts: [{ t: 'Goodbye', run(L, x) { const p = P(L, x); L.gone(p); L.joy(-14); return `There is nobody left now who remembers the house you grew up in. You find you are saying "${p.name} would have laughed at that" a good deal.`; } }],
   },
   // ---- bad blood ----
   {
@@ -1267,12 +1303,12 @@ export const EVENTS = [
   {
     id: 'grandchild', icon: '👶', title: 'News!', ok: has,
     text: (L, x) => `${P(L, x).name} rings, hardly able to speak. You have a grandchild.`,
-    opts: [{ t: 'Wonderful!', run(L, x) { L.s.f.grand = 1; L.joy(12); L.bond(P(L, x), 6); return `They are calling the baby ${L.pick(NAMES)}. You start knitting at once, despite not knowing how.`; } }],
+    opts: [{ t: 'Wonderful!', run(L, x) { const g = L.grandchild(P(L, x)); L.joy(12); L.bond(P(L, x), 6); return `A ${g.sex === 'm' ? 'boy' : 'girl'}, and they are calling ${g.sex === 'm' ? 'him' : 'her'} ${g.name.split(' ')[0]}. You start knitting at once, despite not knowing how.`; } }],
   },
   {
     id: 'parentDies', icon: '🕊️', title: 'A phone call in the night', ok: has,
     text: (L, x) => `${P(L, x).name} has died, peacefully, at ${P(L, x).age}.`,
-    opts: [{ t: 'Goodbye', run(L, x) { const p = P(L, x), n = Math.round((3000 + p.bond * 120) / 100) * 100; L.s.people.splice(L.s.people.indexOf(p), 1); L.joy(-16); L.cash(n); return `The funeral is on a bright, windy day. ${He(p)} left you ${money(n)}, and ${his(p)} good watch.`; } }],
+    opts: [{ t: 'Goodbye', run(L, x) { const p = P(L, x), sibs = L.siblings().length, n = Math.round((3000 + p.bond * 120) / (1 + sibs) / 100) * 100; L.s.people.splice(L.s.people.indexOf(p), 1); L.joy(-16); L.cash(n); for (const q of L.siblings()) L.bond(q, 4); return `The funeral is on a bright, windy day. ${He(p)} left you ${money(n)}${sibs ? ', your share,' : ''} and ${his(p)} good watch.`; } }],
   },
   {
     id: 'spouseDies', icon: '🕊️', title: 'The empty chair', ok: mine,

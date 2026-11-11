@@ -342,7 +342,7 @@ export function install({ def, A, Life, clamp }) {
   def('scrounge', {
     who: true, sec: 'Behave badly', icon: '🫴', title: 'Ask for money', time: 0,
     desc: (L, p) => `You have no intention of paying it back. ${Math.round(L.checkOdds('charm', 45) * 100)}% ${p.sex === 'm' ? 'he' : 'she'} coughs up.`,
-    show: (L, p) => p.kind !== 'ex' && p.kind !== 'enemy' && (p.kind !== 'child' || p.age >= 18),
+    show: (L, p) => p.kind !== 'ex' && p.kind !== 'enemy' && ((p.kind !== 'child' && p.kind !== 'grandchild') || p.age >= 18),
     why: (L, p) => (L.s.t - (p.asked ?? -99) < 4 ? `You asked ${p.sex === 'm' ? 'him' : 'her'} not long ago.` : p.bond < 15 ? 'You are hardly on speaking terms.' : null),
     run(L, p) {
       p.asked = L.s.t; L.karma(-1);

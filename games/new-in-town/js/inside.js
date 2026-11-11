@@ -53,7 +53,7 @@ export function install({ def, A, Life, clamp }) {
       // With no standing at all, you are fair game.
       if (q.rep < 12 && !q.inSol && this.chance(0.45)) { this.rough(5, 'a beating in Starling Gaol'); this.joy(-5); this.say('😣', 'You are fair game on the landing: somebody helps himself to your things', 'bad'); }
       // The world outside gets on without you.
-      for (const p of s.people) if (p.kind !== 'ex' && p.kind !== 'enemy') this.bond(p, p.kind === 'parent' || p.kind === 'child' ? -2 : -5);
+      for (const p of s.people) if (p.kind !== 'ex' && p.kind !== 'enemy') this.bond(p, ['parent', 'child', 'sibling', 'grandchild'].includes(p.kind) ? -2 : -5);
       if (q.left <= 0) { this.release(false); return; }
       // The board sits once half the time is done, and yearly after that.
       if (q.total >= 3 && q.served * 2 >= q.total && (q.board == null || s.t - q.board >= 4)) { q.board = s.t; this.queue('parole'); }
@@ -125,9 +125,9 @@ export function install({ def, A, Life, clamp }) {
   }));
   def('gLetters', inside({
     sol: true, sec: 'The day', icon: '✉️', title: 'Write home', desc: 'Keeps the people outside from forgetting you.', per: 1,
-    why: (L) => (L.s.people.some((p) => ['partner', 'spouse', 'parent', 'child', 'friend'].includes(p.kind)) ? null : 'There is nobody to write to.'),
+    why: (L) => (L.s.people.some((p) => ['partner', 'spouse', 'parent', 'child', 'friend', 'sibling', 'grandchild'].includes(p.kind)) ? null : 'There is nobody to write to.'),
     run(L) {
-      for (const p of L.s.people) if (['partner', 'spouse', 'parent', 'child'].includes(p.kind)) L.bond(p, 7); else if (p.kind === 'friend') L.bond(p, 4);
+      for (const p of L.s.people) if (['partner', 'spouse', 'parent', 'child', 'sibling', 'grandchild'].includes(p.kind)) L.bond(p, 7); else if (p.kind === 'friend') L.bond(p, 4);
       L.joy(2);
       return L.pick(['Four pages. You leave out the bit about the showers.', 'You draw the view from your window. It is a wall.', 'You write that the food is fine. The censor underlines it and adds a question mark.']);
     },
