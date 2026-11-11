@@ -880,7 +880,7 @@ function journalHtml() {
     if (e.a !== age) { if (age !== null) out += '</div>'; age = e.a; out += `<div class="box"><h3>Age ${age}</h3>`; }
     out += `<p class="entry ${e.k}"><i>${SEASON_ICON[e.q]}</i>${esc(e.t)}</p>`;
   }
-  return `${out}</div>`;
+  return `<div class="box"><button class="btn btn-soft wide" data-do="open" data-kind="gazette">📰 This season’s Gazette</button></div>${out}</div>`;
 }
 
 // ---- cards ------------------------------------------------------------------------------
