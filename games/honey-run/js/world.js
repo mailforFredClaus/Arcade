@@ -9,8 +9,11 @@
 
 import { Builder, M, rgb, mix, shade } from './gl.js';
 import { Rand, LANE } from './engine.js';
+import { GAUGE } from './models.js';
 
 export const CHUNK = 20;
+const BED = LANE + 2.35; // half the width of the track bed
+const OUT = BED - 3.75; // how much further out everything beside the line stands than it first did
 const ZONE = 520, BLEND = 90;
 const TAU = Math.PI * 2;
 
@@ -108,7 +111,7 @@ function bush(b, R, x, z, s, look) {
 function house(b, R, x, z, look, facing) {
   const wall = R.pick(look.wall), roof = R.pick(look.roof);
   const w = 3.4 + R.next() * 1.2, d = 3 + R.next() * 1.4, h = 2.5 + R.next() * 0.8;
-  b.with(M.chain(M.move(x, 0, z), M.rotY(facing)), () => {
+  b.with(M.chain(M.move(x, 0, z), M.rotY(facing), M.scale(1.5)), () => {
     b.box(-w / 2, 0, -d / 2, w / 2, h, d / 2, wall, { noTop: true });
     // A pitched roof.
     const o = 0.3, ry = h + 1.5;
@@ -126,18 +129,20 @@ function house(b, R, x, z, look, facing) {
 }
 
 function windmill(b, R, x, z, look) {
-  b.column(8, x, 0, z, 1.5, 0.95, 6.2, look.wall[0]);
-  b.column(8, x, 6.2, z, 1.15, 0, 1.3, look.roof[0]);
-  b.box(x - 0.35, 0, z + 1.3, x + 0.35, 1.5, z + 1.5, shade(look.roof[0], 0.8));
-  // Sails.
-  const turn = R.next() * TAU;
-  b.with(M.chain(M.move(x, 5.6, z + 1.25), M.rotZ(turn)), () => {
-    for (let k = 0; k < 4; k++) {
-      b.with(M.rotZ((k * TAU) / 4), () => {
-        b.box(-0.07, 0, -0.05, 0.07, 3.6, 0.05, '#8a5a33');
-        b.box(0.07, 0.9, -0.03, 0.85, 3.5, 0.03, '#fff8ee');
-      });
-    }
+  b.with(M.chain(M.move(x, 0, z), M.scale(1.4)), () => {
+    b.column(8, 0, 0, 0, 1.5, 0.95, 6.2, look.wall[0]);
+    b.column(8, 0, 6.2, 0, 1.15, 0, 1.3, look.roof[0]);
+    b.box(-0.35, 0, 1.3, 0.35, 1.5, 1.5, shade(look.roof[0], 0.8));
+    // Sails.
+    const turn = R.next() * TAU;
+    b.with(M.chain(M.move(0, 5.6, 1.25), M.rotZ(turn)), () => {
+      for (let k = 0; k < 4; k++) {
+        b.with(M.rotZ((k * TAU) / 4), () => {
+          b.box(-0.07, 0, -0.05, 0.07, 3.6, 0.05, '#8a5a33');
+          b.box(0.07, 0.9, -0.03, 0.85, 3.5, 0.03, '#fff8ee');
+        });
+      }
+    });
   });
 }
 
@@ -202,38 +207,37 @@ function buildChunk(index) {
   g.quad([-90, 0, z1], [90, 0, z1], [90, 0, z0], [-90, 0, z0], look.grass);
   for (const side of [-1, 1]) {
     for (let k = 0; k < 2; k++) {
-      const x0 = side * (9 + R.next() * 10), w = 10 + R.next() * 22, zz = z0 + R.next() * 6, d = 8 + R.next() * 12;
+      const x0 = side * (9 + OUT + R.next() * 10), w = 10 + R.next() * 22, zz = z0 + R.next() * 6, d = 8 + R.next() * 12;
       const xa = Math.min(x0, x0 + side * w), xb = Math.max(x0, x0 + side * w);
       g.quad([xa, 0.012, Math.min(z1, zz + d)], [xb, 0.012, Math.min(z1, zz + d)], [xb, 0.012, zz], [xa, 0.012, zz], R.pick(look.field));
     }
     // Darker and lighter patches near the line.
     for (let k = 0; k < 5; k++) {
-      const x = side * (4.2 + R.next() * 9), zz = z0 + R.next() * CHUNK, r = 0.8 + R.next() * 1.6;
+      const x = side * (4.2 + OUT + R.next() * 9), zz = z0 + R.next() * CHUNK, r = 0.8 + R.next() * 1.6;
       g.column(6, x, 0.016, zz, r, r, 0.001, k % 2 ? look.grass2 : mix(look.grass, [1, 1, 1], 0.1), { noBottom: true, sx: 1.4 });
     }
     // Flowers.
     for (let k = 0; k < 9; k++) {
-      const x = side * (4 + R.next() * 8), zz = z0 + R.next() * CHUNK;
+      const x = side * (4 + OUT + R.next() * 8), zz = z0 + R.next() * CHUNK;
       g.block(x, 0, zz, 0.16, 0.14, 0.16, R.pick(look.flower));
     }
   }
 
   // The track bed, sleepers and rails.
-  g.quad([-3.75, 0.02, z1], [3.75, 0.02, z1], [3.75, 0.02, z0], [-3.75, 0.02, z0], look.bed);
-  g.quad([-4.1, 0.015, z1], [4.1, 0.015, z1], [4.1, 0.015, z0], [-4.1, 0.015, z0], shade(look.bed, 0.9));
-  g.quad([-3.75, 0.02, z1], [3.75, 0.02, z1], [3.75, 0.02, z0], [-3.75, 0.02, z0], look.bed);
+  g.quad([-BED - 0.35, 0.015, z1], [BED + 0.35, 0.015, z1], [BED + 0.35, 0.015, z0], [-BED - 0.35, 0.015, z0], shade(look.bed, 0.9));
+  g.quad([-BED, 0.02, z1], [BED, 0.02, z1], [BED, 0.02, z0], [-BED, 0.02, z0], look.bed);
   // Stones in the bed, lighter and darker.
-  for (let k = 0; k < 70; k++) {
-    const x = (R.next() - 0.5) * 7.2, z = z0 + R.next() * CHUNK, r = 0.06 + R.next() * 0.12;
+  for (let k = 0; k < 100; k++) {
+    const x = (R.next() - 0.5) * (BED * 2 - 0.3), z = z0 + R.next() * CHUNK, r = 0.06 + R.next() * 0.12;
     g.quad([x - r, 0.026, z + r], [x + r, 0.026, z + r], [x + r, 0.026, z - r], [x - r, 0.026, z - r], shade(look.bed, k % 2 ? 0.86 : 1.1));
   }
   // A strip of grass and weeds between the tracks.
-  for (const x of [-LANE / 2, LANE / 2]) g.quad([x - 0.1, 0.03, z1], [x + 0.1, 0.03, z1], [x + 0.1, 0.03, z0], [x - 0.1, 0.03, z0], mix(look.bed, look.grass2, 0.45));
+  for (const x of [-LANE / 2, LANE / 2]) g.quad([x - 0.22, 0.03, z1], [x + 0.22, 0.03, z1], [x + 0.22, 0.03, z0], [x - 0.22, 0.03, z0], mix(look.bed, look.grass2, 0.45));
   const sleeper = shade(mix(rgb('#7a5a3c'), look.bed, 0.25), 0.9);
   for (const lane of [-1, 0, 1]) {
     const x = lane * LANE;
-    for (let z = z1 - 0.5; z > z0; z -= 1) g.quad([x - 0.78, 0.04, z + 0.14], [x + 0.78, 0.04, z + 0.14], [x + 0.78, 0.04, z - 0.14], [x - 0.78, 0.04, z - 0.14], sleeper);
-    for (const sx of [-0.5, 0.5]) g.box(x + sx - 0.04, 0.04, z0, x + sx + 0.04, 0.1, z1, '#7f8794', { top: '#d5dbe6', noBottom: true });
+    for (let z = z1 - 0.5; z > z0; z -= 1) g.quad([x - 1.12, 0.04, z + 0.17], [x + 1.12, 0.04, z + 0.17], [x + 1.12, 0.04, z - 0.17], [x - 1.12, 0.04, z - 0.17], sleeper);
+    for (const sx of [-GAUGE, GAUGE]) g.box(x + sx - 0.05, 0.04, z0, x + sx + 0.05, 0.12, z1, '#7f8794', { top: '#d5dbe6', noBottom: true });
   }
 
   // Far hills and clouds (they don't cast shadows).
@@ -246,14 +250,15 @@ function buildChunk(index) {
   }
 
   // A telegraph pole each chunk, with the wire running on to the next.
-  p.box(-5.3, 0, z1 - 0.1, -5.1, 6, z1 + 0.1, '#7a5a3c');
-  p.box(-5.9, 5.3, z1 - 0.06, -4.5, 5.45, z1 + 0.06, '#7a5a3c');
-  for (const x of [-5.8, -4.6]) g.box(x - 0.015, 5.5, z0, x + 0.015, 5.53, z1, '#3a3f4a');
+  const px = -5.2 - OUT;
+  p.box(px - 0.1, 0, z1 - 0.1, px + 0.1, 6, z1 + 0.1, '#7a5a3c');
+  p.box(px - 0.7, 5.3, z1 - 0.06, px + 0.7, 5.45, z1 + 0.06, '#7a5a3c');
+  for (const x of [px - 0.6, px + 0.6]) g.box(x - 0.015, 5.5, z0, x + 0.015, 5.53, z1, '#3a3f4a');
 
   // A fence along one side or both, some of the time.
   for (const side of [-1, 1]) {
     if (R.next() < (look.kind === 'village' ? 0.8 : 0.45)) {
-      const x = side * 4.5, c = look.kind === 'village' ? rgb('#ffffff') : rgb('#b98146');
+      const x = side * (4.5 + OUT), c = look.kind === 'village' ? rgb('#ffffff') : rgb('#b98146');
       for (let z = z1; z > z0 + 0.1; z -= 2.5) p.box(x - 0.07, 0, z - 0.07, x + 0.07, 0.95, z + 0.07, c);
       for (const y of [0.4, 0.75]) p.box(x - 0.03, y, z0, x + 0.03, y + 0.1, z1, c);
     }
@@ -264,30 +269,30 @@ function buildChunk(index) {
   for (const side of [-1, 1]) {
     const trees = first ? 1 : look.kind === 'forest' ? 6 + R.int(4) : look.kind === 'snow' ? 4 + R.int(3) : 2 + R.int(3);
     for (let k = 0; k < trees; k++) {
-      const x = side * (6.5 + R.next() * (look.kind === 'forest' ? 20 : 30)), z = z0 + R.next() * CHUNK, s = 0.75 + R.next() * 0.9;
+      const x = side * (6.5 + OUT + R.next() * (look.kind === 'forest' ? 20 : 30)), z = z0 + R.next() * CHUNK, s = 1.15 + R.next() * 1.3;
       if (snowy || (look.kind === 'forest' && R.next() < 0.3)) pine(p, R, x, z, s, look, snowy);
       else tree(p, R, x, z, s, look);
     }
-    for (let k = 0; k < 3; k++) if (R.next() < 0.7) bush(p, R, side * (5.2 + R.next() * 4), z0 + R.next() * CHUNK, 0.7 + R.next() * 0.7, look);
-    if (R.next() < 0.3) rock(p, R, side * (5 + R.next() * 6), z0 + R.next() * CHUNK, 0.6 + R.next() * 0.8);
+    for (let k = 0; k < 3; k++) if (R.next() < 0.7) bush(p, R, side * (5.2 + OUT + R.next() * 4), z0 + R.next() * CHUNK, 0.7 + R.next() * 0.7, look);
+    if (R.next() < 0.3) rock(p, R, side * (5 + OUT + R.next() * 6), z0 + R.next() * CHUNK, 0.6 + R.next() * 0.8);
     if (first) continue;
     const roll = R.next();
-    const x = side * (10 + R.next() * 6);
+    const x = side * (12 + OUT + R.next() * 6);
     if (look.kind === 'village') {
       if (roll < 0.55) house(p, R, x, zm, look, side < 0 ? Math.PI / 2 : -Math.PI / 2);
-      if (R.next() < 0.5) lamp(p, side * 4.9, zm + 5);
+      if (R.next() < 0.5) lamp(p, side * (4.9 + OUT), zm + 5);
     } else if (look.kind === 'meadow') {
-      if (roll < 0.1) windmill(p, R, side * (13 + R.next() * 8), zm, look);
+      if (roll < 0.1) windmill(p, R, side * (15 + OUT + R.next() * 8), zm, look);
       else if (roll < 0.22) house(p, R, x, zm, look, side < 0 ? Math.PI / 2 : -Math.PI / 2);
-      else if (roll < 0.4) for (let k = 0; k < 3; k++) roundBale(p, R, side * (7 + R.next() * 8), z0 + R.next() * CHUNK);
+      else if (roll < 0.4) for (let k = 0; k < 3; k++) roundBale(p, R, side * (7 + OUT + R.next() * 8), z0 + R.next() * CHUNK);
       else if (roll < 0.52) haystack(p, R, x, zm);
-      else if (roll < 0.7) for (let k = 0; k < 12; k++) sunflower(p, R, side * (5.6 + (k % 4) * 0.8 + R.next() * 0.3), zm - 3 + Math.floor(k / 4) * 1.2 + R.next() * 0.3);
+      else if (roll < 0.7) for (let k = 0; k < 12; k++) sunflower(p, R, side * (5.6 + OUT + (k % 4) * 0.8 + R.next() * 0.3), zm - 3 + Math.floor(k / 4) * 1.2 + R.next() * 0.3);
     } else if (look.kind === 'forest') {
       if (roll < 0.12) house(p, R, x + side * 4, zm, look, side < 0 ? Math.PI / 2 : -Math.PI / 2);
-      else if (roll < 0.3) for (let k = 0; k < 3; k++) rock(p, R, side * (6 + R.next() * 8), z0 + R.next() * CHUNK, 0.8 + R.next());
+      else if (roll < 0.3) for (let k = 0; k < 3; k++) rock(p, R, side * (6 + OUT + R.next() * 8), z0 + R.next() * CHUNK, 0.8 + R.next());
     } else if (snowy) {
       if (roll < 0.2) house(p, R, x, zm, look, side < 0 ? Math.PI / 2 : -Math.PI / 2);
-      else if (roll < 0.38) snowman(p, R, side * (5.6 + R.next() * 2), zm + R.next() * 4);
+      else if (roll < 0.38) snowman(p, R, side * (5.6 + OUT + R.next() * 2), zm + R.next() * 4);
     }
   }
   return { index, ground: g, props: p };

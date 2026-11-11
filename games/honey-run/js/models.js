@@ -6,7 +6,9 @@
 import { Builder, M, rgb, mix, shade } from './gl.js';
 import { CAR, RAMP, ROOF, CART, CART_LEN } from './engine.js';
 
-const W = 0.92; // half the width of a wagon
+export const W = 1.4; // half the width of a wagon
+export const GAUGE = 0.7; // half the distance between the rails
+const X = W / 0.92; // (things across a wagon were first drawn for a narrower one)
 const DARK = '#2b2f3a', STEEL = '#59606e', WOOD = '#b98146', WOOD_D = '#8f5f2f', WOOD_L = '#d6a468';
 const TAU = Math.PI * 2;
 
@@ -20,9 +22,9 @@ function wheel(b, x, y, z, r = 0.34, w = 0.14) {
 
 function chassis(b, len) {
   b.box(-W + 0.06, 0.42, -len + 0.25, W - 0.06, 0.7, -0.25, DARK);
-  for (const z of [-1.25, -2.3, -len + 2.3, -len + 1.25]) for (const x of [-0.72, 0.72]) wheel(b, x, 0.34, z);
+  for (const z of [-1.25, -2.3, -len + 2.3, -len + 1.25]) for (const x of [-GAUGE, GAUGE]) wheel(b, x, 0.36, z, 0.36, 0.16);
   // Buffers at each end.
-  for (const z of [-0.12, -len + 0.12]) for (const x of [-0.5, 0.5]) b.block(x, 0.48, z, 0.16, 0.16, 0.26, STEEL);
+  for (const z of [-0.12, -len + 0.12]) for (const x of [-0.8, 0.8]) b.block(x, 0.46, z, 0.2, 0.2, 0.26, STEEL);
 }
 
 // A freight wagon. style 0: boxcar. 1: coach. 2: two containers.
@@ -42,15 +44,15 @@ function wagon(style, colour, second) {
       // Doors on the end you see.
       b.box(-W + 0.14, 1.0, e, -0.03, ROOF - 0.14, e + 0.03, shade(col, 0.86));
       b.box(0.03, 1.0, e, W - 0.14, ROOF - 0.14, e + 0.03, shade(col, 0.86));
-      b.box(-0.2, 1.7, e + 0.03, -0.12, 2.3, e + 0.06, '#e8ecf2');
-      b.box(0.12, 1.7, e + 0.03, 0.2, 2.3, e + 0.06, '#e8ecf2');
+      b.box(-0.3, 1.6, e + 0.03, -0.2, 2.3, e + 0.06, '#e8ecf2');
+      b.box(0.2, 1.6, e + 0.03, 0.3, 2.3, e + 0.06, '#e8ecf2');
     });
     return b;
   }
   // The body, with a paler roof and a walkway of planks along the top.
   b.box(-W, 0.7, z0, W, ROOF - 0.08, z1, c, { noTop: true });
   b.box(-W - 0.05, ROOF - 0.08, z0 - 0.05, W + 0.05, ROOF, z1 + 0.05, mix(c, [0.9, 0.92, 0.95], 0.72));
-  b.box(-0.3, ROOF, z0 + 0.2, 0.3, ROOF + 0.03, z1 - 0.2, WOOD_L);
+  b.box(-0.45, ROOF, z0 + 0.2, 0.45, ROOF + 0.03, z1 - 0.2, WOOD_L);
   b.box(-W - 0.01, 0.7, z0 - 0.01, W + 0.01, 0.98, z1 + 0.01, dark, { noTop: true, noBottom: true });
   if (style === 0) {
     // Ribs, and a sliding door in the middle of each side.
@@ -60,20 +62,21 @@ function wagon(style, colour, second) {
       b.box(sx * (W + 0.05), 1.75, -len / 2 + 0.7, sx * (W + 0.09), 1.95, -len / 2 + 0.85, DARK);
     }
     // The end you see: a ladder and a panel.
-    b.box(-0.62, 1.05, z1, 0.62, ROOF - 0.3, z1 + 0.03, light);
-    for (let y = 1.0; y < ROOF - 0.2; y += 0.36) b.box(0.42, y, z1 + 0.03, 0.8, y + 0.06, z1 + 0.08, DARK);
+    b.box(-0.62 * X, 1.05, z1, 0.62 * X, ROOF - 0.3, z1 + 0.03, light);
+    for (let y = 1.0; y < ROOF - 0.2; y += 0.36) b.box(0.7, y, z1 + 0.03, 1.2, y + 0.06, z1 + 0.08, DARK);
   } else {
     // A coach: cream above, a row of windows, a door on the end.
     b.box(-W - 0.01, 1.55, z0 - 0.01, W + 0.01, ROOF - 0.08, z1 + 0.01, '#f6edd6', { noTop: true, noBottom: true });
     for (let z = z0 + 0.45; z < z1 - 0.9; z += 1.25) for (const sx of [-1, 1]) b.box(sx * (W + 0.01), 1.75, z, sx * (W + 0.035), 2.5, z + 0.85, '#3d5a80');
-    b.box(-0.36, 0.98, z1 + 0.01, 0.36, 2.66, z1 + 0.04, dark);
-    b.box(-0.24, 1.8, z1 + 0.04, 0.24, 2.5, z1 + 0.06, '#3d5a80');
-    for (const sx of [-1, 1]) b.box(sx * 0.62 - 0.14, 1.8, z1 + 0.01, sx * 0.62 + 0.14, 2.5, z1 + 0.04, '#3d5a80');
+    b.box(-0.48, 0.98, z1 + 0.01, 0.48, 2.66, z1 + 0.04, dark);
+    b.box(-0.32, 1.8, z1 + 0.04, 0.32, 2.5, z1 + 0.06, '#3d5a80');
+    for (const sx of [-1, 1]) b.box(sx * 0.95 - 0.24, 1.8, z1 + 0.01, sx * 0.95 + 0.24, 2.5, z1 + 0.04, '#3d5a80');
   }
   return b;
 }
 
 // The engine at the head of a rolling train: you see its face.
+export const LAMP_X = 0.86;
 function engine() {
   const b = new Builder(), len = CAR, z0 = -len + 0.22, z1 = -0.3;
   chassis(b, len);
@@ -85,11 +88,11 @@ function engine() {
   b.box(-W - 0.012, 2.02, z0 - 0.01, W + 0.012, 2.18, z1 + 0.012, '#f6edd6', { noTop: true, noBottom: true });
   for (const sx of [-1, 1]) for (const z of [z1 - 1.5, z1 - 3.1]) b.box(sx * (W + 0.01), 2.25, z, sx * (W + 0.035), 2.75, z + 1.1, '#2c3e5c');
   // The face: two windows, a striped bumper, lamps.
-  b.box(-0.78, 2.2, z1, -0.08, 2.76, z1 + 0.035, '#2c3e5c');
-  b.box(0.08, 2.2, z1, 0.78, 2.76, z1 + 0.035, '#2c3e5c');
-  for (let k = 0; k < 8; k++) b.box(-W + k * 0.23, 0.72, z1, -W + (k + 1) * 0.23, 1.04, z1 + 0.05, k % 2 ? '#ffd23f' : DARK);
-  for (const sx of [-1, 1]) b.with(M.chain(M.move(sx * 0.56, 1.5, z1 + 0.02), M.rotX(Math.PI / 2)), () => b.column(10, 0, 0, 0, 0.2, 0.2, 0.08, '#fff7c2', { top: '#fff7c2' }));
-  b.with(M.chain(M.move(0, 1.75, z1 + 0.02), M.rotX(Math.PI / 2)), () => b.column(10, 0, 0, 0, 0.13, 0.13, 0.07, '#fff7c2'));
+  b.box(-1.2, 2.1, z1, -0.1, 2.76, z1 + 0.035, '#2c3e5c');
+  b.box(0.1, 2.1, z1, 1.2, 2.76, z1 + 0.035, '#2c3e5c');
+  for (let k = 0; k < 8; k++) b.box(-W + (k * W) / 4, 0.72, z1, -W + ((k + 1) * W) / 4, 1.04, z1 + 0.05, k % 2 ? '#ffd23f' : DARK);
+  for (const sx of [-1, 1]) b.with(M.chain(M.move(sx * LAMP_X, 1.5, z1 + 0.02), M.rotX(Math.PI / 2)), () => b.column(10, 0, 0, 0, 0.26, 0.26, 0.08, '#fff7c2', { top: '#fff7c2' }));
+  b.with(M.chain(M.move(0, 1.72, z1 + 0.02), M.rotX(Math.PI / 2)), () => b.column(10, 0, 0, 0, 0.16, 0.16, 0.07, '#fff7c2'));
   // A wedge to clear the line.
   b.quad([-W, 0.12, z1 + 0.55], [W, 0.12, z1 + 0.55], [W, 0.62, z1], [-W, 0.62, z1], STEEL);
   b.tri([-W, 0.12, z1 + 0.55], [-W, 0.62, z1], [-W, 0.12, z1], STEEL);
@@ -99,7 +102,7 @@ function engine() {
 
 // A ramp of planks up to roof height, with arrows painted on it.
 function ramp() {
-  const b = new Builder(), len = RAMP, w = 0.9, n = 9;
+  const b = new Builder(), len = RAMP, w = W - 0.04, n = 9;
   const top = (k) => [(k / n) * ROOF, -(k / n) * len];
   for (let k = 0; k < n; k++) {
     const [y0, za] = top(k), [y1, zb] = top(k + 1);
@@ -109,34 +112,34 @@ function ramp() {
   for (const sx of [-1, 1]) {
     b.tri([sx * w, 0, 0], [sx * w, 0, -len], [sx * w, ROOF, -len], WOOD_D);
     // A rail to run your eye up.
-    b.quad([sx * w, 0.02, 0], [sx * (w - 0.1), 0.02, 0], [sx * (w - 0.1), ROOF + 0.02, -len], [sx * w, ROOF + 0.02, -len], '#ffd23f');
+    b.quad([sx * w, 0.02, 0], [sx * (w - 0.14), 0.02, 0], [sx * (w - 0.14), ROOF + 0.02, -len], [sx * w, ROOF + 0.02, -len], '#ffd23f');
   }
   b.quad([-w, 0, -len], [w, 0, -len], [w, ROOF, -len], [-w, ROOF, -len], WOOD_D);
   // Arrows pointing up the slope.
   for (const k of [2.2, 4.4, 6.6]) {
     const at = (kk, x) => { const [y, z] = top(kk); return [x, y + 0.02, z]; };
-    b.quad(at(k, -0.5), at(k, -0.25), at(k + 1.1, 0), at(k + 1.5, 0), '#ffffff');
-    b.quad(at(k, 0.25), at(k, 0.5), at(k + 1.5, 0), at(k + 1.1, 0), '#ffffff');
+    b.quad(at(k, -0.76), at(k, -0.38), at(k + 1.1, 0), at(k + 1.5, 0), '#ffffff');
+    b.quad(at(k, 0.38), at(k, 0.76), at(k + 1.5, 0), at(k + 1.1, 0), '#ffffff');
   }
   return b;
 }
 
 // A fence to jump: red and white along the top.
 function fence() {
-  const b = new Builder();
-  for (const x of [-0.82, 0.82]) b.block(x, 0, -0.25, 0.16, 1.02, 0.16, WOOD_D, { top: WOOD_L });
-  b.box(-0.9, 0.3, -0.31, 0.9, 0.5, -0.19, WOOD);
-  for (let k = 0; k < 6; k++) b.box(-0.9 + k * 0.3, 0.68, -0.33, -0.6 + k * 0.3, 0.96, -0.17, k % 2 ? '#ffffff' : '#e5383b');
+  const b = new Builder(), w = W - 0.05;
+  for (const x of [-w + 0.12, w - 0.12]) b.block(x, 0, -0.25, 0.24, 1.06, 0.24, WOOD_D, { top: WOOD_L });
+  b.box(-w, 0.26, -0.33, w, 0.5, -0.17, WOOD);
+  for (let k = 0; k < 6; k++) b.box(-w + (k * w) / 3, 0.64, -0.36, -w + ((k + 1) * w) / 3, 1.0, -0.14, k % 2 ? '#ffffff' : '#e5383b');
   return b;
 }
 
 // Hay bales to jump.
 function bales() {
   const b = new Builder();
-  for (const [x, r] of [[-0.46, 0.05], [0.46, -0.04]]) {
-    b.with(M.chain(M.move(x, 0, -0.25), M.rotY(r)), () => {
-      b.block(0, 0, 0, 0.86, 0.9, 0.62, '#f2c84b', { top: '#ffe08a' });
-      for (const z of [-0.18, 0.18]) b.box(-0.44, 0, z - 0.03, 0.44, 0.91, z + 0.03, '#c9982b');
+  for (const [x, r] of [[-0.68, 0.05], [0.68, -0.04]]) {
+    b.with(M.chain(M.move(x, 0, -0.3), M.rotY(r)), () => {
+      b.block(0, 0, 0, 1.3, 0.92, 0.8, '#f2c84b', { top: '#ffe08a' });
+      for (const z of [-0.22, 0.22]) b.box(-0.66, 0, z - 0.04, 0.66, 0.93, z + 0.04, '#c9982b');
     });
   }
   return b;
@@ -144,29 +147,29 @@ function bales() {
 
 // A barrier to roll under: a striped board between two tall posts.
 function barrier() {
-  const b = new Builder();
-  for (const x of [-0.88, 0.88]) {
-    b.block(x, 0, -0.25, 0.16, 2.95, 0.16, STEEL, { top: '#aab1bf' });
-    b.block(x, 2.95, -0.25, 0.22, 0.14, 0.22, '#ffd23f');
+  const b = new Builder(), w = W - 0.16;
+  for (const x of [-w - 0.02, w + 0.02]) {
+    b.block(x, 0, -0.25, 0.22, 2.95, 0.22, STEEL, { top: '#aab1bf' });
+    b.block(x, 2.95, -0.25, 0.3, 0.14, 0.3, '#ffd23f');
   }
-  for (let k = 0; k < 8; k++) b.box(-0.8 + k * 0.2, 1.28, -0.31, -0.6 + k * 0.2, 2.5, -0.19, k % 2 ? '#2b2f3a' : '#ffd23f');
-  b.box(-0.8, 2.5, -0.33, 0.8, 2.62, -0.17, STEEL);
-  b.box(-0.8, 1.2, -0.33, 0.8, 1.28, -0.17, STEEL);
+  for (let k = 0; k < 8; k++) b.box(-w + (k * w) / 4, 1.28, -0.32, -w + ((k + 1) * w) / 4, 2.5, -0.18, k % 2 ? '#2b2f3a' : '#ffd23f');
+  b.box(-w, 2.5, -0.34, w, 2.62, -0.16, STEEL);
+  b.box(-w, 1.2, -0.34, w, 1.28, -0.16, STEEL);
   return b;
 }
 
 // A hay cart: low enough to jump onto.
 function cart() {
-  const b = new Builder(), len = CART_LEN;
-  for (const z of [-0.9, -len + 0.9]) for (const x of [-0.8, 0.8]) wheel(b, x, 0.42, z, 0.42, 0.12);
-  b.box(-0.86, 0.5, -len + 0.15, 0.86, 0.7, -0.15, WOOD_D);
-  for (const sx of [-1, 1]) b.box(sx * 0.86, 0.7, -len + 0.15, sx * 0.78, 1.15, -0.15, WOOD);
-  b.box(-0.78, 0.7, -len + 0.15, 0.78, 1.15, -len + 0.23, WOOD);
-  b.box(-0.78, 0.7, -0.23, 0.78, 1.15, -0.15, WOOD);
-  b.box(-0.8, 1.0, -len + 0.2, 0.8, CART, -0.2, '#f2c84b', { top: '#ffe08a' });
-  for (let z = -0.7; z > -len + 0.5; z -= 0.8) b.box(-0.81, 1.15, z - 0.03, 0.81, CART + 0.005, z + 0.03, '#c9982b');
+  const b = new Builder(), len = CART_LEN, w = W - 0.1;
+  for (const z of [-0.9, -len + 0.9]) for (const x of [-w + 0.08, w - 0.08]) wheel(b, x, 0.42, z, 0.42, 0.16);
+  b.box(-w, 0.5, -len + 0.15, w, 0.7, -0.15, WOOD_D);
+  for (const sx of [-1, 1]) b.box(sx * w, 0.7, -len + 0.15, sx * (w - 0.1), 1.15, -0.15, WOOD);
+  b.box(-w + 0.1, 0.7, -len + 0.15, w - 0.1, 1.15, -len + 0.25, WOOD);
+  b.box(-w + 0.1, 0.7, -0.25, w - 0.1, 1.15, -0.15, WOOD);
+  b.box(-w + 0.08, 1.0, -len + 0.2, w - 0.08, CART, -0.2, '#f2c84b', { top: '#ffe08a' });
+  for (let z = -0.7; z > -len + 0.5; z -= 0.8) b.box(-w + 0.07, 1.15, z - 0.03, w - 0.07, CART + 0.005, z + 0.03, '#c9982b');
   // Shafts.
-  for (const x of [-0.5, 0.5]) b.box(x - 0.05, 0.5, -0.15, x + 0.05, 0.6, 0.7, WOOD_D);
+  for (const x of [-0.75, 0.75]) b.box(x - 0.06, 0.5, -0.15, x + 0.06, 0.6, 0.7, WOOD_D);
   return b;
 }
 
