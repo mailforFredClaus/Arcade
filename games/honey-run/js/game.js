@@ -4,7 +4,7 @@
 
 import { Run, STEP, LANE, CAR, ROOF, POWER_TIME, POWERS } from './engine.js';
 import { Renderer, M } from './gl.js';
-import { makeModels, SKINS } from './models.js';
+import { makeModels, SKINS, LAMP_X } from './models.js';
 import { World, lookAt, zoneName } from './world.js';
 import { store, settings, sfx, haptic, unlockAudio, lockViewport, registerOffline } from '../../../shared/arcade.js';
 import { cards, switchRow, toast, confetti, ICON } from '../../../shared/ui.js';
@@ -18,7 +18,8 @@ const R = new Renderer(canvas);
 const models = makeModels(R);
 const world = new World(R);
 const TAU = Math.PI * 2;
-const CUB = 1.22; // how big the cub is drawn
+const CUB = 0.92; // how big the cub is drawn: about half as tall as a wagon
+const TALL = 1.72 * CUB; // the top of its head
 const lerp = (a, b, k) => a + (b - a) * k;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const ease = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
@@ -89,6 +90,7 @@ function freshRun() {
   goalsDone = goalState(null).map((gl) => gl.done);
   sparks.length = 0;
   cam.ys = 0;
+  cam.xs = 0;
   lastZone = zoneName(0);
 }
 
@@ -307,7 +309,7 @@ function checkGoals() {
 
 // ---- the camera -----------------------------------------------------------------------
 
-const cam = { ys: 0, k: 0, eye: [0, 0, 0], at: [0, 0, 0], view: null, proj: null, vp: null };
+const cam = { ys: 0, xs: 0, k: 0, eye: [0, 0, 0], at: [0, 0, 0], view: null, proj: null, vp: null };
 let W = 1, H = 1;
 
 function layout() {
@@ -322,15 +324,20 @@ function aim(dt, now) {
   const want = phase === 'title' ? 0 : 1;
   cam.k = want > cam.k ? Math.min(want, cam.k + dt * 1.5) : Math.max(want, cam.k - dt * 1.5);
   const k = ease(cam.k);
-  cam.ys += (run.y - cam.ys) * Math.min(1, dt * (run.flying || run.landing ? 3 : 5));
+  cam.ys += (run.y - cam.ys) * Math.min(1, dt * (run.flying || run.landing ? 4.5 : 5));
   const ys = cam.ys;
+  // (The lanes are wide, so the camera glides across after the cub rather than snapping with it.)
+  cam.xs += (run.x - cam.xs) * Math.min(1, dt * 11);
+  const xs = cam.xs;
   const wide = aspect > 1;
-  const back = wide ? 6.6 : 8.2, up = wide ? 4.0 : 5.0;
-  const playEye = [run.x * 0.7, up + ys * 0.82, z + back];
-  const playAt = [run.x * 0.82, 1.2 + ys * 0.85, z - 6];
-  const sway = Math.sin(now / 2600) * 0.5;
-  const titleEye = [(wide ? 2.8 : 1.9) + sway, 1.5, z - (wide ? 4.8 : 6)];
-  const titleAt = [0, wide ? 1.1 : 1.7, z];
+  // (Close and low enough that one lane nearly fills a phone, the lanes
+  // beside it run off the edges, and a wagon stands twice as tall as the cub.)
+  const back = wide ? 5.4 : 5.6, up = wide ? 3.7 : 5.0;
+  const playEye = [xs * 0.8, up + ys * 0.86, z + back];
+  const playAt = [xs * 0.9, (wide ? 0.5 : 1.1) + ys * 0.9, z - 6];
+  const sway = Math.sin(now / 2600) * 0.4;
+  const titleEye = [(wide ? 2.1 : 1.45) + sway, 1.15, z - (wide ? 3.6 : 4.6)];
+  const titleAt = [0, wide ? 1.25 : 1.3, z];
   for (let i = 0; i < 3; i++) {
     cam.eye[i] = lerp(titleEye[i], playEye[i], k);
     cam.at[i] = lerp(titleAt[i], playAt[i], k);
@@ -344,7 +351,7 @@ function aim(dt, now) {
     cam.eye[1] += Math.cos(now / 13) * shake * 0.4;
   }
   // The view opens out a little as the cub speeds up.
-  const fov = ((wide ? 56 : aspect > 0.7 ? 64 : 72) + (run.speed - 12.5) * 0.55 * k) * (Math.PI / 180);
+  const fov = ((wide ? 52 : aspect > 0.7 ? 60 : 66) + (run.speed - 12.5) * 0.4 * k) * (Math.PI / 180);
   cam.proj = M.perspective(fov, aspect, 0.5, 420);
   cam.view = M.lookAt(cam.eye, cam.at);
   cam.vp = M.mul(cam.proj, cam.view);
@@ -363,7 +370,7 @@ function onScreen(dir) {
 // The cub's pose, as matrices for its parts.
 function cubParts(now, t) {
   const z = -run.s, sp = run.speed;
-  const phaseRun = run.s * 1.15;
+  const phaseRun = run.s * 1.5;
   const running = phase !== 'title' && run.grounded && !run.rolling && !run.dead;
   const air = !run.grounded && !run.flying && !run.dead && phase !== 'title';
   let legL = 0, legR = 0, armL = 0, armR = 0, bob = 0, tilt = -0.14, headTilt = 0.05, pitch = 0, lift = 0, scale = 1, yaw = 0;
@@ -445,7 +452,7 @@ function obstacleDraws() {
         const mesh = o.v && i === 0 ? models.engine : models.wagons[o.look][(o.id + i) % 3];
         out.push([mesh, M.move(o.lane * LANE, 0, -(o.s0 + i * CAR))]);
         // An engine's lamps are lit.
-        if (o.v && i === 0) for (const dx of [-0.56, 0.56]) lamps.push([o.lane * LANE + dx, 1.5, -o.s0 - 0.2, 0.3, 0.9, 0.8, 0.45]);
+        if (o.v && i === 0) for (const dx of [-LAMP_X, LAMP_X]) lamps.push([o.lane * LANE + dx, 1.5, -o.s0 - 0.2, 0.4, 0.9, 0.8, 0.45]);
       }
     } else {
       const mesh = o.kind === 'ramp' ? models.ramp : o.kind === 'cart' ? models.cart : o.kind === 'high' ? models.high : models.low[o.id % 2];
@@ -468,7 +475,7 @@ function draw(now, dt) {
   const hz = onScreen([fx / fl, -0.02, fz / fl]);
   const sunAt = onScreen(look.sun) || [-3, 3];
   R.begin({
-    vp: cam.vp, bend: [0.00075, swing, z], sun: look.sun, sunCol: look.sunCol, sky: look.skyLight, ground: look.groundLight,
+    vp: cam.vp, bend: [0.0004, swing, z], sun: look.sun, sunCol: look.sunCol, sky: look.skyLight, ground: look.groundLight,
     fogCol: look.fog, fog: [55, 150], top: look.top, sunGlow: look.glow, sunAt, sunSize: 0.42, horizon: hz ? hz[1] : -0.2,
   });
   world.drawGround();
@@ -500,8 +507,8 @@ function draw(now, dt) {
   const parts = cubParts(now);
   const blink = run.ghost > 0 && !run.dead && Math.floor(now / 70) % 2 === 0;
   if (!blink) drawCub(parts);
-  if (run.flying || run.landing) R.draw(models.power.fly, M.chain(M.move(run.x, run.y + 2.75, z), M.rotY(Math.sin(now / 700) * 0.3), M.scale(1.35)));
-  else if (run.power.magnet > 0) R.draw(models.power.magnet, M.chain(M.move(run.x, run.y + 2.75 + Math.sin(now / 250) * 0.06, z), M.rotY(now / 400), M.scale(0.6)));
+  if (run.flying || run.landing) R.draw(models.power.fly, M.chain(M.move(run.x, run.y + TALL + 0.65, z), M.rotY(Math.sin(now / 700) * 0.3), M.scale(1.15)));
+  else if (run.power.magnet > 0) R.draw(models.power.magnet, M.chain(M.move(run.x, run.y + TALL + 0.6 + Math.sin(now / 250) * 0.06, z), M.rotY(now / 400), M.scale(0.6)));
   if (run.power.boots > 0) {
     for (const leg of [parts.legL, parts.legR]) R.draw(models.bootOn, leg);
     if (run.grounded && Math.random() < 0.5) spark(run.x, run.y + 0.1, z + 0.2, 1, [1, 0.6, 0.15], 1.5, 0.12, 0.3, 0);
@@ -515,7 +522,7 @@ function draw(now, dt) {
     const bz = z + lerp(13, 2.6, ease(Math.min(1, close))) - (close > 1 ? 2.4 : 0);
     for (let k = 0; k < 14; k++) {
       const a = now / (190 + k * 13) + k * 2.1, b = now / (260 + k * 7) + k;
-      const x = run.x + Math.cos(a) * (0.5 + (k % 4) * 0.25), y = run.y + 1.3 + Math.sin(b) * 0.6 + (k % 3) * 0.2, zz = bz + Math.sin(a * 0.7) * 0.8;
+      const x = run.x + Math.cos(a) * (0.45 + (k % 4) * 0.22), y = run.y + 1.0 + Math.sin(b) * 0.5 + (k % 3) * 0.18, zz = bz + Math.sin(a * 0.7) * 0.8;
       if (zz > cam.eye[2] - 1.5) continue;
       const m = M.chain(M.move(x, y, zz), M.scale(1.25));
       R.draw(models.bee, m);
@@ -536,8 +543,8 @@ function draw(now, dt) {
   // See-through things.
   if (run.power.bubble > 0) {
     const wob = 1 + Math.sin(now / 160) * 0.03;
-    R.glass(models.bubble, M.chain(M.move(run.x, run.y + 1.05, z), M.rotY(now / 900), M.scale(1.4 * wob, 1.5 / wob, 1.4 * wob)), run.power.bubble < 2 && Math.floor(now / 120) % 2 ? 0.1 : 0.24, BUBBLE);
-    glowList.push([run.x - 0.55, run.y + 1.9, z + 0.8, 0.24, 0.9, 0.95, 1]);
+    R.glass(models.bubble, M.chain(M.move(run.x, run.y + TALL * 0.5, z), M.rotY(now / 900), M.scale(1.1 * wob, 1.18 / wob, 1.1 * wob)), run.power.bubble < 2 && Math.floor(now / 120) % 2 ? 0.1 : 0.24, BUBBLE);
+    glowList.push([run.x - 0.42, run.y + 1.45, z + 0.62, 0.2, 0.9, 0.95, 1]);
   }
 
   // Sparks.

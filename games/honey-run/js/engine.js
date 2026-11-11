@@ -29,7 +29,7 @@
 // side just before it). So there is always a way through on the ground,
 // and the roofs are there for the coins.
 
-export const LANE = 2; // metres between lanes
+export const LANE = 3.4; // metres between lanes
 export const STEP = 1 / 120; // seconds per step
 export const GRAVITY = 38, JUMP = 13;
 // With boots a jump is nearly twice as high but hardly any longer, so the
@@ -43,7 +43,7 @@ export const V0 = 12.5, VMAX = 25;
 export const speedAt = (s) => Math.min(VMAX, V0 + s / 280);
 export const AHEAD = 150, BEHIND = 24;
 const STEP_UP = 0.5; // a ledge this much above your feet is run up onto, not into
-const SIDE = 15; // sideways speed when changing lane, metres a second
+const SIDE = 25.5; // sideways speed when changing lane, metres a second
 
 // How long each power-up lasts at upgrade levels 0 to 5.
 export const POWER_TIME = { magnet: [8, 10, 12, 15, 18, 22], fly: [6, 7, 8, 9.5, 11, 13], boots: [8, 10, 12, 15, 18, 22], double: [8, 10, 12, 15, 18, 22], bubble: [14, 17, 20, 24, 28, 34] };
@@ -377,7 +377,7 @@ export class Run {
         c.y += (cy - c.y) * k;
         c.s += (this.s - c.s) * k;
       }
-      if (Math.abs(c.s - this.s) < 0.8 && Math.abs(c.x - this.x) < 1.05 && Math.abs(c.y - cy) < 1.35) {
+      if (Math.abs(c.s - this.s) < 0.8 && Math.abs(c.x - this.x) < LANE * 0.52 && Math.abs(c.y - cy) < 1.35) {
         c.taken = true;
         this.coins++;
         this.score += 5 * this.multiplier();
