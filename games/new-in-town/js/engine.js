@@ -17,7 +17,7 @@
 import {
   SEASONS, STATS, STAT_NAME, PLACES, CAREERS, SHIFTS_FOR_RUNG, COURSES, GRADES, STUDENT_RATE, HOMES, UPGRADES, FOOD, INSURANCE, ITEMS, TRIPS,
   SAVINGS_RATE, LOAN_RATE, STOCKS, HEADLINES, PLOT_RENT, FESTS, NAMES_M, NAMES_F, PET_NAMES, PETS, BACKGROUNDS, LOOKS,
-  DREAMS, QUESTS, TROPHIES, RIBBONS, money, cashShort,
+  DREAMS, QUESTS, TROPHIES, RIBBONS, money, cashShort, an, lowJob,
 } from './data.js';
 import { EVENTS } from './events.js';
 import { install } from './living.js';
@@ -1587,7 +1587,7 @@ export class Life {
     );
     return {
       name: s.name, age: s.age, cause: s.dead ? s.dead.cause : '', gen: s.gen, worth, score, ribbon,
-      title: s.job ? this.jobTitle() : s.biz ? `Ran a ${this.bizName().toLowerCase()}` : s.retired ? 'Retired' : '',
+      title: s.job ? this.jobTitle() : s.biz ? `Ran ${an(lowJob(this.bizName()))}` : s.retired ? 'Retired' : '',
       dreams: s.dreams.map((id) => ({ id, done: !!s.dreamDone[id] })),
       trophies: Object.keys(s.ach).length,
       kids: kids.length, spouse: spouse ? spouse.name : null,

@@ -7,7 +7,7 @@
 // makes the next one riskier until it cools. Get caught and a card decides
 // the rest: fines for small things, prison for big ones.
 
-import { CAREERS, ITEMS, CURIOS, money, low } from './data.js';
+import { CAREERS, ITEMS, CURIOS, money, low, an } from './data.js';
 
 // What bending the rules looks like in each line of work.
 const GRAFT = {
@@ -112,7 +112,7 @@ export function install({ def, A, Life, clamp }) {
       if (L.crime(0.2, 1, 'half the shop under your coat')) return 'A hand lands on your shoulder at the door.';
       s.n.thefts = (s.n.thefts || 0) + 1;
       const take = ['books', 'rod', 'easel', 'guitar', 'phone'].filter((id) => !s.items[id]);
-      if (take.length && L.chance(0.5)) { const id = L.pick(take); s.items[id] = 1; return `You walk out with a ${ITEMS[id].name.toLowerCase()} and a hammering heart. Nobody says a word.`; }
+      if (take.length && L.chance(0.5)) { const id = L.pick(take); s.items[id] = 1; return `You walk out with ${an(ITEMS[id].name.toLowerCase())} and a hammering heart. Nobody says a word.`; }
       const got = L.int(8, 40) * 10;
       L.cash(got);
       return `Razors, perfume, a ham. Sal gives you ${money(got)} for the lot.`;

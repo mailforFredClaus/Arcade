@@ -431,7 +431,7 @@ export function install({ def, A, Life, clamp }) {
       L.pay(p);
       const e = { id: s.eid++, kind, ups: {}, let: true };
       s.estate.push(e);
-      L.note(`Bought a ${L.propSaid(e)} to let out.`);
+      L.note(`Bought ${an(L.propSaid(e))} to let out.`);
       return `The ${L.propSaid(e)} is yours${p.loan ? ` (${money(p.loan)} of it borrowed)` : ''}, and a tenant moves in. It should bring in about ${money(L.propEarn(e))} a season.`;
     },
   });
@@ -493,9 +493,9 @@ export function install({ def, A, Life, clamp }) {
       const u = UPGRADES[x.id], e = L.homeEntry();
       e.ups[x.id] = 1;
       L.joy(4);
-      if (!x.diy) return `The builders are in for a fortnight. Then: a ${u.name.toLowerCase()}. ${u.blurb}`;
+      if (!x.diy) return `The builders are in for a fortnight. Then: ${an(u.name.toLowerCase())}. ${u.blurb}`;
       L.gain('craft', 2.5); L.s.f.diy = 1;
-      return `Weekends of sawdust and swearing, and it is done: a ${u.name.toLowerCase()}, built with your own hands. ${u.blurb}`;
+      return `Weekends of sawdust and swearing, and it is done: ${an(u.name.toLowerCase())}, built with your own hands. ${u.blurb}`;
     },
   });
   def('estateOpen', { place: 'home', sec: 'Moving', icon: '🏘️', title: 'Your property', desc: 'What you own: live in it, let it out, or sell it.', time: 0, open: 'estate', show: (L) => L.s.estate.length > 0 });
@@ -545,7 +545,7 @@ export function install({ def, A, Life, clamp }) {
       const k = BUSINESSES[type];
       L.s.biz = { type, lvl: 0, rep: 30, mgr: false, age: 0, at: L.s.t };
       L.joy(6);
-      L.note(`Went into business: a ${k.names[0].toLowerCase()}.`, 'big');
+      L.note(`Went into business: ${an(lowJob(k.names[0]))}.`, 'big');
       return `You are in business. Your ${k.names[0].toLowerCase()} is at ${PLACES[k.place].name}: work in it to bring in money and build its name.`;
     },
   });
@@ -566,7 +566,7 @@ export function install({ def, A, Life, clamp }) {
   });
   def('bizGrow', {
     place: bizPlace, sec: 'Your business', icon: '📈',
-    title: (L) => `Grow it into a ${BUSINESSES[L.s.biz.type].names[L.s.biz.lvl + 1].toLowerCase()}`,
+    title: (L) => `Grow it into ${an(lowJob(BUSINESSES[L.s.biz.type].names[L.s.biz.lvl + 1]))}`,
     desc: 'More takings, and it starts to earn without you.',
     cost: (L) => L.bizCost(L.s.biz.lvl + 1),
     show: (L) => !!L.s.biz && L.s.biz.lvl < 3,
@@ -580,8 +580,8 @@ export function install({ def, A, Life, clamp }) {
       const b = L.s.biz;
       b.lvl++; b.rep = 45; b.at = L.s.t; L.joy(8);
       if (b.lvl === 3) L.s.f.mogul = 1;
-      L.note(`The business grew into a ${L.bizName().toLowerCase()}.`, 'big');
-      return `New premises, new staff, your name over the door in bigger letters. You now run a ${L.bizName().toLowerCase()}.`;
+      L.note(`The business grew into ${an(lowJob(L.bizName()))}.`, 'big');
+      return `New premises, new staff, your name over the door in bigger letters. You now run ${an(lowJob(L.bizName()))}.`;
     },
   });
   def('bizMgr', {
