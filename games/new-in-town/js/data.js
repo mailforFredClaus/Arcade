@@ -518,6 +518,7 @@ export const DREAMS = {
   record: { name: 'A hit record', icon: '💿', desc: 'Record an album that goes to number one.', test: (L) => !!L.s.f.hit },
   magpie: { name: 'The collector', icon: '🏺', desc: 'Complete two sets of curios.', test: (L) => Object.keys(CURIO_SETS).filter((k) => L.hasSet(k)).length + (L.s.n.sets || 0) >= 2 },
   plot: { name: 'Best in show', icon: '🥒', desc: 'Win the Harvest Show.', test: (L) => !!L.s.f.marrow },
+  legacy: { name: 'Something that lasts', icon: '🏗️', desc: 'Give the town a lifeboat, or something bigger.', test: (L) => ['lifeboat', 'scholarship', 'wing', 'pier'].some((id) => L.s.gave[id]) },
   invest: { name: 'Money that works', icon: '📈', desc: 'Hold $500,000 in shares.', test: (L) => L.sharesWorth() >= 5e5 },
 };
 
@@ -626,6 +627,10 @@ export const TROPHIES = {
   curator: { name: 'Magpie', icon: '🏺', desc: 'Find every curio in Starling Bay.', test: (L) => Object.keys(CURIOS).every((c) => L.s.curSeen[c]) },
   patron: { name: 'Patron of the museum', icon: '🏛️', desc: 'Give a whole set of curios to the museum.', test: (L) => !!L.s.f.patron },
   seed: { name: 'Forty years of seed', icon: '🫙', desc: 'Be given Mrs Pargeter’s seed tin.', test: (L) => L.s.f.parg === 3 },
+  plaque: { name: 'Your name on it', icon: '🪧', desc: 'Give the town something from the mayor’s appeal.', test: (L) => Object.keys(L.s.gave).length >= 1 },
+  benefactor: { name: 'Benefactor', icon: '🏗️', desc: 'Give the town three things.', test: (L) => Object.keys(L.s.gave).length >= 3 },
+  pier: { name: 'To the very end', icon: '🎡', desc: 'Rebuild the pier.', test: (L) => !!L.s.gave.pier },
+  sides: { name: 'On the side', icon: '🧾', desc: 'Do ten sidelines.', test: (L) => (L.s.n.sides || 0) >= 10 },
   slump: { name: 'Seen it all', icon: '📰', desc: 'Live through a boom and a deep slump.', test: (L) => !!L.s.f.sawBoom && !!L.s.f.sawSlump },
   dream1: { name: 'Dream come true', icon: '✨', desc: 'Make a dream come true.', test: (L) => Object.keys(L.s.dreamDone).length >= 1 },
   dream3: { name: 'Living the dream', icon: '🌈', desc: 'Make all three dreams come true in one life.', test: (L) => Object.keys(L.s.dreamDone).length >= 3 },
@@ -643,6 +648,8 @@ export const RIBBONS = [
     heir: { name: 'Lucky horseshoe', icon: '🧲', desc: 'Start with better health, and it holds up longer.' } },
   { id: 'tycoon', name: 'The Tycoon', icon: '👑', desc: 'Died worth $10,000,000 or more.', test: (L) => L.netWorth() >= 1e7,
     heir: { name: 'Signet ring', icon: '💍', desc: 'Start with $6,000 more, and savings earn more.' } },
+  { id: 'benefactor', name: 'The Benefactor', icon: '🏗️', desc: 'Gave the town $1,000,000 or more.', test: (L) => (L.s.n.given || 0) >= 1e6,
+    heir: { name: 'Brass plaque', icon: '🪧', desc: 'Start out well thought of in the town.' } },
   { id: 'founder', name: 'The Founder', icon: '🏙️', desc: 'Built a business to its biggest.', test: (L) => !!L.s.f.mogul,
     heir: { name: 'Old shop sign', icon: '🪧', desc: 'A business of yours earns more, and costs half as much to start.' } },
   { id: 'star', name: 'The Star', icon: '🌟', desc: 'Died famous (70 fame).', test: (L) => L.s.fame >= 70,
@@ -679,6 +686,51 @@ export const RIBBONS = [
     heir: { name: "Grandma's quilt", icon: '🧶', desc: 'Resting does you more good.' } },
 ];
 export const RIBBON = Object.fromEntries(RIBBONS.map((r) => [r.id, r]));
+
+// ---- the mayor's appeal -----------------------------------------------------------------
+
+// Things the town can be given. at: where it stands. said: how it is
+// spoken of. perk: what it does for the giver, and for the family after.
+export const GIFTS = {
+  bench: { name: 'A bench by the pond', icon: '🪑', at: 'park', cost: 2500, karma: 3, fame: 0, said: 'a bench by the pond',
+    blurb: 'Somewhere to sit and watch the ducks.', perk: 'Sitting by the pond does you more good.',
+    plaque: (n) => `On the bench by the pond, a small brass plate: "${n} loved this view."`, done: 'Oak, with a brass plate. You sit on it first, to be sure.' },
+  bandstand: { name: 'Mend the bandstand', icon: '🎺', at: 'park', cost: 40000, karma: 6, fame: 2, said: 'its bandstand back',
+    blurb: 'It has been roped off since the roof came in.', perk: 'Every summer the band plays, and it lifts your mood.',
+    plaque: (n) => `The ${n} Bandstand: brass on Sundays, all summer.`, done: 'New lead on the roof, new paint, and the Silver Band playing "Sussex by the Sea" slightly too fast.' },
+  lifeboat: { name: 'A new lifeboat', icon: '🚤', at: 'harbour', cost: 150000, karma: 12, fame: 5, said: 'a lifeboat',
+    blurb: 'The old one is older than its coxswain.', perk: 'The crew tell you where the fish are: fishing pays a fifth more.',
+    plaque: (n) => `The lifeboat ${n} rides at her mooring.`, done: 'She is launched with a bottle of the good stuff, which is your doing too. The coxswain cannot speak.' },
+  scholarship: { name: 'A scholarship at the college', icon: '🎓', at: 'college', cost: 300000, karma: 12, fame: 4, said: 'a scholarship at the college',
+    blurb: 'Two students a year who could not otherwise go.', perk: 'Your own courses, and your family’s, cost a quarter less.',
+    plaque: (n) => `The ${n} Scholarship sends two students a year.`, done: 'The first two are announced at assembly. One of them wants to be a marine biologist. The other wants to be you.' },
+  wing: { name: 'A new wing for St Wren’s', icon: '🏥', at: 'hospital', cost: 750000, karma: 18, fame: 8, said: 'a wing of St Wren’s',
+    blurb: 'Forty beds, and a roof that does not leak.', perk: 'Hospital visits cost you, and your family, half.',
+    plaque: (n) => `The ${n} Wing has forty beds and a view of the sea.`, done: 'A ribbon, a pair of gold scissors, and a matron who shakes your hand as though she means to keep it.' },
+  pier: { name: 'Rebuild the pier', icon: '🎡', at: 'casino', cost: 2000000, karma: 20, fame: 15, said: 'its pier',
+    blurb: 'The far end has been shut since the storm of your grandparents’ day.', perk: 'A seat on the pier company’s board: $6,000 a season for the rest of your life.',
+    plaque: (n) => `A stone at the pier gates: "Rebuilt by ${n}, for the town."`, done: 'New ironwork to the very end, a carousel, and lights you can see from the lighthouse. The whole Bay walks out along it on the first night.' },
+};
+
+// ---- a sideline -------------------------------------------------------------------------
+
+// One piece of work on the side for each career, for those who have got
+// as far as rung r. pay: in shifts' worth. A skill decides how it goes.
+export const SIDELINES = {
+  kitchen: { r: 2, icon: '🍰', title: 'Cater a wedding', desc: 'A marquee, a hundred covers, one oven.', stat: 'craft', dc: 45, pay: 2, win: 'The bride’s mother asks for the recipe. You say it is a secret. It is tinned.', lose: 'The oven trips the generator during the speeches. Cold beef, then.' },
+  retail: { r: 2, icon: '🏷️', title: 'Run a clearance sale', desc: 'Everything must go, and you are on commission.', stat: 'charm', dc: 45, pay: 1.8, win: 'You sell a man a lawnmower. He lives in a flat.', lose: 'A long day beside a rail of beige slacks.' },
+  trades: { r: 1, icon: '🔧', title: 'Do a job on the side', desc: 'A foreigner, they call it: somebody’s kitchen, at the weekend, for cash.', stat: 'craft', dc: 40, pay: 2, win: 'Level, square and done by Sunday teatime.', lose: 'The wall was not where the plans said it was. You make good, at your own cost.' },
+  tech: { r: 2, icon: '🖥️', title: 'Fix the Town Hall computers', desc: 'They have been "meaning to back things up".', stat: 'smarts', dc: 50, pay: 2.2, win: 'You turn it off and on again, then charge for a day.', lose: 'You are there until three in the morning, and the printer still hates everyone.' },
+  medicine: { r: 3, icon: '🌙', title: 'Cover a night as a locum', desc: 'The next town along is short of doctors too.', stat: 'smarts', dc: 55, pay: 1.6, win: 'A quiet night, a good breakfast, a fat envelope.', lose: 'Three ambulances at once. You earn every penny and remember none of it.' },
+  police: { r: 1, icon: '🕴️', title: 'Work the door at the regatta ball', desc: 'In a borrowed dinner jacket.', stat: 'fitness', dc: 45, pay: 1.5, win: 'You see a councillor into a taxi and forget what you saw.', lose: 'Somebody’s uncle gets past you twice, in two different hats.' },
+  law: { r: 2, icon: '⚖️', title: 'Take a case for nothing', desc: 'Somebody who needs a lawyer and cannot pay for one.', stat: 'smarts', dc: 55, pay: 0, karma: 6, win: 'You win. She brings a cake to the office every Friday for a year.', lose: 'You lose, narrowly, and stay up all night writing the appeal.' },
+  arts: { r: 1, icon: '🎶', title: 'Play a wedding', desc: 'They want the one everybody wants.', stat: 'craft', dc: 45, pay: 2, fame: 1, win: 'You play it three times, and the last one is the best you have ever played anything.', lose: 'A child is sick on the monitor during the first dance.' },
+  sports: { r: 2, icon: '✂️', title: 'Open a supermarket', desc: 'A ribbon, a photograph, a cheque.', stat: 'charm', dc: 40, pay: 2, fame: 1, win: 'You sign forty autographs and a cabbage.', lose: 'They spell your name wrong on the banner, and you cut the wrong ribbon.' },
+  teaching: { r: 1, icon: '📝', title: 'Tutor privately', desc: 'A boy whose father has plans for him.', stat: 'smarts', dc: 45, pay: 1.8, win: 'He passes. His father shakes your hand; the boy winks.', lose: 'The boy teaches you three card tricks, and learns nothing.' },
+  sea: { r: 2, icon: '🎣', title: 'Take anglers out for the day', desc: 'Six men from the city, in new waterproofs.', stat: 'fitness', dc: 45, pay: 2, win: 'Everybody catches something. One of them catches the sun as well.', lose: 'A swell gets up. Nobody catches anything, and nobody keeps their lunch.' },
+  finance: { r: 2, icon: '🧾', title: 'Do the fishermen’s tax returns', desc: 'A carrier bag of receipts each. Some of the receipts are wet.', stat: 'smarts', dc: 50, pay: 1.8, win: 'Every one of them is owed a refund. You are bought a great deal of rum.', lose: 'One carrier bag turns out to be bait.' },
+  politics: { r: 1, icon: '🎪', title: 'Open the church fête', desc: 'A short speech and a long afternoon.', stat: 'charm', dc: 45, pay: 0, karma: 3, fame: 2, win: 'You guess the weight of the cake to the ounce. People talk of little else.', lose: 'You call the vicar by the last vicar’s name. Twice.' },
+};
 
 // ---- the allotment ----------------------------------------------------------------------
 

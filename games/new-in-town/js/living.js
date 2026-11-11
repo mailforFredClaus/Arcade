@@ -599,7 +599,7 @@ export function install({ def, A, Life, clamp }) {
     const pool = Object.keys(FISH).filter((id) => FISH[id].where.includes(where) && (!FISH[id].when || FISH[id].when.includes(this.season)));
     let r = this.rnd() * pool.reduce((a, id) => a + FISH[id].w, 0), id = pool[0];
     for (const q of pool) { id = q; r -= FISH[q].w; if (r < 0) break; }
-    const f = FISH[id], pay = Math.round(this.int(f.pay[0], f.pay[1]) * mult / 10) * 10;
+    const f = FISH[id], pay = Math.round(this.int(f.pay[0], f.pay[1]) * mult * (s.gifts.lifeboat ? 1.2 : 1) / 10) * 10;
     land(id);
     this.cash(pay);
     return `You land ${/^[aeiou]/i.test(f.name) ? 'an' : 'a'} ${f.name.toLowerCase()} and sell it on the quay for ${money(pay)}.`;

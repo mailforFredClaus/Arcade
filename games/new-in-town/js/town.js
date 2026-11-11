@@ -4,7 +4,7 @@
 // season; Mr Pym's shop of curios on the High Street, to collect and to
 // trade; and the beach, which is free.
 
-import { CROPS, PLOT_RENT, PLOT_BEDS, CURIOS, CURIO_SETS, CURIO_SET_SAID, aCurio, theCurio, curioSaid, ECO, FILLER, SMALL_ADS, FISH, SEASONS, LOOKS, ITEMS, money, many } from './data.js';
+import { GIFTS, CROPS, PLOT_RENT, PLOT_BEDS, CURIOS, CURIO_SETS, CURIO_SET_SAID, aCurio, theCurio, curioSaid, ECO, FILLER, SMALL_ADS, FISH, SEASONS, LOOKS, ITEMS, money, many } from './data.js';
 
 const round10 = (n) => Math.round(n / 10) * 10;
 const seasonsOf = (list) => list.map((q) => SEASONS[q].toLowerCase()).join(' or ');
@@ -36,6 +36,7 @@ export function install({ def, A, Life, clamp }) {
       const market = k.news.find((n) => n.t === s.t - 1 && !n.sym);
       if (s.run) lead = { icon: '🚨', h: 'Escaped prisoner still at large', t: `Police say ${s.name}, who went over the wall of Starling Gaol, should not be approached. ${He} is described as "${s.age >= 50 ? 'older than you would expect' : 'ordinary-looking'}, and in a hurry".` };
       else if (s.gaol) lead = { icon: '⛓️', h: 'Life goes on outside', t: 'A week-old copy, passed along the landing, with the crossword done wrong in biro.' };
+      else if (s.giftAt && s.t - s.giftAt.t < 2 && s.gifts[s.giftAt.id]) lead = { icon: GIFTS[s.giftAt.id].icon, h: `The Bay thanks ${s.name}`, t: `${GIFTS[s.giftAt.id].plaque(s.gifts[s.giftAt.id])} The mayor made a speech. It was not short.` };
       else if (market) lead = { icon: market.up ? '📈' : '📉', h: market.up ? 'Boom on the exchange' : 'Black day on the exchange', t: `${market.text}.` };
       else if (s.ecoAt != null && s.t - s.ecoAt < 2) lead = { icon: this.eco().icon, h: `${this.eco().name} in the Bay`, t: this.eco().text };
       else if (s.heat >= 60) lead = { icon: '🚔', h: 'Police appeal after spate of crime', t: `Officers wish to speak to a ${s.sex === 'f' ? 'woman' : 'man'} seen leaving several scenes "at a brisk walk". The public are asked to check their sheds.` };

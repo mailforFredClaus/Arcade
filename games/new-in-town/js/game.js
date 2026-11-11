@@ -7,7 +7,7 @@ import { Life } from './engine.js';
 import {
   money, cashShort, SEASONS, SEASON_ICON, STATS, STAT_NAME, STAT_ICON, PLACES, CAREERS, COURSES, GRADES, STUDENT_RATE, HOMES, UPGRADES, FOOD, INSURANCE, ITEMS,
   STOCKS, PROPS, BUSINESSES, FISH, OUTINGS, PERKS, PETS, TRAITS, BACKGROUNDS, LOOKS, DREAMS, QUESTS, TROPHIES, RIBBONS, RIBBON, NAMES_M, NAMES_F, LOAN_RATE,
-  CROPS, PLOT_RENT, CURIOS, CURIO_SETS, many,
+  CROPS, PLOT_RENT, CURIOS, CURIO_SETS, GIFTS, many,
 } from './data.js';
 import { handTotal } from './pier.js';
 import { CHIRPS } from './fame.js';
@@ -119,10 +119,11 @@ function renderGaol() {
 
 function renderMap() {
   const s = life.s, work = s.job ? CAREERS[s.job.c].place : null, biz = s.biz ? BUSINESSES[s.biz.type].place : null;
-  const key = `${placeTier(s.home)}|${work}|${!!s.course}|${biz}`;
+  const ripe = !!s.plot && (s.plot.beds.some((b) => life.bedRipe(b)) || (life.season === 2 && s.marrow > 0));
+  const key = `${placeTier(s.home)}|${work}|${!!s.course}|${biz}|${ripe}`;
   if (key !== mapKey) {
     mapKey = key;
-    $('mapArt').innerHTML = townSvg({ tier: placeTier(s.home), work, study: !!s.course, biz });
+    $('mapArt').innerHTML = townSvg({ tier: placeTier(s.home), work, study: !!s.course, biz, ripe });
   }
   $('me').innerHTML = face(s.look, s.age, s.happy, s.sex);
   placeMe();
@@ -202,7 +203,8 @@ const SHEET = {
     const p = PLACES[id], s = life.s;
     let sub = p.blurb, title = p.name;
     if (id === 'home') { title = HOMES[s.home].name; sub = `${s.owned ? 'Yours' : `Rent ${money(life.rentOf(s.home))} a season`}. ${HOMES[s.home].blurb}`; }
-    return { icon: p.icon, title, sub, body: sections(life.placeActions(id)) };
+    const plaques = life.plaques(id).map((t) => `<p class="plaque">🪧 ${esc(t)}</p>`).join('');
+    return { icon: p.icon, title, sub, body: plaques + sections(life.placeActions(id)) };
   },
 
   jobs() {
@@ -509,6 +511,18 @@ const SHEET = {
     if (s.marrow) body += `<p class="sub">🥒 A ${s.marrow} kg marrow is in the shed, for the Harvest Show at the park in autumn.</p>`;
     body += `${almanac}<details><summary>Had enough?</summary><p class="fine">Whatever is in the ground goes with it.</p><div class="picks">${pick('Give up the plot', 'plotQuit', undefined, null, 'quiet')}</div></details>`;
     return { icon: '🥕', title: 'Your allotment', sub: `Plot 14 · ${money(PLOT_RENT)} a season`, body };
+  },
+
+  gifts() {
+    const s = life.s;
+    let body = '<p class="lead">The mayor keeps a list of things Starling Bay needs and cannot afford. Pay for one and your name goes on it, for good: if your family carries on here, it will still be standing, and still doing them good.</p>';
+    for (const [id, g] of Object.entries(GIFTS)) {
+      const by = s.gifts[id], why = life.can('fund', id);
+      body += `<div class="item${by ? ' mine' : ''}"><div class="item-top"><span class="act-ico">${g.icon}</span><div><b>${g.name}</b><small>${esc(by ? life.plaque(id) : g.blurb)}</small></div>${by ? '' : `<div class="quote"><b>${cashShort(g.cost)}</b></div>`}</div>
+        <div class="facts"><span class="${by ? 'up' : ''}">${by ? '✓ ' : ''}${g.perk}</span></div>
+        ${by ? '' : `<div class="picks">${pick(`Pay for it · ${cashShort(g.cost)} ${chip('time', '⏱ 1')}`, 'fund', id, why)}${why ? `<span class="note">${esc(why)}</span>` : ''}</div>`}</div>`;
+    }
+    return { icon: '🏗️', title: 'The mayor’s appeal', sub: `${Object.keys(s.gifts).length} of ${Object.keys(GIFTS).length} given`, body };
   },
 
   barber() {
@@ -934,6 +948,7 @@ function showNew() {
     <p><b>🐤 Chirper.</b> On your phone, at home: post, gather followers, get paid.</p>
     <p><b>🥕 An allotment</b> at the park, where the season decides what grows. <b>🏺 Mr Pym’s curios</b> on the High Street, to collect and trade. <b>💈 A new look</b> next door.</p>
     <p><b>♠️ Blackjack and the gull races</b> on the pier, and the <b>🎟️ Bay Lotto</b> on the High Street.</p>
+    <p><b>🏗️ The mayor’s appeal</b> at the Town Hall: give the town a lifeboat, a hospital wing, a new pier. Your name stays on it for the family that follows.</p>
     <p><b>📰 The Gazette</b> (at home, or from the Me tab) has the news: the Bay now has booms and slumps, and they reach your pay, your shares and your house.</p></div>
     <div class="actions"><button class="btn btn-primary" data-action="evDone">Show me</button></div>`);
 }
@@ -949,6 +964,7 @@ function showHow() {
     <p><b>Or go bad.</b> Pick pockets at the station, lift from the shops, drink and brawl at the pub, bend the rules at work. Sal’s back room at the harbour has worse: burglary, bare-knuckle fights, his crew, the bank. The law takes an interest.</p>
     <p><b>Get caught</b> and you may go to Starling Gaol, and live every season of it: keep a clean record for parole, or earn your standing on the landing, or dig.</p>
     <p><b>The town has more in it.</b> An allotment at the park, where the seasons decide what grows. Mr Pym’s curios on the High Street, to collect and trade. Chirper on your phone. Blackjack and the gull races on the pier. Good years and slumps: the Gazette has the news.</p>
+    <p><b>Money is for something.</b> The mayor’s appeal at the Town Hall lists what the town needs. What you give carries your name, and is still there, and still useful, for an heir.</p>
     <p><b>At the end</b> your life earns a ribbon, and each ribbon unlocks an heirloom that a later life can carry. Your heir inherits a share of what you leave.</p></div>
     <div class="actions"><button class="btn btn-primary" data-action="close">Got it</button></div>`);
 }
@@ -1042,7 +1058,7 @@ function beginLife() {
   if (!d.name.trim() || d.dreams.length !== 3) { sfx('nope'); toast(!d.name.trim() ? 'Choose a name first.' : 'Pick three dreams.'); return; }
   life = Life.create({
     name: d.name.trim().slice(0, 16), sex: d.sex, into: d.into, look: d.look, bg: d.bg, dreams: d.dreams, heir: d.heir,
-    inherit: nx ? nx.inherit : 0, gen: nx ? nx.gen : 1, parent: nx ? nx.parent : null, raised: nx ? nx.st : null,
+    inherit: nx ? nx.inherit : 0, gen: nx ? nx.gen : 1, parent: nx ? nx.parent : null, raised: nx ? nx.st : null, gifts: nx ? nx.gifts : null,
     seed: (Math.random() * 2 ** 32) >>> 0,
   });
   save.next = null;
@@ -1084,7 +1100,7 @@ function showEnd() {
     m.hall.unshift({ name: s.name, age: o.age, ribbon: o.ribbon.id, score: o.score, gen: s.gen, title: o.title, worth: o.worth });
     m.hall.length = Math.min(m.hall.length, 40);
     save.fresh = fresh;
-    save.next = { gen: s.gen + 1, inherit: o.inherit, from: s.name, name: o.heir ? o.heir.name : '', look: o.heir ? o.heir.look : null, sex: o.heir ? o.heir.sex : null, st: o.heir ? o.heir.st : null, parent: o.parent };
+    save.next = { gifts: o.gifts, gen: s.gen + 1, inherit: o.inherit, from: s.name, name: o.heir ? o.heir.name : '', look: o.heir ? o.heir.look : null, sex: o.heir ? o.heir.sex : null, st: o.heir ? o.heir.st : null, parent: o.parent };
     persist();
   } else fresh = !!save.fresh;
   closeSheets();
@@ -1103,6 +1119,7 @@ function showEnd() {
     ${fresh ? `<div class="box warn good">New heirloom for the lives to come: ${o.ribbon.heir.icon} <b>${o.ribbon.heir.name}</b>. ${o.ribbon.heir.desc}</div>` : ''}
     <div class="stats"><div><b>${o.score.toLocaleString()}</b><span>Score</span></div><div><b>${cashShort(o.worth)}</b><span>Left behind</span></div><div><b>${o.trophies}</b><span>Trophies</span></div></div>
     <div class="box"><h3>Dreams</h3>${o.dreams.map((d) => `<div class="dream${d.done ? ' done' : ''}"><i>${DREAMS[d.id].icon}</i><div><b>${DREAMS[d.id].name}</b><small>${d.done ? 'Came true' : 'Not this time'}</small></div><em>${d.done ? '✓' : ''}</em></div>`).join('')}</div>
+    <div class="paper obit"><p class="mast">The Starling Bay Gazette</p><p class="dateline">${SEASONS[life.season]}, year ${life.year} · Obituaries</p><h2>${esc(s.name)}, ${o.age}</h2>${life.epitaph().slice(1).map((t) => `<p class="story">${esc(t)}</p>`).join('')}</div>
     ${big.length ? `<div class="box"><h3>A life</h3>${big.map((e) => `<p class="entry"><i>${e.a}</i>${esc(e.t)}</p>`).join('')}</div>` : ''}
     <div class="box"><h3>Skills at the end</h3>${STATS.map((k) => `<div class="skill"><i>${STAT_ICON[k]}</i><span>${STAT_NAME[k]}</span><span class="bar"><span style="width:${s.st[k]}%"></span></span><b>${Math.floor(s.st[k])}</b></div>`).join('')}</div>
     <button class="btn btn-primary go-btn" data-do="heirLife">${o.heir ? `Carry on as ${esc(o.heir.name)}, your ${o.heir.sex === 'm' ? 'son' : 'daughter'}` : 'Carry on as a distant cousin'}<small>Inherits ${money(o.inherit)}${o.heir ? ', and what you taught' : ''}</small></button>

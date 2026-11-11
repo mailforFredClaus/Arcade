@@ -14,7 +14,7 @@ import { Life, ACTIONS, money, cashShort } from '../games/new-in-town/js/engine.
 import { EVENTS } from '../games/new-in-town/js/events.js';
 import {
   STATS, PLACES, CAREERS, SHIFTS_FOR_RUNG, COURSES, HOMES, UPGRADES, ITEMS, STOCKS, PROPS, PETS, DREAMS, QUESTS, TROPHIES, RIBBONS, BACKGROUNDS,
-  BUSINESSES, FISH, OUTINGS, KID_PLAY, PERKS, NAMES_M, NAMES_F, INSURANCE, FOOD, CROPS, PLOT_RENT, CURIOS, CURIO_SETS, ECO, many, aCurio, theCurio,
+  BUSINESSES, FISH, OUTINGS, KID_PLAY, PERKS, NAMES_M, NAMES_F, INSURANCE, FOOD, CROPS, PLOT_RENT, CURIOS, CURIO_SETS, ECO, many, aCurio, theCurio, GIFTS, SIDELINES,
 } from '../games/new-in-town/js/data.js';
 import { handTotal } from '../games/new-in-town/js/pier.js';
 import { CHIRPS } from '../games/new-in-town/js/fame.js';
@@ -1269,6 +1269,66 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', ...o 
   check(H.s.job.perf === 66, 'and loyalty is noticed');
 }
 
+// ---- what you leave behind, and work on the side ----------------------------------------
+
+{
+  for (const [id, g] of Object.entries(GIFTS)) check(PLACES[g.at] && g.cost > 0 && g.plaque('Ann').includes('Ann') && g.said && g.done && g.perk && g.blurb, `${id}: a gift the town can be given`);
+  for (const c of Object.keys(CAREERS).filter((id) => !CAREERS[id].shady)) {
+    const k = SIDELINES[c];
+    check(k && k.r < CAREERS[c].rungs.length && STATS.includes(k.stat) && k.win && k.lose && (k.pay > 0 || k.karma > 0), `${c}: has a sideline`);
+  }
+  const L = fresh();
+  const s = L.s;
+  s.cash = 5e6;
+  check(L.placeActions('townhall').some((a) => a.open === 'gifts') && !L.gift('bench') && !L.plaques('park').length, 'the mayor has an appeal');
+  const sit = () => { const X = new Life(JSON.parse(JSON.stringify(s))); X.s.happy = 50; X.s.time = 1; X.act('bench'); return X.s.happy; };
+  const before = sit();
+  const karma = s.karma;
+  check(L.act('fund', 'bench').ok && s.gifts.bench === 'Test' && s.gave.bench && s.cash === 5e6 - 2500 && s.n.given === 2500 && s.karma > karma && L.can('fund', 'bench') === 'It has been given.', 'a bench, with your name on it');
+  check(L.plaques('park').length === 1 && L.plaques('park')[0].includes('Test') && s.ach.plaque && sit() === before + 2, 'it stands in the park, and does you good');
+  const fee = L.classFee('law'), med = L.medCost(1000);
+  for (const id of ['scholarship', 'wing', 'lifeboat', 'bandstand', 'pier']) { s.time = 1; L.act('fund', id); }
+  check(L.classFee('law') === Math.round(fee * 0.75) && L.medCost(1000) === med / 2, 'a scholarship and a hospital wing make courses and care cheaper for you');
+  check(L.income().some(([w, n]) => w.includes('pier') && n === 6000) && s.ach.pier && s.ach.benefactor && s.dreams && Object.keys(s.gifts).length === 6, 'and the pier company finds a seat on its board');
+  check(L.gazette().lead.h.includes('thanks'), 'the Gazette says thank you');
+  s.t = 4 * 9 + 0; s.happy = 50;
+  L.endSeason(); s.pend = [];
+  check(L.season === 1 && L.news.length === 0, 'summer');
+  // What an heir finds.
+  const o = (() => { const X = new Life(JSON.parse(JSON.stringify(s))); X.s.age = 70; X.die('old age'); return X.obituary(); })();
+  check(o.gifts.pier === 'Test' && o.ribbon.id === 'benefactor', 'a great giver is remembered as one');
+  const heir = Life.create({ seed: 3, name: 'Heir', gen: 2, gifts: o.gifts });
+  check(heir.gift('wing') === 'Test' && heir.plaques('hospital')[0].includes('Test') && heir.medCost(1000) === 500 && !heir.income().some(([w]) => w.includes('pier')) && heir.can('fund', 'pier') === 'It has been given.' && Object.keys(heir.s.gave).length === 0, 'the family’s gifts are still standing for the next of the line, though the seat on the board is not inherited');
+  check(Life.create({ seed: 3, name: 'New' }).plaques('hospital').length === 0, 'a new family starts with a town that owes it nothing');
+  check(Life.create({ seed: 3, name: 'B', heir: 'benefactor' }).s.karma === 25, 'the brass plaque starts you well thought of');
+  // Sidelines.
+  const W = fresh();
+  W.s.job = { c: 'kitchen', r: 1, n: 0, perf: 50, raise: 0 };
+  check(!W.sideline() && !W.placeActions(CAREERS.kitchen.place).some((a) => a.id === 'sideline'), 'no sideline until you have got somewhere');
+  W.s.job.r = 2; W.s.st.craft = 100;
+  const row = W.placeActions(CAREERS.kitchen.place).find((a) => a.id === 'sideline');
+  check(row && row.title === 'Cater a wedding' && row.time === 2, 'a head chef can cater a wedding');
+  const cash = W.s.cash;
+  W.act('sideline');
+  check(W.s.cash > cash && W.s.n.sides === 1 && W.can('sideline') === 'Once a season.', 'once a season, for good money');
+  const law = fresh();
+  law.s.job = { c: 'law', r: 3, n: 0, perf: 50, raise: 0 }; law.s.st.smarts = 100;
+  const c2 = law.s.cash, k2 = law.s.karma;
+  law.act('sideline');
+  check(law.s.cash === c2 && (law.s.karma > k2 || law.s.job.perf === 50), 'a case taken for nothing pays in other ways');
+  // The last word.
+  const E = fresh();
+  E.s.worked = { medicine: 5 }; E.s.n.inside = 3; E.s.f.escaped = 1; E.s.gave = { lifeboat: 1, bench: 1 }; E.s.n.books = 2;
+  E.meet({ kind: 'spouse', sex: 'f', single: false }); E.meet({ kind: 'child', sex: 'm', age: 9 });
+  E.die('old age');
+  const ep = E.epitaph();
+  check(ep.length >= 6 && ep.every((t) => /[.]$/.test(t) && !/undefined|NaN|  /.test(t)) && ep.some((t) => t.includes('Starling Gaol')) && ep.some((t) => t.includes('a lifeboat and a bench')) && ep.some((t) => t.includes('a wife')), `the Gazette has the last word (${ep.length} lines)`);
+  const plain = fresh();
+  plain.s.people = [];
+  plain.die('a fall');
+  check(plain.epitaph().every((t) => !/undefined|NaN/.test(t)) && plain.epitaph().some((t) => t.includes('never known to hold a job')), 'even on a life in which nothing happened');
+}
+
 // ---- the casino -------------------------------------------------------------------------
 
 {
@@ -1377,6 +1437,7 @@ const sane = (L, after) => {
   if (s.chirp && !(s.chirp.n >= 0 && Number.isInteger(s.chirp.n))) throw new Error(`a broken count of followers after ${after}`);
   if (Object.values(s.curios).some((n) => !(n >= 1)) || !(s.lot.pot >= 100000)) throw new Error(`curios or the lotto went wrong after ${after}`);
   if (!Number.isFinite(L.netWorth())) throw new Error(`worth is not a number after ${after}`);
+  if (Object.keys(s.gave).some((id) => !s.gifts[id])) throw new Error(`a gift given but not standing after ${after}`);
 };
 
 // Answers every card that is waiting: sensibly (the best odds it can afford) or at random.
@@ -1524,6 +1585,7 @@ function monkey(seed) {
         ['chirpSpon'], ...Object.keys(CHIRPS).map((k) => ['chirp', k]), ...(wild ? [['chirpTroll'], ['chirpShill']] : []),
         ...Object.keys(CROPS).map((c) => ['sow', { b: Math.floor(L.rnd() * 3), c }]), ...[0, 1, 2].map((i) => ['curioBuy', i]),
         ['restyle', { k: ['style', 'hair', 'top'][Math.floor(L.rnd() * 3)], v: Math.floor(L.rnd() * 6) }], ['restyle', { k: 'beard' }],
+        ...Object.keys(GIFTS).map((id) => ['fund', id]),
         ...Object.keys(s.curios).map((id) => ['curioSell', id]), ...(L.rnd() < 0.1 ? Object.keys(s.items).map((id) => ['pawn', id]) : []), ...Object.keys(CURIO_SETS).flatMap((k) => [['setSell', k], ['setGive', k]])]) if (!L.can(id, x)) opts.push([id, x]);
       if (!opts.length) break;
       const [id, x] = opts[Math.floor(L.rnd() * opts.length)];
@@ -1556,6 +1618,8 @@ console.log(`Random players: ${randomLives} lives`);
     try {
       const L = monkey(5000 + i);
       const o = L.obituary();
+      const last = L.epitaph();
+      if (last.length < 5 || last.some((t) => /undefined|NaN|\s\s|\.\./.test(t) || !/[.]$/.test(t))) throw new Error(`a bad obituary: ${last.join(' | ')}`);
       if ((5000 + i) % 3) ages.push(o.age); else jailed += L.s.f.jailed ? 1 : 0;
       ribbons[o.ribbon.id] = (ribbons[o.ribbon.id] || 0) + 1;
       trophies += o.trophies;

@@ -27,6 +27,7 @@ import { install as installFeuds } from './feuds.js';
 import { install as installPier } from './pier.js';
 import { install as installFame } from './fame.js';
 import { install as installTown } from './town.js';
+import { install as installLegacy } from './legacy.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const val = (v, L, x, y) => (typeof v === 'function' ? v(L, x, y) : v);
@@ -274,7 +275,7 @@ def('jog', {
 def('bench', {
   place: 'park', sec: 'Fresh air', icon: '🦆', title: 'Sit by the pond', desc: 'Lifts your mood.',
   run(L) {
-    L.joy(4); L.hp(1);
+    L.joy(4 + (L.s.gifts.bench ? 2 : 0)); L.hp(1);
     const p = L.maybeMeet(0.12);
     return p ? `${p.name} sits down at the other end of the bench. By the end you are sharing sandwiches.` : L.pick(['The light on the water. A dog with a stick far too big for it.', 'You watch the clouds and think about nothing.', 'A duck looks at you as if you owe it money.']);
   },
@@ -717,18 +718,19 @@ export class Life {
     if ((state.v || 1) < 2) this.upgrade();
     // (Four to-do items were added before the last; a life that had finished the list has finished it still.)
     if (state.v < 3) { state.v = 3; if (state.quest >= 12) state.quest += 4; }
-    const later = { heat: 0, shark: 0, habit: {}, stand: {}, eco: 0, roy: [], album: { p: 0, q: 0 }, lot: { n: 0, pot: 100000 }, curios: {}, curSeen: {}, grown: {}, marrow: 0 };
+    const later = { gifts: {}, gave: {}, heat: 0, shark: 0, habit: {}, stand: {}, eco: 0, roy: [], album: { p: 0, q: 0 }, lot: { n: 0, pot: 100000 }, curios: {}, curSeen: {}, grown: {}, marrow: 0 };
     for (const [k, v] of Object.entries(later)) if (state[k] == null) state[k] = v;
     if (!state.cur) this.restock();
   }
 
   // name, sex ('m' or 'f'), into: who you fall for ('m', 'f' or 'b' for both),
   // look {skin, hair, top, style, beard}, bg: a background from data.js,
+  // gifts: what the family has given the town before now ({ id: whose name is on it }),
   // dreams: three ids, heir: the heirloom brought along (a ribbon id),
   // inherit: money left by the last life, gen: which generation this is,
   // parent: one still living from the life before, raised: the skills you
   // were brought up with, if you are the child of the last life.
-  static create({ name = 'Sam', sex = 'm', into = null, look = null, bg = 'allrounder', dreams = [], heir = null, inherit = 0, gen = 1, seed = 1, parent = null, raised = null } = {}) {
+  static create({ name = 'Sam', sex = 'm', into = null, look = null, bg = 'allrounder', dreams = [], heir = null, inherit = 0, gen = 1, seed = 1, parent = null, raised = null, gifts = null } = {}) {
     const s = {
       v: 3, rng: seed >>> 0, name, sex, into: into || (sex === 'm' ? 'f' : 'm'), look, bg, gen, heir,
       t: 0, age: 18, time: 0,
@@ -742,7 +744,7 @@ export class Life {
       stk: { p: {}, h: {}, own: {}, paid: {}, news: [] },
       biz: null, fishbook: {}, hist: [], heat: 0, habit: {}, shark: 0, stand: {},
       gaol: null, run: null, eco: 0, chirp: null, roy: [], album: { p: 0, q: 0 }, bj: null, race: null, lot: { n: 0, pot: 100000 },
-      plot: null, grown: {}, marrow: 0, curios: {}, curSeen: {}, cur: null,
+      plot: null, grown: {}, marrow: 0, curios: {}, curSeen: {}, cur: null, gifts: { ...(gifts || {}) }, gave: {},
       paintings: 0, novel: { p: 0, q: 0 }, trips: {}, ill: null, hilo: null,
       f: {}, n: { shifts: 0, earned: 0, fish: 0, crimes: 0, books: 0, given: 0, casino: 0, streak: 0 },
       use: {}, cd: {}, seen: {},
@@ -760,6 +762,7 @@ export class Life {
     if (heir === 'artist') s.items.easel = 1;
     if (heir === 'salt') s.items.rod = 1;
     if (heir === 'kingpin') { s.n.crimes = 5; s.karma = -15; }
+    if (heir === 'benefactor') s.karma = 25;
     if (heir === 'sensation') { s.items.phone = 1; s.chirp = { n: 2000, posts: 0, ban: 0 }; }
     while (s.dreams.length < 3) {
       const id = L.pick(Object.keys(DREAMS));
@@ -958,6 +961,7 @@ export class Life {
     if (rents) out.push(['Rent from your properties', rents]);
     if (divs) out.push(['Dividends', divs]);
     if (roy) out.push(['Royalties', roy]);
+    if (s.gave.pier) out.push(['The pier company’s board', 6000]);
     if (biz) out.push([`Takings from your ${this.bizName().toLowerCase()}`, biz]);
     return out;
   }
@@ -1102,10 +1106,10 @@ export class Life {
 
   // ---- prices ----
 
-  classFee(id) { return Math.round(COURSES[id].cost / COURSES[id].classes * (this.perk('teaching') ? 0.8 : 1)); }
+  classFee(id) { return Math.round(COURSES[id].cost / COURSES[id].classes * (this.perk('teaching') ? 0.8 : 1) * (this.s.gifts.scholarship ? 0.75 : 1)); }
   itemPrice(id) { return Math.round(ITEMS[id].price * (this.perk('retail') ? 0.85 : 1)); }
   tripCost(id) { return Math.round(TRIPS[id].cost * (this.s.heir === 'globe' ? 0.5 : 1)); }
-  medCost(n) { return Math.round(n * (this.s.heir === 'healer' ? 0.5 : 1) * (this.s.ins.health ? 0.4 : 1) * (this.perk('medicine') ? 0.7 : 1)); }
+  medCost(n) { return Math.round(n * (this.s.heir === 'healer' ? 0.5 : 1) * (this.s.ins.health ? 0.4 : 1) * (this.perk('medicine') ? 0.7 : 1) * (this.s.gifts.wing ? 0.5 : 1)); }
   medBoost() { return this.s.heir === 'healer' ? 1.5 : 1; }
   artPrice() { const s = this.s; return Math.round((40 + s.st.craft ** 2 * 0.6) * (1 + s.fame / 50) * (s.heir === 'artist' ? 1.5 : 1) * (s.edu.finearts ? 1.3 : 1)); }
 
@@ -1385,6 +1389,7 @@ export class Life {
 
     if (!s.dead) {
       this.townSeason();
+      this.legacySeason();
       if (s.gaol) this.gaolSeason(); else this.lamSeason();
     }
     if (!s.dead && jailed === !!s.gaol) {
@@ -1554,12 +1559,13 @@ export class Life {
       inherit: Math.max(0, Math.min(kids.length ? 150000 : 60000, Math.round(worth * (kids.length ? 0.1 : 0.05) / 100) * 100)),
       heir: heirKid ? { name: heirKid.name.split(' ')[0], look: heirKid.look, sex: heirKid.sex, st: heirKid.st } : null,
       parent: spouse ? { name: spouse.name, age: spouse.age, look: spouse.look, sex: spouse.sex } : null,
+      gifts: s.gifts,
     };
   }
 }
 
 install({ def, A, Life, clamp });
 installVice({ def, A, Life, clamp });
-for (const add of [installInside, installFeuds, installPier, installFame, installTown]) add({ def, A, Life, clamp });
+for (const add of [installInside, installFeuds, installPier, installFame, installTown, installLegacy]) add({ def, A, Life, clamp });
 
 export { A as ACTIONS, money, cashShort };

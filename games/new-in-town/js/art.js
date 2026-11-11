@@ -69,7 +69,7 @@ const BUILD = {
 
 // tier: which home to draw. work: the place you work at (gets a badge).
 // study: true if you're on a course. biz: the place your business is.
-export function townSvg({ tier = 0, work = null, study = false, biz = null } = {}) {
+export function townSvg({ tier = 0, work = null, study = false, biz = null, ripe = false } = {}) {
   const road = (d) => `<path d="${d}" class="road-edge"/><path d="${d}" class="road"/>`;
   let out = `<svg viewBox="0 0 400 600" preserveAspectRatio="xMidYMid slice" class="town" xmlns="http://www.w3.org/2000/svg">`;
   // Sky, far hills, the green, the sand and the sea.
@@ -105,6 +105,7 @@ export function townSvg({ tier = 0, work = null, study = false, biz = null } = {
     out += `<g class="tag"><rect x="${-w / 2}" y="24" width="${w}" height="15" rx="7.500"/><text x="0" y="34.600">${label}</text></g>`;
     if (id === work) out += `<g class="mark"><circle cx="30" cy="-24" r="10"/><text x="30" y="-20">💼</text></g>`;
     if (id === biz) out += `<g class="mark"><circle cx="-30" cy="-24" r="10"/><text x="-30" y="-20">🏪</text></g>`;
+    if (id === 'park' && ripe) out += `<g class="mark"><circle cx="30" cy="-24" r="10"/><text x="30" y="-20">🥕</text></g>`;
     if (id === 'college' && study) out += `<g class="mark"><circle cx="-30" cy="-24" r="10"/><text x="-30" y="-20">✏️</text></g>`;
     out += `<rect x="-40" y="-46" width="80" height="88" fill="transparent"/></g>`;
   }
