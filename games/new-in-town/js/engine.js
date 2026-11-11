@@ -625,6 +625,7 @@ def('buy', {
     s.items[id] = 1;
     if (id === 'sportscar') L.joy(8);
     if (id === 'bike' || id === 'car' || id === 'sportscar') { const was = L.timeMaxWithout(id); s.time += L.timeMax() - was; }
+    s.use[`got_${id}`] = 1;
     return `You buy the ${it.name.toLowerCase()}. ${it.blurb}`;
   },
 });
@@ -714,6 +715,8 @@ export class Life {
     this.news = [];
     this.out = null;
     if ((state.v || 1) < 2) this.upgrade();
+    // (Four to-do items were added before the last; a life that had finished the list has finished it still.)
+    if (state.v < 3) { state.v = 3; if (state.quest >= 12) state.quest += 4; }
     const later = { heat: 0, shark: 0, habit: {}, stand: {}, eco: 0, roy: [], album: { p: 0, q: 0 }, lot: { n: 0, pot: 100000 }, curios: {}, curSeen: {}, grown: {}, marrow: 0 };
     for (const [k, v] of Object.entries(later)) if (state[k] == null) state[k] = v;
     if (!state.cur) this.restock();
@@ -727,7 +730,7 @@ export class Life {
   // were brought up with, if you are the child of the last life.
   static create({ name = 'Sam', sex = 'm', into = null, look = null, bg = 'allrounder', dreams = [], heir = null, inherit = 0, gen = 1, seed = 1, parent = null, raised = null } = {}) {
     const s = {
-      v: 2, rng: seed >>> 0, name, sex, into: into || (sex === 'm' ? 'f' : 'm'), look, bg, gen, heir,
+      v: 3, rng: seed >>> 0, name, sex, into: into || (sex === 'm' ? 'f' : 'm'), look, bg, gen, heir,
       t: 0, age: 18, time: 0,
       cash: 1500 + inherit, bank: 0, debt: 0, sloan: 0, idx: 1,
       health: heir === 'young' ? 100 : 90, happy: 62,
@@ -1242,12 +1245,12 @@ export class Life {
     // Drop any card that no longer makes sense: its person has gone, or
     // an earlier card changed what it was about.
     // A card for prison is no use outside it, nor the other way about.
-    const stale = ({ id, x }) => { const e = EVENT[id]; return !e || (e.gaol && !s.gaol) || (e.w && !e.gaol && s.gaol) || (e.ok && !e.ok(this, x)) || (e.w && e.when && !e.when(this)); };
+    const stale = ({ id, x }) => { const e = EVENT[id]; return !e || (e.gaol && !s.gaol) || ((e.w || e.free) && !e.gaol && s.gaol) || (e.ok && !e.ok(this, x)) || (e.w && e.when && !e.when(this)); };
     while (s.pend.length && stale(s.pend[0])) s.pend.shift();
     if (!s.pend.length || s.dead) return null;
     const { id, x } = s.pend[0], e = EVENT[id];
     return {
-      id, icon: val(e.icon, this, x), title: val(e.title, this, x), text: val(e.text, this, x),
+      id, icon: val(e.icon, this, x), title: val(e.title, this, x), text: val(s.gaol && e.inText ? e.inText : e.text, this, x),
       opts: e.opts.filter((o) => !o.show || o.show(this, x)).map((o) => ({
         t: val(o.t, this, x),
         cost: val(o.cost, this, x) || 0,
@@ -1380,8 +1383,10 @@ export class Life {
     const fiance = s.people.find((p) => p.eng && p.kind === 'partner');
     if (fiance && !jailed) this.queue('wedding', fiance.id);
 
-    this.townSeason();
-    if (s.gaol) this.gaolSeason(); else this.lamSeason();
+    if (!s.dead) {
+      this.townSeason();
+      if (s.gaol) this.gaolSeason(); else this.lamSeason();
+    }
     if (!s.dead && jailed === !!s.gaol) {
       if (this.chance(0.62)) this.drawEvent();
       if (!jailed && this.chance(0.08)) this.drawEvent();

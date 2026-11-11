@@ -59,12 +59,15 @@ export function install({ def, A, Life, clamp }) {
     // What the magistrate hands down. Small things are a fine; the rest is
     // time, and more of it if you have been here before.
     sentence(sev) {
-      const s = this.s, again = s.record >= 1;
-      if (sev <= 0) return 'A stern talking-to, and you are let go. This time.';
-      let n = [0, 0, 2, 5, 12][Math.min(4, sev)] + (again ? [0, 1, 1, 2, 4][Math.min(4, sev)] : 0);
+      const s = this.s, again = s.record >= 1, k = clamp(sev, 0, 4);
+      // An escaped prisoner is known on sight: whatever this was for, what was owed comes back with it.
+      const owe = s.run ? s.run.owe : 0;
+      if (sev <= 0 && !owe) return 'A stern talking-to, and you are let go. This time.';
+      let n = [0, 0, 2, 5, 12][k] + (again ? [0, 1, 1, 2, 4][k] : 0);
       // Caught again while out on licence: the rest of the old sentence comes back too.
       if (n && s.t < (s.f.licence || 0)) { n += 2; s.f.licence = 0; }
       if (n > 1 && s.heir === 'lag') n--;
+      n += owe;
       if (!n) {
         const fine = this.perk('law') ? 800 : 1500;
         s.record++;
@@ -73,7 +76,7 @@ export function install({ def, A, Life, clamp }) {
         return `A ${money(fine)} fine and a criminal record.`;
       }
       this.queue('inside', { n });
-      return `The magistrate does not look up. "${n} seasons."`;
+      return owe ? `The desk sergeant has your photograph pinned up behind him. Back to Starling Gaol: ${n} season${n === 1 ? '' : 's'}, what you owed and more.` : `The magistrate does not look up. "${n} season${n === 1 ? '' : 's'}."`;
     },
     lawWord() { const h = this.s.heat; return h >= 75 ? 'Hunting for you' : h >= 45 ? 'Wants a word' : h >= 15 ? 'Watching you' : 'No interest in you'; },
     hooked(k) { return (this.s.habit[k] || 0) >= 60; },
@@ -162,7 +165,7 @@ export function install({ def, A, Life, clamp }) {
         L.cash(got); L.s.n.thefts = (L.s.n.thefts || 0) + 1;
         // Now and then there is something too good to fence.
         const kept = L.chance(0.15 + i * 0.1) ? L.gotCurio(L.anyCurio()) : null;
-        return `${L.pick(['In by the scullery, out by the front door like you own the place.', 'Silver, a clock, and a painting of a horse.', 'You leave the fridge as you found it. You are not an animal.'])} Sal’s man gives you ${money(got)}.${kept ? ` You keep back a ${kept.name.toLowerCase()} for yourself.` : ''}`;
+        return `${L.pick(['In by the scullery, out by the front door like you own the place.', 'Silver, a clock, and a painting of a horse.', 'You leave the fridge as you found it. You are not an animal.'])} Sal’s man gives you ${money(got)}.${kept ? ` You keep back ${kept.a} for yourself.` : ''}`;
       },
     });
   });

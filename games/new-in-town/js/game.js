@@ -460,7 +460,8 @@ const SHEET = {
         <p class="slot-say ${!o.running && o.out.pay ? 'won' : ''}">${o.running ? 'And they are off!' : esc(o.text)}</p>
         ${o.running ? '' : '<div class="picks mid"><button class="pick" data-do="again">Next race</button></div>'}`;
     } else {
-      const form = (g) => (g.p >= 0.3 ? 'The favourite. Eats first, asks later.' : g.p >= 0.2 ? 'Fancied. Has been seen near a chip before.' : g.p >= 0.12 ? 'Has its days.' : 'Has never been known to hurry.');
+      const order = life.raceCard().map((g) => g.pays).sort((a, b) => a - b);
+      const form = (g) => (g.pays === order[0] ? 'The favourite. Eats first, asks later.' : g.pays === order[4] ? 'Has never been known to hurry.' : g.pays === order[1] ? 'Fancied. Has been seen near a chip before.' : 'Has its days.');
       body = `<p class="lead">Five gulls on the rail, and one chip thrown from the end of the pier. First bird to it wins. Pick your stake, then your gull.</p>
         <div class="picks mid">${bets.map((b) => `<button class="pick ${b === raceStake ? '' : 'quiet'}" data-do="stake" data-v="${b}">${cashShort(b)}</button>`).join('')}</div>
         <h3>On the rail</h3>${life.raceCard().map((g, i) => `<button class="act" data-do="act" data-id="raceBet"${jx({ i, bet: raceStake })}><span class="act-ico">🐦</span><span class="act-main"><b>${esc(g.name)}</b><small>${form(g)}</small></span><span class="act-cost">${chip('cash', `pays ×${g.pays}`)}</span></button>`).join('')}`;
@@ -490,7 +491,7 @@ const SHEET = {
     const s = life.s, p = s.plot, q = life.season;
     const when = (list) => list.map((k) => SEASONS[k].toLowerCase()).join(' or ');
     const almanac = `<details><summary>The almanac: what to sow, and when</summary>${Object.entries(CROPS).map(([id, c]) => `<div class="rung"><b>${c.icon} ${c.name}</b><span>${c.show ? 'for the Harvest Show' : `about ${money(c.pay)}`}</span><div><i class="need ${c.sow.includes(q) ? 'ok' : ''}">Sow in ${when(c.sow)}</i><i class="need">Ready ${c.ripe === 1 ? 'the next season' : 'two seasons on'}</i>${s.grown[id] ? '<i class="need ok">✓ Grown</i>' : ''}</div></div>`).join('')}
-      <p class="fine">A crop left a season past ready is lost. Weeding and watering (twice a season is all a bed can use) makes for a bigger harvest.</p></details>`;
+      <p class="fine">A crop keeps for the season it is ready and the one after; then it is lost. Weeding and watering (twice a season is all a bed can use) makes for a bigger harvest.</p></details>`;
     if (!p) return { icon: '🥕', title: 'The allotments', sub: 'Behind Pebble Park', body: `<p class="lead">Three beds, a shed and a water butt for ${money(PLOT_RENT)} a season. What you can sow depends on the time of year. Look after it and it pays you back in vegetables, fresh air and Craft.</p><div class="picks mid">${pick('Take a plot', 'plotRent', undefined, life.can('plotRent'))}</div>${almanac}` };
     let body = '<p class="lead">Sow in the right season, weed and water, and bring it in when it is ready.</p>';
     p.beds.forEach((b, i) => {
@@ -506,7 +507,7 @@ const SHEET = {
     });
     body += actRow(life.look('tend')) + actRow(life.look('reap'));
     if (s.marrow) body += `<p class="sub">🥒 A ${s.marrow} kg marrow is in the shed, for the Harvest Show at the park in autumn.</p>`;
-    body += `${almanac}<div class="picks mid">${pick('Give up the plot', 'plotQuit', undefined, null, 'quiet')}</div>`;
+    body += `${almanac}<details><summary>Had enough?</summary><p class="fine">Whatever is in the ground goes with it.</p><div class="picks">${pick('Give up the plot', 'plotQuit', undefined, null, 'quiet')}</div></details>`;
     return { icon: '🥕', title: 'Your allotment', sub: `Plot 14 · ${money(PLOT_RENT)} a season`, body };
   },
 
@@ -541,7 +542,7 @@ const SHEET = {
         ${full ? `<div class="picks">${pick(`Sell the set · ${cashShort(life.setWorth(k) * 2)}`, 'setSell', k)}${pick('Give it to the museum', 'setGive', k, null, 'quiet')}</div>` : ''}</div>`;
     }
     const mine = Object.keys(s.items).filter((id) => ITEMS[id]);
-    if (mine.length) body += `<h3>Your own things</h3><p class="fine">Mr Pym will take anything, for a good deal less than you paid.</p><div class="things cur">${mine.map((id) => `<button data-do="act" data-id="pawn"${jx(id)}>${ITEMS[id].icon}<small>${ITEMS[id].name}</small><em>Sell ${cashShort(life.pawnPrice(id))}</em></button>`).join('')}</div>`;
+    if (mine.length) body += `<details><summary>Sell your own things</summary><p class="fine">Mr Pym will take anything, for a good deal less than you paid.</p><div class="things cur">${mine.map((id) => `<button data-do="act" data-id="pawn"${jx(id)}${life.can('pawn', id) ? ` data-why="${esc(life.can('pawn', id))}"` : ''}>${ITEMS[id].icon}<small>${ITEMS[id].name}</small><em>Sell ${cashShort(life.pawnPrice(id))}</em></button>`).join('')}</div></details>`;
     return { icon: '🏺', title: 'Pym’s Curios', sub: `${Object.keys(s.curSeen).length} of ${Object.keys(CURIOS).length} found`, body };
   },
 
@@ -671,6 +672,7 @@ function spin(r) {
   setTimeout(() => {
     clearInterval(t);
     spinning = false;
+    if (!life) return;
     slotShow = r.out;
     landed(r, true);
     result = null;
@@ -701,6 +703,7 @@ function race(r) {
   setTimeout(() => {
     clearInterval(t);
     spinning = false;
+    if (!life || !raceShow) return;
     raceShow.running = false;
     landed(r, true);
     result = null;
@@ -752,8 +755,10 @@ function chooseOpt(el) {
   const i = Number(el.dataset.i), ev = life.event();
   if (!ev) { ui.close(); return; }
   if (ev.opts[i].why) { sfx('nope'); toast(ev.opts[i].why); return; }
+  const wasIn = !!life.s.gaol;
   const r = life.choose(i);
   if (!r.ok) { sfx('nope'); toast(r.why); return; }
+  if (wasIn !== !!life.s.gaol) { sheets = []; result = null; tab = 'town'; }
   haptic();
   persist();
   render();
@@ -772,6 +777,7 @@ function nextSeason() {
   closeSheets();
   if (life.s.time >= 3 && !save.restTip && !life.s.gaol) { save.restTip = true; toast('Time you do not use is rest: good for health and mood.', 4200); }
   const r = life.endSeason();
+  bjShow = null; raceShow = null;
   persist();
   tab = 'town';
   render();
@@ -897,7 +903,7 @@ const ui = cards({
     ui.show(`<h2>Start a new life?</h2><p>${esc(life.s.name)}'s story will end here, unfinished. Trophies and ribbons you have earned are kept.</p>
       <div class="actions"><button class="btn btn-primary" data-action="freshYes">Yes, start again</button><button class="btn btn-soft" data-action="menu">No, go back</button></div>`);
   },
-  freshYes() { ui.close(); life = null; save.next = null; save.counted = false; save.fresh = false; persist(); showStart(); },
+  freshYes() { ui.close(); life = null; sheets = []; raceShow = null; bjShow = null; save.next = null; save.counted = false; save.fresh = false; persist(); showStart(); },
   begin() {
     ui.close(); sfx('win');
     // The very first time, say how it all works.

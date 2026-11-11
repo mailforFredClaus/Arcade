@@ -4,7 +4,7 @@
 // season; Mr Pym's shop of curios on the High Street, to collect and to
 // trade; and the beach, which is free.
 
-import { CROPS, PLOT_RENT, PLOT_BEDS, CURIOS, CURIO_SETS, ECO, FILLER, SMALL_ADS, FISH, SEASONS, LOOKS, ITEMS, money, many } from './data.js';
+import { CROPS, PLOT_RENT, PLOT_BEDS, CURIOS, CURIO_SETS, CURIO_SET_SAID, aCurio, theCurio, curioSaid, ECO, FILLER, SMALL_ADS, FISH, SEASONS, LOOKS, ITEMS, money, many } from './data.js';
 
 const round10 = (n) => Math.round(n / 10) * 10;
 const seasonsOf = (list) => list.map((q) => SEASONS[q].toLowerCase()).join(' or ');
@@ -52,7 +52,7 @@ export function install({ def, A, Life, clamp }) {
       items.push({ icon: '🎣', h: 'What is on', t: `${fish.length ? `Biting now: ${fish.join(', ')}. ` : ''}${sow.length ? `On the allotments, it is time to sow ${sow.join(', ')}.` : 'Nothing to sow on the allotments until spring.'}${q === 2 ? ' The Harvest Show is on at Pebble Park: marrows to the big tent.' : ''}` });
       if (s.cur && s.cur.stock.length) {
         const hot = Object.keys(CURIO_SETS).sort((a, b) => s.cur.bid[b] - s.cur.bid[a])[0];
-        items.push({ icon: '🏺', h: 'Pym’s Curios', t: `In the window this season: ${s.cur.stock.map((c) => CURIOS[c.id].name.toLowerCase()).join(', ')}. Collectors are paying well for ${CURIO_SETS[hot].toLowerCase()}.` });
+        items.push({ icon: '🏺', h: 'Pym’s Curios', t: `In the window this season: ${s.cur.stock.map((c) => curioSaid(c.id)).join(', ')}. Collectors are paying well for ${CURIO_SET_SAID[hot]}.` });
       }
       items.push({ icon: '🎟️', h: 'Bay Lotto', t: `This season’s jackpot is ${money(s.lot.pot)}. Tickets from the newsagent on the High Street.` });
       if (s.heat >= 30 && !s.run && !s.gaol && lead.icon !== '🚔') items.push({ icon: '🚔', h: 'Police notebook', t: 'Officers are "following a definite line of enquiry", which is what they say.' });
@@ -69,7 +69,8 @@ export function install({ def, A, Life, clamp }) {
     bedCare(b) { return clamp(b.care / (CROPS[b.c].ripe * 2), 0, 1); },
     plotSeason() {
       const s = this.s;
-      if (s.marrow && this.season === 3) { s.marrow = 0; this.note('Your show marrow went soft in the shed.'); }
+      // (A marrow is for this autumn's show, and does not keep for the next.)
+      if (s.marrow && this.season !== 2) { s.marrow = 0; this.note('Your show marrow went soft in the shed.'); }
       if (!s.plot) return;
       s.plot.beds.forEach((b, i) => {
         if (!b) return;
@@ -88,8 +89,8 @@ export function install({ def, A, Life, clamp }) {
     gotCurio(id) {
       const s = this.s;
       s.curios[id] = (s.curios[id] || 0) + 1;
-      if (!s.curSeen[id]) { s.curSeen[id] = 1; this.say(CURIOS[id].icon, `For your collection: ${CURIOS[id].name.toLowerCase()}`, 'good'); }
-      return CURIOS[id];
+      if (!s.curSeen[id]) { s.curSeen[id] = 1; this.say(CURIOS[id].icon, `For your collection: ${curioSaid(id)}`, 'good'); }
+      return { ...CURIOS[id], a: aCurio(id), the: theCurio(id) };
     },
     // One at random, the humbler things far likelier. sets: only from these.
     anyCurio(sets) {
@@ -176,7 +177,7 @@ export function install({ def, A, Life, clamp }) {
         if (c.show) s.marrow = Math.round((6 + care * 16 + s.st.craft / 8 + L.rnd() * 8 + (s.f.seed ? 7 : 0)) * 10) / 10;
       });
       L.cash(cash); s.n.earned += cash; L.joy(4); L.hp(1); L.gain('craft', 0.8);
-      return `You bring in the ${got.join(' and the ')}: more than you can eat, so the rest goes on a table by the gate with an honesty box. ${money(cash)}.${s.marrow && got.includes('show marrow') ? ` The marrow weighs ${s.marrow} kg. Keep it for the Harvest Show in autumn.` : ''}`;
+      return `You bring in the ${got.join(' and the ')}: more than you can eat, so the rest goes on a table by the gate with an honesty box. ${money(cash)}.${s.marrow && got.includes('show marrow') ? ` The marrow weighs ${s.marrow} kg. ${L.season === 2 ? 'The Harvest Show is on at the park this season.' : 'It is too late for this year’s show, and it will not keep.'}` : ''}`;
     },
   });
   def('show', {
@@ -225,7 +226,7 @@ export function install({ def, A, Life, clamp }) {
     why: (L, i) => (L.s.cur && L.s.cur.stock[i] ? null : 'It has gone.'),
     run(L, i) {
       const [c] = L.s.cur.stock.splice(i, 1), k = L.gotCurio(c.id);
-      return `Mr Pym wraps the ${k.name.toLowerCase()} in last week’s Gazette${c.ask < k.worth * 0.75 ? '. You try not to look pleased until you are outside' : c.ask > k.worth * 1.2 ? ', humming' : ''}.`;
+      return `Mr Pym wraps ${k.the} in last week’s Gazette${c.ask < k.worth * 0.75 ? '. You try not to look pleased until you are outside' : c.ask > k.worth * 1.2 ? ', humming' : ''}.`;
     },
   });
   def('haggle', {
@@ -234,7 +235,6 @@ export function install({ def, A, Life, clamp }) {
     run(L) {
       const cur = L.s.cur, won = L.chance(L.checkOdds('charm', 50));
       for (const c of cur.stock) c.ask = round10(c.ask * (won ? 0.82 : 1.1));
-      L.gain('charm', 0.5);
       return won ? 'You suck your teeth, point out a chip that may or may not be there, and start to leave. Mr Pym knocks a fifth off everything.' : 'Mr Pym has been haggled with by experts. He puts his prices up, out of principle.';
     },
   });
@@ -245,17 +245,18 @@ export function install({ def, A, Life, clamp }) {
       const s = L.s, pay = L.curioBid(id);
       if (--s.curios[id] <= 0) delete s.curios[id];
       L.cash(pay);
-      return `Mr Pym turns the ${CURIOS[id].name.toLowerCase()} over twice and counts out ${money(pay)}.`;
+      return `Mr Pym turns ${theCurio(id)} over twice and counts out ${money(pay)}.`;
     },
   });
   // He takes your own things too, for a good deal less than they cost.
   def('pawn', {
     time: 0,
-    why: (L, id) => (ITEMS[id] && L.s.items[id] ? null : 'You have not got one.'),
+    why: (L, id) => (!(ITEMS[id] && L.s.items[id]) ? 'You have not got one.' : L.s.use[`got_${id}`] ? 'You have only just bought it.' : null),
     run(L, id) {
-      const s = L.s, pay = L.pawnPrice(id);
+      const s = L.s, pay = L.pawnPrice(id), was = L.timeMax();
       delete s.items[id];
-      s.time = Math.min(s.time, L.timeMax());
+      // What it gave in time, it takes with it.
+      s.time = Math.max(0, Math.min(s.time - (was - L.timeMax()), L.timeMax()));
       L.cash(pay);
       return `Mr Pym looks your ${ITEMS[id].name.toLowerCase()} over, names a price that hurts, and will not be moved. ${money(pay)}.`;
     },
@@ -264,7 +265,7 @@ export function install({ def, A, Life, clamp }) {
   def('setSell', {
     time: 0,
     why: (L, k) => (CURIO_SETS[k] && L.hasSet(k) ? null : 'You need all four.'),
-    run(L, k) { const pay = L.setWorth(k) * 2; giveUp(L, k); L.cash(pay); L.joy(6); L.note(`Sold a complete set of ${CURIO_SETS[k].toLowerCase()} for ${money(pay)}.`); return `A collector comes down from the city by the first train and does not haggle. ${money(pay)} for the set.`; },
+    run(L, k) { const pay = L.setWorth(k) * 2; giveUp(L, k); L.cash(pay); L.joy(6); L.note(`Sold a complete set of ${CURIO_SET_SAID[k]} for ${money(pay)}.`); return `A collector comes down from the city by the first train and does not haggle. ${money(pay)} for the set.`; },
   });
   def('setGive', {
     time: 0,
@@ -272,7 +273,7 @@ export function install({ def, A, Life, clamp }) {
     run(L, k) {
       const s = L.s, worth = L.setWorth(k);
       giveUp(L, k); L.karma(10); L.fame(3); L.joy(8); s.n.given = (s.n.given || 0) + worth; s.f.patron = 1;
-      L.note(`Gave a complete set of ${CURIO_SETS[k].toLowerCase()} to the town museum.`, 'big');
+      L.note(`Gave a complete set of ${CURIO_SET_SAID[k]} to the town museum.`, 'big');
       return 'The museum puts them in a glass case in the front room, with your name on a small brass plate. School parties are made to look at it.';
     },
   });
@@ -283,7 +284,7 @@ export function install({ def, A, Life, clamp }) {
     run(L) {
       const r = L.rnd();
       L.joy(2); L.gain('fitness', 0.4); L.s.use.fit = 1;
-      if (r < 0.08) { const k = L.gotCurio(L.anyCurio(['sea', 'coin'])); return `Half buried by the breakwater: a ${k.name.toLowerCase()}. Mr Pym would want to see that.`; }
+      if (r < 0.08) { const k = L.gotCurio(L.anyCurio(['sea', 'coin'])); return `Half buried by the breakwater: ${k.a}. Mr Pym would want to see that.`; }
       if (r < 0.4) { const got = L.int(1, 9) * 10; L.cash(got); return `${L.pick(['Returnable bottles, a whole crate’s worth.', 'A wallet’s worth of loose change under the pier.', 'Sea glass. The gift shop buys it by the jar.'])} ${money(got)}.`; }
       return L.pick(['A good stick, a dead crab, and one shoe.', 'You skim a stone seven times and nobody sees.', 'Shells, mostly. You keep the best one.', 'A seal watches you from the water, and you watch it back.']);
     },

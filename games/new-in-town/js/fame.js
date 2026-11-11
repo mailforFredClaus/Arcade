@@ -80,7 +80,7 @@ export function install({ def, A, Life, clamp }) {
       L.crowd(0);
       s.use.chirp = (s.use.chirp || 0) + 1; s.chirp.posts++; s.n.trolls = (s.n.trolls || 0) + 1;
       L.karma(-3); L.joy(2);
-      if (L.chance(0.1)) { s.chirp.ban = 2; return 'You go too far, as was always the plan. Chirper suspends your account for two seasons.'; }
+      if (L.chance(0.1)) { s.chirp.ban = 2; return 'You go too far, as was always the plan. Chirper suspends your account until the season after next.'; }
       const gain = Math.round(L.chirpGain('joke') * (0.5 + L.rnd() * 1.5));
       L.crowd(gain);
       return `${L.pick(['You find a man who is wrong about gulls and ruin his week.', 'A local councillor blocks you. You frame the screenshot.', 'You reply "ratio" to a lifeboat appeal. It works, which is the worst part.'])} ${gain.toLocaleString('en')} new followers, of a certain kind.`;

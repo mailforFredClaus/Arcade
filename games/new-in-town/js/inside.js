@@ -23,7 +23,10 @@ export function install({ def, A, Life, clamp }) {
       s.f.jailed = 1; s.record++;
       if (s.job) { this.note(`Lost the job as ${this.jobTitle()}.`); s.job = null; }
       if (s.gaol) { s.gaol.left += n; s.gaol.total += n; return; }
-      s.run = null; s.hilo = null; s.bj = null;
+      // Whatever was on the table at the Lucky Gull is settled.
+      if (s.bj) this.bjSettle('stand');
+      if (s.hilo) { this.cash(s.hilo.pot); s.n.casino += s.hilo.pot - s.hilo.bet; s.hilo = null; }
+      s.run = null;
       s.gaol = { left: n, total: n, served: 0, good: 50, rep: Math.min(40, (s.worked.crew ?? -1) * 8 + 8), dig: 0, study: 0, sol: false, inSol: false, appeal: false, board: null, tat: false };
       s.time = Math.min(s.time, this.timeMax());
       this.note(`Sent to Starling Gaol for ${n} season${n > 1 ? 's' : ''}.`, 'big');
@@ -85,7 +88,11 @@ export function install({ def, A, Life, clamp }) {
     },
   });
 
-  const inside = (o) => Object.assign({ place: 'gaol', gaol: true }, o);
+  // sol: it can be done from the block, alone. Nothing else can.
+  const inside = (o) => {
+    const why = o.why;
+    return Object.assign({ place: 'gaol', gaol: true }, o, { why: (L, x, y) => (L.s.gaol.inSol && !o.sol ? 'Not from the block.' : why ? why(L, x, y) : null) });
+  };
 
   // -- the day
   def('gWork', inside({
@@ -97,7 +104,7 @@ export function install({ def, A, Life, clamp }) {
     run(L) { L.gain('fitness', 2.6); L.respect(1); L.hp(1); return L.pick(['Press-ups until the whistle.', 'Forty laps of a yard the size of a tennis court.', 'A man called Tiny spots for you. Tiny is not tiny.']); },
   }));
   def('gLib', inside({
-    sec: 'The day', icon: '📚', title: 'Read what is on the trolley', desc: 'Smarts. Mostly westerns, and one book on tax law.',
+    sol: true, sec: 'The day', icon: '📚', title: 'Read what is on the trolley', desc: 'Smarts. Mostly westerns, and one book on tax law.',
     run(L) { L.gain('smarts', 2.4); L.behave(1); L.joy(1); return L.pick(['You read the book on tax law. It is surprisingly gripping.', 'The last page of the western is missing. You write your own.', 'A dictionary, from A as far as M.']); },
   }));
   def('gStudy', inside({
@@ -117,7 +124,7 @@ export function install({ def, A, Life, clamp }) {
     },
   }));
   def('gLetters', inside({
-    sec: 'The day', icon: '✉️', title: 'Write home', desc: 'Keeps the people outside from forgetting you.', per: 1,
+    sol: true, sec: 'The day', icon: '✉️', title: 'Write home', desc: 'Keeps the people outside from forgetting you.', per: 1,
     why: (L) => (L.s.people.some((p) => ['partner', 'spouse', 'parent', 'child', 'friend'].includes(p.kind)) ? null : 'There is nobody to write to.'),
     run(L) {
       for (const p of L.s.people) if (['partner', 'spouse', 'parent', 'child'].includes(p.kind)) L.bond(p, 7); else if (p.kind === 'friend') L.bond(p, 4);
@@ -131,7 +138,7 @@ export function install({ def, A, Life, clamp }) {
   }));
 
   def('gDoc', inside({
-    sec: 'The day', icon: '🩺', title: 'See the prison doctor', desc: 'Two aspirin and a look over the top of his spectacles. It mostly works.',
+    sol: true, sec: 'The day', icon: '🩺', title: 'See the prison doctor', desc: 'Two aspirin and a look over the top of his spectacles. It mostly works.',
     show: (L) => !!L.s.ill || L.s.health < 50,
     run(L) {
       const s = L.s;
@@ -144,7 +151,7 @@ export function install({ def, A, Life, clamp }) {
   }));
 
   def('gCoast', inside({
-    sec: 'The day', icon: '⏳', title: 'Let the season go by', desc: 'All the time you have left, spent on nothing in particular. No trouble, and a little good on your record.',
+    sol: true, sec: 'The day', icon: '⏳', title: 'Let the season go by', desc: 'All the time you have left, spent on nothing in particular. No trouble, and a little good on your record.',
     run(L) {
       const s = L.s, n = 1 + s.time;
       s.time = 0;
@@ -196,7 +203,7 @@ export function install({ def, A, Life, clamp }) {
       const q = L.s.gaol;
       L.behave(18); L.respect(-30); L.karma(-2);
       const off = q.left > 1 && L.chance(0.5);
-      if (off) q.left--;
+      if (off) L.extra(-1);
       const found = L.chance(0.3);
       if (found) L.rough(15, 'a beating in Starling Gaol');
       return `The governor writes it all down and offers you a biscuit.${off ? ' A season comes off your sentence.' : ''}${found ? ' Word gets round. So do three men with a bar of soap in a sock.' : ''}`;
@@ -221,7 +228,7 @@ export function install({ def, A, Life, clamp }) {
       const q = L.s.gaol;
       q.appeal = true;
       if (!L.chance(clamp(0.2 + L.s.st.smarts / 250 + (L.perk('law') ? 0.15 : 0) + L.luck(), 0.05, 0.9))) return 'The judge reads for forty minutes and then says "no". Your barrister sends his bill the same afternoon.';
-      q.left = Math.ceil(q.left / 2);
+      L.extra(Math.ceil(q.left / 2) - q.left);
       return `"Unsafe," says the judge, about one count out of three. It is enough: ${q.left} season${q.left > 1 ? 's' : ''} left.`;
     },
   }));

@@ -30,8 +30,8 @@ export function cashShort(n) {
 
 // A crowd, counted: 950, 12.4k, 1.2M.
 export function many(n) {
-  if (n >= 1e6) return `${(n / 1e6).toFixed(n >= 1e7 ? 0 : 1)}M`;
-  if (n >= 1e4) return `${Math.round(n / 1e3)}k`;
+  if (n >= 999500) return `${(n / 1e6).toFixed(n >= 9.95e6 ? 0 : 1)}M`;
+  if (n >= 9950) return `${Math.round(n / 1e3)}k`;
   if (n >= 1e3) return `${(n / 1e3).toFixed(1)}k`;
   return String(Math.round(n));
 }
@@ -710,14 +710,14 @@ export const CURIOS = {
   figurehead: { name: 'Figurehead', icon: '🧜', set: 'sea', worth: 5200 },
   roman: { name: 'Roman coin', icon: '🪙', set: 'coin', worth: 600 },
   medal: { name: 'Lifeboat medal', icon: '🎖️', set: 'coin', worth: 1400 },
-  eight: { name: 'Pieces of eight', icon: '💰', set: 'coin', worth: 2400 },
+  eight: { name: 'Pieces of eight', icon: '💰', set: 'coin', worth: 2400, art: 'some' },
   sovereign: { name: 'Gold sovereign', icon: '👑', set: 'coin', worth: 4000 },
   robot: { name: 'Tin robot', icon: '🤖', set: 'toy', worth: 350 },
   gull: { name: 'Clockwork gull', icon: '🐦', set: 'toy', worth: 800 },
   bear: { name: 'One-eared bear', icon: '🧸', set: 'toy', worth: 1200 },
   dolls: { name: 'Dolls’ house', icon: '🏠', set: 'toy', worth: 3000 },
-  seaweed: { name: 'Album of pressed seaweed', icon: '🌿', set: 'book', worth: 500 },
-  atlas: { name: 'Old atlas', icon: '🗺️', set: 'book', worth: 900 },
+  seaweed: { name: 'Album of pressed seaweed', icon: '🌿', set: 'book', worth: 500, art: 'an' },
+  atlas: { name: 'Old atlas', icon: '🗺️', set: 'book', worth: 900, art: 'an' },
   first: { name: 'First edition', icon: '📕', set: 'book', worth: 2000 },
   chart: { name: 'Smuggler’s chart', icon: '🏴‍☠️', set: 'book', worth: 3500 },
   plate: { name: 'Willow-pattern plate', icon: '🍽️', set: 'art', worth: 250 },
@@ -725,11 +725,18 @@ export const CURIOS = {
   seascape: { name: 'Seascape in oils', icon: '🖼️', set: 'art', worth: 2600 },
   captain: { name: 'Portrait of a stern captain', icon: '👨‍✈️', set: 'art', worth: 6000 },
 };
+// How a set, and a curio, are said in the middle of a sentence: "a set of
+// maritime pieces", "an old atlas", "the Roman coin".
+export const CURIO_SET_SAID = { sea: 'maritime pieces', coin: 'coins and medals', toy: 'toys', book: 'books and maps', art: 'pictures and china' };
+const plainCurio = (c) => (c.name.startsWith('Roman') ? c.name : c.name[0].toLowerCase() + c.name.slice(1));
+export const aCurio = (id) => `${CURIOS[id].art || 'a'} ${plainCurio(CURIOS[id])}`;
+export const theCurio = (id) => `the ${plainCurio(CURIOS[id])}`;
+export const curioSaid = (id) => plainCurio(CURIOS[id]);
 
 // ---- the Gazette ------------------------------------------------------------------------
 
 export const ECO = [
-  { name: 'A deep slump', icon: '🌧️', text: 'Shops are boarded up along the front, and the bank is not lending. Jobs are being cut, businesses take less and prices are falling.' },
+  { name: 'A deep slump', icon: '🌧️', text: 'Shops are boarded up along the front. Jobs are being cut, businesses take less and prices are falling.' },
   { name: 'A slump', icon: '🌥️', text: 'Trade is slow. Bosses are careful with pay rises, and some are letting people go.' },
   { name: 'Steady', icon: '⛅', text: 'Business in the Bay is ticking over, as it mostly does.' },
   { name: 'Good times', icon: '🌤️', text: 'The tills are ringing. Businesses take more, and bonuses are easier to come by.' },

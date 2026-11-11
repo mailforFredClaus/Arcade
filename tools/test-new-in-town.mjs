@@ -14,7 +14,7 @@ import { Life, ACTIONS, money, cashShort } from '../games/new-in-town/js/engine.
 import { EVENTS } from '../games/new-in-town/js/events.js';
 import {
   STATS, PLACES, CAREERS, SHIFTS_FOR_RUNG, COURSES, HOMES, UPGRADES, ITEMS, STOCKS, PROPS, PETS, DREAMS, QUESTS, TROPHIES, RIBBONS, BACKGROUNDS,
-  BUSINESSES, FISH, OUTINGS, KID_PLAY, PERKS, NAMES_M, NAMES_F, INSURANCE, FOOD, CROPS, PLOT_RENT, CURIOS, CURIO_SETS, ECO, many,
+  BUSINESSES, FISH, OUTINGS, KID_PLAY, PERKS, NAMES_M, NAMES_F, INSURANCE, FOOD, CROPS, PLOT_RENT, CURIOS, CURIO_SETS, ECO, many, aCurio, theCurio,
 } from '../games/new-in-town/js/data.js';
 import { handTotal } from '../games/new-in-town/js/pier.js';
 import { CHIRPS } from '../games/new-in-town/js/fame.js';
@@ -812,8 +812,9 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', ...o 
   check(block && s.gaol.rep >= 14 && s.gaol.good <= wasGood - 14 && s.use.trouble, 'fighting earns standing, ruins your record, and sooner or later means the block');
   L.endSeason(); s.pend = [];
   check(s.gaol.inSol && s.time === 1, 'a season in the block: one block of time');
+  check(L.can('gFight') === 'Not from the block.' && L.can('gMates') === 'Not from the block.' && L.can('gDeal') === 'Not from the block.' && !L.can('gLib') && !L.can('gCoast'), 'where there is a book, and nobody to fight');
   L.endSeason(); s.pend = [];
-  check(!s.gaol.inSol && s.time === 4, 'then back on the wing');
+  check(!s.gaol.inSol && s.time === 4 && !L.can('gFight'), 'then back on the wing');
   // Parole.
   const P = fresh();
   P.jail(6); P.s.gaol.good = 100; P.s.st.charm = 100;
@@ -845,7 +846,7 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', ...o 
   AP.jail(8); AP.s.cash = 20000; AP.s.st.smarts = 100;
   check(AP.look('gAppeal').cost === 8000, 'a barrister is not cheap');
   let halved = false;
-  for (let i = 0; i < 30 && !halved; i++) { const Q = new Life(JSON.parse(JSON.stringify(AP.s))); Q.s.rng = i * 31; Q.act('gAppeal'); halved = Q.s.gaol.left === 4 && Q.can('gAppeal'); }
+  for (let i = 0; i < 30 && !halved; i++) { const Q = new Life(JSON.parse(JSON.stringify(AP.s))); Q.s.rng = i * 31; Q.act('gAppeal'); halved = Q.s.gaol.left === 4 && Q.s.gaol.total === 4 && Q.can('gAppeal'); }
   check(halved, 'a won appeal halves what is left, and there is only one');
   // The wall.
   const W = fresh();
@@ -861,6 +862,26 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', ...o 
   away.queue('recapture');
   away.choose(2);
   check(away.s.gaol && away.s.gaol.left === 14 && !away.s.run, 'caught again, you serve what you owed');
+  // An escaped prisoner picked up for something else still owes the old sentence.
+  const R1 = fresh();
+  R1.s.run = { owe: 9 }; R1.s.record = 1;
+  R1.sentence(1);
+  check(R1.event().id === 'inside' && R1.s.pend[0].x.n === 10, 'on the run, a petty arrest brings back all that was owed');
+  const R2 = fresh();
+  R2.s.run = { owe: 9 }; R2.s.record = 1;
+  R2.sentence(0);
+  check(R2.event() && R2.s.pend[0].x.n === 9, 'and not even a good lawyer talks that away');
+  R2.choose(0);
+  check(R2.s.gaol.left === 9 && !R2.s.run, 'back inside, no longer running');
+  check(fresh().sentence(0).startsWith('A stern talking-to'), 'though for anyone else a lawyer can still mean a talking-to');
+  const one = fresh();
+  one.s.record = 1; one.s.cash = 0;
+  check(one.sentence(1).includes('"1 season."'), 'one season is one season');
+  // A hand left at the Lucky Gull is settled when you are taken away.
+  const BJ = fresh();
+  BJ.s.cash = 1000; BJ.s.bj = { bet: 50, me: [10, 9], dl: [10, 7] }; BJ.s.hilo = { bet: 50, pot: 120, card: 5, streak: 1 };
+  BJ.jail(2);
+  check(!BJ.s.bj && !BJ.s.hilo && BJ.s.cash === 1000 + 100 + 120 && BJ.s.n.casino === 50 + 70, 'what was on the table is paid out before the van leaves');
   const cold = fresh();
   cold.s.run = { owe: 5 }; cold.s.heat = 5;
   cold.endSeason();
@@ -877,6 +898,15 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', ...o 
   const gaolCards = EVENTS.filter((e) => e.gaol && e.w).map((e) => e.id);
   check([...seen].every((id) => EVENTS.find((e) => e.id === id).gaol || ['parole', 'gateOut', 'parentDies', 'birthday30', 'birthday50'].includes(id)), `only prison cards turn up inside (${[...seen].join(' ')})`);
   check(gaolCards.filter((id) => seen.has(id)).length >= gaolCards.length - 2, 'and nearly all of them do, in a long sentence');
+  const home = fresh();
+  home.s.age = 29; home.s.t = 43;
+  home.jail(10);
+  home.s.pet = { kind: 'dog', name: 'Rex', age: 14, since: 0 };
+  home.queue('birthday30'); home.queue('petDies');
+  check(home.event().id === 'petDies' && home.event().text.startsWith('Word comes from outside') && home.choose(0).text.includes('collar'), 'news from home reaches a cell as news, and a birthday party does not');
+  const done = new Life({ ...JSON.parse(JSON.stringify(fresh().s)), v: 2, quest: 12, cur: null });
+  const part = new Life({ ...JSON.parse(JSON.stringify(fresh().s)), v: 2, quest: 5, cur: null });
+  check(done.s.v === 3 && done.s.quest === QUESTS.length && part.s.quest === 5 && done.s.cur.stock.length === 3, 'a life from the last version keeps its place in the to-do list');
   const free = fresh();
   free.queue('gPudding');
   check(!free.event(), 'a prison card means nothing outside');
@@ -907,6 +937,16 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', ...o 
   for (let i = 0; i < 17; i++) { w.endSeason(); w.s.pend = []; }
   check(!w.exes().length, 'in time an ex moves away');
 
+  const gone = fresh();
+  const old = gone.meet({ sex: 'f', kind: 'spouse', bond: 5, single: false, age: 80 });
+  gone.queue('divorce', old.id); gone.queue('spouseDies', old.id); gone.queue('caughtOut', old.id);
+  gone.choose(gone.event().opts.length - 1);
+  if (old.kind === 'ex') check(!gone.event(), 'cards about a husband or wife are dropped once they are an ex');
+  const lush = fresh();
+  lush.s.habit.drink = 90; lush.s.people = [];
+  lush.foe({ grudge: 80 });
+  const hooked = EVENTS.find((e) => e.id === 'hooked');
+  check(!hooked.when(lush) && hooked.ctx(lush) === null, 'an enemy does not stage an intervention');
   const E = fresh();
   E.s.cash = 50000;
   const foe = E.foe({ sex: 'm' });
@@ -965,6 +1005,11 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', ...o 
     net += s.cash - before; hands++;
   }
   check(s.f.natural && naturals > 100 && doubles > 200, `blackjacks are dealt (${naturals} in ${hands} hands)`);
+  const mood = fresh();
+  mood.s.cash = 1e7; mood.s.happy = 30;
+  let top = 30;
+  for (let i = 0; i < 300; i++) { mood.act('bjStart', 5000); let g2 = 0; while (mood.s.bj && g2++ < 20) mood.act(handTotal(mood.s.bj.me) < 15 ? 'bjHit' : 'bjStand'); top = Math.max(top, mood.s.happy); mood.act('raceBet', { i: 0, bet: 50 }); top = Math.max(top, mood.s.happy); }
+  check(top <= 35, `a win lifts the spirits once a season, not three hundred times (${top.toFixed(1)})`);
   check(net < 0 && net > -hands * 50 * 0.2, `the house has an edge at blackjack, but not a cruel one (${(net / hands / 50 * 100).toFixed(1)}% a hand)`);
   s.cash = 1000; s.bank = 0;
   L.act('bjStart', 500);
@@ -1107,6 +1152,13 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', ...o 
   check(wins >= 5 && wins <= 39, `a good marrow can beat Mrs Pargeter (${wins} of 40)`);
   A.endSeason(); a.pend = [];
   check(a.marrow === 0, 'a marrow kept past autumn goes soft');
+  const late = fresh();
+  late.act('plotRent'); late.act('sow', { b: 0, c: 'marrow' });
+  for (let i = 0; i < 3; i++) { late.endSeason(); late.s.pend = []; }
+  late.act('reap');
+  check(late.season === 3 && late.s.marrow > 0, 'one brought in in winter');
+  late.endSeason(); late.s.pend = [];
+  check(late.s.marrow === 0, 'does not keep until next year’s show');
   const N = fresh();
   N.act('plotRent'); N.act('sow', { b: 0, c: 'toms' });
   for (let i = 0; i < 3; i++) { N.endSeason(); N.s.pend = []; }
@@ -1147,8 +1199,21 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', ...o 
   PW.s.cash = 20000;
   PW.act('buy', 'car'); PW.act('buy', 'guitar');
   const blocks = PW.timeMax(), had = PW.s.cash;
+  check(PW.can('pawn', 'car') === 'You have only just bought it.', 'not on the day you bought it, though');
+  PW.s.use = {};
   check(PW.s.time === blocks && PW.act('pawn', 'car').ok && !PW.s.items.car && PW.s.cash === had + PW.pawnPrice('car') && PW.pawnPrice('car') < ITEMS.car.price / 2, 'Mr Pym buys your belongings for less than half what they cost');
   check(PW.timeMax() === blocks - 2 && PW.s.time === PW.timeMax() && PW.can('pawn', 'car') && PW.can('pawn', 'nonsense'), 'and a car sold takes its time with it');
+  // Buying and selling a bicycle is not a way to make time.
+  const loop = fresh();
+  loop.s.cash = 50000; loop.s.time = 0;
+  let made = 0;
+  for (let i = 0; i < 6; i++) { loop.act('buy', 'bike'); made += loop.s.time; loop.s.time = 0; if (loop.act('pawn', 'bike').ok) check(false, 'a bicycle bought this season cannot be sold'); }
+  loop.endSeason(); loop.s.pend = [];
+  const t1 = loop.s.time;
+  loop.act('pawn', 'bike');
+  check(made === 1 && loop.s.time === t1 - 1 && !loop.s.items.bike, 'a bicycle gives its block of time once, and takes it back when it goes');
+  check(aCurio('atlas') === 'an old atlas' && aCurio('roman') === 'a Roman coin' && aCurio('eight') === 'some pieces of eight' && theCurio('bell') === 'the ship’s bell', 'curios are named properly in a sentence');
+  check(many(999500) === '1.0M' && many(9999) === '10k' && many(9960000) === '10M' && many(950) === '950' && many(1234) === '1.2k', 'a crowd is counted sensibly');
   const picks = {};
   for (let i = 0; i < 3000; i++) { const id = C.anyCurio(); picks[id] = (picks[id] || 0) + 1; }
   check(Object.keys(picks).length === 20 && picks.plate > picks.captain * 5, 'what turns up by chance is mostly the humble things');
@@ -1281,7 +1346,7 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', ...o 
     { id: 4, name: 'Wren', kind: 'child', bond: 60, age: 7, trait: 'sporty', look: { skin: 1, hair: 1, top: 1, style: 2 } },
   ];
   const L = new Life(s);
-  check(s.v === 2 && s.sex === null && s.into === null, 'an old save is brought up to date, and has yet to say who it is');
+  check(s.v === 3 && s.sex === null && s.into === null, 'an old save is brought up to date, and has yet to say who it is');
   check(s.estate.length === 4 && s.homeAt === s.estate[0].id && s.estate[0].kind === 'cottage' && s.estate.filter((e) => e.let).length === 3 && !('props' in s), 'its home and its rental places become its property');
   check(Math.abs(L.netWorth() - (N.netWorth() + 2 * L.propPrice('garage') + L.propPrice('rental'))) < 2, 'worth what it was worth');
   check(s.edu.firstaid.a === 19 && s.edu.firstaid.g === 0 && s.course.mark === 100 && s.job.perf === 50 && s.stk.p.BAY > 0, 'its courses, job and shares gain what is new');

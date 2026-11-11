@@ -35,10 +35,12 @@ export function install({ def, A, Life, clamp }) {
       s.bj = null;
       s.n.casino += pay - h.bet;
       if (pay) this.cash(pay);
-      if (res === 'natural') { s.f.natural = 1; this.joy(3); } else if (res === 'win') this.joy(h.bet >= 5000 ? 3 : 0.5); else if (res !== 'push') this.joy(-0.4);
+      if (res === 'natural') { s.f.natural = 1; this.thrill(3); } else if (res === 'win') { if (h.bet >= 5000) this.thrill(3); } else if (res !== 'push') this.joy(-0.4);
       this.out = { me: h.me, dl: h.dl, res, pay, bet: h.bet };
       return { bust: 'Bust! The dealer takes your chips without looking up.', natural: `Blackjack! It pays three to two: ${money(pay)}.`, win: `You win ${money(pay)}.`, push: 'A tie. You get your stake back.', lose: `The dealer has ${handTotal(h.dl)}. Your stake is gone.` }[res];
     },
+    // The lift of a win, which only works once a season.
+    thrill(n) { if (!this.s.use.thrill) { this.s.use.thrill = 1; this.joy(n); } },
     // Today's card at the gull races: five birds and what they pay.
     raceCard() {
       const s = this.s;
@@ -54,7 +56,7 @@ export function install({ def, A, Life, clamp }) {
     // The end of a season on the pier: an unfinished hand is played out, and the lotto is drawn.
     pierSeason() {
       const s = this.s;
-      if (s.bj) this.bjSettle('stand');
+      if (s.bj) { const said = this.bjSettle('stand'); this.say('♠️', `The hand you left on the table was played out. ${said}`, this.out.pay ? 'good' : 'bad'); }
       const lot = s.lot;
       let won = 0, jackpot = false;
       for (let i = 0; i < lot.n; i++) {
@@ -110,7 +112,7 @@ export function install({ def, A, Life, clamp }) {
       }
       const won = order[0] === x.i, pay = won ? Math.round(x.bet * card[x.i].pays) : 0;
       s.n.casino += pay - x.bet;
-      if (pay) { L.cash(pay); L.joy(card[x.i].pays >= 6 ? 5 : 1); if (card[x.i].pays >= 8) s.f.outsider = 1; } else L.joy(-0.3);
+      if (pay) { L.cash(pay); if (card[x.i].pays >= 6) L.thrill(5); if (card[x.i].pays >= 8) s.f.outsider = 1; } else L.joy(-0.3);
       L.out = { card, order, pick: x.i, pay };
       s.race = null;
       return won ? `${card[x.i].name} by a beak! You collect ${money(pay)}.` : `${card[order[0]].name} takes the chip. ${card[x.i].name} ${order.indexOf(x.i) === 4 ? 'is still on the railing, looking at the sea' : `comes in ${['', 'second', 'third', 'fourth'][order.indexOf(x.i)]}`}.`;
