@@ -968,6 +968,7 @@ export class Life {
     if (divs) out.push(['Dividends', divs]);
     if (roy) out.push(['Royalties', roy]);
     if (s.gave.pier) out.push(['The pier company’s board', 6000]);
+    if (s.lodger > 0) out.push(['Rent from your lodger', 500]);
     if (biz) out.push([`Takings from your ${this.bizName().toLowerCase()}`, biz]);
     return out;
   }
@@ -1329,6 +1330,8 @@ export class Life {
     this.cash(-out);
     if (s.debt > owed) lines.push(['Short! Put on your overdraft', 0]);
     if (s.debt > this.creditLimit() * 1.1 + 1000) this.bailiffs();
+    // A lodger stays a year, unless the house goes first.
+    if (s.lodger > 0 && (--s.lodger === 0 || !s.owned)) { s.lodger = 0; this.note('Your lodger moved on, and left you a pot plant.'); }
     this.bizSeason();
     this.viceSeason();
     this.fameSeason();
@@ -1456,6 +1459,7 @@ export class Life {
     if (s.items.sportscar) b += 3;
     if (s.heir === 'heart') b += 6;
     if (s.retired) b += 4;
+    if (s.f.cafe) b += 2;
     if (s.karma >= 30) b += 3;
     if (s.karma <= -30) b -= 3;
     if (s.debt > 3000 && s.debt > this.creditLimit() * 0.6) b -= 8;

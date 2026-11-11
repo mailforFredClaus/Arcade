@@ -1429,6 +1429,33 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', sibs:
   fog.s.wx = 'fog';
   check(fog.riskOf(0.3) < clear, 'fog suits a thief');
   check(Wx.gazette().items.some((it) => it.h.startsWith('The weather')), 'the Gazette has the weather');
+  // A lodger.
+  const Lg = fresh();
+  Lg.s.cash = 1e6; Lg.act('buyHome', { id: 'flat', trade: false });
+  check(EVENTS.find((e) => e.id === 'lodger').when(Lg), 'somebody with a home of their own may be asked for a room');
+  Lg.queue('lodger'); Lg.choose(0);
+  check(Lg.s.lodger === 4 && Lg.income().some(([w, n]) => w.includes('lodger') && n === 500), 'a lodger pays rent');
+  for (let i = 0; i < 4; i++) { Lg.endSeason(); Lg.s.pend = []; }
+  check(!Lg.s.lodger && !Lg.income().some(([w]) => w.includes('lodger')) && Lg.s.log.some((e) => e.t.includes('lodger')), 'and moves on after a year');
+  // Every card can be shown and answered, whoever it is about.
+  const all = fresh();
+  all.s.cash = 1e6; all.s.items.phone = 1; all.s.wx = 'snow'; all.act('plotRent'); all.s.gifts.bench = 'Test'; all.s.n.crimes = 5;
+  all.meet({ kind: 'child', sex: 'f', age: 7, name: 'Kit' }); all.grandchild(all.meet({ kind: 'child', sex: 'm', age: 30, name: 'Sam' })).age = 6;
+  const girl = all.meet({ kind: 'partner', sex: 'f', bond: 60, single: false });
+  for (const [id, x] of [['flood', null], ['snowman', all.kids()[0].id], ['meetFolks', girl.id], ['witness', null], ['capsule', null], ['courgettes', null], ['cafe', null], ['alibi', null], ['nativity', all.grandkids()[0].id], ['bench', null], ['pierPlan', null]]) {
+    const n = EVENTS.find((e) => e.id === id).opts.length;
+    for (let i = 0; i < n; i++) {
+      const X = new Life(JSON.parse(JSON.stringify(all.s)));
+      // (Each in the season, weather and circumstances it belongs to.)
+      Object.assign(X.s, { flood: { wx: 'wet' }, courgettes: { t: 1, home: 'flat' }, cafe: { eco: -1 }, nativity: { t: 3 }, pierPlan: { age: 30 } }[id] || {});
+      X.queue(id, x);
+      const ev = X.event();
+      if (!ev || /undefined|NaN/.test(ev.text + ev.title)) { check(false, `${id}: can be shown (${ev && ev.text})`); break; }
+      if (i >= ev.opts.length) break;
+      const r = X.choose(i);
+      check(r.ok && typeof r.text === 'string' && !/undefined|NaN/.test(r.text), `${id}, choice ${i + 1}: reads properly (${r.text || r.why})`);
+    }
+  }
   // The notice board.
   for (const [id, j] of Object.entries(ODD_JOBS)) check(STATS.includes(j.stat) && j.win && j.lose && (j.pay > 0 || j.karma > 0) && (!j.need || ITEMS[j.need]), `${id}: a job for the notice board`);
   const N = fresh();
