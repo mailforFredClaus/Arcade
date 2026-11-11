@@ -43,7 +43,9 @@ export const V0 = 12.5, VMAX = 25;
 export const speedAt = (s) => Math.min(VMAX, V0 + s / 280);
 export const AHEAD = 150, BEHIND = 24;
 const STEP_UP = 0.5; // a ledge this much above your feet is run up onto, not into
-const SIDE = 25.5; // sideways speed when changing lane, metres a second
+// Changing lane: off the mark at up to SIDE metres a second, easing into
+// the new lane (never slower than SIDE_MIN), so it takes about a sixth of a second.
+const SIDE = 45, SIDE_MIN = 8, SIDE_EASE = 20;
 
 // How long each power-up lasts at upgrade levels 0 to 5.
 export const POWER_TIME = { magnet: [8, 10, 12, 15, 18, 22], fly: [6, 7, 8, 9.5, 11, 13], boots: [8, 10, 12, 15, 18, 22], double: [8, 10, 12, 15, 18, 22], bubble: [14, 17, 20, 24, 28, 34] };
@@ -302,9 +304,11 @@ export class Run {
     }
 
     // Sideways.
-    const tx = this.lane * LANE;
-    if (this.x < tx) this.x = Math.min(tx, this.x + SIDE * dt);
-    else if (this.x > tx) this.x = Math.max(tx, this.x - SIDE * dt);
+    const dx = this.lane * LANE - this.x;
+    if (dx) {
+      const v = clamp(Math.abs(dx) * SIDE_EASE, SIDE_MIN, SIDE) * dt;
+      this.x = Math.abs(dx) <= v ? this.lane * LANE : this.x + Math.sign(dx) * v;
+    }
 
     // Up and down.
     if (this.flying) {
@@ -575,8 +579,8 @@ export class Run {
         none: lerp(0.2, 0.1, d),
         low: 0.13,
         high: g.beats > 5 ? 0.12 : 0,
-        train: boxed ? 0 : lerp(0.42, 0.5, d),
-        ramp: g.beats > 6 ? lerp(0.1, 0.13, d) : 0,
+        train: boxed ? 0 : lerp(0.37, 0.45, d),
+        ramp: g.beats > 6 ? lerp(0.15, 0.18, d) : 0,
         cart: g.beats > 8 ? 0.06 : 0,
         coins: 0.1,
       });
