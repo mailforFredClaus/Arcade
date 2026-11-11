@@ -8,7 +8,7 @@
 // choice and returns what to say (win: whether the gamble came off).
 // L is the Life; x is whatever the event is about (often a person's id).
 
-import { money, CAREERS, NAMES, PETS, STATS, STAT_NAME, BUSINESSES, CURIOS, aCurio, TRAITS, DATE_LINES, an, lowJob } from './data.js';
+import { money, CAREERS, NAMES, PETS, STATS, STAT_NAME, BUSINESSES, CURIOS, aCurio, TRAITS, DATE_LINES, an, lowJob, STOCKS } from './data.js';
 
 const P = (L, id) => L.person(id) || { name: 'Someone', sex: 'm', bond: 0, age: 30 };
 // He or she, him or her, his or her: for whoever a card is about.
@@ -1291,6 +1291,25 @@ export const EVENTS = [
       { t: 'It ought to be somebody else', run(L) { L.s.f.drains = 3; L.karma(1); return 'It is the woman from the chemist’s, and she is very good. You are thanked in her speech, which is plenty.'; } },
     ],
   },
+  // ---- shares ----
+  {
+    id: 'takeover', icon: '🤝', title: 'An offer for the company', w: 4, cd: 16, when: (L) => Object.keys(L.s.stk.own).some((sym) => L.s.stk.own[sym] > 0 && !STOCKS[sym].fund),
+    ctx: (L) => L.pick(Object.keys(L.s.stk.own).filter((sym) => L.s.stk.own[sym] > 0 && !STOCKS[sym].fund)), ok: (L, x) => L.s.stk.own[x] > 0,
+    text: (L, x) => `A firm from the city has bid for ${STOCKS[x].name}: ${money(L.s.stk.p[x] * 1.3)} a share, against ${money(L.s.stk.p[x])} in the market. You hold ${L.s.stk.own[x].toLocaleString('en')}, and the letter wants an answer.`,
+    opts: [
+      { t: 'Take the money', run(L, x) { const k = L.s.stk, got = Math.floor(k.own[x] * k.p[x] * 1.3); delete k.own[x]; delete k.paid[x]; L.cash(got); L.joy(4); return `Sold, at the bidder’s price: ${money(got)}. Somebody else can worry about it now.`; } },
+      { t: 'Hold out for more', odds: () => 0.45, run(L, x, win) { const k = L.s.stk; if (win) { k.p[x] = Math.round(k.p[x] * 1.5 * 100) / 100; k.news.unshift({ t: L.s.t, sym: x, up: true, text: `${STOCKS[x].name} is fought over by two bidders` }); return `A second bidder turns up, with a bigger cheque book. The price is ${money(k.p[x])} and climbing.`; } k.p[x] = Math.round(k.p[x] * 0.88 * 100) / 100; k.news.unshift({ t: L.s.t, sym: x, up: false, text: `The bid for ${STOCKS[x].name} is withdrawn` }); return `The bidder looks at the books again and goes home. The price slips to ${money(k.p[x])}.`; } },
+    ],
+  },
+  {
+    id: 'tipOff', icon: '🤫', title: 'You did not hear it from me', w: 3, cd: 20, when: (L) => L.s.cash + L.s.bank >= 2000 && L.s.people.some((p) => p.job === 'finance' && p.bond >= 40 && ['friend', 'partner', 'spouse', 'sibling'].includes(p.kind)),
+    ctx: (L) => ({ p: L.pick(L.s.people.filter((p) => p.job === 'finance' && p.bond >= 40 && ['friend', 'partner', 'spouse', 'sibling'].includes(p.kind))).id, sym: L.pick(Object.keys(STOCKS).filter((sym) => !STOCKS[sym].fund)) }), ok: (L, x) => has(L, x.p),
+    text: (L, x) => `${P(L, x.p).name} leans across the table and lowers ${his(P(L, x.p))} voice. "${STOCKS[x.sym].name}. There is an announcement on Friday. Buy before then. You did not hear it from me."`,
+    opts: [
+      { t: 'Buy as much as you dare', run(L, x) { const k = L.s.stk, spend = Math.floor((L.s.cash + L.s.bank) * 0.4), n = Math.floor(spend / k.p[x.sym]); if (n < 1) return 'You cannot afford even one. Probably for the best.'; const cost = Math.ceil(n * k.p[x.sym]); L.cash(-cost); k.own[x.sym] = (k.own[x.sym] || 0) + n; k.paid[x.sym] = (k.paid[x.sym] || 0) + cost; k.tip = { sym: x.sym, t: L.s.t }; L.karma(-4); const seen = L.crime(0.1, 2, 'a broker’s note dated the day before the news'); return `${n.toLocaleString('en')} shares, for ${money(cost)}, on a Thursday. ${seen ? 'The exchange has people whose whole job is to look at Thursdays.' : 'Then you wait for Friday, trying to look like somebody who knows nothing.'}`; } },
+      { t: 'You did not hear it at all', run(L, x) { L.karma(2); return `You change the subject. ${P(L, x.p).name} looks relieved, on the whole.`; } },
+    ],
+  },
   // ---- bad blood ----
   {
     id: 'spite', icon: '😠', title: 'Bad blood', ok: (L, x) => has(L, x.p) && P(L, x.p).kind === 'enemy',
@@ -1482,7 +1501,7 @@ export const EVENTS = [
     text: (L, x) => `${P(L, x).name} is eighteen today, with a place at college in the city. It costs a fortune.`,
     inText: (L, x) => `A letter from outside: ${P(L, x).name} is eighteen, with a place at college in the city. It costs a fortune.`,
     opts: [
-      { t: (L, x) => `Pay ${his(P(L, x))} way`, cost: 20000, run(L, x) { const p = P(L, x); L.bond(p, 15); L.joy(6); if (p.st) p.st.smarts = Math.min(100, p.st.smarts + 10); return 'You wave from the platform until the train is out of sight, then cry in the car park.'; } },
+      { t: (L, x) => `Pay ${his(P(L, x))} way`, cost: (L) => Math.round(20000 * (L.s.gifts.scholarship ? 0.75 : 1)), run(L, x) { const p = P(L, x); L.bond(p, 15); L.joy(6); if (p.st) p.st.smarts = Math.min(100, p.st.smarts + 10); return L.s.gaol ? `${He(p)} writes from the city every week. You read each letter until it comes apart at the folds.` : 'You wave from the platform until the train is out of sight, then cry in the car park.'; } },
       { t: 'Help a little', cost: 5000, run(L, x) { L.bond(P(L, x), 5); L.joy(3); return `${He(P(L, x))} will work evenings to make up the rest, and be proud of that, later.`; } },
       { t: (L, x) => `${He(P(L, x))} can make ${his(P(L, x))} own way, like you did`, run(L, x) { const p = P(L, x); L.bond(p, -8); return `${He(p)} gets a job on the boats instead, and says it is fine.`; } },
     ],

@@ -756,7 +756,7 @@ export const GIFTS = {
     blurb: 'The old one is older than its coxswain.', perk: 'The crew tell you where the fish are: fishing pays a fifth more.',
     plaque: (n) => `The lifeboat ${n} rides at her mooring.`, done: 'She is launched with a bottle of the good stuff, which is your doing too. The coxswain cannot speak.' },
   scholarship: { name: 'A scholarship at the college', icon: '🎓', at: 'college', cost: 300000, karma: 12, fame: 4, said: 'a scholarship at the college',
-    blurb: 'Two students a year who could not otherwise go.', perk: 'Your courses cost a quarter less, and so will your heirs’.',
+    blurb: 'Two students a year who could not otherwise go.', perk: 'Your courses cost a quarter less, and so will your heirs’. So does sending a child of yours to college.',
     plaque: (n) => `The ${n} Scholarship sends two students a year.`, done: 'The first two are announced at assembly. One of them wants to be a marine biologist. The other wants to be you.' },
   wing: { name: 'A new wing for St Wren’s', icon: '🏥', at: 'hospital', cost: 750000, karma: 18, fame: 8, said: 'a wing of St Wren’s',
     blurb: 'Forty beds, and a roof that does not leak.', perk: 'Hospital visits cost you, and your family, half.',

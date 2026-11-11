@@ -1503,6 +1503,8 @@ export class Life {
     const hot = this.chance(0.16) ? this.pick(Object.keys(STOCKS).filter((sym) => !STOCKS[sym].fund)) : null;
     for (const [sym, st] of Object.entries(STOCKS)) {
       let p = k.p[sym] * Math.exp(st.drift + m + st.swing * this.gauss());
+      // (What somebody whispered on Thursday is in the paper on Friday.)
+      if (k.tip && k.tip.sym === sym) { p *= 1.28; k.news.unshift({ t: s.t, sym, up: true, text: `${st.name} announces what a few people seemed to know already` }); k.tip = null; }
       if (sym === 'MOON') { const j = this.rnd(); if (j < 0.03) p *= 2.5; else if (j < 0.06) p *= 0.4; }
       if (sym === hot) {
         const up = this.chance(0.5), by = 0.1 + this.rnd() * 0.18;

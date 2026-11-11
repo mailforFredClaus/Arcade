@@ -1519,6 +1519,30 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', sibs:
       check(r.ok && typeof r.text === 'string' && !/undefined|NaN/.test(r.text), `${id}, choice ${i + 1}: reads properly (${r.text || r.why})`);
     }
   }
+  // An offer for a company you own, and a whisper about one you do not.
+  const Tk = fresh();
+  Tk.s.cash = 100000;
+  Tk.act('shares', { sym: 'GULL', n: 100 });
+  const tk = EVENTS.find((e) => e.id === 'takeover');
+  check(tk.when(Tk) && tk.ctx(Tk) === 'GULL', 'a company you hold shares in may be bid for');
+  const price = Tk.s.stk.p.GULL, tc = Tk.s.cash;
+  Tk.queue('takeover', 'GULL'); Tk.choose(0);
+  check(Tk.s.cash === tc + Math.floor(100 * price * 1.3) && !Tk.s.stk.own.GULL && Tk.sharesWorth() === 0, 'taking the offer sells the lot at the bidder’s price');
+  const fundOnly = fresh();
+  fundOnly.s.cash = 100000; fundOnly.act('shares', { sym: 'BAY', n: 10 });
+  check(!tk.when(fundOnly), 'nobody bids for the index fund');
+  const Tp = fresh();
+  Tp.s.cash = 10000;
+  const banker = Tp.meet({ job: 'finance', bond: 60 });
+  const tp = EVENTS.find((e) => e.id === 'tipOff');
+  check(tp.when(Tp), 'a friend in banking may whisper something');
+  Tp.queue('tipOff', { p: banker.id, sym: 'SNCK' }); Tp.choose(0);
+  const held = Tp.s.stk.own.SNCK, tipPrice = Tp.s.stk.p.SNCK;
+  check(held > 0 && Tp.s.cash < 10000 && Tp.s.karma < 0 && Tp.s.n.crimes === 1 && Tp.s.stk.tip.sym === 'SNCK', 'buying on it is a crime, and a bet');
+  Tp.s.pend = [];
+  let ups = 0;
+  for (let i = 0; i < 40; i++) { const X = new Life(JSON.parse(JSON.stringify(Tp.s))); X.s.rng = i * 17; X.endSeason(); if (X.s.stk.p.SNCK > tipPrice * 1.05 && !X.s.stk.tip) ups++; }
+  check(ups >= 32, `and on Friday the news is in the paper (${ups} of 40 up)`);
   // Three longer stories.
   const St = fresh();
   St.s.home = 'flat';
