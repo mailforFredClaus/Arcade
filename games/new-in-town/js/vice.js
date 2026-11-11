@@ -42,6 +42,8 @@ export function install({ def, A, Life, clamp }) {
       const s = this.s, crew = s.job && s.job.c === 'crew' ? s.job.r * 0.01 : 0;
       // (On the run, every constable knows your face.)
       if (s.run) base += 0.08;
+      // (Fog is a villain's friend.)
+      if (s.wx === 'fog') base -= 0.04;
       return clamp(base + s.heat / 400 + Math.min(4, s.record) * 0.02 - s.st.smarts / 1000 - (this.perk('police') ? 0.04 : 0) - (this.perk('crew') ? 0.03 : 0) - (s.heir === 'rogue' ? 0.06 : 0) - crew, 0.03, 0.85);
     },
     // Commits one: it is counted, your name suffers and the law takes an

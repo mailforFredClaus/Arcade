@@ -826,6 +826,19 @@ export const ODD_JOBS = {
   census: { icon: '📋', title: 'Count the gulls for the council', stat: 'smarts', dc: 30, pay: 170, win: 'Four thousand, two hundred and six. You are fairly sure about the six.', lose: 'They will not keep still. You put "many".' },
 };
 
+// ---- the weather ------------------------------------------------------------------------
+
+// Each season has its weather, and some of it matters. odds: how likely
+// each kind is in spring, summer, autumn and winter.
+export const WEATHER = {
+  fair: { name: 'Fair', icon: '🌤️', odds: [5, 6, 4, 4], text: 'A fair season, and nothing to complain of, though people will.' },
+  wet: { name: 'Wet', icon: '🌧️', odds: [4, 1, 3, 2], text: 'Rain most days. The allotments water themselves, and nobody is sitting in the park for pleasure.' },
+  hot: { name: 'A heatwave', icon: '🥵', odds: [0, 3, 0, 0], text: 'The hottest season anyone remembers. The surf is perfect, and a bed that is not watered will suffer.' },
+  storm: { name: 'Gales', icon: '🌬️', odds: [1, 0, 3, 2], text: 'Gales from the south-west. No boats are going out, and the tide is leaving all sorts on the beach.' },
+  fog: { name: 'Fog', icon: '🌫️', odds: [1, 0, 2, 1], text: 'Fog off the sea for days on end. The lighthouse is working overtime, and a constable cannot see his own boots.' },
+  snow: { name: 'Snow', icon: '🌨️', odds: [0, 0, 0, 3], text: 'Deep snow. A bicycle is no use at all, and the town is very quiet.' },
+};
+
 // ---- the allotment ----------------------------------------------------------------------
 
 // sow: the seasons it can go in (0 spring). ripe: how many seasons until

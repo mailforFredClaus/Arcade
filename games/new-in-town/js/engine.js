@@ -276,7 +276,7 @@ def('jog', {
 def('bench', {
   place: 'park', sec: 'Fresh air', icon: '🦆', title: 'Sit by the pond', desc: 'Lifts your mood.',
   run(L) {
-    L.joy(4 + (L.s.gifts.bench ? 2 : 0)); L.hp(1);
+    L.joy(4 + (L.s.gifts.bench ? 2 : 0) - (L.s.wx === 'wet' ? 2 : 0)); L.hp(1);
     const p = L.maybeMeet(0.12);
     return p ? `${p.name} sits down at the other end of the bench. By the end you are sharing sandwiches.` : L.pick(['The light on the water. A dog with a stick far too big for it.', 'You watch the clouds and think about nothing.', 'A duck looks at you as if you owe it money.']);
   },
@@ -312,8 +312,8 @@ def('litter', {
 def('surf', {
   place: 'park', sec: 'Fresh air', icon: '🏄', title: 'Surf the bay', desc: 'Fitness and a big grin.',
   show: (L) => !!L.s.items.surfboard,
-  why: (L) => (L.season === 3 ? 'Not in winter. You like your toes.' : null),
-  run(L) { L.gain('fitness', 2.2); L.joy(5); return L.pick(['You stand up for four whole seconds!', 'A clean green wave, all the way in.', 'The sea puts you through the wash. You come up laughing.']); },
+  why: (L) => (L.season === 3 ? 'Not in winter. You like your toes.' : L.s.wx === 'storm' ? 'Not in a gale. You like your neck.' : null),
+  run(L) { L.gain('fitness', 2.2); L.joy(L.s.wx === 'hot' ? 8 : 5); return L.pick(['You stand up for four whole seconds!', 'A clean green wave, all the way in.', 'The sea puts you through the wash. You come up laughing.']); },
 });
 def('pets', { place: 'park', sec: 'Pawprints shelter', icon: '🐾', title: 'Visit the animal shelter', desc: 'Someone is waiting for you.', time: 0, open: 'pets', show: (L) => !L.s.pet });
 
@@ -341,6 +341,7 @@ def('marlow', {
 def('sail', {
   place: 'harbour', sec: 'The water', icon: '⛵', title: 'Take your boat out', desc: 'Nothing lifts the spirits like it.',
   show: (L) => !!L.s.items.boat,
+  why: (L) => (L.s.wx === 'storm' ? 'No boats are going out in this.' : null),
   run(L) { L.joy(8); L.gain('fitness', 1); L.hp(1); return L.pick(['Wind on the beam, the town small behind you.', 'A seal pops up to look at you. You look back.', 'You round the lighthouse with the sails singing.']); },
 });
 
@@ -719,7 +720,7 @@ export class Life {
     if ((state.v || 1) < 2) this.upgrade();
     // (Four to-do items were added before the last; a life that had finished the list has finished it still.)
     if (state.v < 3) { state.v = 3; if (state.quest >= 12) state.quest += 4; }
-    const later = { gifts: {}, gave: {}, fests: {}, heat: 0, shark: 0, habit: {}, stand: {}, eco: 0, roy: [], album: { p: 0, q: 0 }, lot: { n: 0, pot: 100000 }, curios: {}, curSeen: {}, grown: {}, marrow: 0 };
+    const later = { wx: 'fair', gifts: {}, gave: {}, fests: {}, heat: 0, shark: 0, habit: {}, stand: {}, eco: 0, roy: [], album: { p: 0, q: 0 }, lot: { n: 0, pot: 100000 }, curios: {}, curSeen: {}, grown: {}, marrow: 0 };
     for (const [k, v] of Object.entries(later)) if (state[k] == null) state[k] = v;
     if (!state.cur) this.restock();
     if (!state.board) this.pinUp();
@@ -747,7 +748,7 @@ export class Life {
       stk: { p: {}, h: {}, own: {}, paid: {}, news: [] },
       biz: null, fishbook: {}, hist: [], heat: 0, habit: {}, shark: 0, stand: {},
       gaol: null, run: null, eco: 0, chirp: null, roy: [], album: { p: 0, q: 0 }, bj: null, race: null, lot: { n: 0, pot: 100000 },
-      plot: null, grown: {}, marrow: 0, curios: {}, curSeen: {}, cur: null, gifts: { ...(gifts || {}) }, gave: {}, fests: {},
+      plot: null, grown: {}, marrow: 0, curios: {}, curSeen: {}, cur: null, gifts: { ...(gifts || {}) }, gave: {}, fests: {}, wx: 'fair',
       paintings: 0, novel: { p: 0, q: 0 }, trips: {}, ill: null, hilo: null,
       f: {}, n: { shifts: 0, earned: 0, fish: 0, crimes: 0, books: 0, given: 0, casino: 0, streak: 0 },
       use: {}, cd: {}, seen: {},
@@ -916,7 +917,8 @@ export class Life {
   timeMaxWithout(skip) {
     const s = this.s, has = (id) => s.items[id] && id !== skip;
     if (s.gaol) return this.gaolTime();
-    let t = FIRST_TIME + (has('car') || has('sportscar') ? 2 : has('bike') ? 1 : 0);
+    // (A bicycle is no use in snow.)
+    let t = FIRST_TIME + (has('car') || has('sportscar') ? 2 : has('bike') && s.wx !== 'snow' ? 1 : 0);
     if (this.kids().some((k) => k.age < 6)) t -= 1;
     if (s.age >= 85) t -= 2; else if (s.age >= 75) t -= 1;
     if (s.job && CAREERS[s.job.c].summer && this.season === 1) t += 1;

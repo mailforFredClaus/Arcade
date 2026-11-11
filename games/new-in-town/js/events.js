@@ -131,7 +131,7 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'adrift', icon: '⛵', title: 'Adrift!', w: 2, when: (L) => !!L.s.items.boat,
+    id: 'adrift', icon: '⛵', title: 'Adrift!', w: 5, when: (L) => !!L.s.items.boat && L.s.wx === 'storm',
     text: 'A gale in the night has snapped your mooring. Your boat is bobbing out past the harbour mouth.',
     opts: [
       { t: 'Swim out to her', check: ['fitness', 55], run(L, x, win) { if (win) { L.joy(5); L.fame(1); return 'Cold enough to stop your heart, but you haul yourself aboard and sail her home.'; } L.hp(-14, 'the cold sea'); delete L.s.items.boat; return 'The cold turns you back, half drowned. The boat is gone by morning.'; } },
@@ -174,7 +174,7 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'snow', icon: '🌨️', title: 'Snowed in', w: 2, when: (L) => L.season === 3,
+    id: 'snow', icon: '🌨️', title: 'Snowed in', w: 6, cd: 8, when: (L) => L.s.wx === 'snow',
     text: 'A foot of snow overnight. Nothing is moving. A week indoors, then.',
     opts: [
       { t: 'Read everything in the house', run(L) { L.gain('smarts', 3); return 'Including the instructions for the toaster.'; } },
@@ -183,7 +183,7 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'heat', icon: '🥵', title: 'Heatwave', w: 2, when: (L) => L.season === 1,
+    id: 'heat', icon: '🥵', title: 'Heatwave', w: 6, cd: 8, when: (L) => L.s.wx === 'hot',
     text: 'The hottest week anyone can remember. The tarmac is soft and the beach is full.',
     opts: [
       { t: 'To the beach', run(L) { L.joy(6); L.hp(-1); return 'You swim, doze, and burn your nose.'; } },
@@ -377,7 +377,7 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'gale', icon: '🌊', title: 'Caught out', w: 3, when: (L) => inJob(L, 'sea'),
+    id: 'gale', icon: '🌊', title: 'Caught out', w: 6, when: (L) => inJob(L, 'sea') && L.s.wx === 'storm',
     text: 'The forecast was wrong. Ten miles out the sky goes black, and the sea stands up.',
     opts: [
       { t: 'Ride it out and save the catch', check: ['fitness', 50], run(L, x, win) { if (win) { credit(L, 2); L.fame(1); L.joy(4); return 'Nine hours at the wheel. You bring boat, crew and catch home. They buy your drinks for a month.'; } L.hp(-15, 'a storm at sea'); return 'A wave takes you off your feet and into the winch. You are lucky to come home at all.'; } },

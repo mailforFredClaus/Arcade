@@ -63,7 +63,7 @@ function renderTop() {
   $('whoName').textContent = s.name;
   $('whoSub').textContent = `Age ${s.age} · ${s.gaol ? 'Starling Gaol' : life.jobTitle() || (s.retired ? 'Retired' : 'Between jobs')}`;
   $('cash').textContent = cashShort(s.cash);
-  $('date').textContent = `${SEASON_ICON[life.season]} ${SEASONS[life.season]}, year ${life.year}`;
+  $('date').textContent = `${SEASON_ICON[life.season]} ${SEASONS[life.season]}, year ${life.year}${s.wx !== 'fair' ? ` ${life.weather().icon}` : ''}`;
   meter('mHealth', s.health, life.healthCap());
   meter('mHappy', s.happy, 100);
   const max = Math.max(life.timeMax(), s.time);
@@ -846,7 +846,7 @@ function nextSeason() {
   showNews(r.news);
   const net = r.lines.reduce((a, [, n]) => a + n, 0), short = r.lines.some(([what]) => what.startsWith('Short'));
   const b = $('season');
-  b.innerHTML = `<i>${SEASON_ICON[life.season]}</i><b>${SEASONS[life.season]}</b><small>${life.s.dead ? '' : `Age ${life.s.age} · bills and income ${net >= 0 ? '+' : '−'}${money(Math.abs(net))}${short ? ' · you are overdrawn!' : ''}`}</small>`;
+  b.innerHTML = `<i>${SEASON_ICON[life.season]}</i><b>${SEASONS[life.season]}</b><small>${life.s.dead ? '' : `${life.s.wx !== 'fair' ? `${life.weather().icon} ${life.weather().name} · ` : ''}Age ${life.s.age} · bills and income ${net >= 0 ? '+' : '−'}${money(Math.abs(net))}${short ? ' · you are overdrawn!' : ''}`}</small>`;
   b.classList.remove('show');
   void b.offsetWidth;
   b.classList.add('show');
@@ -997,6 +997,7 @@ function showNew() {
     <p><b>🥕 An allotment</b> at the park, where the season decides what grows. <b>🏺 Mr Pym’s curios</b> on the High Street, to collect and trade. <b>💈 A new look</b> next door.</p>
     <p><b>♠️ Blackjack and the gull races</b> on the pier, and the <b>🎟️ Bay Lotto</b> on the High Street.</p>
     <p><b>🏗️ The mayor’s appeal</b> at the Town Hall: give the town a lifeboat, a hospital wing, a new pier. Your name stays on it for the family that follows.</p>
+    <p><b>🌧️ Weather.</b> Rain waters the allotment, gales keep the boats in and leave things on the beach, snow stops a bicycle, fog suits a thief.</p>
     <p><b>🎪 A festival every season</b>, marked on the map: the Spring Fair, Regatta Day, the Harvest Show and the Winter Lights. One entry each.</p>
     <p><b>🎣 Fishing is done by hand:</b> watch the float and tap when it dips. (The menu can turn that off.)</p>
     <p><b>💘 A first date is yours to play.</b> Read the person (a profile, or how they look across the bar) and choose how to go about it.</p>

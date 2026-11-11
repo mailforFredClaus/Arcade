@@ -14,7 +14,7 @@ import { Life, ACTIONS, money, cashShort } from '../games/new-in-town/js/engine.
 import { EVENTS } from '../games/new-in-town/js/events.js';
 import {
   STATS, PLACES, CAREERS, SHIFTS_FOR_RUNG, COURSES, HOMES, UPGRADES, ITEMS, STOCKS, PROPS, PETS, DREAMS, QUESTS, TROPHIES, RIBBONS, BACKGROUNDS,
-  BUSINESSES, FISH, OUTINGS, KID_PLAY, PERKS, NAMES_M, NAMES_F, INSURANCE, FOOD, CROPS, PLOT_RENT, CURIOS, CURIO_SETS, ECO, many, aCurio, theCurio, GIFTS, SIDELINES, FESTS, ODD_JOBS,
+  BUSINESSES, FISH, OUTINGS, KID_PLAY, PERKS, NAMES_M, NAMES_F, INSURANCE, FOOD, CROPS, PLOT_RENT, CURIOS, CURIO_SETS, ECO, many, aCurio, theCurio, GIFTS, SIDELINES, FESTS, ODD_JOBS, WEATHER,
 } from '../games/new-in-town/js/data.js';
 import { handTotal } from '../games/new-in-town/js/pier.js';
 import { CHIRPS } from '../games/new-in-town/js/fame.js';
@@ -1397,6 +1397,38 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', sibs:
   check(heir.gift('wing') === 'Test' && heir.plaques('hospital')[0].includes('Test') && heir.medCost(1000) === 500 && !heir.income().some(([w]) => w.includes('pier')) && heir.can('fund', 'pier') === 'It has been given.' && Object.keys(heir.s.gave).length === 0, 'the family’s gifts are still standing for the next of the line, though the seat on the board is not inherited');
   check(Life.create({ seed: 3, name: 'New' }).plaques('hospital').length === 0, 'a new family starts with a town that owes it nothing');
   check(Life.create({ seed: 3, name: 'B', heir: 'benefactor' }).s.karma === 25, 'the brass plaque starts you well thought of');
+  // The weather.
+  for (let q = 0; q < 4; q++) check(Object.values(WEATHER).reduce((n, w) => n + w.odds[q], 0) > 0 && WEATHER.fair.odds[q] > 0, `season ${q}: has weather`);
+  check(WEATHER.snow.odds.slice(0, 3).every((n) => n === 0) && WEATHER.hot.odds[3] === 0, 'no snow in summer, no heatwave in winter');
+  const Wx = fresh();
+  check(Wx.s.wx === 'fair' && Wx.weather().name === 'Fair', 'a life starts in fair weather');
+  const seenWx = new Set();
+  for (let i = 0; i < 200; i++) { Wx.endSeason(); Wx.s.pend = []; seenWx.add(`${Wx.season}${Wx.s.wx}`); if (Wx.s.dead) break; }
+  check(['3snow', '1hot', '2storm', '0wet', '2fog'].every((k) => seenWx.has(k)) && !seenWx.has('1snow') && !seenWx.has('3hot'), 'in fifty years, every kind of weather in its season');
+  const snow = fresh();
+  snow.s.items.bike = 1;
+  const t0 = snow.timeMax();
+  snow.s.wx = 'snow';
+  check(snow.timeMax() === t0 - 1, 'a bicycle is no use in snow');
+  snow.s.items.car = 1;
+  check(snow.timeMax() === t0 + 1, 'a car still is');
+  const gale = fresh();
+  gale.s.items.rod = 1; gale.s.items.boat = 1; gale.s.wx = 'storm';
+  check(gale.can('fishBoat').includes('No boats') && gale.can('sail').includes('No boats') && !gale.can('fish'), 'no boats go out in a gale, though the wall can still be fished');
+  let finds = 0, calm = 0;
+  const calmer = fresh();
+  for (let i = 0; i < 600; i++) { gale.s.time = 1; calmer.s.time = 1; const a0 = Object.values(gale.s.curios).reduce((n, v) => n + v, 0), b0 = Object.values(calmer.s.curios).reduce((n, v) => n + v, 0); gale.act('comb'); calmer.act('comb'); finds += Object.values(gale.s.curios).reduce((n, v) => n + v, 0) - a0; calm += Object.values(calmer.s.curios).reduce((n, v) => n + v, 0) - b0; }
+  check(finds > calm * 1.6, `a gale leaves more on the beach (${finds} finds against ${calm})`);
+  const rain = fresh(), dry = fresh();
+  for (const X of [rain, dry]) { X.act('plotRent'); X.act('sow', { b: 0, c: 'spuds' }); X.s.plot.beds[0].care = 2; }
+  rain.s.wx = 'wet'; dry.s.wx = 'hot';
+  rain.endSeason(); dry.endSeason();
+  check(rain.s.plot.beds[0].care === 3 && dry.s.plot.beds[0].care === 1, 'rain waters a bed for you; a heatwave dries out one you did not');
+  const fog = fresh();
+  const clear = fog.riskOf(0.3);
+  fog.s.wx = 'fog';
+  check(fog.riskOf(0.3) < clear, 'fog suits a thief');
+  check(Wx.gazette().items.some((it) => it.h.startsWith('The weather')), 'the Gazette has the weather');
   // The notice board.
   for (const [id, j] of Object.entries(ODD_JOBS)) check(STATS.includes(j.stat) && j.win && j.lose && (j.pay > 0 || j.karma > 0) && (!j.need || ITEMS[j.need]), `${id}: a job for the notice board`);
   const N = fresh();

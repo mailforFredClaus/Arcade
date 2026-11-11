@@ -636,6 +636,7 @@ export function install({ def, A, Life, clamp }) {
   def('fishBoat', {
     place: 'harbour', sec: 'The water', icon: '🚤', title: 'Fish out in the bay', desc: 'Bigger fish, from your boat.',
     show: (L) => !!L.s.items.rod && !!L.s.items.boat,
+    why: (L) => (L.s.wx === 'storm' ? 'No boats are going out in this.' : null),
     run: (L, x) => L.goFishing('boat', x === 0 || x === 2 ? x : 1),
   });
   def('fishbookOpen', { place: 'harbour', sec: 'The water', icon: '📒', title: 'Your fish book', desc: (L) => `${Object.keys(L.s.fishbook).length} of ${Object.keys(FISH).length} kinds caught.`, time: 0, open: 'fishbook', show: (L) => !!L.s.items.rod });

@@ -4,7 +4,7 @@
 // season; Mr Pym's shop of curios on the High Street, to collect and to
 // trade; and the beach, which is free.
 
-import { GIFTS, FESTS, ODD_JOBS, PLACES, CROPS, PLOT_RENT, PLOT_BEDS, CURIOS, CURIO_SETS, CURIO_SET_SAID, aCurio, theCurio, curioSaid, ECO, FILLER, SMALL_ADS, FISH, SEASONS, LOOKS, ITEMS, money, many } from './data.js';
+import { GIFTS, FESTS, ODD_JOBS, WEATHER, PLACES, CROPS, PLOT_RENT, PLOT_BEDS, CURIOS, CURIO_SETS, CURIO_SET_SAID, aCurio, theCurio, curioSaid, ECO, FILLER, SMALL_ADS, FISH, SEASONS, LOOKS, ITEMS, money, many } from './data.js';
 
 const round10 = (n) => Math.round(n / 10) * 10;
 const seasonsOf = (list) => list.map((q) => SEASONS[q].toLowerCase()).join(' or ');
@@ -56,6 +56,7 @@ export function install({ def, A, Life, clamp }) {
         const hot = Object.keys(CURIO_SETS).sort((a, b) => s.cur.bid[b] - s.cur.bid[a])[0];
         items.push({ icon: '🏺', h: 'Pym’s Curios', t: `In the window this season: ${s.cur.stock.map((c) => curioSaid(c.id)).join(', ')}. Collectors are paying well for ${CURIO_SET_SAID[hot]}.` });
       }
+      items.splice(1, 0, { icon: this.weather().icon, h: `The weather: ${this.weather().name.toLowerCase()}`, t: this.weather().text });
       items.push({ icon: '🎟️', h: 'Bay Lotto', t: `This season’s jackpot is ${money(s.lot.pot)}. Tickets from the newsagent on the High Street.` });
       if (s.heat >= 30 && !s.run && !s.gaol && lead.icon !== '🚔') items.push({ icon: '🚔', h: 'Police notebook', t: 'Officers are "following a definite line of enquiry", which is what they say.' });
       if (this.followers() >= 1000) items.push({ icon: '🐤', h: 'Seen on Chirper', t: `Local account ${s.name.split(' ')[0].toLowerCase()}_of_the_bay now has ${many(this.followers())} followers. The Gazette has 212.` });
@@ -63,6 +64,16 @@ export function install({ def, A, Life, clamp }) {
       if (big && !s.gaol) items.push({ icon: '✒️', h: 'Local notes', t: `Of ${s.name}: "${big.t}"` });
       items.push({ icon: '📌', h: 'Small ads', t: `${turn(SMALL_ADS)} ${turn(SMALL_ADS, 5)}` });
       return { lead, items };
+    },
+
+    // ---- the weather ----
+    weather() { return WEATHER[this.s.wx] || WEATHER.fair; },
+    // What the new season brings.
+    forecast() {
+      const q = this.season, ids = Object.keys(WEATHER);
+      let r = this.rnd() * ids.reduce((a, id) => a + WEATHER[id].odds[q], 0);
+      for (const id of ids) { r -= WEATHER[id].odds[q]; if (r < 0) { this.s.wx = id; return; } }
+      this.s.wx = 'fair';
     },
 
     // ---- the year's festivals ----
@@ -81,6 +92,9 @@ export function install({ def, A, Life, clamp }) {
       if (!s.plot) return;
       s.plot.beds.forEach((b, i) => {
         if (!b) return;
+        // (Rain waters a bed for you; a heatwave punishes one left dry.)
+        if (s.wx === 'wet') b.care++;
+        if (s.wx === 'hot' && !s.use.tend) b.care = Math.max(0, b.care - 1);
         b.age++;
         if (b.age > CROPS[b.c].ripe + 1) { s.plot.beds[i] = null; this.note(`Your ${CROPS[b.c].name.toLowerCase()} went over. Nobody picked them.`); }
       });
@@ -125,6 +139,7 @@ export function install({ def, A, Life, clamp }) {
     // The turn of a season in town (the new season has begun).
     townSeason() {
       this.plotSeason();
+      this.forecast();
       this.restock();
       this.pinUp();
     },
@@ -213,6 +228,7 @@ export function install({ def, A, Life, clamp }) {
     run(L) {
       for (const b of L.s.plot.beds) if (b) b.care++;
       L.gain('craft', 1.2); L.gain('fitness', 0.5); L.joy(3); L.hp(1);
+      if (L.s.wx === 'hot') return 'Forty cans from the water butt, and every drop of it gone by evening. But they will live.';
       return L.pick(['An hour with the hoe and a flask of tea.', 'You win this round against the bindweed.', 'The onion man nods at your rows. High praise.', 'A robin supervises from the fork handle.']);
     },
   });
@@ -340,7 +356,8 @@ export function install({ def, A, Life, clamp }) {
     run(L) {
       const r = L.rnd();
       L.joy(2); L.gain('fitness', 0.4); L.s.use.fit = 1;
-      if (r < 0.08) { const k = L.gotCurio(L.anyCurio(['sea', 'coin'])); return `Half buried by the breakwater: ${k.a}. Mr Pym would want to see that.`; }
+      // (A gale leaves far more on the beach.)
+      if (r < (L.s.wx === 'storm' ? 0.2 : 0.08)) { const k = L.gotCurio(L.anyCurio(['sea', 'coin'])); return `Half buried by the breakwater: ${k.a}. Mr Pym would want to see that.`; }
       if (r < 0.4) { const got = L.int(1, 9) * 10; L.cash(got); return `${L.pick(['Returnable bottles, a whole crate’s worth.', 'A wallet’s worth of loose change under the pier.', 'Sea glass. The gift shop buys it by the jar.'])} ${money(got)}.`; }
       return L.pick(['A good stick, a dead crab, and one shoe.', 'You skim a stone seven times and nobody sees.', 'Shells, mostly. You keep the best one.', 'A seal watches you from the water, and you watch it back.']);
     },
