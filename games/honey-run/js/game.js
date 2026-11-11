@@ -4,7 +4,7 @@
 
 import { Run, STEP, LANE, CAR, ROOF, POWER_TIME, POWERS } from './engine.js';
 import { Renderer, M } from './gl.js';
-import { makeModels, SKINS, LAMP_X } from './models.js';
+import { makeModels, SKINS, LAMP_X, LAMP_Y } from './models.js';
 import { World, lookAt, zoneName } from './world.js';
 import { store, settings, sfx, haptic, unlockAudio, lockViewport, registerOffline } from '../../../shared/arcade.js';
 import { cards, switchRow, toast, confetti, ICON } from '../../../shared/ui.js';
@@ -19,7 +19,7 @@ const models = makeModels(R);
 const world = new World(R);
 const TAU = Math.PI * 2;
 const CUB = 0.92; // how big the cub is drawn: about half as tall as a wagon
-const TALL = 1.72 * CUB; // the top of its head
+const TALL = 1.8 * CUB; // the top of its head
 const lerp = (a, b, k) => a + (b - a) * k;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const ease = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
@@ -42,6 +42,14 @@ const POWER_INFO = {
   bubble: { name: 'Bubble', colour: '#58c7f3', what: 'Shrugs off one crash.' },
 };
 const UPGRADE_COST = [300, 600, 1200, 2400, 4000];
+// The little pictures on the power-up tiles while they run.
+const POWER_ICON = {
+  magnet: '<svg viewBox="0 0 24 24" fill="#fff"><path d="M5 3h5v9a2 2 0 0 0 4 0V3h5v9a7 7 0 0 1-14 0z"/><path d="M5 3h5v3.200H5zM14 3h5v3.200h-5z" fill="#ffd9d9"/></svg>',
+  fly: '<svg viewBox="0 0 24 24" fill="#fff"><path d="M7.500 13 12 22M16.500 13 12 22" stroke="#fff" stroke-width="1.600" fill="none"/><circle cx="7.500" cy="9" r="4.300"/><circle cx="16.500" cy="9" r="4.300"/><circle cx="12" cy="6" r="4.300" fill="#fff6c4"/></svg>',
+  boots: '<svg viewBox="0 0 24 24" fill="#fff"><path d="M6 2h7v10l5.500 2.600A3 3 0 0 1 20 17.300V19H4V2z"/><path d="M3 20.500h18V22H3z"/><path d="M13 5c3-2.500 6-2.500 8-1.500-2 .500-4 1.700-5 3.500z" fill="#fff6c4"/></svg>',
+  double: '<svg viewBox="0 0 24 24"><text x="12" y="18" text-anchor="middle" font-size="16" font-weight="900" fill="#fff" font-family="system-ui, sans-serif">×2</text></svg>',
+  bubble: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-linecap="round"><circle cx="12" cy="12" r="8.500" stroke-width="2.600"/><path d="M8 10a4.500 4.500 0 0 1 3.500-3" stroke-width="2.200"/></svg>',
+};
 
 // ---- goals ----------------------------------------------------------------------------
 
@@ -91,6 +99,8 @@ function freshRun() {
   sparks.length = 0;
   cam.ys = 0;
   cam.xs = 0;
+  cam.base = 0;
+  pose.stretch = pose.squash = 0;
   lastZone = zoneName(0);
 }
 
@@ -179,6 +189,14 @@ function spark(x, y, z, n, colour, speed = 4, size = 0.16, life = 0.5, grav = 6)
   }
 }
 
+// A soft puff of dust round the cub's feet.
+function puff(x, y, z, n) {
+  for (let k = 0; k < n; k++) {
+    const a = Math.random() * TAU, v = 1.2 + Math.random() * 1.8;
+    sparks.push({ x: x + Math.cos(a) * 0.3, y: y + 0.15, z: z + Math.sin(a) * 0.3 + 0.3, vx: Math.cos(a) * v, vy: 0.6 + Math.random() * 0.9, vz: Math.sin(a) * v * 0.5 + 2, t: 0, life: 0.35 + Math.random() * 0.25, size: 0.32 + Math.random() * 0.22, c: [0.32, 0.3, 0.28], grav: 1.5, soft: true, grow: 1.6 });
+  }
+}
+
 function callout(text, small = '') {
   const el = $('callout');
   el.innerHTML = `${text}${small ? `<small>${small}</small>` : ''}`;
@@ -199,12 +217,22 @@ function onEvent(ev) {
       bumpPurse();
       break;
     }
-    case 'jump': sfx('hop'); break;
+    case 'jump':
+      sfx('hop');
+      pose.stretch = 1;
+      pose.squash = 0;
+      break;
     case 'roll': sfx('slide'); break;
     case 'dive': sfx('slide'); break;
-    case 'lane': sfx('flip'); break;
+    case 'lane':
+      sfx('flip');
+      // A puff kicked up by the foot pushing off.
+      if (run.grounded) puff(run.x - ev.d * 0.3, run.y, z + 0.3, 3);
+      break;
     case 'land':
-      if (run.y < 0.1) spark(run.x, 0.15, z, 5, [0.5, 0.45, 0.35], 2.5, 0.2, 0.3, 0);
+      pose.squash = 1;
+      pose.stretch = 0;
+      puff(run.x, run.y, z, 7);
       break;
     case 'bump':
       sfx('bump');
@@ -287,7 +315,8 @@ function updateHud() {
     if (!el) {
       el = document.createElement('div');
       el.className = 'power';
-      el.innerHTML = `<i style="background:${POWER_INFO[k].colour}"></i><div>${POWER_INFO[k].name}<u><b></b></u></div>`;
+      el.setAttribute('aria-label', POWER_INFO[k].name);
+      el.innerHTML = `<i style="background:linear-gradient(180deg, color-mix(in srgb, ${POWER_INFO[k].colour} 70%, #fff), ${POWER_INFO[k].colour})">${POWER_ICON[k]}</i><u><b></b></u>`;
       $('powers').appendChild(el);
       powerEls[k] = el;
       el.bar = el.querySelector('u b');
@@ -309,7 +338,10 @@ function checkGoals() {
 
 // ---- the camera -----------------------------------------------------------------------
 
-const cam = { ys: 0, xs: 0, k: 0, eye: [0, 0, 0], at: [0, 0, 0], view: null, proj: null, vp: null };
+// ys: the height the camera follows. base: the height of whatever the cub
+// last stood on: the camera keeps to that through a jump, so a jump is seen
+// to rise, and only climbs when the cub lands on something higher.
+const cam = { ys: 0, xs: 0, base: 0, k: 0, eye: [0, 0, 0], at: [0, 0, 0], view: null, proj: null, vp: null };
 let W = 1, H = 1;
 
 function layout() {
@@ -324,7 +356,9 @@ function aim(dt, now) {
   const want = phase === 'title' ? 0 : 1;
   cam.k = want > cam.k ? Math.min(want, cam.k + dt * 1.5) : Math.max(want, cam.k - dt * 1.5);
   const k = ease(cam.k);
-  cam.ys += (run.y - cam.ys) * Math.min(1, dt * (run.flying || run.landing ? 4.5 : 5));
+  if (run.grounded || run.flying || run.landing || run.y < cam.base) cam.base = run.y;
+  const follow = cam.base + Math.max(0, run.y - cam.base) * 0.3;
+  cam.ys += (follow - cam.ys) * Math.min(1, dt * (run.flying || run.landing ? 4.5 : 6));
   const ys = cam.ys;
   // (The lanes are wide, so the camera glides across after the cub rather than snapping with it.)
   cam.xs += (run.x - cam.xs) * Math.min(1, dt * 11);
@@ -367,13 +401,16 @@ function onScreen(dir) {
 
 // ---- drawing --------------------------------------------------------------------------
 
+// Squash and stretch: stretch runs down after a jump, squash after landing.
+const pose = { stretch: 0, squash: 0 };
+
 // The cub's pose, as matrices for its parts.
-function cubParts(now, t) {
+function cubParts(now, dt) {
   const z = -run.s, sp = run.speed;
   const phaseRun = run.s * 1.5;
   const running = phase !== 'title' && run.grounded && !run.rolling && !run.dead;
   const air = !run.grounded && !run.flying && !run.dead && phase !== 'title';
-  let legL = 0, legR = 0, armL = 0, armR = 0, bob = 0, tilt = -0.14, headTilt = 0.05, pitch = 0, lift = 0, scale = 1, yaw = 0;
+  let legL = 0, legR = 0, armL = 0, armR = 0, bob = 0, tilt = -0.14, headTilt = 0.05, pitch = 0, lift = 0, scale = 1, yaw = 0, twist = 0;
   if (phase === 'title') {
     // Standing, looking about, breathing.
     bob = Math.sin(now / 520) * 0.02;
@@ -400,42 +437,58 @@ function cubParts(now, t) {
     legL = legR = 1.3;
     tilt = -0.5;
   } else if (air) {
+    // Knees up and arms out on the way up; reaching down for the landing.
     const up = clamp(run.vy / 12, -1, 1);
-    legL = 0.9 + up * 0.3;
-    legR = -0.5 - up * 0.2;
-    armL = armR = -1.6 - up * 0.8;
-    tilt = -0.2 - up * 0.1;
+    legL = 1.1 + up * 0.35;
+    legR = -0.3 + up * 0.5;
+    armL = -1.9 - up * 0.7;
+    armR = -1.5 - up * 0.9;
+    tilt = -0.22 - up * 0.12;
+    headTilt = -0.1 * up;
   } else if (running) {
-    const sw = Math.sin(phaseRun), k = 0.75 + sp * 0.012;
+    // A hard sprint: long strides, arms pumping, shoulders turning.
+    const sw = Math.sin(phaseRun), k = 0.85 + sp * 0.014;
     legL = sw * k;
     legR = -sw * k;
-    armL = -sw * 0.85;
-    armR = sw * 0.85;
-    bob = Math.abs(Math.cos(phaseRun)) * 0.07;
+    armL = -sw * 1.05;
+    armR = sw * 1.05;
+    bob = Math.abs(Math.cos(phaseRun)) * 0.09;
+    twist = sw * 0.14;
+    tilt = -0.2;
   }
-  // Lean into a lane change; wobble after a stumble.
-  let lean = clamp((run.lane * LANE - run.x) * -0.22, -0.4, 0.4);
+  // Squash and stretch.
+  pose.stretch = Math.max(0, pose.stretch - dt * 4.5);
+  pose.squash = Math.max(0, pose.squash - dt * 6.5);
+  const st = Math.sin(Math.min(1, pose.stretch) * Math.PI * 0.5) * 0.13, sq = Math.sin(pose.squash * Math.PI) * 0.2;
+  const sy = 1 + st - sq, sxz = 1 - st * 0.5 + sq * 0.6;
+  // Lean into a lane change, and turn the way it's going; wobble after a stumble.
+  const off = run.lane * LANE - run.x;
+  let lean = clamp(off * -0.26, -0.45, 0.45);
+  if (phase !== 'title' && !run.dead) yaw = clamp(off * -0.14, -0.4, 0.4);
   if (run.stumbleT > 6.2) lean += Math.sin(now / 40) * 0.25 * (run.stumbleT - 6.2);
   // (Drawn a little bigger than it is, so it reads well from behind.)
-  let root = M.chain(M.move(run.x, run.y + lift, z), M.rotY(yaw), M.rotZ(lean), M.scale(CUB));
+  let root = M.chain(M.move(run.x, run.y + lift, z), M.rotY(yaw), M.rotZ(lean), M.scale(CUB * sxz, CUB * sy, CUB * sxz));
   if (pitch || scale !== 1) root = M.chain(root, M.move(0, 0.62, 0), M.rotX(pitch), M.scale(scale), M.move(0, -0.75, 0));
   const P = (...ms) => M.chain(root, ...ms);
   return {
     root,
-    body: P(M.move(0, bob, 0), M.rotX(tilt)),
-    head: P(M.move(0, 1.08 + bob, tilt * 0.35), M.rotX(headTilt + tilt * 0.4)),
-    armL: P(M.move(-0.42, 1.0 + bob, tilt * 0.3), M.rotX(armL), M.rotZ(-0.12)),
-    armR: P(M.move(0.42, 1.0 + bob, tilt * 0.3), M.rotX(armR), M.rotZ(0.12)),
+    body: P(M.move(0, bob, 0), M.rotY(twist), M.rotX(tilt)),
+    head: P(M.move(0, 1.08 + bob, tilt * 0.35), M.rotY(-twist * 0.5), M.rotX(headTilt + tilt * 0.4)),
+    armL: P(M.move(-0.4, 1.0 + bob, tilt * 0.3), M.rotY(twist), M.rotX(armL), M.rotZ(-0.16)),
+    armR: P(M.move(0.4, 1.0 + bob, tilt * 0.3), M.rotY(twist), M.rotX(armR), M.rotZ(0.16)),
     legL: P(M.move(-0.17, 0.44, 0), M.rotX(legL)),
     legR: P(M.move(0.17, 0.44, 0), M.rotX(legR)),
   };
 }
 
+const FUR = { rim: 0.4, shine: 0.12 };
+const FUR_FRONT = { rim: 0.4, shine: 0.12, emit: 0.22 }; // on the title the camera is round the shady side
+const BLOB = [[0.72, 0.45], [1.0, 0.3], [1.3, 0.16]]; // the rings of the cub's shadow: size, darkness
 function drawCub(parts, shadowPlane = null) {
   const c = models.cubs[save.skin] || models.cubs.cub;
   const list = [[c.body, parts.body], [c.head, parts.head], [c.arm, parts.armL], [c.arm, parts.armR], [c.leg, parts.legL], [c.leg, parts.legR]];
   for (const [mesh, m] of list) {
-    if (shadowPlane === null) R.draw(mesh, m);
+    if (shadowPlane === null) R.draw(mesh, m, cam.k < 0.5 ? FUR_FRONT : FUR);
     else R.shadow(mesh, m, shadowPlane);
   }
 }
@@ -451,8 +504,13 @@ function obstacleDraws() {
       for (let i = 0; i < o.cars; i++) {
         const mesh = o.v && i === 0 ? models.engine : models.wagons[o.look][(o.id + i) % 3];
         out.push([mesh, M.move(o.lane * LANE, 0, -(o.s0 + i * CAR))]);
-        // An engine's lamps are lit.
-        if (o.v && i === 0) for (const dx of [-LAMP_X, LAMP_X]) lamps.push([o.lane * LANE + dx, 1.5, -o.s0 - 0.2, 0.4, 0.9, 0.8, 0.45]);
+        // An engine's lamps are lit: a bright middle in a soft glow.
+        if (o.v && i === 0) {
+          for (const dx of [-LAMP_X, LAMP_X]) {
+            lamps.push([o.lane * LANE + dx, LAMP_Y, -o.s0 - 0.1, 1.5, 0.5, 0.44, 0.22, 1]);
+            lamps.push([o.lane * LANE + dx, LAMP_Y, -o.s0 - 0.15, 0.42, 0.95, 0.9, 0.6]);
+          }
+        }
       }
     } else {
       const mesh = o.kind === 'ramp' ? models.ramp : o.kind === 'cart' ? models.cart : o.kind === 'high' ? models.high : models.low[o.id % 2];
@@ -463,7 +521,9 @@ function obstacleDraws() {
 }
 
 const glowList = [];
-const UNLIT = { unlit: true };
+const GLOSS = { shine: 0.45, rim: 0.3 }; // trains and the things on the line
+const COIN = { shine: 1, rim: 0.6, emit: 0.55 };
+const POWER = { shine: 0.8, rim: 0.6, emit: 0.25 };
 const BUBBLE = { tint: [0.62, 0.86, 1] };
 function draw(now, dt) {
   const look = lookAt(run.s);
@@ -475,27 +535,32 @@ function draw(now, dt) {
   const hz = onScreen([fx / fl, -0.02, fz / fl]);
   const sunAt = onScreen(look.sun) || [-3, 3];
   R.begin({
-    vp: cam.vp, bend: [0.0004, swing, z], sun: look.sun, sunCol: look.sunCol, sky: look.skyLight, ground: look.groundLight,
+    vp: cam.vp, eye: cam.eye, bend: [0.0004, swing, z], sun: look.sun, sunCol: look.sunCol, sky: look.skyLight, ground: look.groundLight,
+    rimCol: look.glow.map((v, i) => (v * 0.6 + look.skyLight[i] * 0.4) * 0.9),
     fogCol: look.fog, fog: [55, 150], top: look.top, sunGlow: look.glow, sunAt, sunSize: 0.42, horizon: hz ? hz[1] : -0.2,
   });
   world.drawGround();
   world.drawProps();
+  world.drawMetal();
   const obs = obstacleDraws();
-  for (const [mesh, m] of obs) R.draw(mesh, m);
+  for (const [mesh, m] of obs) R.draw(mesh, m, GLOSS);
 
-  // Coins and power-ups, turning.
+  // Coins and power-ups, turning. Coins shine in their own light, glint as
+  // they turn, and glow.
   glowList.length = 0;
   for (const l of lamps) glowList.push(l);
-  const spin = now / 260;
+  const spin = now / 300;
   for (const c of run.coinList) {
     if (c.taken) continue;
     if (c.s > run.s + 130) break;
-    R.draw(models.coin, M.chain(M.move(c.x, c.y, -c.s), M.rotY(spin + c.s * 0.35)), UNLIT);
+    R.draw(models.coin, M.chain(M.move(c.x, c.y + 0.08, -c.s), M.rotY(spin + c.s * 0.35)), COIN);
+    if (c.s < run.s + 80) glowList.push([c.x, c.y + 0.08, -c.s, 1.05, 0.3, 0.2, 0.02, 1]);
   }
   for (const p of run.pickups) {
     if (p.taken || p.s > run.s + 130) continue;
     const y = p.y + Math.sin(now / 300 + p.s) * 0.15;
-    R.draw(models.power[p.kind], M.chain(M.move(p.lane * LANE, y, -p.s), M.rotY(now / 500), M.scale(1.15)));
+    R.draw(models.power[p.kind], M.chain(M.move(p.lane * LANE, y, -p.s), M.rotY(now / 500), M.scale(1.25)), POWER);
+    glowList.push([p.lane * LANE, y, -p.s, 1.6, ...POWER_INFO[p.kind].glow.map((v) => v * 0.45), 1]);
     // A ring of twinkles round it.
     for (let k = 0; k < 4; k++) {
       const a = now / 400 + (k * TAU) / 4;
@@ -504,7 +569,7 @@ function draw(now, dt) {
   }
 
   // The cub, and what it's carrying.
-  const parts = cubParts(now);
+  const parts = cubParts(now, dt);
   const blink = run.ghost > 0 && !run.dead && Math.floor(now / 70) % 2 === 0;
   if (!blink) drawCub(parts);
   if (run.flying || run.landing) R.draw(models.power.fly, M.chain(M.move(run.x, run.y + TALL + 0.65, z), M.rotY(Math.sin(now / 700) * 0.3), M.scale(1.15)));
@@ -532,12 +597,20 @@ function draw(now, dt) {
     }
   }
 
-  // Shadows on the ground.
+  // Shadows on the ground. The cub's is a soft round one right under it,
+  // darker in the middle, and smaller and fainter the higher it is: it
+  // shows where it will land.
   R.shadows(true, 0.3);
   world.shadowProps();
   for (const [mesh, m] of obs) R.shadow(mesh, m);
   const floor = run.dead ? 0 : run.floor();
-  if (!blink) drawCub(parts, floor + 0.09);
+  if (!blink) {
+    const k = 1 / (1 + Math.max(0, run.y - floor) * 0.22);
+    for (const [r, a] of BLOB) {
+      R.shadows(true, a * k);
+      R.shadow(models.disc, M.chain(M.move(run.x, floor + 0.09, z + 0.08), M.scale(r * (0.6 + 0.4 * k), 1, r * 1.15 * (0.6 + 0.4 * k))), floor + 0.09);
+    }
+  }
   R.shadows(false);
 
   // See-through things.
@@ -557,13 +630,14 @@ function draw(now, dt) {
     s.y += s.vy * dt;
     s.z += s.vz * dt;
     const a = 1 - s.t / s.life;
-    glowList.push([s.x, s.y, s.z, s.size * (0.5 + a * 0.5), s.c[0] * a, s.c[1] * a, s.c[2] * a]);
+    if (s.soft) glowList.push([s.x, s.y, s.z, s.size * (1 + (1 - a) * s.grow), s.c[0] * a, s.c[1] * a, s.c[2] * a, 1]);
+    else glowList.push([s.x, s.y, s.z, s.size * (0.5 + a * 0.5), s.c[0] * a, s.c[1] * a, s.c[2] * a]);
   }
   // Coins glint.
   for (const c of run.coinList) {
     if (c.taken || c.s > run.s + 40) continue;
     const k = (now / 900 + c.s * 0.37) % 1;
-    if (k < 0.12) glowList.push([c.x + 0.12, c.y + 0.14, -c.s + 0.1, 0.22 * Math.sin((Math.PI * k) / 0.12), 1, 0.95, 0.7]);
+    if (k < 0.12) glowList.push([c.x + 0.16, c.y + 0.3, -c.s + 0.15, 0.32 * Math.sin((Math.PI * k) / 0.12), 1, 0.95, 0.7]);
   }
   const v = cam.view;
   R.glow(glowList, [v[0], v[4], v[8]], [v[1], v[5], v[9]]);

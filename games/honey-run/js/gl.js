@@ -1,8 +1,10 @@
-// Honey Run: a small 3D renderer on WebGL. Everything is flat-shaded,
-// vertex-coloured triangles (no textures): lit by a sun and the sky, faded
-// into the horizon by fog, and bent gently down and sideways with distance
-// so the line seems to roll away over the hills. Shadows are the models
-// themselves, squashed flat onto the ground along the sunlight.
+// Honey Run: a small 3D renderer on WebGL. Everything is vertex-coloured
+// triangles (no textures): boxes are flat-shaded, round things smooth. Each
+// pixel is lit by a sun and the sky, with a rim of light round the edges
+// and a glint of gloss on shiny things, faded into the horizon by fog, and
+// bent down and sideways with distance so the line seems to roll away over
+// the hills. Shadows are the models themselves, squashed flat onto the
+// ground along the sunlight.
 
 // ---- matrices (4x4, column-major, as WebGL likes them) --------------------------------
 
@@ -79,20 +81,64 @@ const asColor = (c) => (typeof c === 'string' ? rgb(c) : c);
 
 // ---- building models -------------------------------------------------------------------
 
+// The matrix that turns normals the way m turns shapes (the inverse
+// transpose of its 3x3 part), as 9 numbers, row by row.
+function normalMatrix(m) {
+  const a = m[0], b = m[4], c = m[8], d = m[1], e = m[5], f = m[9], g = m[2], h = m[6], i = m[10];
+  const A = e * i - f * h, B = f * g - d * i, C = d * h - e * g;
+  const det = a * A + b * B + c * C;
+  if (Math.abs(det) < 1e-12) return [1, 0, 0, 0, 1, 0, 0, 0, 1];
+  const k = 1 / det;
+  return [A * k, B * k, C * k, (c * h - b * i) * k, (a * i - c * g) * k, (b * g - a * h) * k, (b * f - c * e) * k, (c * d - a * f) * k, (a * e - b * d) * k];
+}
+
 // Collects triangles: 9 numbers a corner (where, which way it faces, colour).
+// With smooth on, balls and the sides of columns are shaded round rather
+// than in facets.
 export class Builder {
   constructor() {
     this.data = [];
     this.stack = [];
     this.m = null; // a matrix applied to everything added (null: none)
+    this.nm = null; // and the one for normals
+    this.smooth = false;
   }
 
   // Everything added inside fn is moved by matrix m.
   with(m, fn) {
-    this.stack.push(this.m);
+    this.stack.push([this.m, this.nm]);
     this.m = this.m ? M.mul(this.m, m) : m;
+    this.nm = normalMatrix(this.m);
     fn();
-    this.m = this.stack.pop();
+    [this.m, this.nm] = this.stack.pop();
+    return this;
+  }
+
+  // Everything added inside fn is shaded smooth.
+  round(fn) {
+    const was = this.smooth;
+    this.smooth = true;
+    fn();
+    this.smooth = was;
+    return this;
+  }
+
+  // A triangle with a normal given at each corner.
+  triN(a, b, c, na, nb, nc, color) {
+    const col = asColor(color), m = this.m, q = this.nm;
+    if (m) {
+      a = M.point(m, a[0], a[1], a[2]);
+      b = M.point(m, b[0], b[1], b[2]);
+      c = M.point(m, c[0], c[1], c[2]);
+    }
+    const ps = [a, b, c], ns = [na, nb, nc];
+    for (let k = 0; k < 3; k++) {
+      const p = ps[k], n = ns[k];
+      let nx = n[0], ny = n[1], nz = n[2];
+      if (q) [nx, ny, nz] = [q[0] * nx + q[1] * ny + q[2] * nz, q[3] * nx + q[4] * ny + q[5] * nz, q[6] * nx + q[7] * ny + q[8] * nz];
+      const l = Math.hypot(nx, ny, nz) || 1;
+      this.data.push(p[0], p[1], p[2], nx / l, ny / l, nz / l, col[0], col[1], col[2]);
+    }
     return this;
   }
 
@@ -150,9 +196,18 @@ export class Builder {
       return [x + Math.cos(a) * r * sx, yy, z + Math.sin(a) * r * sz];
     });
     const lo = ring(r0, y), hi = ring(r1, y + h);
+    // (The way the side faces at angle a, for smooth shading.)
+    const dr = r1 - r0;
+    const nAt = (a) => [h * Math.cos(a) * sz, -dr * sx * sz, h * Math.sin(a) * sx];
     for (let k = 0; k < n; k++) {
       const j = (k + 1) % n;
-      if (r1 > 0) this.quad(lo[j], lo[k], hi[k], hi[j], color);
+      if (this.smooth) {
+        const ak = turn + (k * 2 * Math.PI) / n, aj = ak + (2 * Math.PI) / n, nk = nAt(ak), nj = nAt(aj);
+        if (r1 > 0) {
+          this.triN(lo[j], lo[k], hi[k], nj, nk, nk, color);
+          this.triN(lo[j], hi[k], hi[j], nj, nk, nj, color);
+        } else this.triN(lo[j], lo[k], [x, y + h, z], nj, nk, nAt((ak + aj) / 2), color);
+      } else if (r1 > 0) this.quad(lo[j], lo[k], hi[k], hi[j], color);
       else this.tri(lo[j], lo[k], [x, y + h, z], color);
     }
     if (!opts.noCaps) {
@@ -168,11 +223,24 @@ export class Builder {
       const lat = -Math.PI / 2 + (Math.PI * j) / up, lon = (2 * Math.PI * i) / around;
       return [x + Math.cos(lat) * Math.cos(lon) * rx, y + Math.sin(lat) * ry, z + Math.cos(lat) * Math.sin(lon) * rz];
     };
+    const nt = (i, j) => {
+      const lat = -Math.PI / 2 + (Math.PI * j) / up, lon = (2 * Math.PI * i) / around;
+      return [(Math.cos(lat) * Math.cos(lon)) / rx, Math.sin(lat) / ry, (Math.cos(lat) * Math.sin(lon)) / rz];
+    };
     for (let j = 0; j < up; j++) {
       const col = lower && j < up / 2 ? lower : color;
       for (let i = 0; i < around; i++) {
         const a = pt(i, j), b = pt(i + 1, j), c = pt(i + 1, j + 1), d = pt(i, j + 1);
-        if (j === 0) this.tri(a, d, c, col);
+        if (this.smooth) {
+          const na = nt(i, j), nb = nt(i + 1, j), nc = nt(i + 1, j + 1), nd = nt(i, j + 1);
+          // (At the poles, straight up or down.)
+          if (j === 0) this.triN(a, d, c, [0, -1, 0], nd, nc, col);
+          else if (j === up - 1) this.triN(a, d, b, na, [0, 1, 0], nb, col);
+          else {
+            this.triN(a, d, c, na, nd, nc, col);
+            this.triN(a, c, b, na, nc, nb, col);
+          }
+        } else if (j === 0) this.tri(a, d, c, col);
         else if (j === up - 1) this.tri(a, d, b, col);
         else this.quad(a, d, c, b, col);
       }
@@ -189,12 +257,12 @@ const VERT = `
 attribute vec3 aPos, aNor, aCol;
 uniform mat4 uModel, uVP;
 uniform vec3 uBend;      // how much the world drops and swings with distance, and the z it bends from
-uniform vec3 uSun, uSunCol, uSky, uGround, uTint;
+uniform mediump vec3 uSun;   // (shared with the fragment shader, so the same precision)
+uniform vec3 uEye, uTint;
 uniform vec2 uFog;       // where the fog starts and where it's complete
-uniform float uLit;      // 1: lit by the sun and sky. 0: its own colour
 uniform mediump float uShadow;   // 1: squash flat onto the ground along the sunlight
 uniform float uPlane;    // the height of the ground the shadow falls on
-varying vec3 vCol;
+varying vec3 vCol, vNor, vView;
 varying float vFog;
 void main() {
   vec4 w = uModel * vec4(aPos, 1.0);
@@ -202,27 +270,53 @@ void main() {
     w.xyz -= uSun * ((w.y - uPlane) / uSun.y);
     w.y = uPlane;
   }
+  vView = uEye - w.xyz;
   float d = max(0.0, uBend.z - w.z);
   w.y -= uBend.x * d * d;
   w.x += uBend.y * d * d;
-  vec3 n = normalize((uModel * vec4(aNor, 0.0)).xyz);
-  vec3 light = mix(uGround, uSky, n.y * 0.5 + 0.5) + uSunCol * max(dot(n, uSun), 0.0);
-  vCol = aCol * uTint * mix(vec3(1.0), light, uLit);
+  vNor = (uModel * vec4(aNor, 0.0)).xyz;
+  vCol = aCol * uTint;
   float f = clamp((abs(uBend.z - w.z) - uFog.x) / (uFog.y - uFog.x), 0.0, 1.0);
   vFog = f * f * (3.0 - 2.0 * f);
   gl_Position = uVP * w;
 }`;
 
+// uLit 1: lit by the sun and sky (0: its own colour). uShine: how glossy.
+// uRim: how much light catches its edges. uEmit: how much it glows with its
+// own colour whatever the light. Sparks (uGlow) are drawn from the corner
+// each pixel is at, which arrives in vNor: x and y across, z 1 for a soft
+// round glow and 0 for a hard twinkle.
 const FRAG = `
 precision mediump float;
-uniform vec3 uFogCol;
-uniform float uAlpha, uShadow, uGlow;
-varying vec3 vCol;
+uniform vec3 uFogCol, uSun, uSunCol, uSky, uGround, uRimCol;
+uniform float uAlpha, uShadow, uGlow, uLit, uShine, uRim, uEmit;
+varying vec3 vCol, vNor, vView;
 varying float vFog;
 void main() {
-  if (uShadow > 0.5) gl_FragColor = vec4(0.0, 0.02, 0.08, uAlpha * (1.0 - vFog));
-  else if (uGlow > 0.5) gl_FragColor = vec4(vCol * (1.0 - vFog), 1.0);
-  else gl_FragColor = vec4(mix(vCol, uFogCol, vFog), uAlpha);
+  if (uShadow > 0.5) {
+    gl_FragColor = vec4(0.0, 0.02, 0.08, uAlpha * (1.0 - vFog));
+    return;
+  }
+  if (uGlow > 0.5) {
+    float a = vNor.z > 0.5 ? pow(max(0.0, 1.0 - length(vNor.xy)), 2.2) : sqrt(max(0.0, 1.0 - abs(vNor.x) - abs(vNor.y)));
+    gl_FragColor = vec4(vCol * (1.0 - vFog) * a, 1.0);
+    return;
+  }
+  vec3 c = vCol;
+  if (uLit > 0.5) {
+    vec3 n = normalize(vNor), v = normalize(vView);
+    float sun = max(dot(n, uSun), 0.0);
+    vec3 light = mix(uGround, uSky, n.y * 0.5 + 0.5) + uSunCol * sun;
+    c = mix(vCol * light, vCol, uEmit);
+    float edge = 1.0 - max(dot(n, v), 0.0);
+    c += uRimCol * (uRim * edge * edge * edge);
+    vec3 hv = normalize(uSun + v);
+    c += uSunCol * (uShine * pow(max(dot(n, hv), 0.0), 36.0) * step(0.001, sun));
+    // A touch richer than life.
+    float grey = dot(c, vec3(0.3, 0.59, 0.11));
+    c = mix(vec3(grey), c, 1.07);
+  }
+  gl_FragColor = vec4(mix(c, uFogCol, vFog), uAlpha);
 }`;
 
 // The sky: a wash from the top colour down to the horizon colour, with the
@@ -253,12 +347,12 @@ export class Renderer {
     this.gl = gl;
     this.canvas = canvas;
     this.main = this.program(VERT, FRAG, ['aPos', 'aNor', 'aCol'],
-      ['uModel', 'uVP', 'uBend', 'uSun', 'uSunCol', 'uSky', 'uGround', 'uTint', 'uFog', 'uLit', 'uShadow', 'uPlane', 'uFogCol', 'uAlpha', 'uGlow']);
+      ['uModel', 'uVP', 'uBend', 'uSun', 'uEye', 'uSunCol', 'uSky', 'uGround', 'uTint', 'uFog', 'uLit', 'uShadow', 'uPlane', 'uFogCol', 'uAlpha', 'uGlow', 'uShine', 'uRim', 'uRimCol', 'uEmit']);
     this.sky = this.program(SKY_VERT, SKY_FRAG, ['aPos'], ['uTop', 'uHorizon', 'uSunGlow', 'uSunAt', 'uLine']);
     this.skyQuad = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, this.skyQuad);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
-    this.sparks = { buf: gl.createBuffer(), data: new Float32Array(9 * 6 * 400), count: 0 };
+    this.sparks = { buf: gl.createBuffer(), data: new Float32Array(9 * 6 * 800), count: 0 };
     this.ident = M.ident();
     this.white = [1, 1, 1];
   }
@@ -301,9 +395,10 @@ export class Renderer {
     this.aspect = w / h;
   }
 
-  // Starts a frame. look: { vp (view x projection), bend [down, sideways, fromZ],
-  // sun (direction to it), sunCol, sky, ground, fogCol, fog [from, to], top,
-  // sunGlow, horizon (-1..1 up the screen), sunAt [x, y] on screen }.
+  // Starts a frame. look: { vp (view x projection), eye (where the camera
+  // is), bend [down, sideways, fromZ], sun (direction to it), sunCol, sky,
+  // ground, rimCol, fogCol, fog [from, to], top, sunGlow, horizon (-1..1 up
+  // the screen), sunAt [x, y] on screen }.
   begin(look) {
     const gl = this.gl;
     this.look = look;
@@ -342,6 +437,11 @@ export class Renderer {
     gl.uniform3fv(u.uSunCol, look.sunCol);
     gl.uniform3fv(u.uSky, look.sky);
     gl.uniform3fv(u.uGround, look.ground);
+    gl.uniform3fv(u.uEye, look.eye);
+    gl.uniform3fv(u.uRimCol, look.rimCol || look.sky);
+    gl.uniform1f(u.uShine, 0);
+    gl.uniform1f(u.uRim, 0);
+    gl.uniform1f(u.uEmit, 0);
     gl.uniform3fv(u.uFogCol, look.fogCol);
     gl.uniform2fv(u.uFog, look.fog);
     gl.uniform1f(u.uShadow, 0);
@@ -363,7 +463,8 @@ export class Renderer {
     this.bound = mesh;
   }
 
-  // Draws a mesh. opts: tint [r, g, b], unlit.
+  // Draws a mesh. opts: tint [r, g, b], unlit, shine (gloss), rim (light
+  // round the edges), emit (glows with its own colour), each 0..1.
   draw(mesh, model = this.ident, opts = null) {
     if (!mesh || !mesh.count) return;
     const gl = this.gl, u = this.main.u;
@@ -372,11 +473,17 @@ export class Renderer {
     if (opts) {
       if (opts.tint) gl.uniform3fv(u.uTint, opts.tint);
       if (opts.unlit) gl.uniform1f(u.uLit, 0);
+      if (opts.shine) gl.uniform1f(u.uShine, opts.shine);
+      if (opts.rim) gl.uniform1f(u.uRim, opts.rim);
+      if (opts.emit) gl.uniform1f(u.uEmit, opts.emit);
     }
     gl.drawArrays(gl.TRIANGLES, 0, mesh.count);
     if (opts) {
       if (opts.tint) gl.uniform3fv(u.uTint, this.white);
       if (opts.unlit) gl.uniform1f(u.uLit, 1);
+      if (opts.shine) gl.uniform1f(u.uShine, 0);
+      if (opts.rim) gl.uniform1f(u.uRim, 0);
+      if (opts.emit) gl.uniform1f(u.uEmit, 0);
     }
   }
 
@@ -427,28 +534,35 @@ export class Renderer {
     gl.disable(gl.BLEND);
   }
 
-  // Sparks: little squares of light facing the camera, added to what's
-  // behind them. Each is [x, y, z, size, r, g, b]. right / up: the camera's
-  // right and up directions.
+  // Sparks: little twinkles of light facing the camera, added to what's
+  // behind them. Each is [x, y, z, size, r, g, b, soft]: soft ones are a
+  // round glow fading out from the middle, the others a sharp diamond.
+  // right / up: the camera's right and up directions.
   glow(list, right, up) {
     if (!list.length) return;
     const gl = this.gl, u = this.main.u, s = this.sparks;
-    const n = Math.min(list.length, 400);
+    const n = Math.min(list.length, 800);
     const d = s.data;
     let o = 0;
-    const corner = (p, sx, sy) => {
+    const corner = (p, sx, sy, soft) => {
       const k = p[3];
       d[o++] = p[0] + (right[0] * sx + up[0] * sy) * k;
       d[o++] = p[1] + (right[1] * sx + up[1] * sy) * k;
       d[o++] = p[2] + (right[2] * sx + up[2] * sy) * k;
-      d[o++] = 0; d[o++] = 1; d[o++] = 0;
+      d[o++] = sx; d[o++] = sy; d[o++] = soft;
       d[o++] = p[4]; d[o++] = p[5]; d[o++] = p[6];
     };
     for (let i = 0; i < n; i++) {
       const p = list[i];
-      // A diamond reads as a twinkle.
-      corner(p, -1, 0); corner(p, 0, -1); corner(p, 1, 0);
-      corner(p, -1, 0); corner(p, 1, 0); corner(p, 0, 1);
+      if (p[7]) {
+        // A square, with the glow drawn round inside it.
+        corner(p, -1, -1, 1); corner(p, 1, -1, 1); corner(p, 1, 1, 1);
+        corner(p, -1, -1, 1); corner(p, 1, 1, 1); corner(p, -1, 1, 1);
+      } else {
+        // A diamond reads as a twinkle.
+        corner(p, -1, 0, 0); corner(p, 0, -1, 0); corner(p, 1, 0, 0);
+        corner(p, -1, 0, 0); corner(p, 1, 0, 0); corner(p, 0, 1, 0);
+      }
     }
     gl.bindBuffer(gl.ARRAY_BUFFER, s.buf);
     gl.bufferData(gl.ARRAY_BUFFER, d.subarray(0, o), gl.DYNAMIC_DRAW);
