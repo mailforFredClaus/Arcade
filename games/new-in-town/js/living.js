@@ -603,8 +603,9 @@ export function install({ def, A, Life, clamp }) {
   // ---- fishing ----------------------------------------------------------------------------
 
   // where: 'wall' or 'boat'.
-  Life.prototype.goFishing = function goFishing(where) {
-    const s = this.s, mult = (where === 'boat' ? 1.3 : 1) * (s.heir === 'salt' ? 2 : 1) * (this.perk('sea') ? 1.3 : 1);
+  // strike: how well the bite was struck (2 cleanly, 1 well enough, 0 badly).
+  Life.prototype.goFishing = function goFishing(where, strike = 1) {
+    const s = this.s, clean = strike === 2, fluffed = strike === 0, mult = (clean ? 1.15 : 1) * (where === 'boat' ? 1.3 : 1) * (s.heir === 'salt' ? 2 : 1) * (this.perk('sea') ? 1.3 : 1);
     const wise = (s.f.marlow || 0) >= 2;
     this.joy(3);
     const land = (id) => {
@@ -612,29 +613,30 @@ export function install({ def, A, Life, clamp }) {
       s.fishbook[id] = (s.fishbook[id] || 0) + 1; s.n.fish++;
       if (first) this.say(FISH[id].icon, `New in your fish book: ${FISH[id].name}`, 'good');
     };
-    if (wise && !s.f.bream && this.chance(where === 'boat' ? 0.06 : 0.03)) {
+    if (wise && !s.f.bream && !fluffed && this.chance((where === 'boat' ? 0.06 : 0.03) * (clean ? 1.5 : 1))) {
       s.f.bream = 1; land('bream'); this.cash(5000 * mult); this.fame(3); this.joy(10);
       this.note('Caught the golden bream of Starling Bay.', 'big');
       return `The line goes tight and stays tight. Half an hour later a fish the colour of a sunrise is in your net. The golden bream! The aquarium pays ${money(5000 * mult)} for it.`;
     }
-    if (this.chance(wise ? 0.2 : 0.3)) return this.pick(['Nothing bites. The sea keeps its secrets.', 'You catch a boot. It is not even your size.', 'Something steals your bait and waves a claw.']);
+    if (fluffed && this.chance(0.7)) return this.pick(['You strike a moment wrong, and whatever it was is gone.', 'The float bobs up again, empty. It was a good one, too. They always are.', 'You pull the hook clean out of its mouth.']);
+    if (this.chance((wise ? 0.2 : 0.3) * (clean ? 0.35 : 1))) return this.pick(['Nothing bites. The sea keeps its secrets.', 'You catch a boot. It is not even your size.', 'Something steals your bait and waves a claw.']);
     const pool = Object.keys(FISH).filter((id) => FISH[id].where.includes(where) && (!FISH[id].when || FISH[id].when.includes(this.season)));
     let r = this.rnd() * pool.reduce((a, id) => a + FISH[id].w, 0), id = pool[0];
     for (const q of pool) { id = q; r -= FISH[q].w; if (r < 0) break; }
     const f = FISH[id], pay = Math.round(this.int(f.pay[0], f.pay[1]) * mult * (s.gifts.lifeboat ? 1.2 : 1) / 10) * 10;
     land(id);
     this.cash(pay);
-    return `You land ${/^[aeiou]/i.test(f.name) ? 'an' : 'a'} ${f.name.toLowerCase()} and sell it on the quay for ${money(pay)}.`;
+    return `${clean ? 'A clean strike. ' : fluffed ? 'A clumsy strike, but it holds. ' : ''}You land ${/^[aeiou]/i.test(f.name) ? 'an' : 'a'} ${f.name.toLowerCase()} and sell it on the quay for ${money(pay)}.`;
   };
   def('fish', {
     place: 'harbour', sec: 'The water', icon: '🎣', title: 'Fish off the harbour wall', desc: 'Sell what you catch. What is biting changes with the seasons.',
     show: (L) => !!L.s.items.rod,
-    run: (L) => L.goFishing('wall'),
+    run: (L, x) => L.goFishing('wall', x === 0 || x === 2 ? x : 1),
   });
   def('fishBoat', {
     place: 'harbour', sec: 'The water', icon: '🚤', title: 'Fish out in the bay', desc: 'Bigger fish, from your boat.',
     show: (L) => !!L.s.items.rod && !!L.s.items.boat,
-    run: (L) => L.goFishing('boat'),
+    run: (L, x) => L.goFishing('boat', x === 0 || x === 2 ? x : 1),
   });
   def('fishbookOpen', { place: 'harbour', sec: 'The water', icon: '📒', title: 'Your fish book', desc: (L) => `${Object.keys(L.s.fishbook).length} of ${Object.keys(FISH).length} kinds caught.`, time: 0, open: 'fishbook', show: (L) => !!L.s.items.rod });
 }

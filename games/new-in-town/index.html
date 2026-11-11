@@ -71,6 +71,13 @@
   <div class="full" id="start" hidden></div>
   <div class="full" id="end" hidden></div>
 
+  <!-- Fishing: a float on the water. Tap when it dips. -->
+  <div class="cast" id="cast" hidden>
+    <div class="cast-sea"><span class="ripple"></span><span class="float"></span><b class="bang">!</b></div>
+    <p id="castSay" aria-live="assertive"></p>
+    <button class="cast-skip" data-do="autofish">Fish without watching the float</button>
+  </div>
+
   <div class="news" id="news" aria-live="polite"></div>
   <div class="toast" id="toast" role="status"></div>
   <div class="overlay" id="overlay" hidden><div class="card" id="card"></div></div>

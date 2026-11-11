@@ -627,6 +627,20 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', sibs:
   check(Object.keys(s.fishbook).some((id) => !FISH[id].where.includes('wall')), 'a boat finds fish the wall never sees');
 }
 
+// Striking a bite well, or badly.
+{
+  const tally = (strike) => {
+    const L = fresh();
+    L.s.items.rod = 1;
+    let blanks = 0, cash = 0;
+    for (let i = 0; i < 600; i++) { L.s.time = 6; const c = L.s.cash; const r = L.act('fish', strike); if (!r.ok || !r.text) throw new Error('fishing failed'); if (L.s.cash === c) blanks++; cash += L.s.cash - c; }
+    return { blanks, cash };
+  };
+  const clean = tally(2), fair = tally(1), plain = tally(undefined), fluffed = tally(0);
+  check(clean.blanks < fair.blanks * 0.6 && fluffed.blanks > fair.blanks * 1.8, `a clean strike rarely comes up empty, a fluffed one usually does (${clean.blanks}/${fair.blanks}/${fluffed.blanks} blanks in 600)`);
+  check(clean.cash > fair.cash * 1.3 && fluffed.cash < fair.cash * 0.5 && Math.abs(plain.cash - fair.cash) < fair.cash * 0.2, 'and the catch is worth more for it; fishing without watching the float is a fair strike every time');
+}
+
 // ---- events -----------------------------------------------------------------------------
 
 {

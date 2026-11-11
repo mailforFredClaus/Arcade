@@ -645,6 +645,8 @@ let slotShow = null, hiloShow = null, bjShow = null, raceShow = null, raceStake 
 
 function doAct(id, x) {
   if (!life || busy || spinning) return;
+  // Fishing is done by hand, unless you would rather not watch the float.
+  if ((id === 'fish' || id === 'fishBoat') && x === undefined && !save.autoFish) return castLine(id);
   const r = life.act(id, x);
   if (!r.ok) { sfx('nope'); toast(r.why); return; }
   haptic();
@@ -698,6 +700,45 @@ function spin(r) {
     renderSheet();
     if (r.out.win > 0) { sfx(r.out.reels[0] === '💎' && r.out.reels[1] === '💎' && r.out.reels[2] === '💎' ? 'cheer' : 'coin'); if (r.out.win >= 5000) confetti(); }
   }, 700);
+}
+
+// ---- fishing: watch the float, and strike when it dips ----------------------------------
+
+let cast = null;
+function castLine(id) {
+  const why = life.can(id);
+  if (why) { sfx('nope'); toast(why); return; }
+  cast = { id, state: 'wait' };
+  $('cast').className = 'cast wait';
+  $('cast').hidden = false;
+  $('castSay').textContent = 'Wait for the float to dip, then tap.';
+  sfx('flip');
+  cast.timer = setTimeout(() => {
+    if (!cast) return;
+    cast.state = 'bite'; cast.at = performance.now();
+    $('cast').className = 'cast bite';
+    $('castSay').textContent = 'Strike!';
+    sfx('pop'); haptic();
+    cast.timer = setTimeout(() => reelIn(0), 950);
+  }, 1100 + Math.random() * 2600);
+}
+// A tap on the water: too soon, in time, or right on the dip.
+// (The press decides it; the float stays up until the tap that follows has been
+// swallowed, so that it cannot land on whatever is underneath.)
+function strike() {
+  if (!cast || cast.how !== undefined) return;
+  clearTimeout(cast.timer);
+  cast.how = cast.state === 'wait' ? 0 : performance.now() - cast.at < 400 ? 2 : 1;
+  cast.timer = setTimeout(landCast, 350);
+}
+function landCast() { if (cast && cast.how !== undefined) reelIn(cast.how); }
+function reelIn(how) {
+  if (!cast) return;
+  clearTimeout(cast.timer);
+  const id = cast.id;
+  cast = null;
+  $('cast').hidden = true;
+  if (life) doAct(id, how);
 }
 
 // A hand of blackjack: what was said goes on the table, not above it.
@@ -915,6 +956,7 @@ const ui = cards({
   evDone() { ui.close(); pump(); },
   who(el) { life.setSex(el.dataset.sex, el.dataset.into); persist(); ui.close(); sfx('chime'); render(); pump(); },
   how: showHow,
+  fishing() { save.autoFish = !save.autoFish; persist(); sfx('tap'); showMenu(); },
   trophies: showTrophies,
   family: showFamily,
   menu: showMenu,
@@ -922,7 +964,7 @@ const ui = cards({
     ui.show(`<h2>Start a new life?</h2><p>${esc(life.s.name)}'s story will end here, unfinished. Trophies and ribbons you have earned are kept.</p>
       <div class="actions"><button class="btn btn-primary" data-action="freshYes">Yes, start again</button><button class="btn btn-soft" data-action="menu">No, go back</button></div>`);
   },
-  freshYes() { ui.close(); life = null; sheets = []; raceShow = null; bjShow = null; save.next = null; save.counted = false; save.fresh = false; persist(); showStart(); },
+  freshYes() { ui.close(); life = null; sheets = []; raceShow = null; bjShow = null; if (cast) { clearTimeout(cast.timer); cast = null; $('cast').hidden = true; } save.next = null; save.counted = false; save.fresh = false; persist(); showStart(); },
   begin() {
     ui.close(); sfx('win');
     // The very first time, say how it all works.
@@ -937,6 +979,7 @@ function showMenu() {
       <button class="btn btn-soft" data-action="how">How to play</button>
       <button class="btn btn-soft" data-action="trophies">Trophies and ribbons</button>
       <button class="btn btn-soft" data-action="family">Family history</button>
+      <button class="btn btn-soft" data-action="fishing">Fishing: ${save.autoFish ? 'without watching the float' : 'by hand'}</button>
       ${life ? '<button class="btn btn-soft" data-action="fresh">Start a new life</button>' : ''}
       <button class="btn btn-primary" data-action="close">Back to it</button>
     </div>`);
@@ -955,6 +998,7 @@ function showNew() {
     <p><b>♠️ Blackjack and the gull races</b> on the pier, and the <b>🎟️ Bay Lotto</b> on the High Street.</p>
     <p><b>🏗️ The mayor’s appeal</b> at the Town Hall: give the town a lifeboat, a hospital wing, a new pier. Your name stays on it for the family that follows.</p>
     <p><b>🎪 A festival every season</b>, marked on the map: the Spring Fair, Regatta Day, the Harvest Show and the Winter Lights. One entry each.</p>
+    <p><b>🎣 Fishing is done by hand:</b> watch the float and tap when it dips. (The menu can turn that off.)</p>
     <p><b>💘 A first date is yours to play.</b> Read the person (a profile, or how they look across the bar) and choose how to go about it.</p>
     <p><b>📰 The Gazette</b> (at home, or from the Me tab) has the news: the Bay now has booms and slumps, and they reach your pay, your shares and your house.</p></div>
     <div class="actions"><button class="btn btn-primary" data-action="evDone">Show me</button></div>`);
@@ -1160,6 +1204,7 @@ const DO = {
   },
   goals() { sfx('tap'); if (life.s.gaol) { tab = 'town'; closeSheets(); render(); } else if (life.s.ill) goTo('hospital'); else showGoals(); },
   stake(el) { raceStake = Number(el.dataset.v); sfx('tap'); renderSheet(); },
+  autofish() { const id = cast && cast.id; if (cast) clearTimeout(cast.timer); cast = null; $('cast').hidden = true; save.autoFish = true; persist(); toast('Fishing will look after itself from now on. The menu changes it back.', 3600); if (id) doAct(id, 1); },
   again() { raceShow = null; sfx('tap'); renderSheet(); },
   trophies() { sfx('tap'); showTrophies(); },
   menu() { sfx('tap'); showMenu(); },
@@ -1192,7 +1237,10 @@ const DO = {
   newFamily() { sfx('tap'); afterEnd(false); },
 };
 
+$('cast').addEventListener('pointerdown', (e) => { if (!e.target.closest('[data-do]')) { e.preventDefault(); strike(); } });
+
 document.addEventListener('click', (e) => {
+  if (e.target.closest('#cast') && !e.target.closest('[data-do]')) { landCast(); return; }
   const place = e.target.closest('.place');
   if (place) { goTo(place.dataset.place); return; }
   const el = e.target.closest('[data-do]');
