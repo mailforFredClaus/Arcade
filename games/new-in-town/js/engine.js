@@ -16,7 +16,7 @@
 
 import {
   SEASONS, STATS, STAT_NAME, PLACES, CAREERS, SHIFTS_FOR_RUNG, COURSES, GRADES, STUDENT_RATE, HOMES, UPGRADES, FOOD, INSURANCE, ITEMS, TRIPS,
-  SAVINGS_RATE, LOAN_RATE, STOCKS, HEADLINES, PLOT_RENT, NAMES_M, NAMES_F, PET_NAMES, PETS, BACKGROUNDS, LOOKS,
+  SAVINGS_RATE, LOAN_RATE, STOCKS, HEADLINES, PLOT_RENT, FESTS, NAMES_M, NAMES_F, PET_NAMES, PETS, BACKGROUNDS, LOOKS,
   DREAMS, QUESTS, TROPHIES, RIBBONS, money, cashShort,
 } from './data.js';
 import { EVENTS } from './events.js';
@@ -35,6 +35,7 @@ const val = (v, L, x, y) => (typeof v === 'function' ? v(L, x, y) : v);
 
 const EVENT = Object.fromEntries(EVENTS.map((e) => [e.id, e]));
 const FIRST_TIME = 6;
+const SHADY_SECS = ['Light fingers', 'Vices', 'Under the counter', 'Under the pier'];
 
 // ---- actions ----------------------------------------------------------------------------
 
@@ -1186,7 +1187,9 @@ export class Life {
     }
     if (place === 'home') out.push(...this.homeWorks());
     // Keep each section's rows together, in the order the sections first appear.
-    const secs = [...new Set(out.map((a) => a.sec))];
+    // What is only on this season goes first, and the things you shouldn't do go last.
+    const rank = (sec) => (FESTS.some((f) => f.name === sec) ? -1 : SHADY_SECS.includes(sec) ? 1 : 0);
+    const secs = [...new Set(out.map((a) => a.sec))].sort((p, q) => rank(p) - rank(q));
     out.sort((p, q) => secs.indexOf(p.sec) - secs.indexOf(q.sec));
     return out;
   }
