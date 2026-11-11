@@ -6,19 +6,21 @@
 // you're done, endSeason pays the bills, moves the markets, ages everyone
 // and may bring an event: a card with choices (event, choose).
 //
-// Everything about the life is in this.s, which is plain data and is what
-// gets saved. The random numbers come from a seed kept there too, so the
+// The people, property, businesses and fishing are in living.js, which adds
+// to what is here. Everything about the life is in this.s, which is plain
+// data and is what gets saved. The random numbers come from a seed kept there too, so the
 // same seed and the same choices always give the same life.
 
 import {
-  SEASONS, STATS, STAT_NAME, PLACES, CAREERS, SHIFTS_FOR_RUNG, COURSES, HOMES, ITEMS, TRIPS,
-  SAVINGS_RATE, LOAN_RATE, STOCKS, PROPS, NAMES, SURNAMES, PET_NAMES, PETS, TRAITS, BACKGROUNDS, LOOKS,
+  SEASONS, STATS, STAT_NAME, PLACES, CAREERS, SHIFTS_FOR_RUNG, COURSES, GRADES, STUDENT_RATE, HOMES, UPGRADES, FOOD, INSURANCE, ITEMS, TRIPS,
+  SAVINGS_RATE, LOAN_RATE, STOCKS, HEADLINES, NAMES_M, NAMES_F, PET_NAMES, PETS, BACKGROUNDS, LOOKS,
   DREAMS, QUESTS, TROPHIES, RIBBONS, money, cashShort,
 } from './data.js';
 import { EVENTS } from './events.js';
+import { install } from './living.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
-const val = (v, L, x) => (typeof v === 'function' ? v(L, x) : v);
+const val = (v, L, x, y) => (typeof v === 'function' ? v(L, x, y) : v);
 
 const EVENT = Object.fromEntries(EVENTS.map((e) => [e.id, e]));
 const FIRST_TIME = 6;
@@ -26,7 +28,7 @@ const FIRST_TIME = 6;
 // ---- actions ----------------------------------------------------------------------------
 
 // Everything you can do. place: where it shows up on the map (people and
-// lists have none). time and cost may depend on the life and on what the
+// lists have none). who: it is done with a person. time and cost may depend on the life and on what the
 // action is aimed at (x). why: a reason it can't be done just now.
 // per: how many times a season. run does it and returns what to say.
 const A = {};
@@ -111,18 +113,8 @@ def('party', {
     return L.pick(['Someone brings a trifle. Someone else sits in it.', 'It ends at dawn with everyone singing on the stairs.', 'The neighbours complain, then come in.']);
   },
 });
-def('swipe', {
-  place: 'home', sec: 'At home', icon: '💘', title: 'Try the dating app', desc: 'Seaside Singles: you might meet someone.',
-  show: (L) => !!L.s.items.phone && !L.partner(),
-  run(L) {
-    if (L.friends().length < 8 && L.chance(0.7)) {
-      const p = L.meet({ spark: true, bond: 22 });
-      return `A match! You meet ${p.name} for coffee and it is not awkward at all.`;
-    }
-    return L.pick(['Forty profiles. Thirty-eight are holding a fish.', 'Nobody you would cross the road for.', 'A promising chat ends when they reveal they hate the sea.']);
-  },
-});
 def('homes', { place: 'home', sec: 'Moving', icon: '📦', title: 'Move house', desc: 'See what the estate agent has.', time: 0, open: 'homes' });
+def('foodOpen', { place: 'home', sec: 'At home', icon: '🧺', title: 'Housekeeping', desc: (L) => `How you eat: ${FOOD[L.s.food].name.toLowerCase()}.`, time: 0, open: 'food' });
 
 // -- town hall
 def('jobs', { place: 'townhall', sec: 'Work', icon: '📋', title: 'Look at the job board', desc: 'Every career in town starts here.', time: 0, open: 'jobs' });
@@ -158,7 +150,7 @@ for (const [amt, k] of [[100, 1], [1000, 3], [10000, 6], [100000, 12]]) {
 def('adopt', {
   place: 'townhall', sec: 'Family', icon: '🧸', title: 'Ask about adopting a child', desc: 'A child who needs a home comes to live with you.', cost: 5000,
   show: (L) => L.s.age >= 25,
-  why: (L) => (L.s.age > 55 ? 'The agency prefers younger parents.' : L.s.due ? 'There is already a little one on the way.' : L.s.record ? 'Your record counts against you.' : L.s.karma < 0 ? 'The agency has heard things about you.' : L.roomForKid() ? null : 'You need a home with room for a child.'),
+  why: (L) => (L.s.age > 55 ? 'The agency prefers younger parents.' : L.s.due ? 'There is already a little one on the way.' : L.s.record ? 'Your record counts against you.' : L.s.karma < 0 ? 'The agency has heard things about you.' : L.partner() && L.partner().live && !L.partner().wish ? `${L.partner().name} does not want children.` : L.roomForKid() ? null : 'You need a home with room for a child.'),
   run(L) { L.s.due = { t: L.s.t + 1, adopt: true }; return 'Forms, interviews, more forms. Then: a yes. A child will join you next season.'; },
 });
 def('mayor', {
@@ -190,26 +182,7 @@ def('tutor', {
   place: 'college', sec: 'Study', icon: '🧑‍🏫', title: 'Hire a tutor', desc: 'Smarts, much faster.', cost: 250,
   run(L) { L.gain('smarts', 4.2); return L.pick(['The tutor explains it once, properly. Oh. OH.', 'An hour of being wrong in useful ways.']); },
 });
-def('courses', { place: 'college', sec: 'Courses', icon: '🎓', title: 'See the courses', desc: 'Certificates and degrees open doors.', time: 0, open: 'courses' });
-def('class', {
-  place: 'college', sec: 'Courses', icon: '✏️', time: 2,
-  title: (L) => `Go to class: ${COURSES[L.s.course.id].name}`,
-  desc: (L) => `${L.s.course.p} of ${COURSES[L.s.course.id].classes} done.`,
-  cost: (L) => L.classFee(L.s.course.id),
-  show: (L) => !!L.s.course,
-  run(L) {
-    const s = L.s, c = COURSES[s.course.id];
-    s.course.p++;
-    L.gain(s.course.id === 'finearts' ? 'craft' : 'smarts', 1.6);
-    if (s.course.p < c.classes) return L.pick(['Notes taken. Some of them legible.', 'A good class. You ask a question and it is not a silly one.', 'Homework. At your age.']);
-    s.edu[s.course.id] = s.age;
-    s.course = null;
-    L.joy(8);
-    L.note(`Earned a ${c.name}.`, 'big');
-    L.say('🎓', `${c.name} earned!`, 'good');
-    return `That is the last class. You hold the ${c.name} in both hands for a while.`;
-  },
-});
+def('courses', { place: 'college', sec: 'Courses', icon: '🎓', title: 'See the courses', desc: 'A qualification lets you start a career partway up.', time: 0, open: 'courses' });
 
 // -- gym
 def('workout', {
@@ -342,29 +315,6 @@ def('crates', {
     return `A day of hauling fish boxes. Your back complains; your wallet does not. ${money(pay)}.`;
   },
 });
-def('fish', {
-  place: 'harbour', sec: 'The water', icon: '🎣', title: 'Go fishing', desc: 'Sell what you catch.',
-  show: (L) => !!L.s.items.rod,
-  run(L) {
-    const s = L.s, r = L.rnd(), mult = (s.items.boat ? 1.4 : 1) * (s.heir === 'salt' ? 2 : 1);
-    L.joy(3);
-    if ((s.f.marlow || 0) >= 2 && !s.f.bream && L.chance(s.items.boat ? 0.06 : 0.03)) {
-      s.f.bream = 1; s.n.fish++; L.cash(5000 * mult); L.fame(3); L.joy(10);
-      L.note('Caught the golden bream of Starling Bay.', 'big');
-      return `The line goes tight and stays tight. Half an hour later a fish the colour of a sunrise is in your net. The golden bream! The aquarium pays ${money(5000 * mult)} for it.`;
-    }
-    const lure = (s.f.marlow || 0) >= 2 ? 0.2 : 0.3;
-    if (r < lure) return L.pick(['Nothing bites. The sea keeps its secrets.', 'You catch a boot. It is not even your size.', 'A crab steals your bait and waves.']);
-    let name, lo, hi;
-    if (r < 0.65) [name, lo, hi] = ['a string of mackerel', 60, 120];
-    else if (r < 0.85) [name, lo, hi] = ['a fine sea bass', 180, 320];
-    else if (r < 0.955) [name, lo, hi] = ['two fat lobsters', 400, 700];
-    else [name, lo, hi] = ['a conger eel as long as you are', 900, 1500];
-    const pay = Math.round(L.int(lo, hi) * mult / 10) * 10;
-    L.cash(pay); s.n.fish++;
-    return `You land ${name} and sell it on the quay for ${money(pay)}.`;
-  },
-});
 def('marlow', {
   place: 'harbour', sec: 'The water', icon: '🧓', title: 'Chat with old Marlow', desc: 'He has fished here for sixty years.', per: 1,
   run(L) {
@@ -493,8 +443,9 @@ def('blood', {
 
 // -- bank
 def('bankOpen', { place: 'bank', sec: 'Your money', icon: '🐷', title: 'Savings and loans', desc: 'Pay in, take out, borrow, pay back.', time: 0, open: 'bank' });
-def('stocksOpen', { place: 'bank', sec: 'Your money', icon: '📈', title: 'Shares', desc: 'Five local companies. Prices move every season.', time: 0, open: 'stocks' });
-def('propsOpen', { place: 'bank', sec: 'Your money', icon: '🏘️', title: 'Property to rent out', desc: 'Buy somewhere and collect the rent.', time: 0, open: 'props' });
+def('stocksOpen', { place: 'bank', sec: 'Your money', icon: '📈', title: 'Shares', desc: 'An index fund and five local companies.', time: 0, open: 'stocks' });
+def('propsOpen', { place: 'bank', sec: 'Your money', icon: '🏘️', title: 'Property', desc: 'What you own, and places to buy and let out.', time: 0, open: 'estate' });
+def('insureOpen', { place: 'bank', sec: 'Your money', icon: '☂️', title: 'Insurance', desc: 'Cover for your health and your home.', time: 0, open: 'insure' });
 
 // -- station
 def('folks', {
@@ -563,48 +514,111 @@ def('hiloCash', {
   run(L) { const h = L.s.hilo; L.s.hilo = null; L.cash(h.pot); L.s.n.casino += h.pot - h.bet; if (h.streak >= 3) L.joy(Math.min(6, h.streak)); return `You walk away with ${money(h.pot)}.`; },
 });
 
-// -- lists: jobs, courses, homes, shops, trips, pets, the bank
+// -- lists: jobs, courses, shops, trips, pets, the bank
 def('apply', {
   why: (L, c) => L.applyWhy(c),
   run(L, c) {
-    const s = L.s, car = CAREERS[c];
-    // Back to a career you've worked in before: pick up near where you left off.
-    let r = 0;
-    for (let i = Math.min(s.worked[c] ?? 0, car.rungs.length - 1); i > 0; i--) if (L.needs(car.rungs[i].need).every((n) => n.ok)) { r = i; break; }
-    s.job = { c, r, n: 0 };
+    const s = L.s, car = CAREERS[c], r = L.startRung(c);
+    s.job = { c, r, n: 0, perf: 50, raise: 0 };
     s.worked[c] = Math.max(s.worked[c] ?? 0, r);
     s.retired = false;
     L.note(`Started work as ${car.rungs[r].title}.`);
-    return `You start as ${car.rungs[r].title} at ${PLACES[car.place].name}: ${money(car.rungs[r].pay)} a shift.`;
+    return `You start as ${car.rungs[r].title} at ${PLACES[car.place].name}: ${money(L.shiftPay())} a shift.${r > 0 && !(s.worked[c] > r) ? ' No starting at the bottom for you.' : ''}`;
   },
 });
-def('work', {
-  place: (L) => (L.s.job ? CAREERS[L.s.job.c].place : null), sec: 'Work', icon: '💼', time: 2,
-  title: (L) => `Work a shift as ${L.jobTitle()}`,
-  desc: (L) => { const n = L.s.use.work || 0; return n >= 3 ? 'You are worn out: more shifts this season will cost your health.' : `Pays about ${money(L.shiftPay())}.`; },
+// Three ways to do a shift. n: how much it counts towards promotion.
+const EFFORT = {
+  work: { n: 1, stress: 1, perf: 1, icon: '💼', title: (L) => `Work a shift as ${L.jobTitle()}`, desc: (L) => `Pays about ${money(L.shiftPay())}.` },
+  workHard: { n: 1.5, stress: 1.8, perf: 5, hp: -1, icon: '🔥', title: () => 'Go the extra mile', desc: () => 'Same pay, but it counts as a shift and a half towards promotion, and the boss notices. Tiring.' },
+  workEasy: { n: 0.5, stress: 0.3, perf: -5, icon: '🫖', title: () => 'Coast through a shift', desc: () => 'Same pay and hardly any strain, but it counts for half, and the boss notices that too.' },
+};
+for (const [id, e] of Object.entries(EFFORT)) {
+  def(id, {
+    place: (L) => (L.s.job ? CAREERS[L.s.job.c].place : null), sec: 'Work', icon: e.icon, time: 2, title: e.title,
+    desc: (L) => ((L.s.use.work || 0) >= 3 ? 'You are worn out: more shifts this season will cost your health.' : e.desc(L)),
+    show: (L) => !!L.s.job,
+    run: (L) => L.work(e),
+  });
+}
+def('raise', {
+  place: (L) => (L.s.job ? CAREERS[L.s.job.c].place : null), sec: 'Work', icon: '💷', title: 'Ask for a raise', time: 0,
+  desc: (L) => `Your chances: ${Math.round(L.raiseOdds() * 100)}%. Better if the boss thinks well of you.`,
   show: (L) => !!L.s.job,
-  run(L) { return L.work(); },
+  why: (L) => (L.s.job.raise >= 0.4 ? 'You are at the top of the pay scale for this job.' : L.s.t - (L.s.job.asked ?? -99) < 8 ? 'You asked not long ago.' : null),
+  run(L) {
+    const j = L.s.job;
+    j.asked = L.s.t;
+    if (L.chance(L.raiseOdds())) { j.raise = Math.min(0.4, j.raise + 0.08); L.joy(4); return `The boss sighs, and nods. ${money(L.shiftPay())} a shift from now on.`; }
+    j.perf = clamp(j.perf - 4, 0, 100); L.joy(-2);
+    return '"The budget will not stretch to it." You both pretend the conversation did not happen.';
+  },
 });
+
 def('enrol', {
   time: 0,
-  why(L, id) {
-    if (L.s.edu[id]) return 'You already have it.';
+  why(L, x) {
+    const c = COURSES[x.id];
+    if (!c) return 'No such course.';
+    if (L.s.edu[x.id]) return 'You already have it.';
+    if (L.hasEdu(x.id)) return 'You hold something better.';
     if (L.s.course) return 'One course at a time.';
-    const miss = L.needs(COURSES[id].need).find((n) => !n.ok);
+    const miss = L.needs(c.need).find((n) => !n.ok);
     return miss ? `Needs ${miss.text}.` : null;
   },
-  run(L, id) { L.s.course = { id, p: 0 }; return `You sign up for the ${COURSES[id].name}. Classes are at the college: ${money(L.classFee(id))} each.`; },
+  run(L, x) {
+    L.s.course = { id: x.id, p: 0, mark: 0, rev: 0, loan: !!x.loan };
+    return `You sign up for the ${COURSES[x.id].name}. Classes are at the college${x.loan ? ', and the fees go on a student loan' : `: ${money(L.classFee(x.id))} each`}.`;
+  },
 });
 def('drop', {
   time: 0, why: (L) => (L.s.course ? null : 'You are not on a course.'),
   run(L) { const c = COURSES[L.s.course.id]; L.s.course = null; return `You drop the ${c.name}.`; },
 });
-def('move', {
-  time: 1, selfPay: true,
-  cost: (L, x) => L.moveCost(x),
-  why: (L, x) => L.moveWhy(x),
-  run(L, x) { return L.move(x); },
+def('class', {
+  place: 'college', sec: 'Your course', icon: '✏️', time: 2,
+  title: (L) => `Go to class: ${COURSES[L.s.course.id].name}`,
+  desc: (L) => `${L.s.course.p} of ${COURSES[L.s.course.id].classes} done${L.s.course.loan ? '. On your student loan' : ''}.`,
+  cost: (L) => (L.s.course.loan ? 0 : L.classFee(L.s.course.id)),
+  show: (L) => !!L.s.course && !L.s.course.exam,
+  run(L) {
+    const s = L.s, k = s.course, c = COURSES[k.id];
+    if (k.loan) s.sloan += L.classFee(k.id);
+    k.p++;
+    k.mark += L.classMark(k.id);
+    L.gain(L.courseStat(k.id), 1.6);
+    if (k.p < c.classes) return L.pick(['Notes taken. Some of them legible.', 'A good class. You ask a question and it is not a silly one.', 'Homework. At your age.', 'It is starting to make sense.']);
+    k.exam = true;
+    return 'That is the last class. Only the exam stands between you and the piece of paper. Revise first, or walk straight in?';
+  },
 });
+def('revise', {
+  place: 'college', sec: 'Your course', icon: '📝', title: 'Revise', time: 1,
+  desc: (L) => `Lifts your mark in the exam (it is heading for ${L.gradeWord(L.examMark())}).`,
+  show: (L) => !!L.s.course,
+  why: (L) => (L.s.course.rev >= 4 ? 'You know it backwards. More would not help.' : null),
+  run(L) { const k = L.s.course; k.rev++; L.gain(L.courseStat(k.id), 1.2); return L.pick(['Flash cards. Highlighters. A wall of sticky notes.', 'You teach it to the cat, which is how you know you know it.', 'Past papers until your eyes cross.']); },
+});
+def('exam', {
+  place: 'college', sec: 'Your course', icon: '🎓', title: 'Sit the exam', time: 1,
+  desc: (L) => `You are heading for ${L.gradeWord(L.examMark())}. Revising first would help.`,
+  show: (L) => !!L.s.course && !!L.s.course.exam,
+  run(L) {
+    const s = L.s, k = s.course, c = COURSES[k.id], mark = L.examMark() + L.int(-10, 10);
+    if (mark < 40) {
+      k.exam = false; k.p = c.classes - 2; k.mark *= k.p / c.classes; L.joy(-6);
+      return 'You turn over the paper and your mind goes white. A fail. Two more classes, and then you can sit it again.';
+    }
+    const g = mark >= 72 ? 2 : mark >= 58 ? 1 : 0;
+    s.edu[k.id] = { a: s.age, g };
+    s.course = null;
+    L.joy(8 + 3 * g);
+    if (g === 2) L.cash(1000);
+    L.note(`Earned a ${c.name}${g ? `, with ${GRADES[g].toLowerCase()}` : ''}.`, 'big');
+    L.say('🎓', `${c.name}: ${GRADES[g]}!`, 'good');
+    return `${['A pass. It will do nicely.', 'A merit! Better than you dared hope.', 'A distinction! Top of the year, and a $1,000 prize.'][g]} You hold the ${c.name} in both hands for a while.${g ? ' Employers pay a little more for marks like that.' : ''}`;
+  },
+});
+
 def('buy', {
   time: 0, cost: (L, id) => L.itemPrice(id),
   why: (L, id) => (L.s.items[id] ? 'You have one.' : id === 'car' && L.s.items.sportscar ? 'You have something faster.' : null),
@@ -627,6 +641,7 @@ def('trip', {
     if (t.stat) L.gain(t.stat, 2.5);
     const p = L.partner();
     if (p) L.bond(p, 6);
+    for (const k of L.kids()) if (k.age < 18) L.bond(k, 4);
     if (first) L.note(`Went on holiday: ${t.name.toLowerCase()}.`);
     return `${t.name}: ${L.pick(['you come back with sand in everything.', 'you send nine postcards and arrive home before any of them.', 'the best week in a long while.', 'you take four hundred photographs, three of them good.'])}${p ? ` ${p.name} came too.` : ''}`;
   },
@@ -656,7 +671,11 @@ def('borrow', {
 });
 def('repay', {
   time: 0, why: (L, n) => (n > 0 && n <= L.s.cash && n <= L.s.debt ? null : 'Check the amount.'),
-  run(L, n) { L.s.cash -= n; L.s.debt -= n; return L.s.debt ? `${money(n)} paid off. ${money(L.s.debt)} to go.` : 'Paid off in full. You owe nobody anything.'; },
+  run(L, n) { L.s.cash -= n; L.s.debt -= n; return L.s.debt ? `${money(n)} paid off. ${money(L.s.debt)} to go.` : 'Paid off in full. You owe the bank nothing.'; },
+});
+def('repayStudent', {
+  time: 0, why: (L, n) => (n > 0 && n <= L.s.cash && n <= L.s.sloan ? null : 'Check the amount.'),
+  run(L, n) { L.s.cash -= n; L.s.sloan -= n; return L.s.sloan ? `${money(n)} off your student loan. ${money(L.s.sloan)} to go.` : 'Your student loan is cleared. A weight you had stopped noticing is gone.'; },
 });
 def('shares', {
   time: 0, cost: (L, x) => Math.ceil(x.n * L.s.stk.p[x.sym]),
@@ -678,102 +697,14 @@ def('sellShares', {
     return `Sold ${x.n.toLocaleString()} ${x.sym} for ${money(got)}.`;
   },
 });
-def('buyProp', {
-  time: 1, cost: (L, id) => L.propPrice(id),
-  why: (L) => (Object.values(L.s.props).reduce((a, n) => a + n, 0) >= 12 ? 'A dozen is plenty to look after.' : null),
-  run(L, id) { L.s.props[id] = (L.s.props[id] || 0) + 1; L.note(`Bought a ${PROPS[id].name.toLowerCase()} to rent out.`); return `The ${PROPS[id].name.toLowerCase()} is yours. It should bring in about ${money(L.propPrice(id) * PROPS[id].earn)} a season.`; },
+def('insure', {
+  time: 0, why: (L, id) => (INSURANCE[id] ? null : 'No such cover.'),
+  run(L, id) { const on = (L.s.ins[id] = !L.s.ins[id]); return on ? `You take out ${INSURANCE[id].name.toLowerCase()}: ${money(INSURANCE[id].cost)} a season.` : `You cancel the ${INSURANCE[id].name.toLowerCase()}.`; },
 });
-def('sellProp', {
-  time: 0, why: (L, id) => (L.s.props[id] ? null : 'You do not own one.'),
-  run(L, id) { const got = Math.round(L.propPrice(id) * 0.96); L.s.props[id]--; L.s.cash += got; return `Sold for ${money(got)} after fees.`; },
+def('food', {
+  time: 0, why: (L, n) => (FOOD[n] ? (L.s.food === n ? 'This is how you eat now.' : null) : 'No such thing.'),
+  run(L, n) { L.s.food = n; return `${FOOD[n].name} it is. ${FOOD[n].blurb}`; },
 });
-
-// -- people
-def('hang', {
-  title: 'Spend time together', icon: '☕', desc: 'Grow closer.',
-  show: (L, p) => p.kind === 'friend' || p.kind === 'partner' || p.kind === 'spouse',
-  run(L, p) {
-    const t = TRAITS[p.trait];
-    L.bond(p, 8 + (p.trait === 'kind' ? 3 : 0)); L.joy(4);
-    if (t.stat) L.gain(t.stat, 1.2);
-    return {
-      bookish: `${p.name} drags you to a talk about lighthouses. It is brilliant.`,
-      sporty: `${p.name} says "quick walk" and means nine miles.`,
-      witty: `${p.name} has you crying with laughter before the drinks arrive.`,
-      arty: `You and ${p.name} spend the afternoon at a gallery, arguing happily.`,
-      kind: `${p.name} listens, properly, the way hardly anyone does.`,
-    }[p.trait];
-  },
-});
-def('gift', {
-  title: 'Give a present', icon: '🎁', desc: 'Once a season.', time: 0, cost: 80,
-  show: (L, p) => p.kind !== 'child' || p.age >= 3,
-  why: (L, p) => (L.s.use[`gift${p.id}`] ? 'Once a season.' : null),
-  run(L, p) { L.s.use[`gift${p.id}`] = 1; L.bond(p, 6); return `${p.name} ${L.pick(['is delighted', 'pretends to be surprised', 'says you should not have, twice'])}.`; },
-});
-def('askout', {
-  title: 'Ask them out', icon: '💐', desc: (L, p) => `Your chances: ${Math.round(L.askOdds(p) * 100)}%.`,
-  show: (L, p) => p.kind === 'friend' && p.spark && !L.partner(),
-  why: (L, p) => (p.bond < 40 ? 'Get to know them better first (40 bond).' : null),
-  run(L, p) {
-    if (L.chance(L.askOdds(p))) { p.kind = 'partner'; L.bond(p, 10); L.joy(8); L.note(`Started seeing ${p.name}.`, 'love'); return `${p.name} says they thought you would never ask.`; }
-    p.spark = false; L.bond(p, -6); L.joy(-4);
-    return `${p.name} is kind about it. Friends, then.`;
-  },
-});
-def('date', {
-  title: 'Go on a date', icon: '🌹', desc: 'Dinner, a walk on the pier.', cost: 150,
-  show: (L, p) => p.kind === 'partner' || p.kind === 'spouse',
-  run(L, p) { L.bond(p, 9); L.joy(5); return L.pick([`Fish and chips on the sea wall with ${p.name}. Perfect.`, `You and ${p.name} dance badly and do not care.`, `${p.name} beats you at crazy golf and is unbearable about it.`]); },
-});
-def('movein', {
-  title: 'Move in together', icon: '🔑', desc: 'Share a home, and the bills.', time: 0,
-  show: (L, p) => p.kind === 'partner' && !p.live,
-  why: (L, p) => (L.s.home === 'hostel' ? 'Not into a hostel bunk.' : p.bond < 60 ? 'Too soon (60 bond).' : null),
-  run(L, p) { p.live = true; L.joy(5); L.note(`Moved in with ${p.name}.`, 'love'); return `${p.name} arrives with eleven boxes and a lamp you hate. Home feels more like home.`; },
-});
-def('propose', {
-  title: 'Propose', icon: '💍', desc: (L, p) => `You will need a ring. Your chances: ${Math.round(L.proposeOdds(p) * 100)}%.`, time: 0,
-  show: (L, p) => p.kind === 'partner' && !p.eng,
-  why: (L, p) => (p.bond < 75 ? 'Not yet (75 bond).' : !L.s.items.ring ? 'Buy a ring on the High Street first.' : null),
-  run(L, p) {
-    if (L.chance(L.proposeOdds(p))) { p.eng = true; delete L.s.items.ring; L.joy(12); L.bond(p, 6); L.note(`Got engaged to ${p.name}.`, 'love'); return `Down on one knee on the pier. ${p.name} says yes before you finish the question. The wedding is next season!`; }
-    L.bond(p, -12); L.joy(-8);
-    return `${p.name} takes your hands and says: not yet. You keep the ring.`;
-  },
-});
-def('baby', {
-  title: 'Try for a baby', icon: '🍼', desc: 'A big step.',
-  show: (L, p) => (p.kind === 'spouse' || (p.kind === 'partner' && p.live)) && L.s.age <= 45,
-  why: (L) => (L.s.due ? 'There is already a little one on the way.' : L.roomForKid() ? null : 'You need a home with room for a child.'),
-  run(L, p) {
-    if (L.chance(0.55)) { L.s.due = { t: L.s.t + 3 }; L.joy(8); L.bond(p, 4); return `Good news: you and ${p.name} are expecting!`; }
-    L.bond(p, 2);
-    return 'Not this time. These things take a while.';
-  },
-});
-def('split', {
-  title: (L, p) => (p.kind === 'spouse' ? 'Divorce' : 'Break up'), icon: '💔', desc: (L, p) => (p.kind === 'spouse' ? 'They keep 40% of your money.' : 'End it.'), time: 0,
-  show: (L, p) => p.kind === 'partner' || p.kind === 'spouse',
-  run(L, p) { return L.split(p, true); },
-});
-def('call', {
-  title: 'Call for a chat', icon: '📞', desc: 'Keep in touch.',
-  show: (L, p) => p.kind === 'parent' || (p.kind === 'child' && p.age >= 18),
-  run(L, p) { L.bond(p, 7); L.joy(2); return p.kind === 'parent' ? `${p.name} asks if you are eating properly. You lie.` : `${p.name} tells you all their news. You hang up smiling.`; },
-});
-def('play', {
-  title: 'Spend the day together', icon: '🪁', desc: 'They grow up so fast.',
-  show: (L, p) => p.kind === 'child' && p.age < 18,
-  run(L, p) {
-    L.bond(p, 8); L.joy(5);
-    return p.age < 4 ? `You and ${p.name} spend an hour putting things in a box and taking them out again.`
-      : p.age < 12 ? L.pick([`You build ${p.name} a den on the beach.`, `${p.name} asks why the sea is salty. You make something up.`, `Kites on the cliff with ${p.name}.`])
-        : L.pick([`${p.name} lets you take them for a burger, and even talks.`, `You teach ${p.name} to drive in the station car park. Nobody is hurt.`]);
-  },
-});
-
-const PERSON_ACTS = ['hang', 'date', 'play', 'call', 'gift', 'askout', 'movein', 'propose', 'baby', 'split'];
 
 // ---- a life -----------------------------------------------------------------------------
 
@@ -782,23 +713,28 @@ export class Life {
     this.s = state;
     this.news = [];
     this.out = null;
+    if ((state.v || 1) < 2) this.upgrade();
   }
 
-  // name, look {skin, hair, top, style}, bg: a background from data.js,
+  // name, sex ('m' or 'f'), into: who you fall for ('m', 'f' or 'b' for both),
+  // look {skin, hair, top, style, beard}, bg: a background from data.js,
   // dreams: three ids, heir: the heirloom brought along (a ribbon id),
-  // inherit: money left by the last life, gen: which generation this is.
-  static create({ name = 'Sam', look = null, bg = 'allrounder', dreams = [], heir = null, inherit = 0, gen = 1, seed = 1, parent = null } = {}) {
+  // inherit: money left by the last life, gen: which generation this is,
+  // parent: one still living from the life before, raised: the skills you
+  // were brought up with, if you are the child of the last life.
+  static create({ name = 'Sam', sex = 'm', into = null, look = null, bg = 'allrounder', dreams = [], heir = null, inherit = 0, gen = 1, seed = 1, parent = null, raised = null } = {}) {
     const s = {
-      v: 1, rng: seed >>> 0, name, look, bg, gen, heir,
+      v: 2, rng: seed >>> 0, name, sex, into: into || (sex === 'm' ? 'f' : 'm'), look, bg, gen, heir,
       t: 0, age: 18, time: 0,
-      cash: 1500 + inherit, bank: 0, debt: 0, idx: 1,
+      cash: 1500 + inherit, bank: 0, debt: 0, sloan: 0, idx: 1,
       health: heir === 'young' ? 100 : 90, happy: 62,
       st: {}, karma: 0, fame: 0, record: 0,
       job: null, worked: {}, pension: 0, retired: false,
       edu: {}, course: null,
-      home: 'hostel', owned: false, items: {},
-      people: [], pid: 1, pet: null, due: null,
-      stk: { p: {}, h: {}, own: {}, paid: {} }, props: {},
+      home: 'hostel', owned: false, homeAt: null, estate: [], eid: 1, items: {}, food: 1, ins: {},
+      people: [], pid: 1, pet: null, due: null, matches: null,
+      stk: { p: {}, h: {}, own: {}, paid: {}, news: [] },
+      biz: null, fishbook: {}, hist: [],
       paintings: 0, novel: { p: 0, q: 0 }, trips: {}, ill: null, hilo: null,
       f: {}, n: { shifts: 0, earned: 0, fish: 0, crimes: 0, books: 0, given: 0, casino: 0, streak: 0 },
       use: {}, cd: {}, seen: {},
@@ -806,8 +742,8 @@ export class Life {
       log: [], pend: [], dead: null, hurt: '',
     };
     const L = new Life(s);
-    if (!s.look) s.look = L.randomLook();
-    for (const k of STATS) s.st[k] = 10 + L.int(0, 6);
+    if (!s.look) s.look = L.randomLook(sex);
+    for (const k of STATS) s.st[k] = 10 + L.int(0, 6) + (raised ? Math.min(28, Math.round((raised[k] || 0) * 0.4)) : 0);
     for (const [k, v] of Object.entries(BACKGROUNDS[bg]?.give || {})) {
       if (k === 'cash') s.cash += v; else s.st[k] += v;
     }
@@ -821,9 +757,9 @@ export class Life {
     }
     // The first of a family has a mum and dad back home; later ones may have
     // a parent still living from the life before.
-    if (parent) s.people.push({ id: s.pid++, name: parent.name, kind: 'parent', bond: 60, age: Math.max(40, parent.age), trait: 'kind', look: parent.look || L.randomLook() });
+    if (parent) s.people.push(L.makePerson({ name: parent.name, sex: parent.sex || 'f', kind: 'parent', bond: 60, age: Math.max(40, parent.age), trait: 'kind', look: parent.look, single: false }));
     else if (gen === 1) {
-      for (const who of ['Mum', 'Dad']) s.people.push({ id: s.pid++, name: who, kind: 'parent', bond: 60, age: 18 + L.int(24, 32), trait: 'kind', look: L.randomLook() });
+      for (const [who, x] of [['Mum', 'f'], ['Dad', 'm']]) s.people.push(L.makePerson({ name: who, sex: x, kind: 'parent', bond: 60, age: 18 + L.int(24, 32), trait: 'kind', single: false }));
     }
     for (const [sym, k] of Object.entries(STOCKS)) { s.stk.p[sym] = k.start; s.stk.h[sym] = [k.start]; }
     s.time = L.timeMax();
@@ -832,6 +768,47 @@ export class Life {
   }
 
   toJSON() { return this.s; }
+
+  // Brings a life saved by the first version of the game up to date.
+  upgrade() {
+    const s = this.s;
+    s.v = 2;
+    s.sex = null; s.into = null; // (the screen asks, the first time)
+    s.sloan = 0; s.food = 1; s.ins = {}; s.matches = null; s.biz = null; s.fishbook = {}; s.hist = [];
+    s.estate = []; s.eid = 1; s.homeAt = null;
+    if (s.owned) { s.estate.push({ id: s.eid++, kind: s.home, ups: {}, let: false }); s.homeAt = s.estate[0].id; }
+    for (const [kind, n] of Object.entries(s.props || {})) for (let i = 0; i < n; i++) s.estate.push({ id: s.eid++, kind, ups: {}, let: true });
+    delete s.props;
+    s.stk.news = [];
+    for (const [sym, k] of Object.entries(STOCKS)) if (s.stk.p[sym] == null) { s.stk.p[sym] = k.start; s.stk.h[sym] = [k.start]; }
+    for (const id of Object.keys(s.edu)) s.edu[id] = { a: typeof s.edu[id] === 'number' ? s.edu[id] : s.age, g: 0 };
+    if (s.course) Object.assign(s.course, { mark: s.course.p * 50, rev: 0, loan: false });
+    if (s.job) Object.assign(s.job, { perf: 50, raise: 0 });
+    if (s.biz && s.biz.at == null) s.biz.at = s.t;
+    for (const p of s.people) {
+      const first = p.name.split(' ')[0];
+      p.sex = first === 'Mum' ? 'f' : first === 'Dad' ? 'm' : NAMES_F.includes(first) ? 'f' : NAMES_M.includes(first) ? 'm' : p.id % 2 ? 'f' : 'm';
+      p.single = p.kind === 'friend' && !!p.spark;
+      delete p.spark;
+      this.fillPerson(p);
+    }
+    if (s.n.fish) s.fishbook.mackerel = s.n.fish;
+    if (s.f.bream) s.fishbook.bream = 1;
+  }
+  // Sets who you are and who you fall for (asked once of a life from the
+  // first version). Anyone you are with becomes someone you would be with.
+  setSex(sex, into) {
+    const s = this.s;
+    s.sex = sex; s.into = into;
+    const p = this.partner();
+    if (p && into !== 'b' && p.sex !== into) {
+      p.sex = into;
+      const [first, ...rest] = p.name.split(' ');
+      if ((into === 'f' ? NAMES_M : NAMES_F).includes(first)) p.name = [this.pick(into === 'f' ? NAMES_F : NAMES_M), ...rest].join(' ');
+      p.look.style = this.pick(LOOKS[into]);
+      p.look.beard = false;
+    }
+  }
 
   // ---- chance ----
 
@@ -846,7 +823,12 @@ export class Life {
   int(a, b) { return a + Math.floor(this.rnd() * (b - a + 1)); }
   pick(list) { return list[Math.floor(this.rnd() * list.length)]; }
   gauss() { return Math.sqrt(-2 * Math.log(1 - this.rnd())) * Math.cos(2 * Math.PI * this.rnd()); }
-  randomLook() { return { skin: this.int(0, LOOKS.skin.length - 1), hair: this.int(0, LOOKS.hair.length - 1), top: this.int(0, LOOKS.top.length - 1), style: this.int(0, LOOKS.styles - 1) }; }
+  randomLook(sex) {
+    return {
+      skin: this.int(0, LOOKS.skin.length - 1), hair: this.int(0, LOOKS.hair.length - 1), top: this.int(0, LOOKS.top.length - 1),
+      style: sex ? this.pick(LOOKS[sex]) : this.int(0, LOOKS.styles - 1), beard: sex === 'm' && this.chance(0.3),
+    };
+  }
 
   // ---- the numbers that move ----
 
@@ -868,9 +850,9 @@ export class Life {
     const s = this.s;
     let m = 1;
     if (s.happy >= 70) m *= 1.15; else if (s.happy < 20) m *= 0.75;
-    if (k === 'smarts') m *= (s.items.books ? 1.1 : 1) * (s.heir === 'scholar' ? 1.2 : 1) * (s.age >= 65 ? 0.8 : 1);
-    if (k === 'fitness') { m *= (s.heir === 'champion' ? 1.2 : 1) * (s.age >= 75 ? 0.4 : s.age >= 60 ? 0.6 : s.age >= 45 ? 0.85 : 1); s.use.fit = 1; }
-    if (k === 'charm') m *= (s.items.suit ? 1.1 : 1) * (s.items.watch ? 1.1 : 1) * (s.items.sportscar ? 1.1 : 1) * (s.heir === 'mayor' ? 1.2 : 1);
+    if (k === 'smarts') m *= (s.items.books ? 1.1 : 1) * (s.heir === 'scholar' ? 1.2 : 1) * (s.age >= 65 ? 0.8 : 1) * (this.perk('tech') ? 1.08 : 1);
+    if (k === 'fitness') { m *= (s.heir === 'champion' ? 1.2 : 1) * (s.age >= 75 ? 0.4 : s.age >= 60 ? 0.6 : s.age >= 45 ? 0.85 : 1) * (this.perk('sports') ? 1.08 : 1); s.use.fit = 1; }
+    if (k === 'charm') m *= (s.items.suit ? 1.1 : 1) * (s.items.watch ? 1.1 : 1) * (s.items.sportscar ? 1.1 : 1) * (s.heir === 'mayor' ? 1.2 : 1) * (this.perk('politics') ? 1.08 : 1);
     if (k === 'craft') m *= (s.items.piano ? 1.1 : 1) * (s.heir === 'star' ? 1.2 : 1) * (s.age >= 70 ? 0.8 : 1);
     const v = s.st[k];
     s.st[k] = clamp(v + base * m * (1 - v / 105) ** 1.6, 0, 100);
@@ -886,7 +868,7 @@ export class Life {
   // A good name is slow to build past a certain point, and quick to lose.
   karma(d) { const k = this.s.karma; this.s.karma = clamp(k + (d > 0 && k > 0 ? d * (1 - 0.8 * (k / 100) ** 1.2) : d), -100, 100); }
   // Fame is harder to come by the more of it you have.
-  fame(d) { const f = this.s.fame; this.s.fame = clamp(f + (d > 0 ? d * (1 - 0.8 * (f / 100) ** 1.5) : d), 0, 100); }
+  fame(d) { const f = this.s.fame; this.s.fame = clamp(f + (d > 0 ? d * (this.perk('arts') ? 1.2 : 1) * (1 - 0.8 * (f / 100) ** 1.5) : d), 0, 100); }
   bond(p, d) { p.bond = clamp(p.bond + d, 0, 100); }
 
   note(text, kind = '') {
@@ -905,28 +887,10 @@ export class Life {
   kids() { return this.s.people.filter((p) => p.kind === 'child'); }
   person(id) { return this.s.people.find((p) => p.id === id) || null; }
   hasDegree() { return Object.keys(this.s.edu).some((id) => COURSES[id].degree); }
-  roomForKid() { return this.kids().filter((k) => k.age < 18).length < HOMES[this.s.home].kids; }
-
-  freshName() {
-    const used = new Set(this.s.people.map((p) => p.name));
-    for (let i = 0; i < 30; i++) {
-      const n = `${this.pick(NAMES)} ${this.pick(SURNAMES)}`;
-      if (!used.has(n)) return n;
-    }
-    return `${this.pick(NAMES)} ${this.pick(SURNAMES)}`;
-  }
-  meet(o = {}) {
-    const s = this.s;
-    const p = Object.assign({
-      id: s.pid++, name: this.freshName(), kind: 'friend', bond: 18,
-      age: clamp(s.age + this.int(-5, 5), 18, 95), trait: this.pick(Object.keys(TRAITS)),
-      spark: this.chance(0.45), look: this.randomLook(),
-    }, o);
-    s.people.push(p);
-    this.say('👋', `You made a friend: ${p.name}`, 'good');
-    return p;
-  }
-  maybeMeet(p) { return this.friends().length < 8 && this.chance(p) ? this.meet() : null; }
+  // A course counts if you hold it, or hold something that covers it.
+  hasEdu(id) { return !!this.s.edu[id] || Object.keys(this.s.edu).some((k) => (COURSES[k].covers || []).includes(id)); }
+  // Knowing the right people: someone close who works in that career.
+  perk(c) { return this.s.people.some((p) => p.job === c && p.bond >= 60 && (p.kind === 'friend' || p.kind === 'partner' || p.kind === 'spouse' || (p.kind === 'child' && p.age >= 18))); }
 
   timeMax() { return this.timeMaxWithout(null); }
   timeMaxWithout(skip) {
@@ -939,52 +903,72 @@ export class Life {
     return Math.max(3, t);
   }
 
-  savingsRate() { return SAVINGS_RATE + (this.s.heir === 'tycoon' ? 0.004 : 0); }
+  savingsRate() { return SAVINGS_RATE + (this.s.heir === 'tycoon' ? 0.004 : 0) + (this.perk('finance') ? 0.002 : 0); }
   // For five years after going bankrupt the bank will not lend.
   blacklisted() { return this.s.f.bustAt != null && this.s.t - this.s.f.bustAt < 20; }
   sharesWorth() { const k = this.s.stk; return Object.keys(k.own).reduce((a, sym) => a + k.own[sym] * k.p[sym], 0); }
-  homePrice(id) { return Math.round(HOMES[id].price * this.s.idx / 1000) * 1000; }
-  propPrice(id) { return Math.round(PROPS[id].price * this.s.idx / 1000) * 1000; }
-  propsWorth() { return Object.keys(this.s.props).reduce((a, id) => a + this.s.props[id] * this.propPrice(id), 0); }
-  propIncome() { return Math.round(Object.keys(this.s.props).reduce((a, id) => a + this.s.props[id] * this.propPrice(id) * PROPS[id].earn, 0)); }
-  homeWorth() { return this.s.owned ? this.homePrice(this.s.home) : 0; }
-  netWorth() { const s = this.s; return Math.round(s.cash + s.bank - s.debt + this.sharesWorth() + this.propsWorth() + this.homeWorth()); }
+  dividends() { const k = this.s.stk; return Math.floor(Object.keys(k.own).reduce((a, sym) => a + k.own[sym] * k.p[sym] * STOCKS[sym].div, 0)); }
+  netWorth() { const s = this.s; return Math.round(s.cash + s.bank - s.debt - s.sloan + this.sharesWorth() + this.estateWorth() + this.bizWorth()); }
   creditLimit() {
     const s = this.s, pay = s.job ? CAREERS[s.job.c].rungs[s.job.r].pay : s.pension;
-    return Math.round(2000 + 12 * pay + 0.8 * (this.homeWorth() + this.propsWorth()) + 0.5 * this.sharesWorth());
+    return Math.round(2000 + 12 * pay + 0.8 * this.estateWorth() + 0.5 * this.sharesWorth());
   }
   // What goes out at the end of every season: [what, how much].
   bills(jailed = false) {
-    const s = this.s, h = HOMES[s.home], out = [], pt = this.partner();
+    const s = this.s, h = HOMES[s.home], out = [], pt = this.partner(), home = this.homeEntry();
     const share = pt && pt.live ? 0.65 : 1;
-    if (s.owned) out.push(['Upkeep on your home', Math.round(this.homeWorth() * 0.003)]);
-    else if (!jailed) out.push(['Rent', Math.round(h.rent * share)]);
-    if (!jailed) out.push(['Food and bills', Math.round((700 + 150 * h.tier) * share)]);
-    const young = this.kids().filter((k) => k.age < 18).length;
-    if (young) out.push([young > 1 ? `Raising ${young} children` : 'Raising a child', 1200 * young]);
+    if (home) out.push(['Upkeep on your home', Math.round(this.propValue(home) * 0.003)]);
+    else if (!jailed) out.push(['Rent', Math.round(this.rentOf(s.home) * share)]);
+    const empty = s.estate.filter((e) => !e.let && e !== home).reduce((a, e) => a + this.propValue(e) * 0.003, 0);
+    if (empty) out.push(['Upkeep on empty property', Math.round(empty)]);
+    if (!jailed) {
+      const food = 700 + 150 * h.tier + FOOD[s.food].cost - (this.perk('kitchen') ? 150 : 0) - (home && home.ups.solar ? UPGRADES.solar.bills : 0);
+      out.push(['Food and bills', Math.round(Math.max(200, food) * share)]);
+    }
+    const young = this.kids().filter((k) => k.age < 18), priv = young.filter((k) => k.priv).length;
+    if (young.length) out.push([young.length > 1 ? `Raising ${young.length} children` : 'Raising a child', 1200 * young.length]);
+    if (priv) out.push(['School fees', 2500 * priv]);
     if (s.pet) out.push([`${s.pet.name}'s food and vet`, 200]);
     if (s.items.sportscar) out.push(['Running the sports car', 1200]);
     else if (s.items.car) out.push(['Running the car', 300]);
+    for (const id of Object.keys(INSURANCE)) if (s.ins[id]) out.push([INSURANCE[id].name, INSURANCE[id].cost]);
     if (s.debt > 0) out.push(['Loan interest', Math.round(s.debt * LOAN_RATE)]);
+    return out;
+  }
+  // What comes in each season without lifting a finger: [what, how much].
+  income() {
+    const s = this.s, out = [];
+    if (s.pension) out.push(['Pension', s.pension]);
+    const rents = this.letIncome(), divs = this.dividends(), biz = this.bizIdle();
+    if (rents) out.push(['Rent from your properties', rents]);
+    if (divs) out.push(['Dividends', divs]);
+    if (biz) out.push([`Takings from your ${this.bizName().toLowerCase()}`, biz]);
     return out;
   }
 
   // ---- work ----
 
   jobTitle() { const j = this.s.job; return j ? CAREERS[j.c].rungs[j.r].title : ''; }
+  // The best grade you hold in any course that belongs to a career.
+  gradeFor(c) {
+    const car = CAREERS[c], ids = new Set([...Object.keys(car.entry || {}), ...car.rungs.map((r) => r.need.edu).filter(Boolean)]);
+    return Math.max(0, ...[...ids].map((id) => (this.s.edu[id] ? this.s.edu[id].g : 0)));
+  }
   shiftPay() {
-    const s = this.s, c = CAREERS[s.job.c];
-    let pay = c.rungs[s.job.r].pay;
+    const s = this.s, j = s.job, c = CAREERS[j.c];
+    let pay = c.rungs[j.r].pay * (1 + (j.raise || 0)) * (1 + 0.04 * this.gradeFor(j.c));
     if (c.fame) pay *= 1 + s.fame / 200;
     if (s.happy < 20) pay *= 0.85;
     return Math.round(pay / 10) * 10;
   }
+  raiseOdds() { const s = this.s; return clamp(0.1 + s.job.perf / 140 + s.st.charm / 300 + this.luck(), 0.05, 0.9); }
+  standing() { const p = this.s.job.perf; return p >= 80 ? 'The boss’s favourite' : p >= 60 ? 'Well thought of' : p >= 40 ? 'Doing fine' : p >= 20 ? 'On thin ice' : 'One foot out of the door'; }
   pensionFor() { return Math.round(CAREERS[this.s.job.c].rungs[this.s.job.r].pay * 1.2 / 10) * 10; }
   // What something asks for, as a checklist: [{ text, ok }].
   needs(need = {}) {
     const s = this.s, out = [];
     for (const k of STATS) if (need[k]) out.push({ text: `${STAT_NAME[k]} ${need[k]}`, ok: s.st[k] >= need[k] });
-    if (need.edu) out.push({ text: COURSES[need.edu].name, ok: !!s.edu[need.edu] });
+    if (need.edu) out.push({ text: COURSES[need.edu].name, ok: this.hasEdu(need.edu) });
     if (need.degree) out.push({ text: 'Any degree', ok: this.hasDegree() });
     if (need.item) out.push({ text: `A ${ITEMS[need.item].name.toLowerCase()}`, ok: !!s.items[need.item] });
     if (need.karma) out.push({ text: 'A good name in town', ok: s.karma >= need.karma });
@@ -992,12 +976,37 @@ export class Life {
     if (need.flag === 'elected') out.push({ text: 'Win the election for mayor', ok: !!s.f.elected });
     return out;
   }
+  // Where you would start in a career: at the bottom, unless you have done
+  // the job before, hold a qualification that lets you in higher up, or
+  // know someone who will put in a word.
+  startRung(c) {
+    const s = this.s, car = CAREERS[c], fits = (i) => this.needs(car.rungs[i].need).every((n) => n.ok);
+    let best = 0;
+    for (let i = Math.min(s.worked[c] ?? 0, car.rungs.length - 1); i > 0; i--) if (fits(i)) { best = i; break; }
+    for (const [q, r] of Object.entries(car.entry || {})) {
+      if (!(q === 'degree' ? this.hasDegree() : this.hasEdu(q))) continue;
+      for (let i = r; i > best; i--) if (fits(i)) { best = i; break; }
+    }
+    if (best === 0 && this.perk(c) && fits(1)) best = 1;
+    return best;
+  }
+  // If a qualification you hold would get you in higher than you would
+  // start, what is still missing for that rung.
+  entryMiss(c) {
+    const car = CAREERS[c], start = this.startRung(c);
+    let top = 0;
+    for (const [q, r] of Object.entries(car.entry || {})) if (q === 'degree' ? this.hasDegree() : this.hasEdu(q)) top = Math.max(top, r);
+    if (top <= start) return null;
+    const miss = this.needs(car.rungs[top].need).find((n) => !n.ok);
+    return miss ? `${car.rungs[top].title} also needs ${miss.text}` : null;
+  }
   applyWhy(c) {
     const s = this.s, car = CAREERS[c];
     if (!car) return 'No such job.';
     if (s.job && s.job.c === c) return 'This is your job.';
     if (car.clean && s.record) return 'Not with your record.';
     if (car.retire && s.age >= car.retire) return `They want people under ${car.retire}.`;
+    if (this.startRung(c) > 0) return null;
     const miss = this.needs(car.rungs[0].need).find((n) => !n.ok);
     return miss ? `Needs ${miss.text}.` : null;
   }
@@ -1008,25 +1017,32 @@ export class Life {
     const c = CAREERS[j.c], r = c.rungs[j.r + 1];
     if (!r) return null;
     const want = SHIFTS_FOR_RUNG[j.r + 1];
-    const list = [{ text: `${want} shifts as ${c.rungs[j.r].title} (${Math.min(j.n, want)} done)`, ok: j.n >= want }, ...this.needs(r.need)];
+    const list = [{ text: `${want} shifts as ${c.rungs[j.r].title} (${Math.min(Math.floor(j.n), want)} done)`, ok: j.n >= want }, ...this.needs(r.need)];
     return { title: r.title, pay: r.pay, list, ready: list.every((n) => n.ok) };
   }
-  work() {
+  // e: how hard you work (see EFFORT).
+  work(e) {
     const s = this.s, j = s.job, c = CAREERS[j.c];
     let pay = this.shiftPay();
     if (c.swing) pay = Math.round(pay * (1 + (this.rnd() * 2 - 1) * c.swing) / 10) * 10;
-    this.cash(pay);
-    s.n.shifts++; s.n.earned += pay; j.n++;
-    this.gain(c.stats[0], 0.9);
-    this.gain(c.stats[1], 0.45);
-    this.joy(-c.stress * 0.75);
+    // A tenth of every pay packet goes to a student loan until it's gone.
+    const loan = Math.min(s.sloan, Math.round(pay * 0.1));
+    s.sloan -= loan;
+    this.cash(pay - loan);
+    s.n.shifts++; s.n.earned += pay; j.n += e.n;
+    j.perf = clamp(j.perf + e.perf + (s.happy >= 60 ? 1 : s.happy < 25 ? -2 : 0), 0, 100);
+    this.gain(c.stats[0], 0.9 * e.n);
+    this.gain(c.stats[1], 0.45 * e.n);
+    this.joy(-c.stress * 0.75 * e.stress);
+    if (e.hp) this.hp(e.hp, 'overwork');
     if (c.fame && j.r >= 2) this.fame(0.35 * (j.r - 1));
-    let text = `${this.pick(['A solid shift.', 'Busy, but it flies by.', 'A long one.', 'You earn every penny.', 'Nothing goes wrong, which is rare.'])} ${money(pay)}.`;
+    const how = e.n > 1 ? ['First in, last out.', 'You do the work of two.', 'The boss notices. Good.'] : e.n < 1 ? ['You look busy. It is an art.', 'A long lunch and a short afternoon.', 'You get away with it.'] : ['A solid shift.', 'Busy, but it flies by.', 'A long one.', 'You earn every penny.', 'Nothing goes wrong, which is rare.'];
+    let text = `${this.pick(how)} ${money(pay)}${loan ? ` (${money(loan)} of it to your student loan)` : ''}.`;
     s.use.work = (s.use.work || 0) + 1;
     if (s.use.work > 3) { this.hp(-3, 'overwork'); this.joy(-2); text += ' You are running on fumes.'; }
     const up = this.nextRung();
     if (up && up.ready) {
-      j.r++; j.n = 0;
+      j.r++; j.n = 0; j.raise = 0;
       s.worked[j.c] = Math.max(s.worked[j.c] ?? 0, j.r);
       s.f.promoted = 1;
       this.joy(8);
@@ -1036,10 +1052,23 @@ export class Life {
       if (j.c === 'politics' && j.r >= 4) s.f.wasMayor = 1;
       this.note(`Promoted to ${up.title}.`, 'big');
       this.say('📈', `Promoted to ${up.title}!`, 'promo');
-      text += ` And then the boss calls you in: you are promoted to ${up.title}! ${money(up.pay)} a shift from now on.`;
+      text += ` And then the boss calls you in: you are promoted to ${up.title}! ${money(this.shiftPay())} a shift from now on.`;
     }
     return text;
   }
+
+  // ---- study ----
+
+  // The skill a course leans on.
+  courseStat(id) { return { finearts: 'craft', musicdip: 'craft', culinary: 'craft', trade: 'craft', sportsdip: 'fitness', academy: 'fitness' }[id] || 'smarts'; }
+  // What one class adds to your running mark: 50 if you only just got in.
+  classMark(id) { const k = this.courseStat(id); return clamp(50 + (this.s.st[k] - (COURSES[id].need[k] || 15)) * 0.9 + this.int(-6, 6), 0, 100); }
+  // The mark you are heading for in the exam.
+  examMark() {
+    const k = this.s.course;
+    return (k.p ? k.mark / k.p : this.classMark(k.id)) + k.rev * 5;
+  }
+  gradeWord(mark) { return mark >= 72 ? 'a distinction' : mark >= 58 ? 'a merit' : mark >= 44 ? 'a pass' : 'a narrow pass, or worse'; }
 
   // ---- odds ----
 
@@ -1047,95 +1076,18 @@ export class Life {
   checkOdds(stat, dc) { return clamp(0.5 + (this.s.st[stat] - dc) / 60 + this.luck(), 0.05, 0.95); }
   mayorOdds() { const s = this.s; return clamp(0.25 + (s.st.charm - 60) / 100 + s.karma / 200 + s.fame / 300 + this.luck(), 0.1, 0.9); }
   pitchOdds() { const s = this.s; return clamp(0.15 + (s.st.smarts - 60) / 100 + s.st.charm / 400 + this.luck(), 0.1, 0.6); }
-  bustOdds() { const s = this.s; return clamp(0.18 - s.st.smarts / 1000 + s.record * 0.04 - (s.heir === 'rogue' ? 0.07 : 0), 0.05, 0.5); }
-  askOdds(p) { return clamp(0.3 + (this.s.st.charm - 30) / 100 + (p.bond - 40) / 100 + this.luck(), 0.1, 0.95); }
-  proposeOdds(p) { return clamp((p.bond - 45) / 50 + this.luck(), 0.2, 1); }
+  bustOdds() { const s = this.s; return clamp(0.18 - s.st.smarts / 1000 + s.record * 0.04 - (s.heir === 'rogue' ? 0.07 : 0) - (this.perk('police') ? 0.05 : 0), 0.05, 0.5); }
   hiloOdds(dir) { const h = this.s.hilo; return h ? (dir === 'hi' ? 13 - h.card : h.card - 1) / 13 : 0; }
 
   // ---- prices ----
 
-  classFee(id) { return Math.round(COURSES[id].cost / COURSES[id].classes); }
-  itemPrice(id) { return ITEMS[id].price; }
+  classFee(id) { return Math.round(COURSES[id].cost / COURSES[id].classes * (this.perk('teaching') ? 0.8 : 1)); }
+  itemPrice(id) { return Math.round(ITEMS[id].price * (this.perk('retail') ? 0.85 : 1)); }
   tripCost(id) { return Math.round(TRIPS[id].cost * (this.s.heir === 'globe' ? 0.5 : 1)); }
-  medCost(n) { return Math.round(n * (this.s.heir === 'healer' ? 0.5 : 1)); }
+  medCost(n) { return Math.round(n * (this.s.heir === 'healer' ? 0.5 : 1) * (this.s.ins.health ? 0.4 : 1) * (this.perk('medicine') ? 0.7 : 1)); }
   medBoost() { return this.s.heir === 'healer' ? 1.5 : 1; }
-  artPrice() { const s = this.s; return Math.round((40 + s.st.craft ** 2 * 0.6) * (1 + s.fame / 50) * (s.heir === 'artist' ? 1.5 : 1)); }
+  artPrice() { const s = this.s; return Math.round((40 + s.st.craft ** 2 * 0.6) * (1 + s.fame / 50) * (s.heir === 'artist' ? 1.5 : 1) * (s.edu.finearts ? 1.3 : 1)); }
 
-  // ---- moving house ----
-
-  // x: { id, buy }. Renting costs half a season's rent to move in. Buying
-  // outright if you can; otherwise a fifth down and the rest on a loan.
-  buyPlan(id) {
-    const s = this.s, price = this.homePrice(id), sale = s.owned ? Math.round(this.homeWorth() * 0.97) : 0;
-    const have = s.cash + s.bank;
-    if (have + sale >= price) return { price, cash: price - sale, loan: 0, sale, ok: true };
-    const down = Math.ceil(price * 0.2), put = Math.max(down, sale), loan = price - put;
-    const limit = this.creditLimit() - 0.8 * this.homeWorth() + 0.8 * price;
-    return { price, down, cash: put - sale, loan, sale, ok: have >= put - sale && s.debt + loan <= limit && !this.blacklisted() };
-  }
-  moveCost(x) { return x.buy ? Math.max(0, this.buyPlan(x.id).cash) : Math.round(HOMES[x.id].rent / 2); }
-  moveWhy(x) {
-    const s = this.s, h = HOMES[x.id];
-    if (!h) return 'No such place.';
-    if (x.id === s.home && !!x.buy === s.owned) return 'You live here.';
-    if (x.buy ? h.price == null : h.rent == null) return 'Not on offer.';
-    if (this.kids().filter((k) => k.age < 18).length > h.kids) return 'No room for the children there.';
-    if (x.id === 'hostel' && this.partner()?.live) return 'Your other half will not live in a hostel.';
-    if (x.id === 'hostel' && s.pet) return 'No pets in the hostel.';
-    if (x.buy) {
-      const p = this.buyPlan(x.id);
-      if (!p.ok) return s.cash + s.bank < p.cash ? `You need a deposit of ${money(p.down)}.` : this.blacklisted() ? 'The bank remembers your bankruptcy.' : 'The bank will not lend you enough.';
-    }
-    return null;
-  }
-  move(x) {
-    const s = this.s, h = HOMES[x.id], was = HOMES[s.home].tier;
-    let text = '';
-    if (x.buy) {
-      const p = this.buyPlan(x.id);
-      if (p.cash < 0) s.cash -= p.cash; else this.cash(-p.cash);
-      s.debt += p.loan;
-      s.home = x.id; s.owned = true;
-      text = p.loan ? `You sign in a dozen places and get the keys to the ${h.name.toLowerCase()}: ${money(p.price - p.loan)} down and ${money(p.loan)} borrowed.` : `You buy the ${h.name.toLowerCase()} outright for ${money(p.price)}. Yours, every brick.`;
-      this.note(`Bought the ${h.name.toLowerCase()} for ${money(p.price)}.`, 'big');
-    } else {
-      if (s.owned) {
-        const sale = Math.round(this.homeWorth() * 0.97), pay = Math.min(s.debt, sale);
-        s.cash += sale - pay; s.debt -= pay;
-        text = `You sell up for ${money(sale)}${pay ? ` (${money(pay)} goes to pay off the loan)` : ''}. `;
-      }
-      this.cash(-this.moveCost(x));
-      s.home = x.id; s.owned = false;
-      text += `You move into the ${h.name.toLowerCase()}. ${h.blurb}`;
-      this.note(`Moved into the ${h.name.toLowerCase()}.`);
-    }
-    for (const p of s.people) if (p.kind === 'spouse') p.live = x.id !== 'hostel';
-    this.joy(h.tier > was ? 6 : h.tier < was ? -3 : 0);
-    return text;
-  }
-
-  // ---- love ----
-
-  split(p, yours) {
-    const s = this.s;
-    let text;
-    if (p.kind === 'spouse') {
-      const half = Math.round((s.cash + s.bank) * 0.4);
-      const fromCash = Math.min(s.cash, half);
-      s.cash -= fromCash; s.bank -= half - fromCash;
-      for (const k of this.kids()) this.bond(k, -15);
-      this.joy(-15);
-      s.f.divorced = 1;
-      this.note(`Divorced ${p.name}.`, 'love');
-      text = `It is over. The lawyers take their time and ${p.name} takes ${money(half)}.`;
-    } else {
-      this.joy(yours ? -5 : -10);
-      this.note(`Split up with ${p.name}.`, 'love');
-      text = yours ? `You tell ${p.name} it is not working. It is a long evening.` : `${p.name} is gone.`;
-    }
-    s.people.splice(s.people.indexOf(p), 1);
-    return text;
-  }
   // Prison: the seasons go by without you.
   jail(n) {
     const s = this.s;
@@ -1153,7 +1105,7 @@ export class Life {
   // Losing a rented home: back to the hostel, or somewhere small if there are children.
   downAndOut() {
     const s = this.s;
-    s.owned = false;
+    s.owned = false; s.homeAt = null;
     if (this.kids().some((c) => c.age < 18)) { if (HOMES[s.home].tier > HOMES.flat.tier) s.home = 'flat'; return; }
     s.home = 'hostel';
     for (const p of s.people) if (p.kind === 'partner' || p.kind === 'spouse') p.live = false;
@@ -1163,24 +1115,33 @@ export class Life {
 
   // ---- doing things ----
 
+  // An action about a person is given their id (or { p: id, ... }); its
+  // functions are handed the person first, then what was passed.
+  aim(a, x) {
+    if (!a.who) return [x, x];
+    const y = typeof x === 'number' ? { p: x } : x || {};
+    return [y.p && typeof y.p === 'object' ? y.p : this.person(y.p), y];
+  }
   whyNot(a, x) {
-    const s = this.s;
+    const s = this.s, [p, y] = this.aim(a, x);
     if (s.dead) return 'Your story has ended.';
-    if (a.show && !a.show(this, x)) return 'Not just now.';
+    if (a.who && !p) return 'They are not around.';
+    if (a.show && !a.show(this, p, y)) return 'Not just now.';
     if (a.per && (s.use[a.id] || 0) >= a.per) return a.per === 1 ? 'Once a season.' : 'That is enough for this season.';
-    const w = a.why && a.why(this, x);
+    const w = a.why && a.why(this, p, y);
     if (w) return w;
-    if (s.time < val(a.time, this, x)) return 'Not enough time left this season.';
+    if (s.time < val(a.time, this, p, y)) return 'Not enough time left this season.';
     // (What cash on you doesn't cover comes out of savings.)
-    const cost = val(a.cost, this, x);
+    const cost = val(a.cost, this, p, y);
     if (s.cash + s.bank < cost) return `You need ${money(cost)}.`;
     return null;
   }
   view(a, x) {
+    const [p, y] = this.aim(a, x);
     return {
-      id: a.id, x, icon: a.icon, sec: a.sec, open: a.open || null,
-      title: val(a.title, this, x), desc: val(a.desc, this, x) || '',
-      time: val(a.time, this, x), cost: val(a.cost, this, x), why: this.whyNot(a, x),
+      id: a.id, x: a.who ? { ...y, p: p.id } : x, icon: val(a.icon, this, p, y), sec: a.sec, open: a.open || null,
+      title: val(a.title, this, p, y), desc: val(a.desc, this, p, y) || '',
+      time: val(a.time, this, p, y), cost: val(a.cost, this, p, y), why: this.whyNot(a, x),
     };
   }
   // What can be done at a place on the map.
@@ -1203,39 +1164,34 @@ export class Life {
         out.push(Object.assign(v, { icon: t.icon, title: t.name, desc: `${this.s.trips[id] ? 'Been before. ' : ''}A real lift${t.stat ? `, and some ${STAT_NAME[t.stat]}` : ''}.`, sec: 'Holidays' }));
       }
     }
+    if (place === 'home') out.push(...this.homeWorks());
     // Keep each section's rows together, in the order the sections first appear.
     const secs = [...new Set(out.map((a) => a.sec))];
     out.sort((p, q) => secs.indexOf(p.sec) - secs.indexOf(q.sec));
     return out;
   }
-  personActions(p) {
-    return PERSON_ACTS.map((id) => A[id]).filter((a) => !a.show || a.show(this, p)).map((a) => this.view(a, p));
-  }
-  can(id, x) { return A[id] ? this.whyNot(A[id], this.arg(id, x)) : 'Nothing happens.'; }
-  // People are passed around by id.
-  arg(id, x) { return PERSON_ACTS.includes(id) && typeof x === 'number' ? this.person(x) : x; }
+  can(id, x) { return A[id] ? this.whyNot(A[id], x) : 'Nothing happens.'; }
 
   // Does something. Returns { ok, text, changes, news, out } or { ok: false, why }.
   act(id, x) {
     const s = this.s, a = A[id];
     if (!a || a.open) return { ok: false, why: 'Nothing happens.' };
-    x = this.arg(id, x);
-    if (PERSON_ACTS.includes(id) && !x) return { ok: false, why: 'They are not around.' };
     const why = this.whyNot(a, x);
     if (why) return { ok: false, why };
+    const [p, y] = this.aim(a, x);
     const before = this.snap();
     this.out = null;
-    s.time -= val(a.time, this, x);
-    if (!a.selfPay) this.cash(-val(a.cost, this, x));
+    s.time -= val(a.time, this, p, y);
+    if (!a.selfPay) this.cash(-val(a.cost, this, p, y));
     if (a.per) s.use[id] = (s.use[id] || 0) + 1;
-    const text = a.run(this, x) || '';
+    const text = a.run(this, p, y) || '';
     this.after();
     return { ok: true, text, changes: this.diff(before), news: this.takeNews(), out: this.out };
   }
 
   snap() {
     const s = this.s;
-    return { cash: s.cash + s.bank - s.debt, health: s.health, happy: s.happy, ...s.st, fame: s.fame, karma: s.karma };
+    return { cash: s.cash + s.bank - s.debt - s.sloan, health: s.health, happy: s.happy, ...s.st, fame: s.fame, karma: s.karma };
   }
   diff(b) {
     const a = this.snap(), out = [];
@@ -1338,22 +1294,32 @@ export class Life {
     if (!jailed && s.time > 0) { const r = Math.min(s.time, 4); this.hp(r); this.joy(r); }
 
     // Money in, money out.
-    const interest = Math.floor(s.bank * this.savingsRate()), rents = this.propIncome();
+    const interest = Math.floor(s.bank * this.savingsRate());
     s.bank += interest;
     if (interest) lines.push(['Savings interest', interest]);
-    if (s.pension) { s.cash += s.pension; lines.push(['Pension', s.pension]); }
-    if (rents) { s.cash += rents; lines.push(['Rent from your properties', rents]); }
+    for (const [what, n] of this.income()) { s.cash += n; lines.push([what, n]); }
+    if (s.sloan > 0) s.sloan = Math.round(s.sloan * (1 + STUDENT_RATE));
     let out = 0;
     for (const [what, n] of this.bills(jailed)) { out += n; lines.push([what, -n]); }
     const owed = s.debt;
     this.cash(-out);
     if (s.debt > owed) lines.push(['Short! Put on your overdraft', 0]);
     if (s.debt > this.creditLimit() * 1.1 + 1000) this.bailiffs();
+    this.bizSeason();
+
+    // How you stand at work: a good name earns a bonus, a bad one the sack.
+    const j = s.job;
+    if (j && !jailed) {
+      if (j.perf >= 80 && this.chance(0.25)) { const n = this.shiftPay(); s.cash += n; lines.push(['A bonus for good work', n]); }
+      if (j.perf < 12) this.queue('sacked');
+      j.perf += j.perf > 50 ? -1 : j.perf < 50 ? 1 : 0;
+    }
 
     // Mood drifts towards how life is going; the body does what bodies do.
     s.happy += (this.moodBase() - s.happy) * 0.25;
     let d = s.age < 40 ? 1 : s.age < 55 ? 0 : s.age < 70 ? -1 : s.age < 80 ? -2 : -3;
     d += s.st.fitness >= 75 ? 1.5 : s.st.fitness >= 45 ? 0.75 : 0;
+    d += FOOD[s.food].hp;
     if (s.happy < 20) d -= 2;
     if (s.home === 'hostel') d -= 0.5;
     this.hp(d, s.age >= 65 ? 'old age' : 'poor health');
@@ -1383,13 +1349,14 @@ export class Life {
 
     // The clock.
     s.t++;
+    s.matches = null;
     const birthday = s.t % 4 === 0;
     if (birthday) this.newYear();
     if (s.due && s.t >= s.due.t && !jailed) {
-      const adopt = !!s.due.adopt;
+      const adopt = !!s.due.adopt, sex = this.chance(0.5) ? 'm' : 'f', names = sex === 'm' ? NAMES_M : NAMES_F;
       s.due = null;
-      const one = this.pick(NAMES), two = this.pick(NAMES.filter((n) => n !== one));
-      if (this.partner() || adopt) this.queue('baby', { names: [one, two], adopt, age: adopt ? this.int(1, 6) : 0 });
+      const one = this.pick(names), two = this.pick(names.filter((n) => n !== one));
+      if (this.partner() || adopt) this.queue('baby', { names: [one, two], sex, adopt, age: adopt ? this.int(1, 6) : 0 });
     }
     const fiance = s.people.find((p) => p.eng && p.kind === 'partner');
     if (fiance && !jailed) this.queue('wedding', fiance.id);
@@ -1409,6 +1376,8 @@ export class Life {
   newYear() {
     const s = this.s;
     s.age++;
+    s.hist.push(this.netWorth());
+    if (s.hist.length > 100) s.hist.shift();
     if (s.age <= 22 && s.people.some((p) => p.kind === 'parent')) { s.cash += 200; this.note('A birthday card from home, with $200 in it.'); }
     // Good deeds and bad are forgotten, slowly.
     s.karma -= Math.sign(s.karma) * Math.min(1, Math.abs(s.karma));
@@ -1417,10 +1386,9 @@ export class Life {
       p.age++;
       if (p.kind === 'parent' && p.age >= 68 && this.chance((p.age - 66) ** 2 / 1500)) this.queue('parentDies', p.id);
       else if ((p.kind === 'spouse' || p.kind === 'partner') && p.age >= 72 && this.chance((p.age - 70) ** 2 / 2200)) this.queue('spouseDies', p.id);
-      else if (p.kind === 'child') {
-        if (p.age === 18) this.queue('kid18', p.id);
-        if (p.age >= 26 && p.age <= 38 && (p.gk || 0) < 3 && this.chance(0.12)) { p.gk = (p.gk || 0) + 1; this.queue('grandchild', p.id); }
-      }
+      else if (p.kind === 'child') this.growUp(p);
+      // Friends pair off, and come unstuck, without consulting you.
+      else if (p.kind === 'friend' && this.chance(0.08)) p.single = !p.single;
     }
     if (s.pet) {
       s.pet.age++;
@@ -1438,7 +1406,7 @@ export class Life {
 
   moodBase() {
     const s = this.s, pt = this.partner();
-    let b = 44 + HOMES[s.home].comfort;
+    let b = 44 + this.comfort() + FOOD[s.food].mood;
     b += Math.min(6, this.friends().filter((p) => p.bond >= 40).length * 2);
     if (pt) b += Math.min(10, pt.bond / 8);
     b += Math.min(6, this.kids().length * 2);
@@ -1451,23 +1419,32 @@ export class Life {
     if (s.debt > 3000 && s.debt > this.creditLimit() * 0.6) b -= 8;
     if (s.health < 40) b -= 8;
     if (s.ill) b -= 4;
-    if (!s.job && !s.retired && s.age < 65 && s.cash + s.bank < 2000) b -= 6;
+    if (!s.job && !s.retired && !s.biz && s.age < 65 && s.cash + s.bank < 2000) b -= 6;
     return clamp(b, 10, 95);
   }
 
+  // Share prices: the whole market moves together a little, each company
+  // moves on its own a lot, and now and then one makes the news.
   moveMarkets() {
     const s = this.s, k = s.stk;
     let m = 0.004 + 0.03 * this.gauss();
     const r = this.rnd();
-    if (r < 0.025) { m = -0.25; this.note('The stock market crashed.'); this.say('📉', 'The stock market has crashed', 'bad'); }
-    else if (r < 0.05) { m = 0.2; this.note('The stock market boomed.'); this.say('📈', 'The stock market is booming', 'good'); }
+    if (r < 0.02) { m = -0.22; this.note('The stock market crashed.'); this.say('📉', 'The stock market has crashed', 'bad'); k.news.unshift({ t: s.t, up: false, text: 'Panic on the exchange: everything is down' }); }
+    else if (r < 0.04) { m = 0.18; this.note('The stock market boomed.'); this.say('📈', 'The stock market is booming', 'good'); k.news.unshift({ t: s.t, up: true, text: 'Boom! Everything is up' }); }
+    const hot = this.chance(0.16) ? this.pick(Object.keys(STOCKS).filter((sym) => !STOCKS[sym].fund)) : null;
     for (const [sym, st] of Object.entries(STOCKS)) {
       let p = k.p[sym] * Math.exp(st.drift + m + st.swing * this.gauss());
-      if (sym === 'MOON') { const j = this.rnd(); if (j < 0.03) p *= this.int(2, 3); else if (j < 0.09) p *= 0.45; }
+      if (sym === 'MOON') { const j = this.rnd(); if (j < 0.03) p *= 2.5; else if (j < 0.06) p *= 0.4; }
+      if (sym === hot) {
+        const up = this.chance(0.5), by = 0.1 + this.rnd() * 0.18;
+        p *= up ? 1 + by : 1 - by;
+        k.news.unshift({ t: s.t, sym, up, text: `${st.name} ${this.pick(HEADLINES[up ? 'up' : 'down'])}` });
+      }
       k.p[sym] = Math.max(0.5, Math.round(p * 100) / 100);
       k.h[sym].push(k.p[sym]);
-      if (k.h[sym].length > 24) k.h[sym].shift();
+      if (k.h[sym].length > 41) k.h[sym].shift();
     }
+    k.news.length = Math.min(k.news.length, 6);
     s.idx *= Math.exp(0.005 + 0.015 * this.gauss());
   }
 
@@ -1483,14 +1460,22 @@ export class Life {
     if (settle()) { this.note('The bank took what you owed it straight out of your money.'); return; }
     const worth = this.sharesWorth();
     if (worth > 0) { s.cash += Math.floor(worth); k.own = {}; k.paid = {}; sold.push('your shares'); }
-    if (!settle() && this.propsWorth() > 0) { s.cash += Math.round(this.propsWorth() * 0.9); s.props = {}; sold.push('your rental properties'); }
+    for (const e of s.estate.filter((q) => q.id !== s.homeAt)) {
+      if (settle()) break;
+      s.cash += Math.round(this.propValue(e) * 0.9);
+      s.estate.splice(s.estate.indexOf(e), 1);
+      sold.push(`the ${this.propName(e).toLowerCase()}`);
+    }
+    if (!settle() && s.biz) { s.cash += Math.round(this.bizWorth() * 0.8); sold.push(`your ${this.bizName().toLowerCase()}`); s.biz = null; }
     for (const id of ['boat', 'sportscar', 'watch', 'car', 'piano']) {
       if (settle()) break;
       if (s.items[id]) { s.cash += Math.round(ITEMS[id].price * 0.5); delete s.items[id]; sold.push(`the ${ITEMS[id].name.toLowerCase()}`); }
     }
-    if (!settle() && s.owned) {
-      s.cash += Math.round(this.homeWorth() * 0.9);
-      s.owned = false; s.home = this.kids().some((c) => c.age < 18) ? 'flat' : 'bedsit';
+    const home = this.homeEntry();
+    if (!settle() && home) {
+      s.cash += Math.round(this.propValue(home) * 0.9);
+      s.estate.splice(s.estate.indexOf(home), 1);
+      s.owned = false; s.homeAt = null; s.home = this.kids().some((c) => c.age < 18) ? 'flat' : 'bedsit';
       sold.push('your home');
     }
     if (!settle()) {
@@ -1533,15 +1518,17 @@ export class Life {
     );
     return {
       name: s.name, age: s.age, cause: s.dead ? s.dead.cause : '', gen: s.gen, worth, score, ribbon,
-      title: s.job ? this.jobTitle() : s.retired ? 'Retired' : '',
+      title: s.job ? this.jobTitle() : s.biz ? `Ran a ${this.bizName().toLowerCase()}` : s.retired ? 'Retired' : '',
       dreams: s.dreams.map((id) => ({ id, done: !!s.dreamDone[id] })),
       trophies: Object.keys(s.ach).length,
       kids: kids.length, spouse: spouse ? spouse.name : null,
       inherit: Math.max(0, Math.min(kids.length ? 150000 : 60000, Math.round(worth * (kids.length ? 0.1 : 0.05) / 100) * 100)),
-      heir: heirKid ? { name: heirKid.name.split(' ')[0], look: heirKid.look } : null,
-      parent: spouse ? { name: spouse.name, age: spouse.age, look: spouse.look } : null,
+      heir: heirKid ? { name: heirKid.name.split(' ')[0], look: heirKid.look, sex: heirKid.sex, st: heirKid.st } : null,
+      parent: spouse ? { name: spouse.name, age: spouse.age, look: spouse.look, sex: spouse.sex } : null,
     };
   }
 }
+
+install({ def, A, Life, clamp });
 
 export { A as ACTIONS, money, cashShort };

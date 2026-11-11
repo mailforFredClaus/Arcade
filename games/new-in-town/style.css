@@ -420,3 +420,27 @@ summary { font-size: 12.5px; font-weight: 900; color: var(--teal-d); cursor: poi
 .year { text-align: left; margin: 8px 0 0; padding-left: 20px; font-size: 13.5px; font-weight: 700; color: #4a5470; line-height: 1.45; }
 .stats b.up { color: var(--good); }
 .stats b.down { color: var(--bad); }
+
+/* ---- the bigger systems: people, property, shares, a business ---- */
+.box .row { padding: 9px 2px; font-size: 14px; }
+.box .row .seg { flex: 1; max-width: 240px; background: #f1eadb; }
+.box .row .seg-btn { padding: 8px 4px; font-size: 13.5px; color: #7a6f58; }
+.box .row .seg-btn.on { color: var(--teal-d); box-shadow: 0 2px 6px rgba(31, 42, 68, .14); }
+.group { margin: 6px 6px -2px; font-size: 12px; font-weight: 900; letter-spacing: .07em; text-transform: uppercase; color: #5b7384; }
+.item.fund { background: #f1faf6; box-shadow: 0 2px 0 #cfe9dc; }
+.item .ava { width: 46px; height: 46px; }
+.item .entry { font-size: 13px; padding: 3px 0; }
+.item .entry i.up { color: var(--good); }
+.item .entry i.down { color: var(--bad); }
+.facts span.up { background: #e4f5ea; color: var(--good); }
+.facts span.down { background: #fde8e4; color: var(--bad); }
+.things.fish { grid-template-columns: repeat(3, 1fr); margin-top: 6px; }
+.things.fish span { padding: 9px 3px; box-shadow: 0 2px 0 var(--line); }
+.things.fish b { font-size: 12.5px; font-weight: 900; line-height: 1.15; text-align: center; }
+.things.fish .unknown { opacity: .55; }
+.line b.perk { white-space: normal; text-align: right; font-size: 12.5px; font-weight: 800; color: var(--good); max-width: 62%; }
+.box .spark { height: 44px; margin: 6px 0 0; }
+.sheet-body .act-ico svg, .act-ico .face { width: 100%; height: 100%; }
+.sx { font-style: normal; font-size: .82em; font-weight: 900; margin-left: 2px; }
+.sx.m { color: #2f7fd0; }
+.sx.f { color: #d6498a; }

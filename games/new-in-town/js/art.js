@@ -68,8 +68,8 @@ const BUILD = {
 // ---- the map ----------------------------------------------------------------------------
 
 // tier: which home to draw. work: the place you work at (gets a badge).
-// study: true if you're on a course.
-export function townSvg({ tier = 0, work = null, study = false } = {}) {
+// study: true if you're on a course. biz: the place your business is.
+export function townSvg({ tier = 0, work = null, study = false, biz = null } = {}) {
   const road = (d) => `<path d="${d}" class="road-edge"/><path d="${d}" class="road"/>`;
   let out = `<svg viewBox="0 0 400 600" preserveAspectRatio="xMidYMid slice" class="town" xmlns="http://www.w3.org/2000/svg">`;
   // Sky, far hills, the green, the sand and the sea.
@@ -104,6 +104,7 @@ export function townSvg({ tier = 0, work = null, study = false } = {}) {
     out += `<ellipse cx="0" cy="19" rx="34" ry="5" class="shade"/>${art}`;
     out += `<g class="tag"><rect x="${-w / 2}" y="24" width="${w}" height="15" rx="7.500"/><text x="0" y="34.600">${label}</text></g>`;
     if (id === work) out += `<g class="mark"><circle cx="30" cy="-24" r="10"/><text x="30" y="-20">💼</text></g>`;
+    if (id === biz) out += `<g class="mark"><circle cx="-30" cy="-24" r="10"/><text x="-30" y="-20">🏪</text></g>`;
     if (id === 'college' && study) out += `<g class="mark"><circle cx="-30" cy="-24" r="10"/><text x="-30" y="-20">✏️</text></g>`;
     out += `<rect x="-40" y="-46" width="80" height="88" fill="transparent"/></g>`;
   }
@@ -115,9 +116,9 @@ export const placeTier = (home) => HOMES[home].tier;
 
 // ---- faces ------------------------------------------------------------------------------
 
-// look: { skin, hair, top, style }. Hair greys with age; mood (0 to 100)
-// sets the mouth.
-export function face(look, age = 30, mood = 60) {
+// look: { skin, hair, top, style, beard }. Hair greys with age; mood (0 to
+// 100) sets the mouth; sex ('m' or 'f') adds lashes or allows a beard.
+export function face(look, age = 30, mood = 60, sex = null) {
   const skin = LOOKS.skin[look.skin % LOOKS.skin.length], top = LOOKS.top[look.top % LOOKS.top.length];
   const hair = age >= 72 ? '#f2f2f2' : age >= 58 ? '#aab0ba' : LOOKS.hair[look.hair % LOOKS.hair.length];
   const child = age < 13, r = child ? 16 : 15, cy = child ? 29 : 27;
@@ -133,10 +134,12 @@ export function face(look, age = 30, mood = 60) {
   }
   const mouth = mood >= 60 ? `<path d="M26.500 ${cy + 6}q5.500 5 11 0" class="f-line"/>` : mood >= 35 ? `<path d="M27.500 ${cy + 7.500}h9" class="f-line"/>` : `<path d="M27 ${cy + 9}q5-4.500 10 0" class="f-line"/>`;
   const eyes = `<circle cx="26.500" cy="${cy}" r="${child ? 2.200 : 1.800}" fill="#1f2a44"/><circle cx="37.500" cy="${cy}" r="${child ? 2.200 : 1.800}" fill="#1f2a44"/>`;
+  const lashes = sex === 'f' && !child ? `<path d="M23.400 ${cy - 1.400}l-2-1.600M40.600 ${cy - 1.400}l2-1.600" class="f-line" style="stroke-width:1.300"/>` : '';
+  const beard = look.beard && sex !== 'f' && age >= 18 ? `<path d="M${32 - r + 1} ${cy + 2}A${r} ${r} 0 0 0 ${32 + r - 1} ${cy + 2}Q32 ${cy + 21} ${32 - r + 1} ${cy + 2}z" fill="${hair}" opacity=".9"/>` : '';
   const extra = (child ? `<circle cx="23" cy="${cy + 5}" r="2.600" fill="#ff8a7a" opacity=".5"/><circle cx="41" cy="${cy + 5}" r="2.600" fill="#ff8a7a" opacity=".5"/>` : '')
     + (age >= 62 ? `<g fill="none" stroke="#3d4a6b" stroke-width="1.300"><circle cx="26.500" cy="${cy}" r="4.300"/><circle cx="37.500" cy="${cy}" r="4.300"/><path d="M30.800 ${cy}h2.400"/></g>` : '')
     + (age >= 68 ? `<path d="M21.500 ${cy + 3}l-2 1.500M42.500 ${cy + 3}l2 1.500M28 ${cy - 8}h8" class="f-line" opacity=".35"/>` : '');
-  return `<svg viewBox="0 0 64 64" class="face" xmlns="http://www.w3.org/2000/svg">${back}<path d="M10 64q0-17 22-17t22 17z" fill="${top}"/><rect x="28" y="${cy + r - 4}" width="8" height="9" rx="3" fill="${skin}"/><circle cx="32" cy="${cy}" r="${r}" fill="${skin}"/><circle cx="${32 - r}" cy="${cy + 1}" r="2.600" fill="${skin}"/><circle cx="${32 + r}" cy="${cy + 1}" r="2.600" fill="${skin}"/>${front}${eyes}${mouth}${extra}</svg>`;
+  return `<svg viewBox="0 0 64 64" class="face" xmlns="http://www.w3.org/2000/svg">${back}<path d="M10 64q0-17 22-17t22 17z" fill="${top}"/><rect x="28" y="${cy + r - 4}" width="8" height="9" rx="3" fill="${skin}"/><circle cx="32" cy="${cy}" r="${r}" fill="${skin}"/><circle cx="${32 - r}" cy="${cy + 1}" r="2.600" fill="${skin}"/><circle cx="${32 + r}" cy="${cy + 1}" r="2.600" fill="${skin}"/>${beard}${front}${eyes}${lashes}${mouth}${extra}</svg>`;
 }
 
 // A small line chart of a share's price.
