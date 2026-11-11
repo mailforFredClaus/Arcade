@@ -185,6 +185,48 @@ function lamp(b, x, z) {
   b.column(4, x, 3.7, z, 0.3, 0, 0.25, '#3a4152');
 }
 
+// A stone road bridge over the line: tall enough to float under on balloons.
+const ARCH = 12.8;
+function roadBridge(b, z, look) {
+  const stone = mix(rgb('#b8b0a2'), look.bed, 0.3), dark = shade(stone, 0.78), pale = shade(stone, 1.12);
+  const a = BED + 2.3, d = 2.6, n = 12; // half the span (the fence and the wires run through it too), half the depth, pieces of arch
+  const under = (x) => ARCH - 4.4 + 3.9 * Math.sqrt(Math.max(0, 1 - (x / a) ** 2));
+  // Piers, the deck and its walls.
+  for (const sx of [-1, 1]) {
+    b.box(sx * a, 0, z - d, sx * (a + 2.6), ARCH, z + d, stone);
+    b.box(sx * (a - 0.15), 0, z - d - 0.15, sx * (a + 2.75), 0.9, z + d + 0.15, dark);
+    // The road runs off down a bank on each side.
+    b.quad([sx * (a + 2.6), ARCH + 0.5, z + d], [sx * (a + 2.6), ARCH + 0.5, z - d], [sx * (a + 30), 0, z - d], [sx * (a + 30), 0, z + d], sx > 0 ? look.grass2 : look.grass);
+    b.quad([sx * (a + 2.6), ARCH + 0.5, z - d], [sx * (a + 2.6), ARCH + 0.5, z + d], [sx * (a + 30), 0, z + d], [sx * (a + 30), 0, z - d], look.grass2);
+    b.tri([sx * (a + 2.6), 0, z + d], [sx * (a + 30), 0, z + d], [sx * (a + 2.6), ARCH + 0.5, z + d], look.grass2);
+    b.tri([sx * (a + 2.6), 0, z - d], [sx * (a + 2.6), ARCH + 0.5, z - d], [sx * (a + 30), 0, z - d], look.grass2);
+  }
+  b.box(-a - 2.6, ARCH, z - d, a + 2.6, ARCH + 0.5, z + d, dark, { top: '#6f6a66' });
+  for (const sz of [-1, 1]) b.box(-a - 2.6, ARCH + 0.5, z + sz * d, a + 2.6, ARCH + 1.4, z + sz * (d - 0.35), pale);
+  // The arch: its two faces and its underside.
+  for (let k = 0; k < n; k++) {
+    const x0 = -a + (2 * a * k) / n, x1 = -a + (2 * a * (k + 1)) / n, y0 = under(x0), y1 = under(x1);
+    b.quad([x0, y0, z + d], [x1, y1, z + d], [x1, ARCH, z + d], [x0, ARCH, z + d], stone);
+    b.quad([x1, y1, z - d], [x0, y0, z - d], [x0, ARCH, z - d], [x1, ARCH, z - d], stone);
+    b.quad([x0, y0, z - d], [x1, y1, z - d], [x1, y1, z + d], [x0, y0, z + d], dark);
+    // A ring of paler stones round the opening, on the side you see.
+    b.quad([x0, y0, z + d + 0.06], [x1, y1, z + d + 0.06], [x1, y1 + 0.5, z + d + 0.06], [x0, y0 + 0.5, z + d + 0.06], pale);
+  }
+}
+
+// A signal on a post beside the line: its arm up or down.
+function signal(b, R, x, z) {
+  const side = Math.sign(x);
+  b.box(x - 0.1, 0, z - 0.1, x + 0.1, 6.2, z + 0.1, '#f1ede4');
+  b.box(x - 0.14, 0, z - 0.14, x + 0.14, 1.1, z + 0.14, '#2b2f3a');
+  b.column(4, x, 6.2, z, 0.2, 0, 0.35, '#2b2f3a');
+  b.with(M.chain(M.move(x, 5.5, z + 0.12), M.rotZ(side * (R.next() < 0.5 ? 0.75 : 0))), () => {
+    b.box(-side * 1.5, -0.16, 0, 0, 0.16, 0.06, '#e5383b');
+    b.box(-side * 1.2, -0.16, 0.06, -side * 0.95, 0.16, 0.07, '#ffffff');
+  });
+  b.box(x - 0.16, 4.7, z + 0.1, x + 0.16, 5.0, z + 0.2, '#ffd23f');
+}
+
 function cloud(b, R, x, y, z, s) {
   const n = 3 + R.int(3);
   for (let k = 0; k < n; k++) {
@@ -202,6 +244,7 @@ function buildChunk(index) {
   const look = lookAt(index * CHUNK + CHUNK / 2);
   const g = new Builder(), p = new Builder();
   const first = index === 0 || index === 1; // where the cub starts is kept clear, for the title
+  const bridge = index > 3 && index % 7 === 5; // a road bridge crosses here
 
   // Grass, and a patchwork of fields further out.
   g.quad([-90, 0, z1], [90, 0, z1], [90, 0, z0], [-90, 0, z0], look.grass);
@@ -255,6 +298,10 @@ function buildChunk(index) {
   p.box(px - 0.7, 5.3, z1 - 0.06, px + 0.7, 5.45, z1 + 0.06, '#7a5a3c');
   for (const x of [px - 0.6, px + 0.6]) g.box(x - 0.015, 5.5, z0, x + 0.015, 5.53, z1, '#3a3f4a');
 
+  // Things that go by close, and overhead: signals, and now and then a road bridge.
+  if (!first && index % 3 === 1) signal(p, R, (index % 2 ? 1 : -1) * (BED + 0.75), zm + 3);
+  if (bridge) roadBridge(p, zm, look);
+
   // A fence along one side or both, some of the time.
   for (const side of [-1, 1]) {
     if (R.next() < (look.kind === 'village' ? 0.8 : 0.45)) {
@@ -267,15 +314,16 @@ function buildChunk(index) {
   // Trees, bushes and the odd building.
   const snowy = look.kind === 'snow';
   for (const side of [-1, 1]) {
-    const trees = first ? 1 : look.kind === 'forest' ? 6 + R.int(4) : look.kind === 'snow' ? 4 + R.int(3) : 2 + R.int(3);
+    const trees = first ? 1 : look.kind === 'forest' ? 7 + R.int(4) : look.kind === 'snow' ? 5 + R.int(3) : 3 + R.int(4);
     for (let k = 0; k < trees; k++) {
       const x = side * (6.5 + OUT + R.next() * (look.kind === 'forest' ? 20 : 30)), z = z0 + R.next() * CHUNK, s = 1.15 + R.next() * 1.3;
+      if (bridge && Math.abs(z - zm) < 5) continue; // (not in the road)
       if (snowy || (look.kind === 'forest' && R.next() < 0.3)) pine(p, R, x, z, s, look, snowy);
       else tree(p, R, x, z, s, look);
     }
     for (let k = 0; k < 3; k++) if (R.next() < 0.7) bush(p, R, side * (5.2 + OUT + R.next() * 4), z0 + R.next() * CHUNK, 0.7 + R.next() * 0.7, look);
     if (R.next() < 0.3) rock(p, R, side * (5 + OUT + R.next() * 6), z0 + R.next() * CHUNK, 0.6 + R.next() * 0.8);
-    if (first) continue;
+    if (first || bridge) continue;
     const roll = R.next();
     const x = side * (12 + OUT + R.next() * 6);
     if (look.kind === 'village') {
