@@ -1142,6 +1142,13 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', ...o 
   const karma = c.karma;
   C.act('setGive', 'toy');
   check(c.karma > karma && c.f.patron && c.n.given === C.setWorth('toy') && c.ach.patron, 'or can be given to the museum');
+  // He buys your own things too.
+  const PW = fresh();
+  PW.s.cash = 20000;
+  PW.act('buy', 'car'); PW.act('buy', 'guitar');
+  const blocks = PW.timeMax(), had = PW.s.cash;
+  check(PW.s.time === blocks && PW.act('pawn', 'car').ok && !PW.s.items.car && PW.s.cash === had + PW.pawnPrice('car') && PW.pawnPrice('car') < ITEMS.car.price / 2, 'Mr Pym buys your belongings for less than half what they cost');
+  check(PW.timeMax() === blocks - 2 && PW.s.time === PW.timeMax() && PW.can('pawn', 'car') && PW.can('pawn', 'nonsense'), 'and a car sold takes its time with it');
   const picks = {};
   for (let i = 0; i < 3000; i++) { const id = C.anyCurio(); picks[id] = (picks[id] || 0) + 1; }
   check(Object.keys(picks).length === 20 && picks.plate > picks.captain * 5, 'what turns up by chance is mostly the humble things');
@@ -1452,7 +1459,7 @@ function monkey(seed) {
         ['chirpSpon'], ...Object.keys(CHIRPS).map((k) => ['chirp', k]), ...(wild ? [['chirpTroll'], ['chirpShill']] : []),
         ...Object.keys(CROPS).map((c) => ['sow', { b: Math.floor(L.rnd() * 3), c }]), ...[0, 1, 2].map((i) => ['curioBuy', i]),
         ['restyle', { k: ['style', 'hair', 'top'][Math.floor(L.rnd() * 3)], v: Math.floor(L.rnd() * 6) }], ['restyle', { k: 'beard' }],
-        ...Object.keys(s.curios).map((id) => ['curioSell', id]), ...Object.keys(CURIO_SETS).flatMap((k) => [['setSell', k], ['setGive', k]])]) if (!L.can(id, x)) opts.push([id, x]);
+        ...Object.keys(s.curios).map((id) => ['curioSell', id]), ...(L.rnd() < 0.1 ? Object.keys(s.items).map((id) => ['pawn', id]) : []), ...Object.keys(CURIO_SETS).flatMap((k) => [['setSell', k], ['setGive', k]])]) if (!L.can(id, x)) opts.push([id, x]);
       if (!opts.length) break;
       const [id, x] = opts[Math.floor(L.rnd() * opts.length)];
       const r = L.act(id, x);

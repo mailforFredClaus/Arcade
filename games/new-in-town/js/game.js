@@ -540,6 +540,8 @@ const SHEET = {
         <div class="things cur">${ids.map((id) => { const c = CURIOS[id], n = s.curios[id] || 0; return n ? `<button data-do="act" data-id="curioSell"${jx(id)}>${c.icon}<small>${c.name}${n > 1 ? ` ×${n}` : ''}</small><em>Sell ${cashShort(life.curioBid(id))}</em></button>` : `<span class="${s.curSeen[id] ? 'had' : 'unknown'}">${s.curSeen[id] ? c.icon : '❔'}<small>${s.curSeen[id] ? c.name : '???'}</small></span>`; }).join('')}</div>
         ${full ? `<div class="picks">${pick(`Sell the set · ${cashShort(life.setWorth(k) * 2)}`, 'setSell', k)}${pick('Give it to the museum', 'setGive', k, null, 'quiet')}</div>` : ''}</div>`;
     }
+    const mine = Object.keys(s.items).filter((id) => ITEMS[id]);
+    if (mine.length) body += `<h3>Your own things</h3><p class="fine">Mr Pym will take anything, for a good deal less than you paid.</p><div class="things cur">${mine.map((id) => `<button data-do="act" data-id="pawn"${jx(id)}>${ITEMS[id].icon}<small>${ITEMS[id].name}</small><em>Sell ${cashShort(life.pawnPrice(id))}</em></button>`).join('')}</div>`;
     return { icon: '🏺', title: 'Pym’s Curios', sub: `${Object.keys(s.curSeen).length} of ${Object.keys(CURIOS).length} found`, body };
   },
 

@@ -4,7 +4,7 @@
 // season; Mr Pym's shop of curios on the High Street, to collect and to
 // trade; and the beach, which is free.
 
-import { CROPS, PLOT_RENT, PLOT_BEDS, CURIOS, CURIO_SETS, ECO, FILLER, SMALL_ADS, FISH, SEASONS, LOOKS, money, many } from './data.js';
+import { CROPS, PLOT_RENT, PLOT_BEDS, CURIOS, CURIO_SETS, ECO, FILLER, SMALL_ADS, FISH, SEASONS, LOOKS, ITEMS, money, many } from './data.js';
 
 const round10 = (n) => Math.round(n / 10) * 10;
 const seasonsOf = (list) => list.map((q) => SEASONS[q].toLowerCase()).join(' or ');
@@ -82,6 +82,7 @@ export function install({ def, A, Life, clamp }) {
     curiosWorth() { return Math.round(Object.entries(this.s.curios).reduce((a, [id, n]) => a + CURIOS[id].worth * n, 0) * 0.8); },
     hasSet(k) { return Object.keys(CURIOS).filter((id) => CURIOS[id].set === k).every((id) => this.s.curios[id] > 0); },
     setWorth(k) { return Object.values(CURIOS).filter((c) => c.set === k).reduce((a, c) => a + c.worth, 0); },
+    pawnPrice(id) { return round10(ITEMS[id].price * 0.4); },
     curioBid(id) { return round10(CURIOS[id].worth * (this.s.cur ? this.s.cur.bid[CURIOS[id].set] : 0.8)); },
     // A curio comes your way.
     gotCurio(id) {
@@ -245,6 +246,18 @@ export function install({ def, A, Life, clamp }) {
       if (--s.curios[id] <= 0) delete s.curios[id];
       L.cash(pay);
       return `Mr Pym turns the ${CURIOS[id].name.toLowerCase()} over twice and counts out ${money(pay)}.`;
+    },
+  });
+  // He takes your own things too, for a good deal less than they cost.
+  def('pawn', {
+    time: 0,
+    why: (L, id) => (ITEMS[id] && L.s.items[id] ? null : 'You have not got one.'),
+    run(L, id) {
+      const s = L.s, pay = L.pawnPrice(id);
+      delete s.items[id];
+      s.time = Math.min(s.time, L.timeMax());
+      L.cash(pay);
+      return `Mr Pym looks your ${ITEMS[id].name.toLowerCase()} over, names a price that hurts, and will not be moved. ${money(pay)}.`;
     },
   });
   const giveUp = (L, k) => { for (const id of Object.keys(CURIOS)) if (CURIOS[id].set === k && --L.s.curios[id] <= 0) delete L.s.curios[id]; L.s.n.sets = (L.s.n.sets || 0) + 1; };
