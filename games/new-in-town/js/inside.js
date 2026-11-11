@@ -25,7 +25,7 @@ export function install({ def, A, Life, clamp }) {
       if (s.gaol) { s.gaol.left += n; s.gaol.total += n; return; }
       s.run = null; s.hilo = null; s.bj = null;
       s.gaol = { left: n, total: n, served: 0, good: 50, rep: Math.min(40, (s.worked.crew ?? -1) * 8 + 8), dig: 0, study: 0, sol: false, inSol: false, appeal: false, board: null, tat: false };
-      s.time = this.timeMax();
+      s.time = Math.min(s.time, this.timeMax());
       this.note(`Sent to Starling Gaol for ${n} season${n > 1 ? 's' : ''}.`, 'big');
     },
     gaolTime() { return this.s.gaol.inSol ? 1 : GAOL_TIME; },
@@ -37,7 +37,7 @@ export function install({ def, A, Life, clamp }) {
     repWord() { const r = this.s.gaol.rep; return r >= 80 ? 'You run the landing' : r >= 55 ? 'Respected' : r >= 30 ? 'Left alone' : r >= 12 ? 'A new face' : 'Fair game'; },
     // The certificate the education wing would put you in for next.
     gaolCourse() { return CLASSES.find((id) => !this.hasEdu(id)) || null; },
-    paroleOdds() { const s = this.s, q = s.gaol; return clamp(q.good / 110 + s.st.charm / 500 - Math.max(0, s.record - 1) * 0.04 - (s.f.escaped ? 0.15 : 0) + this.luck(), 0.03, 0.92); },
+    paroleOdds() { const s = this.s, q = s.gaol; return clamp(q.good / 110 + s.st.charm / 500 - Math.min(4, Math.max(0, s.record - 1)) * 0.04 - (s.f.escaped ? 0.15 : 0) + this.luck(), 0.03, 0.92); },
     breakOdds() { const s = this.s, q = s.gaol; return clamp(0.16 + s.st.fitness / 300 + s.st.smarts / 400 + q.rep / 500 + (s.heir === 'lag' ? 0.12 : 0) + this.luck(), 0.08, 0.85); },
 
     // The turn of a season, inside.
@@ -140,6 +140,16 @@ export function install({ def, A, Life, clamp }) {
       if (!L.chance(s.ill.sev >= 3 ? 0.5 : 0.85)) { L.hp(3); return `Two aspirin. Your ${name} is unimpressed.`; }
       s.ill = null; L.hp(6);
       return `He turns out to be a better doctor than the room deserves. Your ${name} clears up.`;
+    },
+  }));
+
+  def('gCoast', inside({
+    sec: 'The day', icon: '⏳', title: 'Let the season go by', desc: 'All the time you have left, spent on nothing in particular. No trouble, and a little good on your record.',
+    run(L) {
+      const s = L.s, n = 1 + s.time;
+      s.time = 0;
+      L.behave(2 * n); L.gain('fitness', 0.4 * n); L.gain('smarts', 0.4 * n);
+      return L.pick(['Slop out, breakfast, yard, dinner, lock-up. And again.', 'You count the bricks in the far wall. There are 2,114.', 'A season of grey porridge and grey sky, and you are a season nearer the gate.']);
     },
   }));
 

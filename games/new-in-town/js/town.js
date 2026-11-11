@@ -4,7 +4,7 @@
 // season; Mr Pym's shop of curios on the High Street, to collect and to
 // trade; and the beach, which is free.
 
-import { CROPS, PLOT_RENT, PLOT_BEDS, CURIOS, CURIO_SETS, ECO, FILLER, SMALL_ADS, FISH, SEASONS, money, many } from './data.js';
+import { CROPS, PLOT_RENT, PLOT_BEDS, CURIOS, CURIO_SETS, ECO, FILLER, SMALL_ADS, FISH, SEASONS, LOOKS, money, many } from './data.js';
 
 const round10 = (n) => Math.round(n / 10) * 10;
 const seasonsOf = (list) => list.map((q) => SEASONS[q].toLowerCase()).join(' or ');
@@ -171,7 +171,8 @@ export function install({ def, A, Life, clamp }) {
         s.grown[b.c] = (s.grown[b.c] || 0) + 1;
         cash += round10(c.pay * (0.45 + 0.75 * care) * (1 + s.st.craft / 250) * (0.85 + L.rnd() * 0.3));
         got.push(c.name.toLowerCase());
-        if (c.show) s.marrow = Math.round((6 + care * 16 + s.st.craft / 8 + L.rnd() * 8) * 10) / 10;
+        // (Forty years of saved seed counts for something.)
+        if (c.show) s.marrow = Math.round((6 + care * 16 + s.st.craft / 8 + L.rnd() * 8 + (s.f.seed ? 7 : 0)) * 10) / 10;
       });
       L.cash(cash); s.n.earned += cash; L.joy(4); L.hp(1); L.gain('craft', 0.8);
       return `You bring in the ${got.join(' and the ')}: more than you can eat, so the rest goes on a table by the gate with an honesty box. ${money(cash)}.${s.marrow && got.includes('show marrow') ? ` The marrow weighs ${s.marrow} kg. Keep it for the Harvest Show in autumn.` : ''}`;
@@ -179,18 +180,40 @@ export function install({ def, A, Life, clamp }) {
   });
   def('show', {
     place: 'park', sec: 'The allotments', icon: '🥒', title: 'Enter the Harvest Show',
-    desc: (L) => `Your marrow weighs ${L.s.marrow} kg. Mrs Pargeter has won six years running.`,
+    desc: (L) => `Your marrow weighs ${L.s.marrow} kg. ${L.s.f.parg === 3 ? 'With Mrs Pargeter retired, it is anybody’s rosette' : 'Mrs Pargeter has won six years running'}.`,
     show: (L) => L.season === 2 && L.s.marrow > 0,
     run(L) {
-      const s = L.s, mine = s.marrow, hers = Math.round((24 + L.gauss() * 5) * 10) / 10;
+      const s = L.s, mine = s.marrow, gone = s.f.parg === 3, who = gone ? 'Mr Tibbs' : 'Mrs Pargeter', hers = Math.round((24 - (gone ? 3 : 0) + L.gauss() * 5) * 10) / 10;
       s.marrow = 0;
       if (mine > hers) {
         L.cash(500); L.fame(2); L.joy(10); s.f.marrow = 1;
         L.note(`Won the Harvest Show with a marrow of ${mine} kg.`, 'big');
-        return `The judge weighs yours twice. ${mine} kg to Mrs Pargeter’s ${hers}. First prize, $500, and a rosette the size of a dinner plate. Mrs Pargeter does not speak to you again.`;
+        return `The judge weighs yours twice. ${mine} kg to ${who}’s ${hers}. First prize, $500, and a rosette the size of a dinner plate.${gone ? ' Mrs Pargeter, in the front row, nods once.' : ' Mrs Pargeter congratulates you through her teeth.'}`;
       }
       L.joy(2);
-      return `Mrs Pargeter’s is ${hers} kg. Yours is ${mine}. "A nice little marrow," she says. There is always next year.`;
+      return `${who}’s is ${hers} kg. Yours is ${mine}. "A nice little marrow," ${gone ? 'he' : 'she'} says. There is always next year.`;
+    },
+  });
+
+  // -- a new look
+  def('barberOpen', { place: 'highstreet', sec: 'Curl Up & Dye', icon: '💈', title: 'A new look', desc: 'The cut, the colour, the clothes.', time: 0, open: 'barber' });
+  def('restyle', {
+    time: 0, cost: 40,
+    why(L, x) {
+      if (!x) return 'Change what?';
+      if (x.k === 'beard') return L.s.sex === 'm' ? null : 'Not for you.';
+      const max = { style: LOOKS.styles, hair: LOOKS.hair.length, top: LOOKS.top.length }[x.k];
+      if (!max || !Number.isInteger(x.v) || x.v < 0 || x.v >= max) return 'Change what?';
+      return L.s.look[x.k] === x.v ? 'That is how it is now.' : null;
+    },
+    run(L, x) {
+      const s = L.s;
+      if (x.k === 'beard') s.look.beard = !s.look.beard; else s.look[x.k] = x.v;
+      // (A new look is a tonic, once.)
+      if (!s.use.restyle) { s.use.restyle = 1; L.joy(3); }
+      if (x.k === 'top') return L.pick(['New clothes. You walk differently in them.', 'The assistant says it brings out your eyes. She says that to everyone, and you believe her.']);
+      if (x.k === 'beard') return s.look.beard ? 'It itches for a fortnight and then it is magnificent.' : 'Your chin sees daylight for the first time in years.';
+      return L.pick(['"Going anywhere nice this year?" Forty minutes later you are somebody new.', 'You barely know yourself in the shop windows on the way home.', 'Bold. Everybody says so. Some of them mean it kindly.']);
     },
   });
 

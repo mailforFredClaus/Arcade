@@ -501,3 +501,11 @@ summary { font-size: 12.5px; font-weight: 900; color: var(--teal-d); cursor: poi
 .things.cur .had { opacity: .7; filter: grayscale(1); }
 .bondbar.grudge { background: #ece6da; }
 .bondbar.grudge span { background: #8a4a3a; }
+
+/* ---- a new look ---- */
+.mirror { display: grid; place-items: center; margin: 12px 0 0; }
+.mirror .ava { box-shadow: 0 0 0 5px #fff, 0 0 0 8px #e2d8c0; }
+.cuts { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.cut { padding: 4px; border-radius: 14px; background: #fff; box-shadow: 0 2px 0 var(--line); }
+.cut.on { box-shadow: 0 0 0 2.5px var(--teal); }
+.cut .ava { display: block; width: 100%; height: auto; aspect-ratio: 1; }

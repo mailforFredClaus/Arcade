@@ -91,7 +91,7 @@ export function install({ def, A, Life, clamp }) {
       if (s.shark > 0) {
         s.shark = Math.round(s.shark * 1.1);
         s.sharkT = (s.sharkT || 0) + 1;
-        if (s.sharkT >= 6 && s.sharkT % 3 === 0) this.queue('legbreakers');
+        if (s.sharkT >= 6 && s.sharkT % 3 === 0 && !s.gaol) this.queue('legbreakers');
       } else s.sharkT = 0;
     },
   });

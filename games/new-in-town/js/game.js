@@ -510,6 +510,20 @@ const SHEET = {
     return { icon: '🥕', title: 'Your allotment', sub: `Plot 14 · ${money(PLOT_RENT)} a season`, body };
   },
 
+  barber() {
+    const s = life.s, look = s.look;
+    const here = ' data-why="That is how it is now."';
+    const cuts = Array.from({ length: LOOKS.styles }, (_, i) => `<button class="cut${look.style === i ? ' on' : ''}" data-do="act" data-id="restyle"${jx({ k: 'style', v: i })}${look.style === i ? here : ''}><span class="ava">${face({ ...look, style: i }, s.age, 70, s.sex)}</span></button>`).join('');
+    const sw = (key, list) => `<div class="swatches">${list.map((c, i) => `<button class="sw${look[key] === i ? ' on' : ''}" style="background:${c}" data-do="act" data-id="restyle"${jx({ k: key, v: i })}${look[key] === i ? here : ''} aria-label="${key} ${i + 1}"></button>`).join('')}</div>`;
+    const body = `<div class="mirror"><span class="ava huge">${face(look, s.age, s.happy, s.sex)}</span></div>
+      <p class="lead mid">Every change is ${money(40)}. A new look cheers you up, the first time each season.</p>
+      <h3>The cut</h3><div class="cuts">${cuts}</div>
+      <h3>The colour</h3>${sw('hair', LOOKS.hair)}
+      <h3>What you wear</h3>${sw('top', LOOKS.top)}
+      ${s.sex === 'm' ? `<div class="picks mid">${pick(look.beard ? 'Shave it off' : 'Grow a beard', 'restyle', { k: 'beard' }, null, 'quiet')}</div>` : ''}`;
+    return { icon: '💈', title: 'Curl Up & Dye', sub: 'A whole new you', body };
+  },
+
   curios() {
     const s = life.s, cur = s.cur;
     let body = '<p class="lead">Mr Pym buys and sells old things, and his prices wander: the guide price is what a thing is really worth. Four of a kind make a set, and a set is worth twice its parts to a collector.</p><h3>In the window</h3>';
@@ -901,6 +915,21 @@ function showMenu() {
     </div>`);
 }
 
+// Shown once to a life that was begun before the town grew.
+const NEWS = 3;
+function showNew() {
+  save.seenNew = NEWS;
+  persist();
+  ui.show(`<div class="ev-ico">📰</div><h2>New in Starling Bay</h2><div class="how">
+    <p><b>⛓️ Prison is lived, not skipped.</b> Get sent down and you serve it a season at a time: behave for parole, fight for your place, study, or dig.</p>
+    <p><b>😠 Exes and enemies.</b> A bad break-up leaves an ex you can win back. Cross somebody and they may take against you, until you make peace or see them off.</p>
+    <p><b>🐤 Chirper.</b> On your phone, at home: post, gather followers, get paid.</p>
+    <p><b>🥕 An allotment</b> at the park, where the season decides what grows. <b>🏺 Mr Pym’s curios</b> on the High Street, to collect and trade. <b>💈 A new look</b> next door.</p>
+    <p><b>♠️ Blackjack and the gull races</b> on the pier, and the <b>🎟️ Bay Lotto</b> on the High Street.</p>
+    <p><b>📰 The Gazette</b> (at home, or from the Me tab) has the news: the Bay now has booms and slumps, and they reach your pay, your shares and your house.</p></div>
+    <div class="actions"><button class="btn btn-primary" data-action="evDone">Show me</button></div>`);
+}
+
 function showHow() {
   ui.show(`<h2>How to play</h2><div class="how">
     <p><b>One life, a season at a time.</b> Each season you get a few blocks of time ⏱. Tap a place on the map and spend them: work, study, train, see people. Tap <b>Next</b> when you are done; time left over is rest.</p>
@@ -1011,7 +1040,8 @@ function beginLife() {
   save.next = null;
   save.counted = false;
   save.yearWorth = life.netWorth();
-  tab = 'town'; here = 'station'; mapKey = ''; slotShow = null; hiloShow = null;
+  save.seenNew = NEWS;
+  tab = 'town'; here = 'station'; mapKey = ''; slotShow = null; hiloShow = null; bjShow = null; raceShow = null;
   persist();
   $('start').hidden = true;
   $('app').hidden = false;
@@ -1153,7 +1183,7 @@ registerOffline();
 if (life) {
   $('app').hidden = false;
   render();
-  pump();
+  if ((save.seenNew || 0) < NEWS && !life.s.dead) showNew(); else pump();
 } else showStart();
 
 // For testing from the browser's console.

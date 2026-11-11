@@ -1152,6 +1152,51 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', ...o 
   check(found >= 2 && Object.keys(beach.s.curSeen).every((id) => ['sea', 'coin'].includes(CURIOS[id].set)), 'the beach gives up something now and then');
 }
 
+// ---- a new look, Mrs Pargeter, and offers in a boom ------------------------------------
+
+{
+  const B = fresh({ sex: 'm' });
+  B.s.cash = 1000;
+  const style = B.s.look.style, happy = B.s.happy;
+  check(B.can('restyle', { k: 'style', v: style }) === 'That is how it is now.' && B.can('restyle', { k: 'style', v: 99 }) === 'Change what?' && B.can('restyle') === 'Change what?', 'the barber wants to know what to change');
+  B.act('restyle', { k: 'style', v: (style + 1) % 6 });
+  check(B.s.look.style === (style + 1) % 6 && B.s.cash === 960 && B.s.happy === happy + 3 && B.s.time === B.timeMax(), 'a new cut costs forty dollars and cheers you up');
+  const beard = B.s.look.beard;
+  B.act('restyle', { k: 'beard' });
+  check(B.s.look.beard === !beard && B.s.happy === happy + 3 && B.s.cash === 920, 'but only the first time each season');
+  check(fresh({ sex: 'f' }).can('restyle', { k: 'beard' }) === 'Not for you.', 'beards are for those who can grow them');
+
+  // Mrs Pargeter.
+  const PG = fresh();
+  PG.act('plotRent'); PG.act('sow', { b: 0, c: 'marrow' });
+  PG.queue('parg1');
+  PG.choose(0);
+  check(PG.s.f.parg === 1, 'Mrs Pargeter notices your plot');
+  const karma = PG.s.karma;
+  PG.queue('parg2'); PG.choose(0);
+  check(PG.s.f.parg === 2 && PG.s.karma > karma, 'help her when her greenhouse is wrecked');
+  check(!EVENTS.find((e) => e.id === 'parg3').when(PG), 'and, in time');
+  PG.s.plot.since = -8;
+  PG.queue('parg3'); PG.choose(0);
+  check(PG.s.f.seed === 1 && PG.s.f.parg === 3 && PG.s.ach.seed && PG.friends().some((f) => f.name === 'Edna Pargeter'), 'she leaves you her seed tin');
+  const plain = fresh(), seeded = fresh();
+  seeded.s.f.seed = 1;
+  for (const X of [plain, seeded]) { X.act('plotRent'); X.act('sow', { b: 0, c: 'marrow' }); X.s.plot.beds[0].age = 2; X.s.time = 1; X.act('reap'); }
+  check(Math.abs(seeded.s.marrow - plain.s.marrow - 7) < 0.11, 'which grows a bigger marrow');
+  const thief = fresh();
+  thief.act('plotRent'); thief.s.f.parg = 1;
+  thief.queue('parg2'); thief.choose(2);
+  check(thief.s.f.seed === 1 && thief.s.karma < 0 && thief.s.f.parg === 0, 'or the seed can simply be stolen');
+  // A boom brings offers.
+  const H = fresh();
+  H.s.job = { c: 'kitchen', r: 1, n: 0, perf: 60, raise: 0 };
+  check(!EVENTS.find((e) => e.id === 'headhunt').when(H), 'nobody is poached in ordinary times');
+  H.s.eco = 2;
+  check(EVENTS.find((e) => e.id === 'headhunt').when(H), 'in a boom, other firms come calling');
+  H.queue('headhunt'); H.choose(2);
+  check(H.s.job.perf === 66, 'and loyalty is noticed');
+}
+
 // ---- the casino -------------------------------------------------------------------------
 
 {
@@ -1406,6 +1451,7 @@ function monkey(seed) {
         ['bjStart', 50], ['bjHit'], ['bjStand'], ['bjDouble'], ['raceBet', { i: Math.floor(L.rnd() * 5), bet: 50 }], ['plotRent'], ['plotQuit'], ['tend'], ['reap'], ['haggle'],
         ['chirpSpon'], ...Object.keys(CHIRPS).map((k) => ['chirp', k]), ...(wild ? [['chirpTroll'], ['chirpShill']] : []),
         ...Object.keys(CROPS).map((c) => ['sow', { b: Math.floor(L.rnd() * 3), c }]), ...[0, 1, 2].map((i) => ['curioBuy', i]),
+        ['restyle', { k: ['style', 'hair', 'top'][Math.floor(L.rnd() * 3)], v: Math.floor(L.rnd() * 6) }], ['restyle', { k: 'beard' }],
         ...Object.keys(s.curios).map((id) => ['curioSell', id]), ...Object.keys(CURIO_SETS).flatMap((k) => [['setSell', k], ['setGive', k]])]) if (!L.can(id, x)) opts.push([id, x]);
       if (!opts.length) break;
       const [id, x] = opts[Math.floor(L.rnd() * opts.length)];

@@ -536,6 +536,10 @@ export const QUESTS = [
   { text: 'Put $2,000 into savings at the bank', test: (L) => L.s.bank >= 2000, cash: 200 },
   { text: 'Finish a course at the college', test: (L) => Object.keys(L.s.edu).length > 0, cash: 500 },
   { text: 'Take a holiday from the station', test: (L) => Object.keys(L.s.trips).length > 0, cash: 300 },
+  { text: 'With a phone, post something on Chirper (it is at home)', test: (L) => !!L.s.chirp && L.s.chirp.posts > 0, cash: 150 },
+  { text: 'Find a curio: Mr Pym on the High Street sells them, and the beach gives them up', test: (L) => Object.keys(L.s.curSeen).length > 0, cash: 200 },
+  { text: 'Take an allotment at the park and sow something', test: (L) => (!!L.s.plot && L.s.plot.beds.some(Boolean)) || Object.keys(L.s.grown).length > 0, cash: 150 },
+  { text: 'Bring in a harvest from your allotment', test: (L) => Object.keys(L.s.grown).length > 0, cash: 250 },
   { text: 'Make one of your dreams come true', test: (L) => Object.keys(L.s.dreamDone).length > 0, cash: 1000 },
 ];
 
@@ -621,6 +625,7 @@ export const TROPHIES = {
   set: { name: 'The set', icon: '🧩', desc: 'Complete a set of curios.', test: (L) => Object.keys(CURIO_SETS).some((k) => L.hasSet(k)) || (L.s.n.sets || 0) >= 1 },
   curator: { name: 'Magpie', icon: '🏺', desc: 'Find every curio in Starling Bay.', test: (L) => Object.keys(CURIOS).every((c) => L.s.curSeen[c]) },
   patron: { name: 'Patron of the museum', icon: '🏛️', desc: 'Give a whole set of curios to the museum.', test: (L) => !!L.s.f.patron },
+  seed: { name: 'Forty years of seed', icon: '🫙', desc: 'Be given Mrs Pargeter’s seed tin.', test: (L) => L.s.f.parg === 3 },
   slump: { name: 'Seen it all', icon: '📰', desc: 'Live through a boom and a deep slump.', test: (L) => !!L.s.f.sawBoom && !!L.s.f.sawSlump },
   dream1: { name: 'Dream come true', icon: '✨', desc: 'Make a dream come true.', test: (L) => Object.keys(L.s.dreamDone).length >= 1 },
   dream3: { name: 'Living the dream', icon: '🌈', desc: 'Make all three dreams come true in one life.', test: (L) => Object.keys(L.s.dreamDone).length >= 3 },

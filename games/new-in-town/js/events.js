@@ -921,8 +921,8 @@ export const EVENTS = [
     text: (L, x) => `${x.n} season${x.n > 1 ? 's' : ''}. The gate shuts behind you, and a voice from the landing shouts something unrepeatable. You will live every one of them: there is a yard, a library, a workshop, and a great many men with time on their hands. How do you mean to start?`,
     opts: [
       { t: 'Head down, library card out', run(L, x) { L.jail(x.n); L.behave(15); return 'You say "sir" to everybody, including a plumber. The governor makes a small note against your name. The good kind.'; } },
-      { t: 'Fall in with the hard cases', run(L, x) { L.jail(x.n); L.respect(20); L.s.gaol.good = 35; L.karma(-3); return 'By lights out you have a nickname, a seat at the back table, and a debt of two cigarettes. It is a start.'; } },
-      { t: 'Look for the way out', run(L, x) { L.jail(x.n); L.s.gaol.dig = 1; L.s.gaol.good = 45; return 'You count the paces between the towers, twice, and notice a grating behind the laundry that nobody else seems to have noticed.'; } },
+      { t: 'Fall in with the hard cases', run(L, x) { L.jail(x.n); L.respect(20); L.s.gaol.good = Math.min(L.s.gaol.good, 35); L.karma(-3); return 'By lights out you have a nickname, a seat at the back table, and a debt of two cigarettes. It is a start.'; } },
+      { t: 'Look for the way out', run(L, x) { L.jail(x.n); L.s.gaol.dig = Math.max(L.s.gaol.dig, 1); L.s.gaol.good = Math.min(L.s.gaol.good, 45); return 'You count the paces between the towers, twice, and notice a grating behind the laundry that nobody else seems to have noticed.'; } },
     ],
   },
   {
@@ -1005,7 +1005,7 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'gPoem', icon: '🖋️', title: 'The Koestler prize', gaol: true, w: 3, cd: 10,
+    id: 'gPoem', icon: '🖋️', title: 'The Hartley prize', gaol: true, w: 3, cd: 10,
     text: 'A notice by the library trolley: a national prize for writing from prisons. Poems, stories, anything. Closing date Friday.',
     opts: [
       { t: 'Write something true', check: ['craft', 50], run(L, x, win) { L.gain('craft', 1.5); if (win) { L.cash(250); L.fame(2); L.joy(7); L.behave(4); L.note('Won a prize for writing in prison.', 'big'); return 'Fourteen lines about the sound of the gate. It wins. $250, and a letter from a lady novelist, which you keep.'; } L.joy(1); return 'Highly commended, along with four hundred others. You keep the pencil.'; } },
@@ -1036,6 +1036,40 @@ export const EVENTS = [
       { t: 'Take it there, as you promised', run(L) { L.karma(6); L.joy(5); L.s.f.wilf = 2; const p = L.friends().length < 20 ? L.meet({ sex: 'f', age: 50, trait: 'kind', bond: 32, single: false }) : null; const c = L.gotCurio('bottle'); return `His daughter reads it standing in the doorway, twice. Then she makes tea, and gives you a ${c.name.toLowerCase()} from the mantelpiece. "He made it in there. He would want you to have it."${p ? ` Her name is ${p.name}.` : ''}`; } },
       { t: 'Put a stamp on it', run(L) { L.karma(2); L.s.f.wilf = 2; return 'Into the box outside the station. Near enough.'; } },
       { t: 'Steam it open', run(L) { L.karma(-6); L.cash(4000); L.s.f.wilf = 2; return 'One line of writing, and a left-luggage ticket for the station. In the locker: $4,000 in notes they stopped printing twenty years ago. The bank changes them without a word.'; } },
+    ],
+  },
+  // ---- Mrs Pargeter ----
+  {
+    id: 'parg1', icon: '👒', title: 'Mrs Pargeter', w: 6, once: true, when: (L) => !!L.s.plot && L.s.plot.beds.some(Boolean),
+    text: 'A shadow falls across your beans. Mrs Pargeter of plot 9, six times champion of the Harvest Show, is looking at your allotment the way a heron looks at a pond.',
+    opts: [
+      { t: 'Ask her advice', check: ['charm', 40], run(L, x, win) { L.s.f.parg = 1; if (win) { for (const b of L.s.plot.beds) if (b) b.care += 2; L.gain('craft', 2); return 'She tells you three things about watering, two about slugs and one about the onion man. Your beds are better for it by the weekend.'; } return 'She says "Hm," twice, and moves on. It is, you are told later, more than most people get.'; } },
+      { t: 'Ask her if she has lost something', run(L) { L.s.f.parg = -1; L.joy(3); return 'Nobody has spoken to Mrs Pargeter like that since 1974. The onion man shakes your hand behind the water butt.'; } },
+    ],
+  },
+  {
+    id: 'parg2', icon: '🥀', title: 'The greenhouse', w: 6, once: true, when: (L) => L.s.f.parg === 1 && !!L.s.plot,
+    text: 'Somebody’s dog has been through plot 9 in the night. Mrs Pargeter is standing in what was her greenhouse, with a seed tray in each hand, not saying anything.',
+    opts: [
+      { t: 'Roll up your sleeves', run(L) { busy(L, 2); L.karma(4); L.gain('craft', 1.5); L.s.f.parg = 2; return 'It takes two days: glass, canes, forty pots. She makes tea in a flask and does not say thank you. She does save you the last biscuit.'; } },
+      { t: 'Leave her to it', run(L) { L.karma(-1); L.s.f.parg = 0; return 'You find something to do at the far end of your own plot.'; } },
+      { t: 'Pocket a few of her seeds while she is not looking', run(L) { L.karma(-5); L.s.f.seed = 1; L.s.f.parg = 0; if (L.enemies().length < 3 && L.chance(0.35)) { const p = L.foe({ name: 'Edna Pargeter', sex: 'f', age: 71, grudge: 80, hard: 20 }); return `Forty years of saved seed, in your jacket pocket. And ${p.name} turns round at exactly the wrong moment.`; } return 'Forty years of saved seed, in your jacket pocket. Your marrows will be the better for it. You, less so.'; } },
+    ],
+  },
+  {
+    id: 'parg3', icon: '🫙', title: 'An old tobacco tin', w: 6, once: true, when: (L) => L.s.f.parg === 2 && !!L.s.plot && L.s.t - L.s.plot.since >= 8,
+    text: 'Mrs Pargeter is giving up plot 9. Her knees, she says, as if they had let her down personally. She holds out an old tobacco tin with a rubber band round it. "Forty years of saved seed. Do not waste it."',
+    opts: [
+      { t: 'Take it, and promise', run(L) { L.s.f.seed = 1; L.s.f.parg = 3; L.joy(6); const p = L.friends().length < 20 ? L.meet({ name: 'Edna Pargeter', sex: 'f', age: 78, trait: 'kind', bond: 45, single: false, job: 'teaching' }) : null; L.note('Mrs Pargeter gave you her seed tin.', 'big'); return `Your marrows will never be the same again.${p ? ' Nor, it turns out, will your Sundays: she expects a visit, and a report.' : ''}`; } },
+    ],
+  },
+  {
+    id: 'headhunt', icon: '🤝', title: 'A word in your ear', w: 4, cd: 16, when: (L) => L.s.eco >= 1 && inJob(L) && !CAREERS[L.s.job.c].shady && L.s.job.perf >= 50,
+    text: 'Business is booming and good people are hard to find. An outfit up the coast has been asking about you, and has written a number on a napkin.',
+    opts: [
+      { t: 'Show the napkin to your boss', check: ['charm', 50], run(L, x, win) { const j = L.s.job; if (win) { j.raise = Math.min(0.4, (j.raise || 0) + 0.08); return `Your boss goes pale, then generous. ${money(L.shiftPay())} a shift from now on.`; } j.perf = Math.max(0, j.perf - 10); return '"If you want to go, go," says your boss. You do not, as it happens. It is a long week.'; } },
+      { t: 'Do a few weekends for them on the quiet', run(L) { const n = pay(L) * 3; L.cash(n); busy(L, 2); L.joy(-2); return `Moonlighting is exhausting, and it pays ${money(n)}.`; } },
+      { t: 'You are happy where you are', run(L) { L.s.job.perf = Math.min(100, L.s.job.perf + 6); L.joy(2); return 'You say so, out loud, at work. People look at you oddly, but the boss hears of it.'; } },
     ],
   },
   // ---- bad blood ----
