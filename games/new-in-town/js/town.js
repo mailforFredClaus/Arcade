@@ -4,7 +4,7 @@
 // season; Mr Pym's shop of curios on the High Street, to collect and to
 // trade; and the beach, which is free.
 
-import { GIFTS, CROPS, PLOT_RENT, PLOT_BEDS, CURIOS, CURIO_SETS, CURIO_SET_SAID, aCurio, theCurio, curioSaid, ECO, FILLER, SMALL_ADS, FISH, SEASONS, LOOKS, ITEMS, money, many } from './data.js';
+import { GIFTS, FESTS, PLACES, CROPS, PLOT_RENT, PLOT_BEDS, CURIOS, CURIO_SETS, CURIO_SET_SAID, aCurio, theCurio, curioSaid, ECO, FILLER, SMALL_ADS, FISH, SEASONS, LOOKS, ITEMS, money, many } from './data.js';
 
 const round10 = (n) => Math.round(n / 10) * 10;
 const seasonsOf = (list) => list.map((q) => SEASONS[q].toLowerCase()).join(' or ');
@@ -50,7 +50,8 @@ export function install({ def, A, Life, clamp }) {
       }
       const fish = Object.values(FISH).filter((f) => f.when && f.when.includes(q) && f.where.length).slice(0, 3).map((f) => f.name.toLowerCase());
       const sow = Object.values(CROPS).filter((c) => c.sow.includes(q)).map((c) => c.name.toLowerCase());
-      items.push({ icon: '🎣', h: 'What is on', t: `${fish.length ? `Biting now: ${fish.join(', ')}. ` : ''}${sow.length ? `On the allotments, it is time to sow ${sow.join(', ')}.` : 'Nothing to sow on the allotments until spring.'}${q === 2 ? ' The Harvest Show is on at Pebble Park: marrows to the big tent.' : ''}` });
+      items.push({ icon: '🎣', h: 'What is on', t: `${fish.length ? `Biting now: ${fish.join(', ')}. ` : ''}${sow.length ? `On the allotments, it is time to sow ${sow.join(', ')}.` : 'Nothing to sow on the allotments until spring.'}${q === 2 ? ' Marrows to the big tent.' : ''}` });
+      items.splice(1, 0, { icon: this.fest().icon, h: this.fest().name, t: `${this.fest().blurb} At ${PLACES[this.fest().at].name} this season: ${this.fest().games.map((g) => g.title.toLowerCase()).join(', ')}. One entry each.` });
       if (s.cur && s.cur.stock.length) {
         const hot = Object.keys(CURIO_SETS).sort((a, b) => s.cur.bid[b] - s.cur.bid[a])[0];
         items.push({ icon: '🏺', h: 'Pym’s Curios', t: `In the window this season: ${s.cur.stock.map((c) => curioSaid(c.id)).join(', ')}. Collectors are paying well for ${CURIO_SET_SAID[hot]}.` });
@@ -63,6 +64,11 @@ export function install({ def, A, Life, clamp }) {
       items.push({ icon: '📌', h: 'Small ads', t: `${turn(SMALL_ADS)} ${turn(SMALL_ADS, 5)}` });
       return { lead, items };
     },
+
+    // ---- the year's festivals ----
+    fest() { return FESTS[this.season]; },
+    // How hard a contest is for you: a champion is given less room each time.
+    festBar(g) { return g.dc + Math.min(30, (this.s.fests[g.id] || 0) * 6); },
 
     // ---- the allotment ----
     bedRipe(b) { return !!b && b.age >= CROPS[b.c].ripe; },
@@ -120,6 +126,27 @@ export function install({ def, A, Life, clamp }) {
   // -- the Gazette
   def('gazette', { place: 'home', sec: 'At home', icon: '📰', title: 'Read the Gazette', desc: 'What Starling Bay is talking about this season.', time: 0, open: 'gazette' });
   def('gazette2', { place: 'station', sec: 'The news stand', icon: '📰', title: 'Read the Gazette', desc: 'What Starling Bay is talking about this season.', time: 0, open: 'gazette' });
+
+  // -- the festivals
+  FESTS.forEach((f, q) => f.games.forEach((g, i) => {
+    def(`fest${q}${i}`, {
+      place: f.at, sec: f.name, icon: g.icon, title: g.title,
+      desc: (L) => `${Math.round(L.checkOdds(g.stat, L.festBar(g)) * 100)}% you carry it off${g.prize ? `, for ${money(g.prize)}` : ', for the good of the town'}.${L.s.fests[g.id] ? ` You have won it ${L.s.fests[g.id] === 1 ? 'once' : `${L.s.fests[g.id]} times`}: they will be watching you.` : ''}`,
+      show: (L) => L.season === q,
+      why: (L) => (L.s.use.fest ? 'One entry a year. Leave something for the others.' : null),
+      run(L) {
+        const s = L.s, won = L.chance(L.checkOdds(g.stat, L.festBar(g)));
+        s.use.fest = 1;
+        L.gain(g.stat, 1.2); L.joy(won ? 6 : 2);
+        if (!won) return g.lose;
+        s.fests[g.id] = (s.fests[g.id] || 0) + 1;
+        if (g.prize) L.cash(g.prize);
+        if (g.fame) L.fame(g.fame);
+        if (g.karma) L.karma(g.karma);
+        return `${g.win}${g.prize ? ` ${money(g.prize)}.` : ''}`;
+      },
+    });
+  }));
 
   // -- the allotment
   def('plotOpen', {

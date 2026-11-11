@@ -718,7 +718,7 @@ export class Life {
     if ((state.v || 1) < 2) this.upgrade();
     // (Four to-do items were added before the last; a life that had finished the list has finished it still.)
     if (state.v < 3) { state.v = 3; if (state.quest >= 12) state.quest += 4; }
-    const later = { gifts: {}, gave: {}, heat: 0, shark: 0, habit: {}, stand: {}, eco: 0, roy: [], album: { p: 0, q: 0 }, lot: { n: 0, pot: 100000 }, curios: {}, curSeen: {}, grown: {}, marrow: 0 };
+    const later = { gifts: {}, gave: {}, fests: {}, heat: 0, shark: 0, habit: {}, stand: {}, eco: 0, roy: [], album: { p: 0, q: 0 }, lot: { n: 0, pot: 100000 }, curios: {}, curSeen: {}, grown: {}, marrow: 0 };
     for (const [k, v] of Object.entries(later)) if (state[k] == null) state[k] = v;
     if (!state.cur) this.restock();
   }
@@ -744,7 +744,7 @@ export class Life {
       stk: { p: {}, h: {}, own: {}, paid: {}, news: [] },
       biz: null, fishbook: {}, hist: [], heat: 0, habit: {}, shark: 0, stand: {},
       gaol: null, run: null, eco: 0, chirp: null, roy: [], album: { p: 0, q: 0 }, bj: null, race: null, lot: { n: 0, pot: 100000 },
-      plot: null, grown: {}, marrow: 0, curios: {}, curSeen: {}, cur: null, gifts: { ...(gifts || {}) }, gave: {},
+      plot: null, grown: {}, marrow: 0, curios: {}, curSeen: {}, cur: null, gifts: { ...(gifts || {}) }, gave: {}, fests: {},
       paintings: 0, novel: { p: 0, q: 0 }, trips: {}, ill: null, hilo: null,
       f: {}, n: { shifts: 0, earned: 0, fish: 0, crimes: 0, books: 0, given: 0, casino: 0, streak: 0 },
       use: {}, cd: {}, seen: {},

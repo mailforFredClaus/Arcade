@@ -120,10 +120,11 @@ function renderGaol() {
 function renderMap() {
   const s = life.s, work = s.job ? CAREERS[s.job.c].place : null, biz = s.biz ? BUSINESSES[s.biz.type].place : null;
   const ripe = !!s.plot && (s.plot.beds.some((b) => life.bedRipe(b)) || (life.season === 2 && s.marrow > 0));
-  const key = `${placeTier(s.home)}|${work}|${!!s.course}|${biz}|${ripe}`;
+  const fest = s.use.fest ? null : life.fest().at;
+  const key = `${placeTier(s.home)}|${work}|${!!s.course}|${biz}|${ripe}|${fest}`;
   if (key !== mapKey) {
     mapKey = key;
-    $('mapArt').innerHTML = townSvg({ tier: placeTier(s.home), work, study: !!s.course, biz, ripe });
+    $('mapArt').innerHTML = townSvg({ tier: placeTier(s.home), work, study: !!s.course, biz, ripe, fest });
   }
   $('me').innerHTML = face(s.look, s.age, s.happy, s.sex);
   placeMe();
@@ -949,6 +950,7 @@ function showNew() {
     <p><b>🥕 An allotment</b> at the park, where the season decides what grows. <b>🏺 Mr Pym’s curios</b> on the High Street, to collect and trade. <b>💈 A new look</b> next door.</p>
     <p><b>♠️ Blackjack and the gull races</b> on the pier, and the <b>🎟️ Bay Lotto</b> on the High Street.</p>
     <p><b>🏗️ The mayor’s appeal</b> at the Town Hall: give the town a lifeboat, a hospital wing, a new pier. Your name stays on it for the family that follows.</p>
+    <p><b>🎪 A festival every season</b>, marked on the map: the Spring Fair, Regatta Day, the Harvest Show and the Winter Lights. One entry each.</p>
     <p><b>📰 The Gazette</b> (at home, or from the Me tab) has the news: the Bay now has booms and slumps, and they reach your pay, your shares and your house.</p></div>
     <div class="actions"><button class="btn btn-primary" data-action="evDone">Show me</button></div>`);
 }

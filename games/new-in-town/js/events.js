@@ -165,24 +165,6 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'fair', icon: '🎪', title: 'The Spring Fair', w: 4, cd: 12, when: (L) => L.season === 0,
-    text: 'Bunting on the green, a brass band, and three ways to make a fool of yourself.',
-    opts: [
-      { t: 'Enter the bake-off', check: ['craft', 40], run(L, x, win) { if (win) { L.cash(300); L.joy(5); L.gain('craft', 1); return 'First prize, a rosette and $300. The vicar asks for the recipe.'; } L.joy(-1); return 'The judge says "interesting" and moves on quickly.'; } },
-      { t: 'Join the tug of war', check: ['fitness', 40], run(L, x, win) { if (win) { L.cash(200); L.joy(5); return 'Your side drags the fire brigade through the mud. $200 and glory.'; } L.joy(1); return 'You are dragged through the mud by the fire brigade.'; } },
-      { t: 'Run the tombola', check: ['charm', 35], run(L, x, win) { L.karma(2); if (win) { L.gain('charm', 1.5); L.joy(3); return 'You sell every ticket. Someone wins a tin of peaches from 1987.'; } return 'A slow day at the tombola, but all for a good cause.'; } },
-    ],
-  },
-  {
-    id: 'regatta', icon: '🚣', title: 'Regatta Day', w: 4, cd: 12, when: (L) => L.season === 1,
-    text: 'The whole bay is out: flags, boats, ice cream and shouting.',
-    opts: [
-      { t: 'Row in the big race', check: ['fitness', 50], run(L, x, win) { if (win) { L.cash(1000); L.fame(1); L.joy(6); return 'Your crew wins by half a length. $1,000 and a silver cup for the pub shelf.'; } L.gain('fitness', 1); return 'Fourth. Out of four. Your hands are blisters.'; } },
-      { t: 'Bet $200 on the lifeboat crew', cost: 200, odds: () => 0.45, run(L, x, win) { if (win) { L.cash(500); return 'They storm it. You collect $500.'; } return 'They catch a crab at the turn. So does your $200.'; } },
-      { t: 'Sell ice creams', check: ['charm', 35], run(L, x, win) { if (win) { L.cash(400); return 'You sell out by two o’clock. $400.'; } L.cash(100); return 'It rains. You make $100 and eat the stock.'; } },
-    ],
-  },
-  {
     id: 'gala', icon: '🎄', title: 'The Winter Gala', w: 4, cd: 12, when: (L) => L.season === 3,
     text: 'The lifeboat fundraiser at the Town Hall: the one night Starling Bay dresses up.',
     opts: [

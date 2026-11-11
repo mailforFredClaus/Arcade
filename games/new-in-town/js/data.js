@@ -631,6 +631,9 @@ export const TROPHIES = {
   benefactor: { name: 'Benefactor', icon: '🏗️', desc: 'Give the town three things.', test: (L) => Object.keys(L.s.gave).length >= 3 },
   pier: { name: 'To the very end', icon: '🎡', desc: 'Rebuild the pier.', test: (L) => !!L.s.gave.pier },
   sides: { name: 'On the side', icon: '🧾', desc: 'Do ten sidelines.', test: (L) => (L.s.n.sides || 0) >= 10 },
+  rosette: { name: 'First prize', icon: '🏵️', desc: 'Win something at one of the year’s festivals.', test: (L) => Object.keys(L.s.fests).length >= 1 },
+  seasons4: { name: 'A year of rosettes', icon: '🎪', desc: 'Win something at all four festivals.', test: (L) => FESTS.every((f) => f.games.some((g) => L.s.fests[g.id])) },
+  reigning: { name: 'Reigning champion', icon: '👑', desc: 'Win the same contest three times.', test: (L) => Object.values(L.s.fests).some((n) => n >= 3) },
   slump: { name: 'Seen it all', icon: '📰', desc: 'Live through a boom and a deep slump.', test: (L) => !!L.s.f.sawBoom && !!L.s.f.sawSlump },
   dream1: { name: 'Dream come true', icon: '✨', desc: 'Make a dream come true.', test: (L) => Object.keys(L.s.dreamDone).length >= 1 },
   dream3: { name: 'Living the dream', icon: '🌈', desc: 'Make all three dreams come true in one life.', test: (L) => Object.keys(L.s.dreamDone).length >= 3 },
@@ -731,6 +734,34 @@ export const SIDELINES = {
   finance: { r: 2, icon: '🧾', title: 'Do the fishermen’s tax returns', desc: 'A carrier bag of receipts each. Some of the receipts are wet.', stat: 'smarts', dc: 50, pay: 1.8, win: 'Every one of them is owed a refund. You are bought a great deal of rum.', lose: 'One carrier bag turns out to be bait.' },
   politics: { r: 1, icon: '🎪', title: 'Open the church fête', desc: 'A short speech and a long afternoon.', stat: 'charm', dc: 45, pay: 0, karma: 3, fame: 2, win: 'You guess the weight of the cake to the ounce. People talk of little else.', lose: 'You call the vicar by the last vicar’s name. Twice.' },
 };
+
+// ---- the year's four festivals ----------------------------------------------------------
+
+// One each season (the list is in season order), at a place on the map,
+// with three things to enter: one go a year. A skill decides it, and a
+// reigning champion is given less room every time.
+export const FESTS = [
+  { id: 'fair', name: 'The Spring Fair', icon: '🎪', at: 'park', blurb: 'Bunting on the green, and a brass band.', games: [
+    { id: 'bake', icon: '🧁', title: 'Enter the bake-off', stat: 'craft', dc: 30, prize: 300, win: 'First prize and a rosette. The vicar asks for the recipe.', lose: 'The judge says "interesting" and moves on quickly.' },
+    { id: 'tug', icon: '🪢', title: 'Pull in the tug of war', stat: 'fitness', dc: 30, prize: 250, win: 'Your side drags the fire brigade through the mud.', lose: 'You are dragged through the mud by the fire brigade.' },
+    { id: 'tombola', icon: '🎟️', title: 'Run the tombola', stat: 'charm', dc: 25, prize: 0, karma: 3, win: 'You sell every ticket. Somebody wins a tin of peaches from 1987.', lose: 'A slow day at the tombola, but all in a good cause.' },
+  ] },
+  { id: 'regatta', name: 'Regatta Day', icon: '🚣', at: 'harbour', blurb: 'The whole bay is out: flags, boats, ice cream and shouting.', games: [
+    { id: 'row', icon: '🚣', title: 'Row in the big race', stat: 'fitness', dc: 38, prize: 600, fame: 1, win: 'Your crew wins by half a length, and there is a silver cup for the pub shelf.', lose: 'Fourth. Out of four. Your hands are blisters.' },
+    { id: 'castle', icon: '🏰', title: 'Enter the sandcastle contest', stat: 'craft', dc: 30, prize: 250, win: 'A scale model of the Town Hall, with the clock four minutes slow. The judges are speechless.', lose: 'The tide has views about your east tower.' },
+    { id: 'ices', icon: '🍦', title: 'Sell ice creams along the front', stat: 'charm', dc: 28, prize: 400, win: 'You sell out by two o’clock.', lose: 'It rains. You eat the stock.' },
+  ] },
+  { id: 'harvest', name: 'The Harvest Show', icon: '🌾', at: 'park', blurb: 'A big tent, long tables, and vegetables being taken very seriously.', games: [
+    { id: 'quiz', icon: '❓', title: 'Captain a team in the harvest quiz', stat: 'smarts', dc: 35, prize: 300, win: 'It comes down to the capital of Peru. You know the capital of Peru.', lose: 'You change a right answer to a wrong one, and your team watches you do it.' },
+    { id: 'pies', icon: '🥧', title: 'Enter the pie-eating', stat: 'fitness', dc: 28, prize: 150, win: 'Eleven. A parish record. You may never eat again.', lose: 'Beaten by a girl of nine, who then asks for pudding.' },
+    { id: 'jams', icon: '🍓', title: 'Judge the jams', stat: 'charm', dc: 33, prize: 0, karma: 2, fame: 1, win: 'You find something kind and true to say about forty jams. It is an art.', lose: 'You call Mrs Hadley’s damson "brave". She has not forgiven you.' },
+  ] },
+  { id: 'lights', name: 'The Winter Lights', icon: '🎄', at: 'highstreet', blurb: 'The lights go on along the High Street, usually at the second try.', games: [
+    { id: 'carols', icon: '🎶', title: 'Sing the solo at the carol concert', stat: 'craft', dc: 35, prize: 200, fame: 1, win: 'The last verse, unaccompanied, in the cold. Nobody coughs.', lose: 'You come in a bar early and stay there.' },
+    { id: 'swim', icon: '🥶', title: 'Take the New Year swim', stat: 'fitness', dc: 33, prize: 200, win: 'In, out, and a bacon roll. You feel immortal for about a week.', lose: 'You get as far as your knees, and make a noise people remember.' },
+    { id: 'panto', icon: '🎭', title: 'Play the dame in the pantomime', stat: 'charm', dc: 38, prize: 350, fame: 2, win: '"Oh no it isn’t!" Six nights and a matinee, and the best fun you have had in years.', lose: 'The wig comes off in the second act. The children think it is the best bit.' },
+  ] },
+];
 
 // ---- the allotment ----------------------------------------------------------------------
 

@@ -14,7 +14,7 @@ import { Life, ACTIONS, money, cashShort } from '../games/new-in-town/js/engine.
 import { EVENTS } from '../games/new-in-town/js/events.js';
 import {
   STATS, PLACES, CAREERS, SHIFTS_FOR_RUNG, COURSES, HOMES, UPGRADES, ITEMS, STOCKS, PROPS, PETS, DREAMS, QUESTS, TROPHIES, RIBBONS, BACKGROUNDS,
-  BUSINESSES, FISH, OUTINGS, KID_PLAY, PERKS, NAMES_M, NAMES_F, INSURANCE, FOOD, CROPS, PLOT_RENT, CURIOS, CURIO_SETS, ECO, many, aCurio, theCurio, GIFTS, SIDELINES,
+  BUSINESSES, FISH, OUTINGS, KID_PLAY, PERKS, NAMES_M, NAMES_F, INSURANCE, FOOD, CROPS, PLOT_RENT, CURIOS, CURIO_SETS, ECO, many, aCurio, theCurio, GIFTS, SIDELINES, FESTS,
 } from '../games/new-in-town/js/data.js';
 import { handTotal } from '../games/new-in-town/js/pier.js';
 import { CHIRPS } from '../games/new-in-town/js/fame.js';
@@ -1301,6 +1301,22 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', ...o 
   check(heir.gift('wing') === 'Test' && heir.plaques('hospital')[0].includes('Test') && heir.medCost(1000) === 500 && !heir.income().some(([w]) => w.includes('pier')) && heir.can('fund', 'pier') === 'It has been given.' && Object.keys(heir.s.gave).length === 0, 'the family’s gifts are still standing for the next of the line, though the seat on the board is not inherited');
   check(Life.create({ seed: 3, name: 'New' }).plaques('hospital').length === 0, 'a new family starts with a town that owes it nothing');
   check(Life.create({ seed: 3, name: 'B', heir: 'benefactor' }).s.karma === 25, 'the brass plaque starts you well thought of');
+  // The year's festivals.
+  check(FESTS.length === 4 && FESTS.every((f) => PLACES[f.at] && f.games.length === 3 && new Set(f.games.map((g) => g.stat)).size === 3 && f.games.every((g) => STATS.includes(g.stat) && g.win && g.lose)), 'four festivals, each with three contests for three different skills');
+  const F = fresh();
+  F.s.st = { smarts: 100, fitness: 100, charm: 100, craft: 100 };
+  const rows = F.placeActions('park').filter((a) => a.sec === 'The Spring Fair');
+  check(F.season === 0 && F.fest().id === 'fair' && rows.length === 3 && !F.placeActions('harbour').some((a) => a.sec === 'Regatta Day'), 'in spring the fair is on in the park');
+  const fc = F.s.cash;
+  let wonBake = false;
+  for (let i = 0; i < 20 && !wonBake; i++) { const X = new Life(JSON.parse(JSON.stringify(F.s))); X.s.rng = i * 7; X.act('fest00'); wonBake = X.s.fests.bake === 1 && X.s.cash === fc + 300 && X.can('fest01').includes('One entry') && X.festBar(FESTS[0].games[0]) === 36; }
+  check(wonBake, 'win the bake-off: a prize, one entry a year, and a harder time of it next spring');
+  F.s.fests = { bake: 9 };
+  check(F.festBar(FESTS[0].games[0]) === 60, 'though a champion’s handicap has a limit');
+  const won = new Set();
+  for (let y = 0; y < 30 && won.size < 4; y++) for (let q = 0; q < 4; q++) { F.s.use = {}; F.s.time = 1; F.act(`fest${F.season}1`); for (const f of FESTS) if (f.games.some((g) => F.s.fests[g.id])) won.add(f.id); F.endSeason(); F.s.pend = []; if (F.s.dead) break; }
+  check(won.size === 4 && F.s.ach.seasons4 && F.s.ach.rosette, 'a rosette from all four festivals in time');
+  check(F.gazette().items.some((it) => FESTS.some((f) => f.name === it.h)), 'the Gazette says what is on');
   // Sidelines.
   const W = fresh();
   W.s.job = { c: 'kitchen', r: 1, n: 0, perf: 50, raise: 0 };
