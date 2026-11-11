@@ -544,24 +544,25 @@ for (const [id, e] of Object.entries(EFFORT)) {
     place: (L) => (L.s.job ? CAREERS[L.s.job.c].place : null), sec: 'Work', icon: e.icon, time: 2, title: e.title,
     desc: (L) => ((L.s.use.work || 0) >= 3 ? 'You are worn out: more shifts this season will cost your health.' : e.desc(L)),
     show: (L) => !!L.s.job,
-    why: (L) => (L.playDue() ? 'The boss wants to watch you work today: do this shift by hand.' : null),
+    why: (L) => (L.playDue() ? `${CAREERS[L.s.job.c].shady ? 'Sal wants' : 'The boss wants'} to watch you work today: do this shift by hand.` : null),
     run: (L) => L.work(e),
   });
 }
 // A shift done by hand: x is how well you played the job's game, from 0 to 1
 // (the screen plays it; left out, it is a fair shift).
-const PLAYED = [{ n: 0.6, perf: -4, pay: 0.75 }, { n: 1, perf: 1, pay: 1 }, { n: 1.3, perf: 3, pay: 1.25 }, { n: 1.6, perf: 6, pay: 1.5 }];
+const PLAYED = [{ n: 0.6, perf: -4, pay: 0.75 }, { n: 1, perf: 1, pay: 1 }, { n: 1.2, perf: 3, pay: 1.25 }, { n: 1.4, perf: 5, pay: 1.5 }];
 def('workPlay', {
   place: (L) => (L.s.job ? CAREERS[L.s.job.c].place : null), sec: 'Work', time: 2,
   icon: (L) => JOB_GAMES[L.s.job.c].icon, title: (L) => JOB_GAMES[L.s.job.c].title,
-  desc: (L) => (L.playDue() ? 'The boss is watching today. Done well, it pays half as much again and counts for more.' : 'Play the shift. Done well, it pays up to half as much again and counts for more towards promotion; done badly, less.'),
+  desc: (L) => (L.playDue() ? `${CAREERS[L.s.job.c].shady ? 'Sal' : 'The boss'} is watching today: make a mess of it and it will be remembered. Done well, it pays up to half as much again and counts for more.` : 'Play the shift. Done well, it pays up to half as much again and counts for more towards promotion; done badly, less.'),
   show: (L) => !!L.s.job,
   why: (L, x) => (x === undefined || (typeof x === 'number' && x >= 0 && x <= 1) ? null : 'Roll your sleeves up.'),
   run(L, x) {
-    const s = L.s, c = s.job.c, g = grade(x === undefined ? 0.5 : x);
+    const s = L.s, c = s.job.c, g = grade(x === undefined ? 0.5 : x), watched = L.playDue();
     s.n.played = (s.n.played || 0) + 1;
     if (g === 3) s.aced[c] = (s.aced[c] || 0) + 1;
-    return L.work({ ...PLAYED[g], stress: 1, played: true, said: JOB_GAMES[c].said[g] });
+    // (A mess made in front of the boss costs twice over.)
+    return L.work({ ...PLAYED[g], perf: PLAYED[g].perf - (watched && g === 0 ? 4 : 0), stress: 1, played: true, said: JOB_GAMES[c].said[g] });
   },
 });
 def('drinks', {
@@ -1015,7 +1016,7 @@ export class Life {
   // The boss wants to see the next shift done by hand.
   playDue() { const j = this.s.job; return !!j && (j.auto || 0) >= PLAY_EVERY; }
   // What the screen needs to put this job's game on: which, how hard, and how much your skill helps.
-  shiftGame() { const j = this.s.job, k = JOB_GAMES[j.c]; return { id: k.game, title: k.title, icon: k.icon, level: j.r, ease: this.s.st[CAREERS[j.c].stats[0]] / 100 }; }
+  shiftGame() { const j = this.s.job, k = JOB_GAMES[j.c]; const stat = CAREERS[j.c].stats[0]; return { id: k.game, title: k.title, icon: k.icon, level: j.r, ease: this.s.st[stat] / 100, skill: STAT_NAME[stat] }; }
   jobTitle() { const j = this.s.job; return j ? CAREERS[j.c].rungs[j.r].title : ''; }
   // The best grade you hold in any course that belongs to a career.
   gradeFor(c) {
@@ -1118,7 +1119,7 @@ export class Life {
     if (!c.shady && this.friends().length < 20 && this.chance(0.06)) { const p = this.meet({ job: j.c }); text += ` You get talking to ${p.name} over the tea urn.`; }
     const up = this.nextRung();
     if (up && up.ready) {
-      j.r++; j.n = 0; j.raise = 0;
+      j.r++; j.n = 0; j.raise = 0; j.auto = 0;
       s.worked[j.c] = Math.max(s.worked[j.c] ?? 0, j.r);
       s.f.promoted = 1;
       this.joy(8);

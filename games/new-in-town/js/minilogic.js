@@ -6,7 +6,7 @@
 // dice: how well you play is up to you, not to the life's seed).
 
 // A score from 0 to 1 becomes a mark: 0 a shift to forget, 1 fair, 2 good, 3 a blinder.
-export const grade = (q) => (q >= 0.85 ? 3 : q >= 0.6 ? 2 : q >= 0.3 ? 1 : 0);
+export const grade = (q) => (q >= 0.9 ? 3 : q >= 0.65 ? 2 : q >= 0.35 ? 1 : 0);
 export const GRADE_WORD = ['A shift to forget', 'A fair shift', 'A good shift', 'A blinder'];
 
 const pick = (rnd, list) => list[Math.floor(rnd() * list.length)];
@@ -114,7 +114,8 @@ export function lineup(level, rnd) {
   while (faces.length < 6) {
     const f = { ...who, skin: Math.floor(rnd() * 6) };
     for (let k = 0; k < (level >= 3 ? 1 : 2); k++) {
-      const what = pick(rnd, f.sex === 'm' ? ['hair', 'top', 'beard'] : ['hair', 'top']);
+      // (A beard is too small a thing to tell two faces apart by: the first difference is hair or top.)
+      const what = pick(rnd, f.sex === 'm' && k > 0 ? ['hair', 'top', 'beard'] : ['hair', 'top']);
       if (what === 'hair') f.hair = pick(rnd, hairs.filter((h) => h !== f.hair));
       else if (what === 'top') f.top = pick(rnd, tops.filter((t) => t !== f.top));
       else f.beard = !f.beard;
@@ -179,14 +180,16 @@ export function tune(level, rnd) {
 
 // ---- the floor (finance) ----------------------------------------------------------------
 
-// A share price over n ticks: it swings, with a little noise, and ends about where it began.
+// A share price over n ticks: it starts at 100, swings, with a little noise, and ends where it began.
 export function ticker(n, rnd) {
-  const a = 0.5 + rnd(), b = 1.5 + rnd() * 1.5, pa = rnd() * 6.28, pb = rnd() * 6.28, out = [];
+  const a = 0.5 + rnd(), b = 1.5 + rnd() * 1.5, pa = rnd() * 6.28, pb = rnd() * 6.28, raw = [];
   for (let i = 0; i < n; i++) {
     const x = i / n * 6.28;
-    out.push(Math.round((100 + 18 * Math.sin(x * a * 2 + pa) + 9 * Math.sin(x * b * 3 + pb) + (rnd() - 0.5) * 5) * 100) / 100);
+    raw.push(100 + 11 * Math.sin(x * a * 2 + pa) + 6 * Math.sin(x * b * 3 + pb) + (rnd() - 0.5) * 3);
   }
-  return out;
+  // (Tilted so that it ends where it began.)
+  const drift = raw[n - 1] - raw[0];
+  return raw.map((v, i) => Math.round((v - drift * i / (n - 1) + 100 - raw[0]) * 100) / 100);
 }
 // The best that could have been made from it, buying and selling as often as you like (as a multiple of what you began with).
 export function bestTrade(p) {

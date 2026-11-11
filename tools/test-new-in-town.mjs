@@ -203,13 +203,13 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', sibs:
 {
   for (const c of Object.keys(CAREERS)) check(JOB_GAMES[c] && JOB_GAMES[c].said.length === 4 && JOB_GAMES[c].title.endsWith('yourself'), `${c}: has a game of its own`);
   check(new Set(Object.values(JOB_GAMES).map((k) => k.game)).size === Object.keys(CAREERS).length, 'and no two careers share one');
-  check(grade(0) === 0 && grade(0.3) === 1 && grade(0.6) === 2 && grade(0.85) === 3 && grade(1) === 3, 'a score becomes one of four marks');
+  check(grade(0) === 0 && grade(0.34) === 0 && grade(0.35) === 1 && grade(0.65) === 2 && grade(0.89) === 2 && grade(0.9) === 3 && grade(1) === 3, 'a score becomes one of four marks');
   const job = () => { const L = fresh(); L.s.job = { c: 'kitchen', r: 1, n: 0, perf: 50, raise: 0 }; L.s.time = 2; return L; };
   const run = (x) => { const L = job(); const cash = L.s.cash; const r = L.act('workPlay', x); return { L, r, pay: L.s.cash - cash }; };
   const plain = (() => { const L = job(); const cash = L.s.cash; L.act('work'); return { L, pay: L.s.cash - cash }; })();
   const bad = run(0.1), fair = run(0.45), good = run(0.7), great = run(1), unplayed = run(undefined);
   check(great.r.ok && great.pay === Math.round(plain.pay * 1.5 / 10) * 10 && good.pay === Math.round(plain.pay * 1.25 / 10) * 10 && fair.pay === plain.pay && bad.pay === Math.round(plain.pay * 0.75 / 10) * 10, 'played well a shift pays half as much again; played badly, a quarter less');
-  check(great.L.s.job.n === 1.6 && good.L.s.job.n === 1.3 && fair.L.s.job.n === 1 && bad.L.s.job.n === 0.6, 'and it counts for more, or less, towards promotion');
+  check(great.L.s.job.n === 1.4 && good.L.s.job.n === 1.2 && fair.L.s.job.n === 1 && bad.L.s.job.n === 0.6, 'and it counts for more, or less, towards promotion');
   check(great.L.s.job.perf > plain.L.s.job.perf && bad.L.s.job.perf < plain.L.s.job.perf, 'and the boss notices which');
   check(great.r.text.startsWith(JOB_GAMES.kitchen.said[3]) && bad.r.text.startsWith(JOB_GAMES.kitchen.said[0]), 'what is said fits how it went');
   check(great.L.s.aced.kitchen === 1 && great.L.s.ach.blinder && !good.L.s.aced.kitchen && great.L.s.n.played === 1, 'a blinder is remembered');
@@ -225,11 +225,24 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', sibs:
   L.act('workPlay', 0.5);
   check(!L.playDue() && L.s.job.auto === 0 && !L.can('work'), 'one shift by hand and the rest can look after themselves again');
   const g = L.shiftGame();
-  check(g.id === 'pans' && g.level === 1 && g.ease === L.s.st.craft / 100 && g.title && g.icon, 'the screen is told which game, how hard, and how much your skill helps');
+  check(g.id === 'pans' && g.level === 1 && g.ease === L.s.st.craft / 100 && g.skill === 'Craft' && g.title && g.icon, 'the screen is told which game, how hard, and how much your skill helps');
+  // A mess made while the boss is watching costs more than one made unwatched.
+  const seen = job(), unseen = job();
+  seen.s.job.auto = PLAY_EVERY;
+  seen.act('workPlay', 0); unseen.act('workPlay', 0);
+  check(seen.s.job.perf === unseen.s.job.perf - 4, 'a mess made in front of the boss is remembered');
+  // Promotion starts the count again.
+  const up = job();
+  up.s.job = { c: 'kitchen', r: 0, n: SHIFTS_FOR_RUNG[1] - 1, perf: 50, raise: 0, auto: PLAY_EVERY - 1 };
+  for (const k of STATS) up.s.st[k] = 100;
+  up.act('work');
+  check(up.s.job.r === 1 && up.s.job.auto === 0 && !up.playDue(), 'a new post starts with nobody looking over your shoulder');
   const crew = fresh();
   crew.s.job = { c: 'crew', r: 0, n: 0, perf: 50, raise: 0 }; crew.s.time = 2;
   crew.act('workPlay', 1);
   check(crew.s.n.crimes === 1 && crew.s.aced.crew === 1, 'a shift for Sal done by hand is still a crime');
+  crew.s.job.auto = PLAY_EVERY; crew.s.time = 2;
+  check(crew.can('work').startsWith('Sal wants'), 'and it is Sal who wants to watch');
 
   // The puzzles can always be done.
   let seed = 12345;
@@ -260,6 +273,7 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', sibs:
   for (let lv = 0; lv <= 5; lv++) for (let i = 0; i < 100; i++) {
     const l = lineup(lv, rnd), w = l.faces[l.who], fits = l.faces.filter((f) => f.sex === w.sex && f.hair === w.hair && f.top === w.top && f.beard === w.beard);
     if (l.faces.length !== 6 || fits.length !== 1 || !l.says.includes(w.sex === 'm' ? 'man' : 'woman')) { check(false, 'the description fits exactly one face'); break; }
+    if (l.faces.some((f) => f !== w && f.hair === w.hair && f.top === w.top)) { check(false, 'no face differs from the right one by a beard alone'); break; }
     const sp = smallPrint(lv, rnd);
     if (sp.rows.filter((r) => r.was !== r.now).length !== 1 || sp.rows[sp.odd].was === sp.rows[sp.odd].now) { check(false, 'exactly one clause has been changed'); break; }
     const q = sum(lv, rnd), m = q.text.match(/^(\d+) (.) (\d+) = (-?\d+)$/);
@@ -268,7 +282,7 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', sibs:
     const t = tune(lv, rnd);
     if (t.length < 16 || t.some((n, k) => n.lane < 0 || n.lane > 3 || (k && n.t <= t[k - 1].t)) || t[t.length - 1].t > 19.5) { check(false, 'a tune is a run of notes in four lanes'); break; }
   }
-  for (let i = 0; i < 100; i++) { const p = ticker(200, rnd); if (p.length !== 200 || p.some((v) => !(v > 40 && v < 170)) || bestTrade(p) < 1.5) { check(false, 'a share price swings enough to trade on'); break; } }
+  for (let i = 0; i < 100; i++) { const p = ticker(200, rnd); if (p.length !== 200 || p.some((v) => !(v > 60 && v < 140)) || bestTrade(p) < 1.3 || Math.abs(p[199] - p[0]) > 0.02 || Math.abs(p[0] - 100) > 0.02) { check(false, `a share price swings enough to trade on, and ends where it began (${p[0]} to ${p[199]}, best ${bestTrade(p).toFixed(2)})`); break; } }
 }
 
 // ---- study, and where it gets you -------------------------------------------------------

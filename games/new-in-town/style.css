@@ -538,12 +538,12 @@ summary { font-size: 12.5px; font-weight: 900; color: var(--teal-d); cursor: poi
 /* ---- a shift done by hand: the frame every game sits in ---- */
 .act.play { box-shadow: 0 2px 0 var(--line), inset 0 0 0 2px #cfeaf0; }
 .act.play.due { box-shadow: 0 0 0 2.5px var(--sun), 0 2px 0 var(--line); }
-.mini { position: fixed; inset: 0; z-index: 40; display: flex; flex-direction: column; background: #fbf6ea; padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom); touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.mini { position: fixed; inset: 0; z-index: 55; display: flex; flex-direction: column; background: #fbf6ea; padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom); touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .mini[hidden] { display: none; }
 .mini-top { display: flex; align-items: center; gap: 10px; padding: 12px 14px 8px; }
 .mini-ico { font-size: 26px; }
 .mini-top b { flex: 1; font-size: 18px; font-weight: 900; }
-.mini-quit { padding: 8px 12px; border-radius: 12px; background: #f1eadb; color: #6b6048; font-size: 13px; font-weight: 800; }
+.mini-quit { min-width: 84px; min-height: 44px; padding: 8px 14px; border-radius: 12px; background: #f1eadb; color: #6b6048; font-size: 14px; font-weight: 800; text-align: center; }
 .mini-clock { height: 8px; margin: 0 14px; border-radius: 4px; background: #efe6d3; overflow: hidden; }
 .mini-clock span { display: block; height: 100%; width: 100%; border-radius: 4px; background: var(--teal); transition: width .1s linear; }
 .mini-stage { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 14px; position: relative; overflow: hidden; }
@@ -558,7 +558,9 @@ summary { font-size: 12.5px; font-weight: 900; color: var(--teal-d); cursor: poi
 .mg-row { display: flex; gap: 10px; justify-content: center; align-items: center; }
 .mg-tally { margin: 0; font-size: 14px; font-weight: 800; color: var(--muted); text-align: center; min-height: 1.3em; }
 .mini-end { position: absolute; left: 50%; top: 44%; transform: translate(-50%, -50%); display: grid; justify-items: center; gap: 4px; padding: 18px 28px; border-radius: 22px; background: #fffaf0; box-shadow: 0 14px 40px rgba(31, 42, 68, .35); animation: drop .25s; z-index: 5; }
-.mini-end i { font-style: normal; font-size: 40px; color: var(--sun); letter-spacing: 2px; text-shadow: 0 2px 0 #c99a1f; }
+.mini-end i { font-style: normal; font-size: 40px; letter-spacing: 2px; }
+.mini-end i b { font-size: inherit; color: var(--sun); text-shadow: 0 2px 0 #c99a1f; }
+.mini-end i s { text-decoration: none; color: #e4dcc8; }
 .mini-end b { font-size: 20px; font-weight: 900; white-space: nowrap; }
 .mini.done .mini-stage { opacity: .45; pointer-events: none; }
 
@@ -601,8 +603,8 @@ summary { font-size: 12.5px; font-weight: 900; color: var(--teal-d); cursor: poi
 .mg-sweep .c1 { color: #2a7fb8; } .mg-sweep .c2 { color: #1f9d62; } .mg-sweep .c3 { color: #d8433a; } .mg-sweep .c4 { color: #7a3fb8; } .mg-sweep .c5, .mg-sweep .c6 { color: #8a4a3a; }
 
 /* medicine */
-.mg-steady { width: min(330px, 100%); flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px; }
-.mg-steady svg { flex: 1; min-height: 0; width: 100%; border-radius: 16px; background: #fff; box-shadow: 0 2px 0 var(--line); }
+.mg-steady { width: 100%; flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
+.mg-steady svg { flex: 0 1 auto; min-height: 0; height: 100%; max-height: 460px; aspect-ratio: 3 / 4; max-width: 100%; border-radius: 16px; background: #fff; box-shadow: 0 2px 0 var(--line); touch-action: none; }
 .mg-steady .tube { fill: none; stroke: #f6dede; stroke-linecap: round; stroke-linejoin: round; }
 .mg-steady .line { fill: none; stroke: #d9a3a3; stroke-width: 2; stroke-dasharray: 5 5; }
 .mg-steady .done { fill: none; stroke: #1f9d62; stroke-width: 5; stroke-linecap: round; }

@@ -978,7 +978,7 @@ const ui = cards({
     ui.show(`<h2>Start a new life?</h2><p>${esc(life.s.name)}'s story will end here, unfinished. Trophies and ribbons you have earned are kept.</p>
       <div class="actions"><button class="btn btn-primary" data-action="freshYes">Yes, start again</button><button class="btn btn-soft" data-action="menu">No, go back</button></div>`);
   },
-  freshYes() { ui.close(); quitMini(); life = null; sheets = []; raceShow = null; bjShow = null; if (cast) { clearTimeout(cast.timer); cast = null; $('cast').hidden = true; } save.next = null; save.counted = false; save.fresh = false; persist(); showStart(); },
+  freshYes() { ui.close(); quitMini(true); life = null; sheets = []; raceShow = null; bjShow = null; if (cast) { clearTimeout(cast.timer); cast = null; $('cast').hidden = true; } save.next = null; save.counted = false; save.fresh = false; persist(); showStart(); },
   begin() {
     ui.close(); sfx('win');
     // The very first time, say how it all works.
