@@ -542,6 +542,19 @@ for (const [id, e] of Object.entries(EFFORT)) {
     run: (L) => L.work(e),
   });
 }
+def('drinks', {
+  place: (L) => (L.s.job && !CAREERS[L.s.job.c].shady ? CAREERS[L.s.job.c].place : null), sec: 'Work', icon: '🍺', title: 'A drink with the others after work', cost: 30, per: 1,
+  desc: 'Good for your standing, and for knowing the people you work with.',
+  show: (L) => !!L.s.job && !CAREERS[L.s.job.c].shady,
+  run(L) {
+    const s = L.s, j = s.job, mates = L.friends().filter((p) => p.job === j.c);
+    for (const p of mates) L.bond(p, 6);
+    j.perf = clamp(j.perf + 1, 0, 100);
+    L.gain('charm', 0.8); L.joy(3);
+    if (L.friends().length < 20 && L.chance(mates.length ? 0.25 : 0.5)) { const p = L.meet({ job: j.c }); return `You end up in a corner with ${p.name}, putting the whole place to rights.`; }
+    return mates.length ? `${mates[0].name} does the boss’s voice. The boss, it turns out, is standing behind ${mates[0].sex === 'm' ? 'him' : 'her'}.` : L.pick(['Somebody gets a round in. Somebody always does.', 'You learn who is leaving, who is not speaking to whom, and where the good biscuits are kept.']);
+  },
+});
 def('raise', {
   place: (L) => (L.s.job ? CAREERS[L.s.job.c].place : null), sec: 'Work', icon: '💷', title: 'Ask for a pay rise', time: 0,
   desc: (L) => `Your chances: ${Math.round(L.raiseOdds() * 100)}%. Better if the boss thinks well of you.`,
@@ -1072,6 +1085,8 @@ export class Life {
     s.use.work = (s.use.work || 0) + 1;
     if (s.use.work > 3) { this.hp(-3, 'overwork'); this.joy(-2); text += ' You are running on fumes.'; }
     if (c.shady && this.crime(0.02, 2, 'one of Sal\u2019s little jobs', 2)) text += ' And then, round the corner, a constable.';
+    // Now and then somebody at work becomes a friend.
+    if (!c.shady && this.friends().length < 20 && this.chance(0.06)) { const p = this.meet({ job: j.c }); text += ` You get talking to ${p.name} over the tea urn.`; }
     const up = this.nextRung();
     if (up && up.ready) {
       j.r++; j.n = 0; j.raise = 0;

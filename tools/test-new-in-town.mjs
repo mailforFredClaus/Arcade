@@ -1510,6 +1510,16 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', sibs:
   for (let y = 0; y < 30 && won.size < 4; y++) for (let q = 0; q < 4; q++) { F.s.use = {}; F.s.time = 1; F.act(`fest${F.season}1`); for (const f of FESTS) if (f.games.some((g) => F.s.fests[g.id])) won.add(f.id); F.endSeason(); F.s.pend = []; if (F.s.dead) break; }
   check(won.size === 4 && F.s.ach.seasons4 && F.s.ach.rosette, 'a rosette from all four festivals in time');
   check(F.gazette().items.some((it) => FESTS.some((f) => f.name === it.h)), 'the Gazette says what is on');
+  // The people you work with.
+  const Wk = fresh();
+  Wk.s.job = { c: 'kitchen', r: 1, n: 0, perf: 50, raise: 0 };
+  let mates = 0;
+  for (let i = 0; i < 200 && Wk.friends().length < 20; i++) { Wk.s.time = 6; Wk.s.use = {}; Wk.s.health = 90; Wk.s.happy = 60; Wk.act('work'); }
+  mates = Wk.friends().filter((q) => q.job === 'kitchen').length;
+  check(mates >= 3 && mates === Wk.friends().length, `some of the people you work with become friends, in your own line of work (${mates} in 200 shifts)`);
+  const mate = Wk.friends()[0], mb = mate.bond, perf = Wk.s.job.perf;
+  Wk.s.use = {}; Wk.s.time = 6;
+  check(Wk.act('drinks').ok && mate.bond === mb + 6 && Wk.s.job.perf === Math.min(100, perf + 1) && Wk.can('drinks') === 'Once a season.', 'a drink after work brings you closer, once a season');
   // Sidelines.
   const W = fresh();
   W.s.job = { c: 'kitchen', r: 1, n: 0, perf: 50, raise: 0 };
