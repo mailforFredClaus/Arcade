@@ -40,6 +40,8 @@ export function install({ def, A, Life, clamp }) {
     // The chance a piece of villainy ends with a hand on your collar.
     riskOf(base) {
       const s = this.s, crew = s.job && s.job.c === 'crew' ? s.job.r * 0.01 : 0;
+      // (On the run, every constable knows your face.)
+      if (s.run) base += 0.08;
       return clamp(base + s.heat / 400 + Math.min(4, s.record) * 0.02 - s.st.smarts / 1000 - (this.perk('police') ? 0.04 : 0) - (this.perk('crew') ? 0.03 : 0) - (s.heir === 'rogue' ? 0.06 : 0) - crew, 0.03, 0.85);
     },
     // Commits one: it is counted, your name suffers and the law takes an
@@ -59,7 +61,10 @@ export function install({ def, A, Life, clamp }) {
     sentence(sev) {
       const s = this.s, again = s.record >= 1;
       if (sev <= 0) return 'A stern talking-to, and you are let go. This time.';
-      const n = [0, 0, 2, 5, 12][Math.min(4, sev)] + (again ? [0, 1, 1, 2, 4][Math.min(4, sev)] : 0);
+      let n = [0, 0, 2, 5, 12][Math.min(4, sev)] + (again ? [0, 1, 1, 2, 4][Math.min(4, sev)] : 0);
+      // Caught again while out on licence: the rest of the old sentence comes back too.
+      if (n && s.t < (s.f.licence || 0)) { n += 2; s.f.licence = 0; }
+      if (n > 1 && s.heir === 'lag') n--;
       if (!n) {
         const fine = this.perk('law') ? 800 : 1500;
         s.record++;
@@ -155,7 +160,9 @@ export function install({ def, A, Life, clamp }) {
         if (L.crime(base, sev, `${i === 2 ? 'the Manor’s' : 'somebody else’s'} silver in a pillowcase`)) return L.pick(['The dog was not in the plans.', 'You are halfway out of the window when the lights come on.', 'A neighbour, a telephone, a blue lamp.']);
         const got = L.int(lo / 100, hi / 100) * 100;
         L.cash(got); L.s.n.thefts = (L.s.n.thefts || 0) + 1;
-        return `${L.pick(['In by the scullery, out by the front door like you own the place.', 'Silver, a clock, and a painting of a horse.', 'You leave the fridge as you found it. You are not an animal.'])} Sal’s man gives you ${money(got)}.`;
+        // Now and then there is something too good to fence.
+        const kept = L.chance(0.15 + i * 0.1) ? L.gotCurio(L.anyCurio()) : null;
+        return `${L.pick(['In by the scullery, out by the front door like you own the place.', 'Silver, a clock, and a painting of a horse.', 'You leave the fridge as you found it. You are not an animal.'])} Sal’s man gives you ${money(got)}.${kept ? ` You keep back a ${kept.name.toLowerCase()} for yourself.` : ''}`;
       },
     });
   });
@@ -294,7 +301,9 @@ export function install({ def, A, Life, clamp }) {
       L.gain('fitness', 0.8);
       if (won) { L.joy(4); L.fame(0.3); s.n.fights = (s.n.fights || 0) + 1; } else L.rough(10, 'a fight');
       const nicked = L.crime(0.12, 1, 'a broken stool and somebody’s tooth');
-      return `${won ? 'One punch, a table of spilled drinks, and he stays down.' : 'He is bigger than he looked sitting down.'}${nicked ? ' And then the constable is in the doorway.' : won ? ' The landlord bars you until Thursday.' : ' The landlord puts a steak on your eye.'}`;
+      // Some people do not let a thing like that go.
+      const foe = L.enemies().length < 3 && L.chance(0.3) ? L.foe({ sex: 'm', grudge: won ? 55 : 35 }) : null;
+      return `${won ? 'One punch, a table of spilled drinks, and he stays down.' : 'He is bigger than he looked sitting down.'}${nicked ? ' And then the constable is in the doorway.' : won ? ' The landlord bars you until Thursday.' : ' The landlord puts a steak on your eye.'}${foe ? ` His name, you learn later, is ${foe.name}, and he is not the forgiving sort.` : ''}`;
     },
   });
   def('fling', {
@@ -330,7 +339,7 @@ export function install({ def, A, Life, clamp }) {
   def('scrounge', {
     who: true, sec: 'Behave badly', icon: '🫴', title: 'Ask for money', time: 0,
     desc: (L, p) => `You have no intention of paying it back. ${Math.round(L.checkOdds('charm', 45) * 100)}% ${p.sex === 'm' ? 'he' : 'she'} coughs up.`,
-    show: (L, p) => p.kind !== 'child' || p.age >= 18,
+    show: (L, p) => p.kind !== 'ex' && p.kind !== 'enemy' && (p.kind !== 'child' || p.age >= 18),
     why: (L, p) => (L.s.t - (p.asked ?? -99) < 4 ? `You asked ${p.sex === 'm' ? 'him' : 'her'} not long ago.` : p.bond < 15 ? 'You are hardly on speaking terms.' : null),
     run(L, p) {
       p.asked = L.s.t; L.karma(-1);

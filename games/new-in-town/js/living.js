@@ -97,7 +97,8 @@ export function install({ def, A, Life, clamp }) {
       this.say('💘', `You are seeing ${p.name}`, 'good');
       return how;
     },
-    split(p, yours) {
+    // yours: it was your doing. grudge: how hard they take it.
+    split(p, yours, grudge = yours ? 30 : 15) {
       const s = this.s;
       let text;
       // A baby on the way goes with its mother.
@@ -111,7 +112,7 @@ export function install({ def, A, Life, clamp }) {
         s.f.divorced = 1;
         this.note(`Divorced ${p.name}.`, 'love');
         text = `It is over. The lawyers take their time and ${p.name} takes ${money(half)}.`;
-        s.people.splice(s.people.indexOf(p), 1);
+        this.makeEx(p, Math.max(45, grudge));
         return text;
       }
       this.joy(yours ? -5 : -10);
@@ -121,7 +122,7 @@ export function install({ def, A, Life, clamp }) {
         Object.assign(p, { kind: 'friend', bond: 30, single: true, live: false });
         return `You tell ${p.name} it is not working. A long evening, but ${he(p)} takes it well: friends, then.`;
       }
-      s.people.splice(s.people.indexOf(p), 1);
+      this.makeEx(p, grudge);
       return yours ? `You tell ${p.name} it is not working. It is a long evening.` : `${p.name} is gone.`;
     },
     // A child, a year older.
@@ -194,7 +195,7 @@ export function install({ def, A, Life, clamp }) {
   });
   def('gift', {
     who: true, sec: 'Keep in touch', title: 'Give a present', icon: '🎁', desc: 'Once a season.', time: 0, cost: 80,
-    show: (L, p) => p.kind !== 'child' || p.age >= 3,
+    show: (L, p) => p.kind !== 'ex' && p.kind !== 'enemy' && (p.kind !== 'child' || p.age >= 3),
     why: (L, p) => (L.s.use[`gift${p.id}`] ? 'Once a season.' : null),
     run(L, p) { L.s.use[`gift${p.id}`] = 1; L.bond(p, 6); return `${p.name} ${L.pick(['is delighted', 'pretends to be surprised', 'says you should not have, twice'])}.`; },
   });
@@ -240,11 +241,11 @@ export function install({ def, A, Life, clamp }) {
     run(L, p) { return L.split(p, true); },
   });
   def('forget', {
-    who: true, sec: 'Keep in touch', title: 'Lose touch', icon: '👋', desc: 'Let this friendship go.', time: 0,
-    show: (L, p) => p.kind === 'friend',
-    run(L, p) { L.s.people.splice(L.s.people.indexOf(p), 1); return `You stop calling. So does ${p.name}. It happens.`; },
+    who: true, sec: (L, p) => (p.kind === 'ex' ? 'Old flames' : 'Keep in touch'), title: (L, p) => (p.kind === 'ex' ? `Lose ${p.sex === 'm' ? 'his' : 'her'} number` : 'Lose touch'), icon: '👋', desc: (L, p) => (p.kind === 'ex' ? 'It is over. Let it be over.' : 'Let this friendship go.'), time: 0,
+    show: (L, p) => p.kind === 'friend' || p.kind === 'ex',
+    run(L, p) { L.s.people.splice(L.s.people.indexOf(p), 1); return p.kind === 'ex' ? `You tear the page out of your address book. ${p.name} is the past.` : `You stop calling. So does ${p.name}. It happens.`; },
   });
-  const PEOPLE = ['out', 'kid', 'askout', 'movein', 'propose', 'baby', 'split', 'school', 'call', 'gift', 'forget', 'scrounge'];
+  const PEOPLE = ['out', 'kid', 'askout', 'movein', 'propose', 'baby', 'split', 'school', 'call', 'gift', 'winback', 'oldtimes', 'mend', 'prank', 'rumour', 'thump', 'lean', 'forget', 'scrounge'];
 
   // Meeting someone with romance in mind, no friendship first.
   def('chatup', {
@@ -483,7 +484,7 @@ export function install({ def, A, Life, clamp }) {
       const s = this.s, b = s.biz;
       if (!b) return 0;
       const k = BUSINESSES[b.type], skill = s.st[k.stats[0]] * 0.6 + s.st[k.stats[1]] * 0.4;
-      return k.take[b.lvl] * (0.5 + skill / 100) * (0.7 + b.rep / 200) * (s.heir === 'founder' ? 1.15 : 1);
+      return k.take[b.lvl] * (0.5 + skill / 100) * (0.7 + b.rep / 200) * (s.heir === 'founder' ? 1.15 : 1) * (1 + 0.07 * s.eco);
     },
     // What it earns in a season without you: nothing while it is only you,
     // a little once there are staff, most of it with a manager.

@@ -7,8 +7,11 @@ import { Life } from './engine.js';
 import {
   money, cashShort, SEASONS, SEASON_ICON, STATS, STAT_NAME, STAT_ICON, PLACES, CAREERS, COURSES, GRADES, STUDENT_RATE, HOMES, UPGRADES, FOOD, INSURANCE, ITEMS,
   STOCKS, PROPS, BUSINESSES, FISH, OUTINGS, PERKS, PETS, TRAITS, BACKGROUNDS, LOOKS, DREAMS, QUESTS, TROPHIES, RIBBONS, RIBBON, NAMES_M, NAMES_F, LOAN_RATE,
+  CROPS, PLOT_RENT, CURIOS, CURIO_SETS, many,
 } from './data.js';
-import { townSvg, face, spark, placeTier } from './art.js';
+import { handTotal } from './pier.js';
+import { CHIRPS } from './fame.js';
+import { townSvg, gaolSvg, face, spark, placeTier } from './art.js';
 import { store, sfx, haptic, unlockAudio, lockViewport, registerOffline } from '../../../shared/arcade.js';
 import { cards, switchRow, confetti, toast, ICON } from '../../../shared/ui.js';
 
@@ -58,7 +61,7 @@ function renderTop() {
   $('app').className = `app s${life.season}`;
   $('ava').innerHTML = face(s.look, s.age, s.happy, s.sex);
   $('whoName').textContent = s.name;
-  $('whoSub').textContent = `Age ${s.age} · ${life.jobTitle() || (s.retired ? 'Retired' : 'Between jobs')}`;
+  $('whoSub').textContent = `Age ${s.age} · ${s.gaol ? 'Starling Gaol' : life.jobTitle() || (s.retired ? 'Retired' : 'Between jobs')}`;
   $('cash').textContent = cashShort(s.cash);
   $('date').textContent = `${SEASON_ICON[life.season]} ${SEASONS[life.season]}, year ${life.year}`;
   meter('mHealth', s.health, life.healthCap());
@@ -67,7 +70,9 @@ function renderTop() {
   $('pips').innerHTML = `<small>Time</small>${Array.from({ length: max }, (_, i) => `<i class="${i < s.time ? 'on' : ''}"></i>`).join('')}`;
   const q = QUESTS[s.quest];
   const todo = $('todo');
-  if (s.ill) { todo.className = 'todo ill'; todo.innerHTML = `<i>🤒</i><span>${esc(s.ill.name[0].toUpperCase() + s.ill.name.slice(1))}: the hospital can treat it.</span>`; }
+  if (s.gaol) { todo.className = 'todo ill'; todo.innerHTML = `<i>⛓️</i><span>${s.gaol.left} season${s.gaol.left > 1 ? 's' : ''} to serve. ${esc(life.goodWord())}.</span>`; }
+  else if (s.run) { todo.className = 'todo ill'; todo.innerHTML = '<i>🚨</i><span>On the run. Lie low until the law loses interest.</span>'; }
+  else if (s.ill) { todo.className = 'todo ill'; todo.innerHTML = `<i>🤒</i><span>${esc(s.ill.name[0].toUpperCase() + s.ill.name.slice(1))}: the hospital can treat it.</span>`; }
   else if (q) { todo.className = 'todo'; todo.innerHTML = `<i>🎯</i><span>${esc(q.text)}</span><b>${money(q.cash)}</b>`; }
   else { todo.className = 'todo'; todo.innerHTML = `<i>✨</i><span>Dreams: ${s.dreams.map((id) => `${DREAMS[id].icon}${s.dreamDone[id] ? '✓' : ''}`).join(' ')}</span>`; }
   $('nextSub').textContent = SEASONS[(life.season + 1) % 4].toLowerCase();
@@ -87,10 +92,27 @@ function meter(id, v, cap) {
 
 function renderPanel() {
   for (const [k, id] of [['town', 'pTown'], ['me', 'pMe'], ['people', 'pPeople'], ['journal', 'pJournal']]) $(id).hidden = tab !== k;
-  if (tab === 'town') renderMap();
+  const inside = !!life.s.gaol;
+  $('map').hidden = inside; $('gaol').hidden = !inside;
+  if (tab === 'town') { if (inside) renderGaol(); else renderMap(); }
   else if (tab === 'me') $('pMe').innerHTML = meHtml();
   else if (tab === 'people') $('pPeople').innerHTML = peopleHtml();
   else $('pJournal').innerHTML = journalHtml();
+}
+
+// ---- prison -----------------------------------------------------------------------------
+
+// Inside there is no map: the town tab is the cell, and everything there is to do.
+function renderGaol() {
+  const s = life.s, q = s.gaol, box = $('gaol'), keep = box.scrollTop;
+  const bar = (ico, label, v, word, colour) => `<div class="skill"><i>${ico}</i><span>${label}</span><span class="bar"><span style="width:${v}%;background:${colour}"></span></span><b>${Math.round(v)}</b></div><p class="fine">${word}</p>`;
+  box.innerHTML = `<div class="box cell">${gaolSvg(life.season, q.served)}<div class="cell-text"><h2>Starling Gaol</h2><p>${q.left} season${q.left > 1 ? 's' : ''} to serve, ${q.served} done${q.inSol ? ' · in the block this season' : ''}</p></div></div>
+    ${result && !sheets.length ? `<div class="box said${result.fresh ? ' flash' : ''}"><p>${esc(result.text)}</p><div class="chgs">${chips(result.changes)}</div></div>` : ''}
+    <div class="box">${bar('📋', 'Record', q.good, `${life.goodWord()}. This is what the parole board reads.`, 'var(--teal)')}${bar('🥫', 'Standing', q.rep, `${life.repWord()}. This is what keeps you safe on the landing.`, 'var(--coral)')}
+      ${q.total >= 3 && q.served * 2 < q.total ? `<p class="fine">The parole board sits once half your time is done: about ${Math.round(life.paroleOdds() * 100)}% they would let you go, as things stand.</p>` : ''}</div>
+    <div class="acts">${sections(life.placeActions('gaol'))}</div>`;
+  if (result) result.fresh = false;
+  box.scrollTop = keep;
 }
 
 // ---- the map ----------------------------------------------------------------------------
@@ -125,7 +147,7 @@ function fitMap() {
 window.addEventListener('resize', fitMap);
 
 function goTo(place) {
-  if (busy || !life || life.s.dead) return;
+  if (busy || !life || life.s.dead || life.s.gaol) return;
   sfx('tap');
   const far = here !== place;
   here = place;
@@ -412,6 +434,101 @@ const SHEET = {
     return { icon: '🃏', title: 'Higher or Lower', sub: 'The Lucky Gull', body };
   },
 
+  blackjack() {
+    const s = life.s, h = s.bj, o = h ? null : bjShow;
+    const one = (c, i) => `<span class="pc${i % 2 ? ' red' : ''}">${{ 1: 'A', 11: 'J', 12: 'Q', 13: 'K' }[c] || c}<small>${'♠♥♣♦'[i % 4]}</small></span>`;
+    const blank = '<span class="pc back"></span>';
+    const hand = (cards, hide) => (cards.length ? cards.map((c, i) => (hide && i === 1 ? blank : one(c, i))).join('') : blank + blank);
+    const bets = [50, 500, 5000, 50000].filter((b) => b <= 500 || s.cash + s.bank >= b);
+    const me = h ? h.me : o ? o.me : [], dl = h ? h.dl : o ? o.dl : [];
+    let body = `<p class="hand-of">Dealer${dl.length ? ` · ${h ? '?' : handTotal(dl)}` : ''}</p><div class="hand">${hand(dl, !!h)}</div>
+      <p class="hand-of">You${me.length ? ` · ${handTotal(me)}` : ''}</p><div class="hand">${hand(me, false)}</div>`;
+    if (h) body += `<p class="slot-say">Your stake is ${money(h.bet)}</p><div class="picks mid">${pick('Hit', 'bjHit')}${pick('Stand', 'bjStand', undefined, null, 'quiet')}${h.me.length === 2 ? pick(`Double · ${cashShort(h.bet)}`, 'bjDouble', undefined, life.can('bjDouble'), 'quiet') : ''}</div>`;
+    else body += `<p class="slot-say ${o && o.pay > o.bet ? 'won' : ''}">${o ? esc(o.text) : 'Closest to twenty-one wins.'}</p><div class="picks mid">${bets.map((b) => pick(`Deal ${cashShort(b)}`, 'bjStart', b, life.can('bjStart', b))).join('')}</div>`;
+    body += `<p class="fine mid">Picture cards count ten; an ace is one or eleven. The dealer draws to 17. Blackjack (an ace and a ten, dealt) pays three to two. Double: twice the stake, for exactly one more card.<br>You have ${money(s.cash)} on you.</p>`;
+    return { icon: '♠️', title: 'Blackjack', sub: 'The Lucky Gull', body };
+  },
+
+  races() {
+    const s = life.s, o = raceShow;
+    const bets = [50, 500, 5000, 50000].filter((b) => b <= 500 || s.cash + s.bank >= b);
+    if (!bets.includes(raceStake)) raceStake = 50;
+    let body;
+    if (o) {
+      const place = (i) => o.out.order.indexOf(i);
+      body = `<div class="lanes ${o.running ? 'go' : 'done'}">${o.out.card.map((g, i) => `<div class="lane${i === o.out.pick ? ' mine' : ''}${!o.running && place(i) === 0 ? ' won' : ''}"><small>${esc(g.name)}${i === o.out.pick ? ' ★' : ''}</small><span class="track"><i style="--d:${(2 + place(i) * 0.34).toFixed(2)}s">🐦</i></span><b>${o.running ? '' : ['1st', '2nd', '3rd', '4th', '5th'][place(i)]}</b></div>`).join('')}</div>
+        <p class="slot-say ${!o.running && o.out.pay ? 'won' : ''}">${o.running ? 'And they are off!' : esc(o.text)}</p>
+        ${o.running ? '' : '<div class="picks mid"><button class="pick" data-do="again">Next race</button></div>'}`;
+    } else {
+      const form = (g) => (g.p >= 0.3 ? 'The favourite. Eats first, asks later.' : g.p >= 0.2 ? 'Fancied. Has been seen near a chip before.' : g.p >= 0.12 ? 'Has its days.' : 'Has never been known to hurry.');
+      body = `<p class="lead">Five gulls on the rail, and one chip thrown from the end of the pier. First bird to it wins. Pick your stake, then your gull.</p>
+        <div class="picks mid">${bets.map((b) => `<button class="pick ${b === raceStake ? '' : 'quiet'}" data-do="stake" data-v="${b}">${cashShort(b)}</button>`).join('')}</div>
+        <h3>On the rail</h3>${life.raceCard().map((g, i) => `<button class="act" data-do="act" data-id="raceBet"${jx({ i, bet: raceStake })}><span class="act-ico">🐦</span><span class="act-main"><b>${esc(g.name)}</b><small>${form(g)}</small></span><span class="act-cost">${chip('cash', `pays ×${g.pays}`)}</span></button>`).join('')}`;
+    }
+    body += `<p class="fine mid">A winner pays your stake times the number shown.<br>You have ${money(s.cash)} on you.</p>`;
+    return { icon: '🐦', title: 'The gull races', sub: 'Off the end of the pier', body };
+  },
+
+  chirper() {
+    const s = life.s, n = life.followers(), used = s.use.chirp || 0;
+    const rows = [...Object.keys(CHIRPS).map((k) => life.look('chirp', k)), life.look('chirpSpon'), life.look('chirpShill'), life.look('chirpTroll')];
+    const body = `<div class="bigstat"><b>${n.toLocaleString('en')}</b><small>follower${n === 1 ? '' : 's'}${s.chirp && s.chirp.ban ? ' · your account is suspended' : ''}</small></div>
+      <p class="lead">Post what you are good at: each kind of post leans on a different skill, and the bigger the crowd, the faster it grows. Four posts a season at most (${Math.max(0, 4 - used)} left). Go a season without posting and people drift off. From 5,000 followers, companies will pay you.</p>
+      ${sections(rows)}`;
+    return { icon: '🐤', title: 'Chirper', sub: n >= 1e6 ? 'You are verified' : n >= 1e5 ? 'You are an influencer' : n >= 1000 ? 'You have a following' : 'Say something', body };
+  },
+
+  gazette() {
+    const g = life.gazette();
+    const body = `<div class="paper"><p class="mast">The Starling Bay Gazette</p><p class="dateline">${SEASONS[life.season]}, year ${life.year} · Twenty cents</p>
+      <h2>${g.lead.icon} ${esc(g.lead.h)}</h2><p class="story">${esc(g.lead.t)}</p>
+      ${g.items.map((it) => `<div class="col"><h4>${it.icon} ${esc(it.h)}</h4><p>${esc(it.t)}</p></div>`).join('')}</div>`;
+    return { icon: '📰', title: 'The Gazette', sub: 'All the news that fits', body };
+  },
+
+  plot() {
+    const s = life.s, p = s.plot, q = life.season;
+    const when = (list) => list.map((k) => SEASONS[k].toLowerCase()).join(' or ');
+    const almanac = `<details><summary>The almanac: what to sow, and when</summary>${Object.entries(CROPS).map(([id, c]) => `<div class="rung"><b>${c.icon} ${c.name}</b><span>${c.show ? 'for the Harvest Show' : `about ${money(c.pay)}`}</span><div><i class="need ${c.sow.includes(q) ? 'ok' : ''}">Sow in ${when(c.sow)}</i><i class="need">Ready ${c.ripe === 1 ? 'the next season' : 'two seasons on'}</i>${s.grown[id] ? '<i class="need ok">✓ Grown</i>' : ''}</div></div>`).join('')}
+      <p class="fine">A crop left a season past ready is lost. Weeding and watering (twice a season is all a bed can use) makes for a bigger harvest.</p></details>`;
+    if (!p) return { icon: '🥕', title: 'The allotments', sub: 'Behind Pebble Park', body: `<p class="lead">Three beds, a shed and a water butt for ${money(PLOT_RENT)} a season. What you can sow depends on the time of year. Look after it and it pays you back in vegetables, fresh air and Craft.</p><div class="picks mid">${pick('Take a plot', 'plotRent', undefined, life.can('plotRent'))}</div>${almanac}` };
+    let body = '<p class="lead">Sow in the right season, weed and water, and bring it in when it is ready.</p>';
+    p.beds.forEach((b, i) => {
+      if (b) {
+        const c = CROPS[b.c], left = c.ripe - b.age, care = Math.round(life.bedCare(b) * 100);
+        body += `<div class="item${left <= 0 ? ' mine' : ''}"><div class="item-top"><span class="act-ico">${c.icon}</span><div><b>${c.name}</b><small>${left > 0 ? `Ready in ${left} season${left > 1 ? 's' : ''}` : b.age > c.ripe ? 'Ready, and it will not keep another season' : 'Ready to bring in'}</small></div></div>
+          <div class="skill"><i>💧</i><span>Looked after</span><span class="bar"><span style="width:${care}%"></span></span><b>${care}%</b></div></div>`;
+      } else {
+        const can = Object.keys(CROPS).filter((c) => CROPS[c].sow.includes(q));
+        body += `<div class="item"><div class="item-top"><span class="act-ico">🟫</span><div><b>An empty bed</b><small>${can.length ? 'Sow something:' : 'Nothing can be sown this season.'}</small></div></div>
+          <div class="picks">${can.map((c) => pick(`${CROPS[c].icon} ${CROPS[c].name} · ${money(CROPS[c].seed)} ${chip('time', '⏱ 1')}`, 'sow', { b: i, c }, life.can('sow', { b: i, c }))).join('')}</div></div>`;
+      }
+    });
+    body += actRow(life.look('tend')) + actRow(life.look('reap'));
+    if (s.marrow) body += `<p class="sub">🥒 A ${s.marrow} kg marrow is in the shed, for the Harvest Show at the park in autumn.</p>`;
+    body += `${almanac}<div class="picks mid">${pick('Give up the plot', 'plotQuit', undefined, null, 'quiet')}</div>`;
+    return { icon: '🥕', title: 'Your allotment', sub: `Plot 14 · ${money(PLOT_RENT)} a season`, body };
+  },
+
+  curios() {
+    const s = life.s, cur = s.cur;
+    let body = '<p class="lead">Mr Pym buys and sells old things, and his prices wander: the guide price is what a thing is really worth. Four of a kind make a set, and a set is worth twice its parts to a collector.</p><h3>In the window</h3>';
+    cur.stock.forEach((c, i) => {
+      const k = CURIOS[c.id];
+      body += `<div class="item"><div class="item-top"><span class="act-ico">${k.icon}</span><div><b>${k.name}</b><small>${CURIO_SETS[k.set]}${s.curios[c.id] ? ` · you have ${s.curios[c.id]}` : s.curSeen[c.id] ? '' : ' · new to you'}</small></div><div class="quote"><b>${money(c.ask)}</b><small class="${c.ask <= k.worth ? 'up' : 'down'}">guide ${money(k.worth)}</small></div></div>
+        <div class="picks">${pick(`Buy · ${money(c.ask)}`, 'curioBuy', i, life.can('curioBuy', i))}</div></div>`;
+    });
+    body += cur.stock.length ? `<div class="picks mid">${pick('Haggle over the lot', 'haggle', undefined, life.can('haggle'), 'quiet')}</div>` : '<div class="item"><p class="sub">The window is empty until next season.</p></div>';
+    body += '<h3>Your collection</h3>';
+    for (const [k, name] of Object.entries(CURIO_SETS)) {
+      const ids = Object.keys(CURIOS).filter((id) => CURIOS[id].set === k), full = life.hasSet(k);
+      body += `<div class="item${full ? ' mine' : ''}"><div class="item-top"><div><b>${name}</b><small>${full ? 'Complete!' : `${ids.filter((id) => s.curios[id]).length} of 4`} · this season Mr Pym pays ${Math.round(cur.bid[k] * 100)}% of guide</small></div></div>
+        <div class="things cur">${ids.map((id) => { const c = CURIOS[id], n = s.curios[id] || 0; return n ? `<button data-do="act" data-id="curioSell"${jx(id)}>${c.icon}<small>${c.name}${n > 1 ? ` ×${n}` : ''}</small><em>Sell ${cashShort(life.curioBid(id))}</em></button>` : `<span class="${s.curSeen[id] ? 'had' : 'unknown'}">${s.curSeen[id] ? c.icon : '❔'}<small>${s.curSeen[id] ? c.name : '???'}</small></span>`; }).join('')}</div>
+        ${full ? `<div class="picks">${pick(`Sell the set · ${cashShort(life.setWorth(k) * 2)}`, 'setSell', k)}${pick('Give it to the museum', 'setGive', k, null, 'quiet')}</div>` : ''}</div>`;
+    }
+    return { icon: '🏺', title: 'Pym’s Curios', sub: `${Object.keys(s.curSeen).length} of ${Object.keys(CURIOS).length} found`, body };
+  },
+
   person(id) {
     const p = life.person(id);
     if (!p) return null;
@@ -428,11 +545,12 @@ const SHEET = {
       if (loves.length) facts.push(`<span>Loves ${loves.map((a) => OUTINGS[a].icon).join(' ')}</span>`);
       if ((p.kind === 'partner' || p.kind === 'spouse') && p.bond >= 50) facts.push(`<span>${p.wish ? 'Wants children' : 'Does not want children'}</span>`);
     }
-    const perk = p.job && p.kind !== 'parent' && !(p.kind === 'child' && p.age < 18) ? `<p class="fine">${life.perk(p.job) && p.bond >= 60 ? '✓ ' : ''}Someone close in ${CAREERS[p.job].name.toLowerCase()} (60 bond) gets you ${PERKS[p.job]}.</p>` : '';
-    const body = `<div class="bondbar big"><span style="width:${p.bond}%"></span></div><p class="lead">${bondWord(p)} · bond ${Math.round(p.bond)}${p.kind === 'child' && p.age >= 18 ? ` · ${He} takes after what you taught ${p.sex === 'm' ? 'him' : 'her'}` : ''}</p>
+    const foe = p.kind === 'enemy';
+    const perk = p.job && !['parent', 'ex', 'enemy'].includes(p.kind) && !(p.kind === 'child' && p.age < 18) ? `<p class="fine">${life.perk(p.job) && p.bond >= 60 ? '✓ ' : ''}Someone close in ${CAREERS[p.job].name.toLowerCase()} (60 bond) gets you ${PERKS[p.job]}.</p>` : '';
+    const body = `<div class="bondbar big${foe ? ' grudge' : ''}"><span style="width:${foe ? p.grudge : p.bond}%"></span></div><p class="lead">${bondWord(p)} · ${foe ? `grudge ${Math.round(p.grudge)}. It cools with time, faster if the town thinks well of you; while it lasts, ${p.sex === 'm' ? 'he' : 'she'} will do you small harms.` : `bond ${Math.round(p.bond)}`}${p.kind === 'child' && p.age >= 18 ? ` · ${He} takes after what you taught ${p.sex === 'm' ? 'him' : 'her'}` : ''}</p>
       <div class="facts">${facts.join('')}</div>${perk}${p.kind === 'child' && p.age < 18 ? `<p class="fine">What ${first} learns now, ${p.sex === 'm' ? 'he' : 'she'} keeps: a child who carries on the family starts with some of it.</p>` : ''}
       ${sections(life.personActions(p))}`;
-    return { icon: face(p.look, p.age, 40 + p.bond * 0.6, p.sex), title: p.name, sub: `${p.sex === 'm' ? '♂' : '♀'} ${relation(p)}, ${p.age}`, body };
+    return { icon: face(p.look, p.age, foe ? 12 : 40 + p.bond * 0.6, p.sex), title: p.name, sub: `${p.sex === 'm' ? '♂' : '♀'} ${relation(p)}, ${p.age}`, body };
   },
 };
 
@@ -442,12 +560,14 @@ const sexMark = (p) => `<i class="sx ${p.sex}">${p.sex === 'm' ? '♂' : '♀'}<
 function relation(p) {
   const m = p.sex === 'm';
   if (p.kind === 'friend') return 'Friend';
+  if (p.kind === 'enemy') return 'No friend of yours';
+  if (p.kind === 'ex') return p.was === 'spouse' ? (m ? 'Your ex-husband' : 'Your ex-wife') : `Your ex-${m ? 'boyfriend' : 'girlfriend'}`;
   if (p.kind === 'partner') return p.eng ? (m ? 'Your fiancé' : 'Your fiancée') : `Your ${m ? 'boyfriend' : 'girlfriend'}${p.live ? ' (you live together)' : ''}`;
   if (p.kind === 'spouse') return m ? 'Your husband' : 'Your wife';
   if (p.kind === 'child') return m ? 'Your son' : 'Your daughter';
   return m ? 'Your father' : 'Your mother';
 }
-const bondWord = (p) => (p.bond >= 80 ? 'Adores you' : p.bond >= 60 ? 'Very close' : p.bond >= 40 ? 'Close' : p.bond >= 20 ? 'Friendly' : 'Drifting away');
+const bondWord = (p) => (p.kind === 'enemy' ? (p.grudge >= 70 ? 'Hates the sight of you' : p.grudge >= 40 ? 'Bears a grudge' : 'Still sore') : p.kind === 'ex' ? (p.grudge >= 60 ? 'Still furious with you' : p.grudge >= 30 ? 'Hurt' : 'No hard feelings') : p.bond >= 80 ? 'Adores you' : p.bond >= 60 ? 'Very close' : p.bond >= 40 ? 'Close' : p.bond >= 20 ? 'Friendly' : 'Drifting away');
 
 function renderSheet() {
   const back = $('sheetBack');
@@ -485,7 +605,7 @@ function chips(changes) {
 
 // ---- doing things -----------------------------------------------------------------------
 
-let slotShow = null, hiloShow = null, spinning = false;
+let slotShow = null, hiloShow = null, bjShow = null, raceShow = null, raceStake = 50, spinning = false;
 
 function doAct(id, x) {
   if (!life || busy || spinning) return;
@@ -493,6 +613,8 @@ function doAct(id, x) {
   if (!r.ok) { sfx('nope'); toast(r.why); return; }
   haptic();
   if (id === 'slots') return spin(r);
+  if (id === 'raceBet') return race(r);
+  if (id.startsWith('bj')) return dealt(r);
   if (id === 'hiloGuess' || id === 'hiloStart' || id === 'hiloCash') hiloShow = r.out;
   // Some things are best seen from the place you set out from.
   if (['rentHome', 'buyHome', 'moveIn', 'apply', 'enrol', 'pet', 'bizStart'].includes(id) || (id === 'match' && life.partner())) { while (sheets.length > 1) sheets.pop(); }
@@ -506,7 +628,7 @@ function landed(r, quiet = false) {
   result = { text: r.text, changes: r.changes, fresh: true };
   persist();
   render();
-  if (!sheets.length && r.text) toast(r.text, 3200);
+  if (!sheets.length && r.text && !(life.s.gaol && tab === 'town' && $('gaol').scrollTop < 90)) toast(r.text, 3200);
   const kinds = (r.news || []).map((n) => n.kind);
   const cash = (r.changes || []).find((c) => c.k === 'cash');
   if (!quiet) {
@@ -539,6 +661,36 @@ function spin(r) {
     renderSheet();
     if (r.out.win > 0) { sfx(r.out.reels[0] === '💎' && r.out.reels[1] === '💎' && r.out.reels[2] === '💎' ? 'cheer' : 'coin'); if (r.out.win >= 5000) confetti(); }
   }, 700);
+}
+
+// A hand of blackjack: what was said goes on the table, not above it.
+function dealt(r) {
+  bjShow = r.out ? { ...r.out, text: r.text } : null;
+  landed(r, true);
+  result = null;
+  renderSheet();
+  if (!r.out) sfx('flip');
+  else if (r.out.res === 'natural') { sfx('cheer'); confetti(); } else if (r.out.pay > r.out.bet) { sfx('coin'); if (r.out.pay >= 10000) confetti(); } else if (r.out.pay) sfx('tap'); else sfx('wrong');
+}
+
+// The gull races: the result is known at once, and then the birds fly it.
+function race(r) {
+  persist();
+  spinning = true;
+  raceShow = { out: r.out, text: r.text, running: true };
+  renderSheet();
+  $('sheetBody').scrollTop = 0;
+  sfx('whoosh');
+  const t = setInterval(() => sfx('tap'), 260);
+  setTimeout(() => {
+    clearInterval(t);
+    spinning = false;
+    raceShow.running = false;
+    landed(r, true);
+    result = null;
+    renderSheet();
+    if (r.out.pay) { sfx(r.out.pay >= r.out.card[r.out.pick].pays * 500 ? 'cheer' : 'coin'); if (r.out.pay >= 5000) confetti(); } else sfx('wrong');
+  }, 3600);
 }
 
 // Little notices that drop down: a new friend, a trophy, a dream come true.
@@ -602,7 +754,7 @@ function nextSeason() {
   if (!life || busy || spinning || ui.isOpen()) return;
   if (life.s.dead || life.event()) { pump(); return; }
   closeSheets();
-  if (life.s.time >= 3 && !save.restTip) { save.restTip = true; toast('Time you do not use is rest: good for health and mood.', 4200); }
+  if (life.s.time >= 3 && !save.restTip && !life.s.gaol) { save.restTip = true; toast('Time you do not use is rest: good for health and mood.', 4200); }
   const r = life.endSeason();
   persist();
   tab = 'town';
@@ -648,6 +800,7 @@ function meHtml() {
   const ill = s.ill ? esc(s.ill.name[0].toUpperCase() + s.ill.name.slice(1)) : '';
   return `
   <div class="box hero"><span class="ava big">${face(s.look, s.age, s.happy, s.sex)}</span><div><h2>${esc(s.name)}</h2><p>Age ${s.age}${s.gen > 1 ? ` · generation ${s.gen}` : ''}<br>${rep}${s.fame >= 1 ? ` · 🌟 Fame ${Math.round(s.fame)}` : ''}${s.record ? ' · has a record' : ''}</p></div></div>
+  ${s.gaol ? `<div class="box warn">⛓️ In Starling Gaol: ${s.gaol.left} season${s.gaol.left > 1 ? 's' : ''} to serve. The Town tab is your cell.</div>` : s.run ? '<div class="box warn">🚨 On the run from Starling Gaol. Every crime is riskier, and they may find you any season, until the law loses interest.</div>' : ''}
   ${s.ill ? `<div class="box warn">🤒 ${ill}: it costs you health every season${s.ill.sev >= 3 ? ', and it could kill you' : ''}. St Wren’s can treat it.</div>` : ''}
   <div class="box"><h3>Skills</h3>${STATS.map((k) => `<div class="skill"><i>${STAT_ICON[k]}</i><span>${STAT_NAME[k]}</span><span class="bar"><span style="width:${s.st[k]}%"></span></span><b>${Math.floor(s.st[k])}</b></div>`).join('')}
     <p class="fine">Skills grow by doing things, more slowly the higher they get, and faster when you are happy.</p></div>
@@ -661,7 +814,7 @@ function meHtml() {
   <div class="box"><h3>Study</h3>${s.course ? `<div class="line"><span>${COURSES[s.course.id].icon} ${COURSES[s.course.id].name}</span><b>${s.course.exam ? 'Exam to sit' : `${s.course.p} of ${COURSES[s.course.id].classes}`}</b></div><p class="fine">Heading for ${life.gradeWord(life.examMark())}.</p>` : ''}
     ${Object.keys(s.edu).length ? `<div class="needs">${Object.keys(s.edu).map((id) => `<i class="need ok">${COURSES[id].icon} ${COURSES[id].name}${s.edu[id].g ? `: ${GRADES[s.edu[id].g].toLowerCase()}` : ''}</i>`).join('')}</div>` : s.course ? '' : '<p class="sub">No qualifications yet. The right one lets you start a career partway up.</p>'}</div>
   <div class="box"><h3>Money</h3>
-    ${row('Cash on you', s.cash) || '<div class="line"><span>Cash on you</span><b>$0</b></div>'}${row('Savings', s.bank)}${row('Shares', life.sharesWorth())}${row(`Property (${s.estate.length})`, life.estateWorth())}${row('Your business', life.bizWorth())}${row('Loan', -s.debt, 'down')}${row('Student loan', -s.sloan, 'down')}${row('Owed to Sal', -s.shark, 'down')}
+    ${row('Cash on you', s.cash) || '<div class="line"><span>Cash on you</span><b>$0</b></div>'}${row('Savings', s.bank)}${row('Shares', life.sharesWorth())}${row(`Property (${s.estate.length})`, life.estateWorth())}${row('Your business', life.bizWorth())}${row('Curios', life.curiosWorth())}${row('Loan', -s.debt, 'down')}${row('Student loan', -s.sloan, 'down')}${row('Owed to Sal', -s.shark, 'down')}
     <div class="line total"><span>Worth, all told</span><b>${money(life.netWorth())}</b></div>
     ${s.hist.length > 1 ? `${spark([...s.hist, life.netWorth()], 300, 44)}<p class="fine">What you have been worth, year by year.</p>` : ''}
     <h4>Every season</h4>${bills.map(([what, n]) => row(esc(what), -n, 'down')).join('')}${income.map(([what, n]) => row(esc(what), n, 'up')).join('')}
@@ -671,6 +824,14 @@ function meHtml() {
     <div class="line"><span>Crimes to your name</span><b>${s.n.crimes}</b></div>${s.record ? `<div class="line down"><span>Criminal record</span><b>${s.record} conviction${s.record > 1 ? 's' : ''}</b></div>` : ''}
     ${Object.keys(s.habit).map((k) => `<div class="skill"><i>${k === 'drink' ? '🥃' : '✨'}</i><span>${k === 'drink' ? 'Drink' : 'Dust'}</span><span class="bar"><span style="width:${Math.min(100, s.habit[k])}%;background:${s.habit[k] >= 60 ? 'var(--bad)' : 'var(--sun)'}"></span></span><b>${Math.round(Math.min(100, s.habit[k]))}</b></div>`).join('')}
     ${life.hooked('drink') || life.hooked('dust') ? '<p class="fine">You are hooked: it costs you health every season, and a season without it is a miserable one. Going without wears it down; the clinic at St Wren’s ends it.</p>' : ''}</div>` : ''}
+  <div class="box"><h3>About town</h3>
+    <div class="line"><span>${life.eco().icon} Business in the Bay</span><b>${life.eco().name}</b></div>
+    ${s.chirp ? `<div class="line"><span>🐤 Chirper</span><b>${many(life.followers())} followers</b></div>` : ''}
+    ${s.plot ? `<div class="line"><span>🥕 Allotment</span><b>${s.plot.beds.filter((b) => life.bedRipe(b)).length ? 'Something is ready' : `${s.plot.beds.filter(Boolean).length} of ${s.plot.beds.length} beds sown`}</b></div>` : ''}
+    ${Object.keys(s.curSeen).length ? `<div class="line"><span>🏺 Curios found</span><b>${Object.keys(s.curSeen).length} of ${Object.keys(CURIOS).length}</b></div>` : ''}
+    ${s.lot.n ? `<div class="line"><span>🎟️ Lotto tickets for this season’s draw</span><b>${s.lot.n}</b></div>` : ''}
+    ${s.f.licence > s.t ? '<div class="line down"><span>🪪 Out on licence</span><b>Keep your nose clean</b></div>' : ''}
+    <button class="btn btn-soft wide" data-do="open" data-kind="gazette">📰 Read the Gazette</button></div>
   ${perks.length ? `<div class="box"><h3>Friends in the right places</h3>${perks.map((c) => `<div class="line"><span>${CAREERS[c].icon} ${CAREERS[c].name}</span><b class="perk">${PERKS[c]}</b></div>`).join('')}</div>` : ''}
   <div class="box"><h3>Dreams</h3>${s.dreams.map((id) => `<div class="dream${s.dreamDone[id] ? ' done' : ''}"><i>${DREAMS[id].icon}</i><div><b>${DREAMS[id].name}</b><small>${s.dreamDone[id] ? `Came true at ${s.dreamDone[id]}` : DREAMS[id].desc}</small></div><em>${s.dreamDone[id] ? '✓' : ''}</em></div>`).join('')}</div>
   <div class="box"><h3>Belongings</h3>${items.length ? `<div class="things">${items.map((id) => `<span title="${ITEMS[id].name}">${ITEMS[id].icon}<small>${ITEMS[id].name}</small></span>`).join('')}</div>` : '<p class="sub">One suitcase. The High Street can fix that.</p>'}
@@ -681,8 +842,8 @@ function meHtml() {
 
 function peopleHtml() {
   const s = life.s;
-  const card = (p) => `<button class="box person" data-do="person" data-id="${p.id}"><span class="ava">${face(p.look, p.age, 40 + p.bond * 0.6, p.sex)}</span>
-      <div><b>${esc(p.name)} ${sexMark(p)}</b><small>${relation(p)}, ${p.age}${p.kind === 'friend' && life.fancy(p) && p.single && !life.partner() ? ' · 💗 single' : ''}${p.job && p.kind !== 'parent' && !(p.kind === 'child' && p.age < 18) ? ` · ${life.jobOf(p)}` : ''}</small><span class="bondbar"><span style="width:${p.bond}%"></span></span></div><i class="go">›</i></button>`;
+  const card = (p) => `<button class="box person" data-do="person" data-id="${p.id}"><span class="ava">${face(p.look, p.age, p.kind === 'enemy' ? 12 : 40 + p.bond * 0.6, p.sex)}</span>
+      <div><b>${esc(p.name)} ${sexMark(p)}</b><small>${relation(p)}, ${p.age}${p.kind === 'friend' && life.fancy(p) && p.single && !life.partner() ? ' · 💗 single' : ''}${p.job && p.kind !== 'parent' && !(p.kind === 'child' && p.age < 18) ? ` · ${life.jobOf(p)}` : ''}</small><span class="bondbar${p.kind === 'enemy' ? ' grudge' : ''}"><span style="width:${p.kind === 'enemy' ? p.grudge : p.bond}%"></span></span></div><i class="go">›</i></button>`;
   const group = (title, kinds) => { const l = s.people.filter((p) => kinds.includes(p.kind)).sort((a, b) => b.bond - a.bond); return l.length ? `<h3 class="group">${title}</h3>${l.map(card).join('')}` : ''; };
   let out = '';
   if (s.due) out += `<div class="box warn good">🍼 ${s.due.adopt ? 'A child is coming to live with you soon.' : 'A baby is on the way!'}</div>`;
@@ -691,6 +852,7 @@ function peopleHtml() {
   out += group('Family', ['child', 'parent']);
   if (s.pet) out += `<div class="box person pet"><span class="act-ico">${PETS[s.pet.kind].icon}</span><div><b>${esc(s.pet.name)}</b><small>Your ${PETS[s.pet.kind].name}, ${s.pet.age}. Always pleased to see you.</small></div></div>`;
   out += group(`Friends (${life.friends().length})`, ['friend']) || '<div class="box"><p class="sub">No friends in Starling Bay yet. Chat to the regulars at the Gull & Anchor, sit by the pond in the park, or go to hack night at the Labs.</p></div>';
+  out += group('Old flames', ['ex']) + group('Bad blood', ['enemy']);
   return `${out}<p class="fine pad">People drift away unless you keep in touch. Tap someone to do something together; everyone has things they love doing.</p>`;
 }
 
@@ -748,6 +910,8 @@ function showHow() {
     <p><b>People.</b> Friends are made all over town, and everyone has things they love doing. For romance, chat someone up at the pub, try the dating app, or ask out a friend who is single. Close friends in the right jobs do you favours.</p>
     <p><b>Life happens.</b> Cards turn up with choices. A percentage shows your chance where a skill decides it.</p>
     <p><b>Or go bad.</b> Pick pockets at the station, lift from the shops, drink and brawl at the pub, bend the rules at work. Sal’s back room at the harbour has worse: burglary, bare-knuckle fights, his crew, the bank. The law takes an interest.</p>
+    <p><b>Get caught</b> and you may go to Starling Gaol, and live every season of it: keep a clean record for parole, or earn your standing on the landing, or dig.</p>
+    <p><b>The town has more in it.</b> An allotment at the park, where the seasons decide what grows. Mr Pym’s curios on the High Street, to collect and trade. Chirper on your phone. Blackjack and the gull races on the pier. Good years and slumps: the Gazette has the news.</p>
     <p><b>At the end</b> your life earns a ribbon, and each ribbon unlocks an heirloom that a later life can carry. Your heir inherits a share of what you leave.</p></div>
     <div class="actions"><button class="btn btn-primary" data-action="close">Got it</button></div>`);
 }
@@ -932,7 +1096,9 @@ const DO = {
     if (el.dataset.why) { sfx('nope'); toast(el.dataset.why); return; }
     doAct(el.dataset.id, el.dataset.x === undefined ? undefined : JSON.parse(el.dataset.x));
   },
-  goals() { sfx('tap'); if (life.s.ill) goTo('hospital'); else showGoals(); },
+  goals() { sfx('tap'); if (life.s.gaol) { tab = 'town'; closeSheets(); render(); } else if (life.s.ill) goTo('hospital'); else showGoals(); },
+  stake(el) { raceStake = Number(el.dataset.v); sfx('tap'); renderSheet(); },
+  again() { raceShow = null; sfx('tap'); renderSheet(); },
   trophies() { sfx('tap'); showTrophies(); },
   menu() { sfx('tap'); showMenu(); },
   // starting out

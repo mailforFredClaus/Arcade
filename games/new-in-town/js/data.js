@@ -28,6 +28,14 @@ export function cashShort(n) {
   return money(n);
 }
 
+// A crowd, counted: 950, 12.4k, 1.2M.
+export function many(n) {
+  if (n >= 1e6) return `${(n / 1e6).toFixed(n >= 1e7 ? 0 : 1)}M`;
+  if (n >= 1e4) return `${Math.round(n / 1e3)}k`;
+  if (n >= 1e3) return `${(n / 1e3).toFixed(1)}k`;
+  return String(Math.round(n));
+}
+
 // ---- the town ---------------------------------------------------------------------------
 
 // x, y: where the place sits on the map (art.js draws it 400 wide, 600 tall).
@@ -506,6 +514,10 @@ export const DREAMS = {
   giver: { name: 'Give it away', icon: '🎁', desc: 'Donate $100,000 to good causes.', test: (L) => (L.s.n.given || 0) >= 1e5 },
   pet: { name: 'Old friends', icon: '🐾', desc: 'Keep a pet for ten years.', test: (L) => L.s.pet && L.s.t - L.s.pet.since >= 40 },
   boss: { name: 'My own boss', icon: '🏪', desc: 'Build a business to its third size.', test: (L) => L.s.biz && L.s.biz.lvl >= 2 },
+  crowd: { name: 'Internet famous', icon: '🤳', desc: 'Reach 100,000 followers on Chirper.', test: (L) => L.followers() >= 1e5 },
+  record: { name: 'A hit record', icon: '💿', desc: 'Record an album that goes to number one.', test: (L) => !!L.s.f.hit },
+  magpie: { name: 'The collector', icon: '🏺', desc: 'Complete two sets of curios.', test: (L) => Object.keys(CURIO_SETS).filter((k) => L.hasSet(k)).length + (L.s.n.sets || 0) >= 2 },
+  plot: { name: 'Best in show', icon: '🥒', desc: 'Win the Harvest Show.', test: (L) => !!L.s.f.marrow },
   invest: { name: 'Money that works', icon: '📈', desc: 'Hold $500,000 in shares.', test: (L) => L.sharesWorth() >= 5e5 },
 };
 
@@ -588,6 +600,28 @@ export const TROPHIES = {
   wall: { name: 'Over the wall', icon: '🧱', desc: 'Break out of prison.', test: (L) => !!L.s.f.escaped },
   clean: { name: 'One day at a time', icon: '🧃', desc: 'Get clean at the clinic.', test: (L) => !!L.s.f.clean },
   wanted: { name: 'Wanted', icon: '🚨', desc: 'Have the law hunting for you.', test: (L) => L.s.heat >= 75 },
+  model: { name: 'Model prisoner', icon: '🪪', desc: 'Be let out early on parole.', test: (L) => !!L.s.f.parole },
+  lifer: { name: 'Old lag', icon: '🗝️', desc: 'Spend twenty seasons inside, all told.', test: (L) => (L.s.n.inside || 0) >= 20 },
+  daddy: { name: 'Top of the landing', icon: '🥫', desc: 'Run the landing in Starling Gaol.', test: (L) => !!L.s.f.daddy },
+  lam: { name: 'Clean away', icon: '🌫️', desc: 'Escape, and stay out until they stop looking.', test: (L) => !!L.s.f.lam },
+  nemesis: { name: 'And stay out', icon: '😤', desc: 'See off an enemy.', test: (L) => (L.s.n.seenOff || 0) >= 1 },
+  peace: { name: 'Water under the pier', icon: '🕊️', desc: 'Make it up with an enemy.', test: (L) => (L.s.n.mended || 0) >= 1 },
+  oldflame: { name: 'Second time lucky', icon: '💐', desc: 'Get back together with an ex.', test: (L) => !!L.s.f.oldflame },
+  natural: { name: 'Twenty-one', icon: '♠️', desc: 'Be dealt a blackjack.', test: (L) => !!L.s.f.natural },
+  outsider: { name: 'Rank outsider', icon: '🐦', desc: 'Back a winning gull at 8 to 1 or longer.', test: (L) => !!L.s.f.outsider },
+  lotto: { name: 'It could be you', icon: '🎟️', desc: 'Win the Bay Lotto jackpot.', test: (L) => !!L.s.f.lotto },
+  chirp1k: { name: 'Chirpy', icon: '🐤', desc: 'Reach 1,000 followers on Chirper.', test: (L) => L.followers() >= 1000 },
+  chirp100k: { name: 'Influencer', icon: '🤳', desc: 'Reach 100,000 followers.', test: (L) => L.followers() >= 1e5 },
+  chirp1m: { name: 'Verified', icon: '☑️', desc: 'Reach a million followers.', test: (L) => L.followers() >= 1e6 },
+  viral: { name: 'Gone viral', icon: '🚀', desc: 'Have a post take off.', test: (L) => (L.s.n.viral || 0) >= 1 },
+  album: { name: 'On the jukebox', icon: '🎙️', desc: 'Make a record.', test: (L) => (L.s.n.albums || 0) >= 1 },
+  hit: { name: 'Number one', icon: '💿', desc: 'Have a hit record.', test: (L) => !!L.s.f.hit },
+  grower: { name: 'Green fingers', icon: '🥕', desc: 'Grow every crop there is on your allotment.', test: (L) => Object.keys(CROPS).every((c) => L.s.grown[c]) },
+  marrow: { name: 'Best in show', icon: '🥒', desc: 'Win the Harvest Show with a marrow.', test: (L) => !!L.s.f.marrow },
+  set: { name: 'The set', icon: '🧩', desc: 'Complete a set of curios.', test: (L) => Object.keys(CURIO_SETS).some((k) => L.hasSet(k)) || (L.s.n.sets || 0) >= 1 },
+  curator: { name: 'Magpie', icon: '🏺', desc: 'Find every curio in Starling Bay.', test: (L) => Object.keys(CURIOS).every((c) => L.s.curSeen[c]) },
+  patron: { name: 'Patron of the museum', icon: '🏛️', desc: 'Give a whole set of curios to the museum.', test: (L) => !!L.s.f.patron },
+  slump: { name: 'Seen it all', icon: '📰', desc: 'Live through a boom and a deep slump.', test: (L) => !!L.s.f.sawBoom && !!L.s.f.sawSlump },
   dream1: { name: 'Dream come true', icon: '✨', desc: 'Make a dream come true.', test: (L) => Object.keys(L.s.dreamDone).length >= 1 },
   dream3: { name: 'Living the dream', icon: '🌈', desc: 'Make all three dreams come true in one life.', test: (L) => Object.keys(L.s.dreamDone).length >= 3 },
   age90: { name: 'Evergreen', icon: '🌲', desc: 'Live to 90.', test: (L) => L.s.age >= 90 },
@@ -622,6 +656,10 @@ export const RIBBONS = [
     heir: { name: 'Family album', icon: '📔', desc: 'A happier outlook on everything.' } },
   { id: 'kingpin', name: 'The Kingpin', icon: '🕴️', desc: 'Ran Sal\u2019s crew, or robbed the bank.', test: (L) => !!L.s.f.kingpin || !!L.s.f.heist,
     heir: { name: 'Sal\u2019s little black book', icon: '📓', desc: 'Start with 5 crimes to your name and a bad reputation; the law is slower to notice you.' } },
+  { id: 'sensation', name: 'The Sensation', icon: '🤳', desc: 'A million followers on Chirper.', test: (L) => L.followers() >= 1e6,
+    heir: { name: 'Blue tick', icon: '☑️', desc: 'Start with a phone and 2,000 followers, and gather more with every post.' } },
+  { id: 'lag', name: 'The Old Lag', icon: '⛓️', desc: 'Twenty seasons or more inside.', test: (L) => (L.s.n.inside || 0) >= 20,
+    heir: { name: 'A file in a cake', icon: '🎂', desc: 'Prison sentences are a season shorter, and the wall is easier to climb.' } },
   { id: 'rogue', name: 'The Rogue', icon: '🦊', desc: 'Two dozen crimes to your name.', test: (L) => (L.s.n.crimes || 0) >= 24,
     heir: { name: 'Loaded dice', icon: '🎲', desc: 'Crime is safer and the casino is kinder.' } },
   { id: 'salt', name: 'Old Salt', icon: '⚓', desc: 'Captained a ship, or caught 100 fish.', test: (L) => !!L.s.f.wasCaptain || (L.s.n.fish || 0) >= 100,
@@ -636,3 +674,82 @@ export const RIBBONS = [
     heir: { name: "Grandma's quilt", icon: '🧶', desc: 'Resting does you more good.' } },
 ];
 export const RIBBON = Object.fromEntries(RIBBONS.map((r) => [r.id, r]));
+
+// ---- the allotment ----------------------------------------------------------------------
+
+// sow: the seasons it can go in (0 spring). ripe: how many seasons until
+// it is ready. pay: what a well-kept bed of it fetches. A crop left a
+// season past ripe is lost.
+export const CROPS = {
+  toms: { name: 'Tomatoes', icon: '🍅', seed: 40, sow: [0], ripe: 1, pay: 380 },
+  beans: { name: 'Runner beans', icon: '🫛', seed: 25, sow: [0, 1], ripe: 1, pay: 300 },
+  peas: { name: 'Sweet peas', icon: '💐', seed: 30, sow: [0, 1], ripe: 1, pay: 260 },
+  spuds: { name: 'Potatoes', icon: '🥔', seed: 30, sow: [0], ripe: 2, pay: 640 },
+  pumpkin: { name: 'Pumpkins', icon: '🎃', seed: 50, sow: [1], ripe: 1, pay: 460 },
+  leeks: { name: 'Leeks', icon: '🥬', seed: 30, sow: [1, 2], ripe: 2, pay: 600 },
+  garlic: { name: 'Garlic', icon: '🧄', seed: 35, sow: [2, 3], ripe: 2, pay: 560 },
+  marrow: { name: 'Show marrow', icon: '🥒', seed: 80, sow: [0], ripe: 2, pay: 120, show: true },
+};
+export const PLOT_RENT = 80;
+export const PLOT_BEDS = 3;
+
+// ---- curios -----------------------------------------------------------------------------
+
+// Old things, in five sets of four. worth: the guide price. Mr Pym asks
+// more or less than that, and pays more or less, as the mood takes him.
+export const CURIO_SETS = { sea: 'Maritime', coin: 'Coins and medals', toy: 'Toys', book: 'Books and maps', art: 'Pictures and china' };
+export const CURIOS = {
+  bottle: { name: 'Ship in a bottle', icon: '🍾', set: 'sea', worth: 300 },
+  sextant: { name: 'Brass sextant', icon: '🧭', set: 'sea', worth: 900 },
+  bell: { name: 'Ship’s bell', icon: '🔔', set: 'sea', worth: 1500 },
+  figurehead: { name: 'Figurehead', icon: '🧜', set: 'sea', worth: 5200 },
+  roman: { name: 'Roman coin', icon: '🪙', set: 'coin', worth: 600 },
+  medal: { name: 'Lifeboat medal', icon: '🎖️', set: 'coin', worth: 1400 },
+  eight: { name: 'Pieces of eight', icon: '💰', set: 'coin', worth: 2400 },
+  sovereign: { name: 'Gold sovereign', icon: '👑', set: 'coin', worth: 4000 },
+  robot: { name: 'Tin robot', icon: '🤖', set: 'toy', worth: 350 },
+  gull: { name: 'Clockwork gull', icon: '🐦', set: 'toy', worth: 800 },
+  bear: { name: 'One-eared bear', icon: '🧸', set: 'toy', worth: 1200 },
+  dolls: { name: 'Dolls’ house', icon: '🏠', set: 'toy', worth: 3000 },
+  seaweed: { name: 'Album of pressed seaweed', icon: '🌿', set: 'book', worth: 500 },
+  atlas: { name: 'Old atlas', icon: '🗺️', set: 'book', worth: 900 },
+  first: { name: 'First edition', icon: '📕', set: 'book', worth: 2000 },
+  chart: { name: 'Smuggler’s chart', icon: '🏴‍☠️', set: 'book', worth: 3500 },
+  plate: { name: 'Willow-pattern plate', icon: '🍽️', set: 'art', worth: 250 },
+  dogs: { name: 'Pair of china dogs', icon: '🐕', set: 'art', worth: 700 },
+  seascape: { name: 'Seascape in oils', icon: '🖼️', set: 'art', worth: 2600 },
+  captain: { name: 'Portrait of a stern captain', icon: '👨‍✈️', set: 'art', worth: 6000 },
+};
+
+// ---- the Gazette ------------------------------------------------------------------------
+
+export const ECO = [
+  { name: 'A deep slump', icon: '🌧️', text: 'Shops are boarded up along the front, and the bank is not lending. Jobs are being cut, businesses take less and prices are falling.' },
+  { name: 'A slump', icon: '🌥️', text: 'Trade is slow. Bosses are careful with pay rises, and some are letting people go.' },
+  { name: 'Steady', icon: '⛅', text: 'Business in the Bay is ticking over, as it mostly does.' },
+  { name: 'Good times', icon: '🌤️', text: 'The tills are ringing. Businesses take more, and bonuses are easier to come by.' },
+  { name: 'A boom', icon: '☀️', text: 'Everybody is hiring and everything is selling. Shares, houses and takings are all up.' },
+];
+// What fills the front page when nothing has happened, by season.
+export const FILLER = [
+  ['Lambs on the cliff path: walkers asked to stop naming them', 'Pier to be repainted the same colour, council confirms', 'Record entry expected for bake-off', 'Daffodils "early", says man who says it every year'],
+  ['Gull steals mayor’s speech', 'Hottest day since records were found', 'Ice cream van and rival ice cream van in stand-off', 'Deckchair attendant retires after 40 years of sitting down'],
+  ['Marrow of "unusual size" reported on the allotments', 'Fog: lighthouse "doing its best"', 'Conker season opens amid safety fears', 'Clocks go back; Town Hall clock unaffected'],
+  ['Town Hall clock now five minutes slow', 'Sea "very cold", say swimmers', 'Christmas lights switched on, eventually', 'Snowman on the green "not a likeness", insists councillor'],
+];
+export const SMALL_ADS = [
+  'FOR SALE: wedding dress, worn once, by mistake.',
+  'LOST: one parrot. Answers to nothing. Knows too much.',
+  'WANTED: man with van. Or just the van.',
+  'FOR SALE: complete set of encyclopaedias. No longer needed. Wife knows everything.',
+  'FREE to good home: kittens, six. To any home: kittens, six.',
+  'Piano lessons. Patient teacher. Detached house.',
+  'FOUND: false teeth, on the pier. Smiling.',
+  'Tide tables, half price. Last year’s.',
+  'LOST: left welly. Sentimental value. Also the right one.',
+  'Psychic night cancelled owing to unforeseen circumstances.',
+  'FOR HIRE: bouncy castle. Slow puncture. Bouncy cottage.',
+  'Trombone for sale. Neighbours will collect.',
+  'Lonely lighthouse keeper seeks same. Must like stairs.',
+  'FOR SALE: one-man band. Can deliver, slowly.',
+];
