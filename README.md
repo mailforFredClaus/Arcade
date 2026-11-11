@@ -200,6 +200,7 @@ An endless runner in 3D. A bear cub has made off with a pot of honey and is dash
 - **Goals:** there are always three in hand. Finish all three and your score multiplier goes up by one for good.
 - The line runs through the seasons, 520 metres each: meadow, blossom, autumn, sunset and snow, then round again, getting faster and busier as it goes.
 - **Scale:** a wagon stands about twice as tall as the cub and a lane is about twice as wide as the cub is tall. On a phone the camera sits close behind, so the lane you are in nearly fills the screen and the lanes beside it run off the edges; it glides across after the cub when you change lane.
+- **A busy line:** the lanes beside you are often a wall of wagons, two to six long, so much of the run is down corridors between trains, and trains start rolling towards you early on. Signals stand close beside the line and a stone road bridge crosses it every so often, high enough to float under on balloons.
 
 **There is always a way through.** The line is laid a beat at a time, and one lane is always passable on foot: clear, or with a fence to jump, a barrier to roll under or a cart to hop. A train never starts in a lane with no way out to the side. `node tools/test-honey-run.mjs` checks the rules one by one, then a practice player that keeps to that promised lane runs forty different lines for six kilometres each without being stopped.
 

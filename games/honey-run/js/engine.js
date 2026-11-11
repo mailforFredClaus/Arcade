@@ -491,7 +491,7 @@ export class Run {
     // What the safe lane asks of you.
     const others = lanes.filter((l) => Math.abs(l - safe) === 1 && g.busy[idx(l)] < p - 2 && g.hold[idx(l)] < p - 2);
     const act = g.beats <= 2 ? 'free' : R.weighted({
-      free: lerp(0.34, 0.14, d),
+      free: lerp(0.26, 0.12, d),
       low: 0.2,
       high: g.beats > 5 ? 0.18 : 0,
       shift: others.length ? lerp(0.22, 0.3, d) : 0,
@@ -527,7 +527,7 @@ export class Run {
       }
       this.row(to, p + slant + 2.2, 2, 0.7);
       const shut = p + B + v * 0.15;
-      if (p > 700 && R.next() < lerp(0.15, 0.4, d) && g.hold[idx(safe)] < p) {
+      if (p > 260 && R.next() < lerp(0.22, 0.42, d) && g.hold[idx(safe)] < p) {
         // A train rolling towards you down the old lane. It is placed so
         // that it gets here about when you do.
         const vt = 7 + R.int(4), n = 2 + R.int(3);
@@ -537,7 +537,7 @@ export class Run {
         // Nothing else is built where it will be seen rolling through.
         g.hold[idx(safe)] = shut + (vt * AHEAD) / (v + vt) + n * CAR + 6;
       } else {
-        const n = 1 + R.int(3);
+        const n = 2 + R.int(3);
         this.train(safe, shut, n);
         g.busy[idx(safe)] = shut + n * CAR;
         if (R.next() < 0.35) this.row(to, shut + 2, Math.min(6, n * 3), 0.7);
@@ -571,23 +571,24 @@ export class Run {
       // (A lane that has only just stopped being the safe one is left alone
       // for a moment, so there's time to get out of it.)
       if (l === g.safe || g.busy[i] > p + B * 0.2 || g.hold[i] > p) continue;
-      const what = g.beats <= 3 ? 'none' : R.weighted({
-        none: lerp(0.4, 0.2, d),
+      const what = g.beats <= 1 ? 'none' : R.weighted({
+        none: lerp(0.2, 0.1, d),
         low: 0.13,
         high: g.beats > 5 ? 0.12 : 0,
-        train: boxed ? 0 : lerp(0.24, 0.34, d),
-        ramp: g.beats > 8 ? lerp(0.08, 0.12, d) : 0,
+        train: boxed ? 0 : lerp(0.42, 0.5, d),
+        ramp: g.beats > 6 ? lerp(0.1, 0.13, d) : 0,
         cart: g.beats > 8 ? 0.06 : 0,
         coins: 0.1,
       });
       const at = p + B * (0.3 + 0.4 * R.next());
       if (what === 'low' || what === 'high') this.add({ kind: what, lane: l, s0: at - 0.25, s1: at + 0.25 });
       else if (what === 'train') {
-        const n = 1 + R.int(d > 0.3 ? 4 : 3);
+        // (Long ones: the lanes beside you are often a wall of wagons.)
+        const n = 2 + R.int(d > 0.3 ? 5 : 4);
         this.train(l, at, n);
         g.busy[i] = at + n * CAR;
       } else if (what === 'ramp') {
-        const n = 2 + R.int(2);
+        const n = 3 + R.int(3);
         this.add({ kind: 'ramp', lane: l, s0: at, s1: at + RAMP, h: ROOF });
         this.train(l, at + RAMP, n);
         // (With room to land at the far end.)
