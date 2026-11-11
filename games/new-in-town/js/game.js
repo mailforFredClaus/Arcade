@@ -11,6 +11,7 @@ import {
 } from './data.js';
 import { handTotal } from './pier.js';
 import { CHIRPS } from './fame.js';
+import { playMini, quitMini } from './mini.js';
 import { townSvg, gaolSvg, face, spark, placeTier } from './art.js';
 import { store, sfx, haptic, unlockAudio, lockViewport, registerOffline } from '../../../shared/arcade.js';
 import { cards, switchRow, confetti, toast, ICON } from '../../../shared/ui.js';
@@ -181,7 +182,7 @@ function actRow(a, o = {}) {
   const off = !!a.why;
   const cost = [a.time ? chip('time', `⏱ ${a.time}`) : '', a.cost ? chip('cash', cashShort(a.cost)) : ''].join('');
   const attrs = a.open ? `data-do="open" data-kind="${a.open}"` : `data-do="act" data-id="${a.id}"${jx(o.x !== undefined ? o.x : a.x)}`;
-  return `<button class="act${off ? ' off' : ''}${a.id === 'work' ? ' work' : ''}" ${attrs}>
+  return `<button class="act${off ? ' off' : ''}${a.id === 'work' ? ' work' : ''}${a.id === 'workPlay' ? ' play' : ''}${a.id === 'workPlay' && life.playDue() ? ' due' : ''}" ${attrs}>
     <span class="act-ico">${a.icon || '•'}</span>
     <span class="act-main"><b>${esc(a.title)}</b><small>${esc(off && !a.owned ? a.why : a.desc)}</small></span>
     <span class="act-cost">${a.owned ? chip('have', 'Owned') : a.open ? '<i class="go">›</i>' : cost}</span>
@@ -648,6 +649,8 @@ function doAct(id, x) {
   if (!life || busy || spinning) return;
   // Fishing is done by hand, unless you would rather not watch the float.
   if ((id === 'fish' || id === 'fishBoat') && x === undefined && !save.autoFish) return castLine(id);
+  // A shift done by hand is played first, and marked on how it went.
+  if (id === 'workPlay' && x === undefined) return playShift();
   const r = life.act(id, x);
   if (!r.ok) { sfx('nope'); toast(r.why); return; }
   haptic();
@@ -701,6 +704,14 @@ function spin(r) {
     renderSheet();
     if (r.out.win > 0) { sfx(r.out.reels[0] === '💎' && r.out.reels[1] === '💎' && r.out.reels[2] === '💎' ? 'cheer' : 'coin'); if (r.out.win >= 5000) confetti(); }
   }, 700);
+}
+
+// ---- a shift done by hand ---------------------------------------------------------------
+
+function playShift() {
+  const why = life.can('workPlay', 0.5);
+  if (why) { sfx('nope'); toast(why); return; }
+  playMini(life.shiftGame(), (score) => { if (score != null && life && life.s.job) doAct('workPlay', score); });
 }
 
 // ---- fishing: watch the float, and strike when it dips ----------------------------------
@@ -890,6 +901,7 @@ function meHtml() {
     <p class="fine">Skills grow by doing things, more slowly the higher they get, and faster when you are happy.</p></div>
   <div class="box"><h3>Work</h3>${job ? `<div class="line"><span>${job.icon} ${life.jobTitle()}, ${job.shady ? 'Sal’s crew' : PLACES[job.place].name}</span><b>${money(life.shiftPay())} a shift</b></div>
       ${job.shady ? '' : `<div class="line"><span>How you stand</span><b>${life.standing()}</b></div>`}
+      ${life.playDue() ? `<p class="sub">👀 ${job.shady ? 'Sal' : 'The boss'} wants to watch your next shift: it has to be done by hand.</p>` : ''}
       ${next ? `<p class="sub">Next: <b>${next.title}</b> (${money(next.pay)} a shift)</p><div class="needs">${needChips(next.list)}</div>` : '<p class="sub">You are at the very top. 🏆</p>'}`
     : s.retired ? `<p class="sub">Retired, on a pension of ${money(s.pension)} a season.</p>` : s.biz ? '<p class="sub">No job: you work for yourself.</p>' : '<p class="sub">Between jobs. The Town Hall has a job board, and the harbour always wants crates unloading.</p>'}
     ${s.biz ? `<div class="line"><span>${BUSINESSES[s.biz.type].icon} Your ${life.bizName().toLowerCase()}, ${PLACES[BUSINESSES[s.biz.type].place].name}</span><b>${s.biz.mgr ? 'Has a manager' : 'Run by you'}</b></div>
@@ -966,7 +978,7 @@ const ui = cards({
     ui.show(`<h2>Start a new life?</h2><p>${esc(life.s.name)}'s story will end here, unfinished. Trophies and ribbons you have earned are kept.</p>
       <div class="actions"><button class="btn btn-primary" data-action="freshYes">Yes, start again</button><button class="btn btn-soft" data-action="menu">No, go back</button></div>`);
   },
-  freshYes() { ui.close(); life = null; sheets = []; raceShow = null; bjShow = null; if (cast) { clearTimeout(cast.timer); cast = null; $('cast').hidden = true; } save.next = null; save.counted = false; save.fresh = false; persist(); showStart(); },
+  freshYes() { ui.close(); quitMini(); life = null; sheets = []; raceShow = null; bjShow = null; if (cast) { clearTimeout(cast.timer); cast = null; $('cast').hidden = true; } save.next = null; save.counted = false; save.fresh = false; persist(); showStart(); },
   begin() {
     ui.close(); sfx('win');
     // The very first time, say how it all works.
@@ -988,11 +1000,18 @@ function showMenu() {
 }
 
 // Shown once to a life that was begun before the town grew.
-const NEWS = 3;
+const NEWS = 4;
 function showNew() {
+  const was = save.seenNew || 0;
   save.seenNew = NEWS;
   persist();
-  ui.show(`<div class="ev-ico">📰</div><h2>New in Starling Bay</h2><div class="how">
+  const hands = '<p><b>🎮 Work can be done by hand.</b> Every career has a game of its own: at your workplace, tap the row that ends “yourself”. Play it well and the shift pays up to half as much again and counts for more. You can leave most shifts to look after themselves, but now and then the boss wants to watch.</p>';
+  if (was >= 3) {
+    ui.show(`<div class="ev-ico">🎮</div><h2>New in Starling Bay</h2><div class="how">${hands}</div>
+      <div class="actions"><button class="btn btn-primary" data-action="evDone">Show me</button></div>`);
+    return;
+  }
+  ui.show(`<div class="ev-ico">📰</div><h2>New in Starling Bay</h2><div class="how">${hands}
     <p><b>⛓️ Prison is lived, not skipped.</b> Get sent down and you serve it a season at a time: behave for parole, fight for your place, study, or dig.</p>
     <p><b>😠 Exes and enemies.</b> A bad break-up leaves an ex you can win back. Cross somebody and they may take against you, until you make peace or see them off.</p>
     <p><b>🐤 Chirper.</b> On your phone, at home: post, gather followers, get paid.</p>
@@ -1011,6 +1030,7 @@ function showHow() {
   ui.show(`<h2>How to play</h2><div class="how">
     <p><b>One life, a season at a time.</b> Each season you get a few blocks of time ⏱. Tap a place on the map and spend them: work, study, train, see people. Tap <b>Next</b> when you are done; time left over is rest.</p>
     <p><b>Four skills</b> open doors: 🧠 Smarts, 💪 Fitness, 💬 Charm and 🎨 Craft. Every career is a ladder that asks for skills and shifts worked. A course from the college lets you start partway up: a medical degree makes you a junior doctor.</p>
+    <p><b>Work by hand.</b> Every career has a game of its own: the row at your workplace that ends “yourself”. Played well, a shift pays up to half as much again and counts for more towards promotion; played badly, less. Most shifts can be left to look after themselves, but every so often the boss wants to watch. The better you are at the job’s skill, the kinder its game is.</p>
     <p><b>Look after yourself.</b> ❤️ Health falls with age and overwork; if it runs out, so do you. 🙂 Mood follows how life is going: a better home, friends, love, a pet.</p>
     <p><b>Bills fall due every season.</b> Save at the bank, buy shares (the index fund is the steady one) or property to let out, start a business, or borrow. A bicycle or a car gives you more time.</p>
     <p><b>People.</b> Friends are made all over town, and everyone has things they love doing. For romance, chat someone up at the pub, try the dating app, or ask out a friend who is single. Close friends in the right jobs do you favours.</p>
@@ -1211,6 +1231,7 @@ const DO = {
   stake(el) { raceStake = Number(el.dataset.v); sfx('tap'); renderSheet(); },
   autofish() { const id = cast && cast.id; if (cast) clearTimeout(cast.timer); cast = null; $('cast').hidden = true; save.autoFish = true; persist(); toast('Fishing will look after itself from now on. The menu changes it back.', 3600); if (id) doAct(id, 1); },
   again() { raceShow = null; sfx('tap'); renderSheet(); },
+  miniQuit() { sfx('tap'); quitMini(); },
   trophies() { sfx('tap'); showTrophies(); },
   menu() { sfx('tap'); showMenu(); },
   // starting out
