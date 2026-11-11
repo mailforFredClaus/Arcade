@@ -14,7 +14,7 @@ import { Life, ACTIONS, money, cashShort } from '../games/new-in-town/js/engine.
 import { EVENTS } from '../games/new-in-town/js/events.js';
 import {
   STATS, PLACES, CAREERS, SHIFTS_FOR_RUNG, COURSES, HOMES, UPGRADES, ITEMS, STOCKS, PROPS, PETS, DREAMS, QUESTS, TROPHIES, RIBBONS, BACKGROUNDS,
-  BUSINESSES, FISH, OUTINGS, KID_PLAY, PERKS, NAMES_M, NAMES_F, INSURANCE, FOOD, CROPS, PLOT_RENT, CURIOS, CURIO_SETS, ECO, many, aCurio, theCurio, GIFTS, SIDELINES, FESTS,
+  BUSINESSES, FISH, OUTINGS, KID_PLAY, PERKS, NAMES_M, NAMES_F, INSURANCE, FOOD, CROPS, PLOT_RENT, CURIOS, CURIO_SETS, ECO, many, aCurio, theCurio, GIFTS, SIDELINES, FESTS, ODD_JOBS,
 } from '../games/new-in-town/js/data.js';
 import { handTotal } from '../games/new-in-town/js/pier.js';
 import { CHIRPS } from '../games/new-in-town/js/fame.js';
@@ -1397,6 +1397,21 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', sibs:
   check(heir.gift('wing') === 'Test' && heir.plaques('hospital')[0].includes('Test') && heir.medCost(1000) === 500 && !heir.income().some(([w]) => w.includes('pier')) && heir.can('fund', 'pier') === 'It has been given.' && Object.keys(heir.s.gave).length === 0, 'the family’s gifts are still standing for the next of the line, though the seat on the board is not inherited');
   check(Life.create({ seed: 3, name: 'New' }).plaques('hospital').length === 0, 'a new family starts with a town that owes it nothing');
   check(Life.create({ seed: 3, name: 'B', heir: 'benefactor' }).s.karma === 25, 'the brass plaque starts you well thought of');
+  // The notice board.
+  for (const [id, j] of Object.entries(ODD_JOBS)) check(STATS.includes(j.stat) && j.win && j.lose && (j.pay > 0 || j.karma > 0) && (!j.need || ITEMS[j.need]), `${id}: a job for the notice board`);
+  const N = fresh();
+  check(N.s.board.length === 3 && new Set(N.s.board).size === 3 && N.placeActions('townhall').filter((a) => a.sec === 'The notice board').length === 3, 'three jobs pinned up outside the Town Hall');
+  const first = N.s.board[0], nc = N.s.cash;
+  N.s.st[ODD_JOBS[first].stat] = 100;
+  N.s.items.car = 1;
+  const r0 = N.act('odd0');
+  check(r0.ok && N.s.board[0] === null && N.s.n.odd === 1 && N.s.cash >= nc + ODD_JOBS[first].pay * 0.4 - 1 && N.placeActions('townhall').filter((a) => a.sec === 'The notice board').length === 2 && N.can('odd0'), 'a job done comes down off the board');
+  const board = JSON.stringify(N.s.board);
+  N.endSeason(); N.s.pend = [];
+  check(N.s.board.every(Boolean) && JSON.stringify(N.s.board) !== board, 'and there are three new ones next season');
+  const walk = fresh();
+  walk.s.board = ['wedding', 'cat', 'fence'];
+  check(walk.can('odd0') === 'You would need a car.' && !walk.can('odd1'), 'the wedding car needs a car');
   // The year's festivals.
   check(FESTS.length === 4 && FESTS.every((f) => PLACES[f.at] && f.games.length === 3 && new Set(f.games.map((g) => g.stat)).size === 3 && f.games.every((g) => STATS.includes(g.stat) && g.win && g.lose)), 'four festivals, each with three contests for three different skills');
   const F = fresh();

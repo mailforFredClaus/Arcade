@@ -4,7 +4,7 @@
 // season; Mr Pym's shop of curios on the High Street, to collect and to
 // trade; and the beach, which is free.
 
-import { GIFTS, FESTS, PLACES, CROPS, PLOT_RENT, PLOT_BEDS, CURIOS, CURIO_SETS, CURIO_SET_SAID, aCurio, theCurio, curioSaid, ECO, FILLER, SMALL_ADS, FISH, SEASONS, LOOKS, ITEMS, money, many } from './data.js';
+import { GIFTS, FESTS, ODD_JOBS, PLACES, CROPS, PLOT_RENT, PLOT_BEDS, CURIOS, CURIO_SETS, CURIO_SET_SAID, aCurio, theCurio, curioSaid, ECO, FILLER, SMALL_ADS, FISH, SEASONS, LOOKS, ITEMS, money, many } from './data.js';
 
 const round10 = (n) => Math.round(n / 10) * 10;
 const seasonsOf = (list) => list.map((q) => SEASONS[q].toLowerCase()).join(' or ');
@@ -116,16 +116,44 @@ export function install({ def, A, Life, clamp }) {
       s.cur = { stock, bid: Object.fromEntries(Object.keys(CURIO_SETS).map((k) => [k, Math.round((0.6 + this.rnd() * 0.55) * 100) / 100])), hag: false };
     },
 
+    // Three new jobs on the notice board.
+    pinUp() {
+      const ids = Object.keys(ODD_JOBS), board = [];
+      while (board.length < 3) { const id = this.pick(ids); if (!board.includes(id)) board.push(id); }
+      this.s.board = board;
+    },
     // The turn of a season in town (the new season has begun).
     townSeason() {
       this.plotSeason();
       this.restock();
+      this.pinUp();
     },
   });
 
   // -- the Gazette
   def('gazette', { place: 'home', sec: 'At home', icon: '📰', title: 'Read the Gazette', desc: 'What Starling Bay is talking about this season.', time: 0, open: 'gazette' });
   def('gazette2', { place: 'station', sec: 'The news stand', icon: '📰', title: 'Read the Gazette', desc: 'What Starling Bay is talking about this season.', time: 0, open: 'gazette' });
+
+  // -- the notice board
+  for (let i = 0; i < 3; i++) {
+    const job = (L) => ODD_JOBS[L.s.board[i]];
+    def(`odd${i}`, {
+      place: 'townhall', sec: 'The notice board', icon: (L) => job(L).icon, title: (L) => job(L).title,
+      desc: (L) => { const j = job(L); return `${j.pay ? `${money(j.pay)}` : 'No pay, but it is noticed'} if you make a good job of it (${Math.round(L.checkOdds(j.stat, j.dc) * 100)}%).`; },
+      show: (L) => !!L.s.board && !!L.s.board[i],
+      why: (L) => (job(L).need && !L.s.items[job(L).need] && !(job(L).need === 'car' && L.s.items.sportscar) ? 'You would need a car.' : null),
+      run(L) {
+        const s = L.s, j = job(L), won = L.chance(L.checkOdds(j.stat, j.dc));
+        s.board[i] = null;
+        s.n.odd = (s.n.odd || 0) + 1;
+        L.gain(j.stat, 1.2);
+        const pay = Math.round(j.pay * (won ? 1 : 0.4) / 10) * 10;
+        if (pay) { L.cash(pay); s.n.earned += pay; }
+        if (won) { L.joy(2); if (j.karma) L.karma(j.karma); }
+        return `${won ? j.win : j.lose}${pay ? ` ${money(pay)}.` : ''}`;
+      },
+    });
+  }
 
   // -- the festivals
   FESTS.forEach((f, q) => f.games.forEach((g, i) => {

@@ -634,6 +634,7 @@ export const TROPHIES = {
   rosette: { name: 'First prize', icon: '🏵️', desc: 'Win something at one of the year’s festivals.', test: (L) => Object.keys(L.s.fests).length >= 1 },
   seasons4: { name: 'A year of rosettes', icon: '🎪', desc: 'Win something at all four festivals.', test: (L) => FESTS.every((f) => f.games.some((g) => L.s.fests[g.id])) },
   reigning: { name: 'Reigning champion', icon: '👑', desc: 'Win the same contest three times.', test: (L) => Object.values(L.s.fests).some((n) => n >= 3) },
+  oddjobs: { name: 'Odd-job man', icon: '📌', desc: 'Do twenty jobs from the notice board.', test: (L) => (L.s.n.odd || 0) >= 20 },
   slump: { name: 'Seen it all', icon: '📰', desc: 'Live through a boom and a deep slump.', test: (L) => !!L.s.f.sawBoom && !!L.s.f.sawSlump },
   dream1: { name: 'Dream come true', icon: '✨', desc: 'Make a dream come true.', test: (L) => Object.keys(L.s.dreamDone).length >= 1 },
   dream3: { name: 'Living the dream', icon: '🌈', desc: 'Make all three dreams come true in one life.', test: (L) => Object.keys(L.s.dreamDone).length >= 3 },
@@ -801,6 +802,29 @@ export const FESTS = [
     { id: 'panto', icon: '🎭', title: 'Play the dame in the pantomime', stat: 'charm', dc: 38, prize: 350, fame: 2, win: '"Oh no it isn’t!" Six nights and a matinee, and the best fun you have had in years.', lose: 'The wig comes off in the second act. The children think it is the best bit.' },
   ] },
 ];
+
+// ---- the notice board -------------------------------------------------------------------
+
+// Small jobs pinned up outside the Town Hall: three each season, each to
+// be done once. A skill decides how well it goes (and so what it pays).
+export const ODD_JOBS = {
+  fence: { icon: '🪚', title: 'Mend Mrs Hadley’s fence', stat: 'craft', dc: 25, pay: 180, win: 'Straight as a die. She pays you, and sends you home with a marrow.', lose: 'It stands up, if nobody leans on it.' },
+  cat: { icon: '🐈', title: 'Find a cat called Admiral', stat: 'smarts', dc: 25, pay: 120, karma: 1, win: 'He is in the last place anybody would look: at home, behind the boiler.', lose: 'You find a cat. It is not Admiral, and it is not pleased.' },
+  piano: { icon: '🎹', title: 'Help shift a piano up three flights', stat: 'fitness', dc: 35, pay: 200, win: 'Up it goes, round both corners, without a scratch on it or you.', lose: 'It is up. So is your back.' },
+  leaflets: { icon: '📬', title: 'Deliver leaflets for the regatta committee', stat: 'fitness', dc: 20, pay: 100, win: 'Every door in the Bay by teatime, and only one dog.', lose: 'You do the same street twice and miss the whole of the Old Town.' },
+  twins: { icon: '👶', title: 'Mind the Pascoe twins for an evening', stat: 'charm', dc: 30, pay: 140, win: 'Both asleep by eight. You do not say how.', lose: 'They are still up when the Pascoes get home. So is the cat, on the curtain rail.' },
+  bingo: { icon: '🔢', title: 'Call the bingo at the church hall', stat: 'charm', dc: 25, pay: 110, karma: 1, win: '"Two fat ladies" gets a cheer and a tut, as it should.', lose: 'You call 66 as 99, twice, and there is very nearly a riot.' },
+  gutters: { icon: '🪜', title: 'Clear the gutters at the vicarage', stat: 'fitness', dc: 28, pay: 160, win: 'Forty years of leaves, a tennis ball and a hymn book.', lose: 'The ladder and you part company at the porch. No harm done, to the porch.' },
+  sign: { icon: '🖌️', title: 'Repaint the sign of the Gull & Anchor', stat: 'craft', dc: 35, pay: 260, win: 'The gull has never looked so pleased with itself.', lose: 'The landlord looks at it for a long time. "Is that a gull?"' },
+  books: { icon: '📒', title: 'Sort out the cricket club’s accounts', stat: 'smarts', dc: 35, pay: 240, win: 'You find $300 they did not know they had, in a tea urn.', lose: 'They balance, in the end, if you squint.' },
+  dogs: { icon: '🐕', title: 'Walk five dogs at once', stat: 'fitness', dc: 30, pay: 130, win: 'Five dogs out, five dogs back, and only one of them wet.', lose: 'For a time, on the beach, the dogs walk you.' },
+  wedding: { icon: '🚗', title: 'Drive the wedding car', stat: 'charm', dc: 30, pay: 220, need: 'car', win: 'Ribbons on the bonnet, and the bride gets there exactly four minutes late, as is proper.', lose: 'You take the scenic route by mistake. The vicar starts without her.' },
+  letters: { icon: '✉️', title: 'Write letters for old Mr Pring', stat: 'smarts', dc: 20, pay: 90, karma: 2, win: 'Three to his sister and one, very firm, to the gas board.', lose: 'He dictates faster than you write, and a good deal ruder.' },
+  cakes: { icon: '🧁', title: 'Bake for the lifeboat coffee morning', stat: 'craft', dc: 28, pay: 0, karma: 4, win: 'Yours goes first. The coxswain has three slices and names the next rescue after you.', lose: 'It is eaten, out of loyalty.' },
+  knots: { icon: '🪢', title: 'Teach the Sea Scouts their knots', stat: 'charm', dc: 35, pay: 150, win: 'Twelve bowlines, and nobody tied to a chair.', lose: 'You are tied to a chair.' },
+  windows: { icon: '🧽', title: 'Clean the windows of the lighthouse', stat: 'fitness', dc: 40, pay: 300, win: 'All of them, right to the lamp room. You can see France. Probably.', lose: 'You do the bottom forty steps’ worth and call it a day.' },
+  census: { icon: '📋', title: 'Count the gulls for the council', stat: 'smarts', dc: 30, pay: 170, win: 'Four thousand, two hundred and six. You are fairly sure about the six.', lose: 'They will not keep still. You put "many".' },
+};
 
 // ---- the allotment ----------------------------------------------------------------------
 

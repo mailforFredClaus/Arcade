@@ -722,6 +722,7 @@ export class Life {
     const later = { gifts: {}, gave: {}, fests: {}, heat: 0, shark: 0, habit: {}, stand: {}, eco: 0, roy: [], album: { p: 0, q: 0 }, lot: { n: 0, pot: 100000 }, curios: {}, curSeen: {}, grown: {}, marrow: 0 };
     for (const [k, v] of Object.entries(later)) if (state[k] == null) state[k] = v;
     if (!state.cur) this.restock();
+    if (!state.board) this.pinUp();
   }
 
   // name, sex ('m' or 'f'), into: who you fall for ('m', 'f' or 'b' for both),
