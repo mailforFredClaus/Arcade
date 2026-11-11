@@ -7,7 +7,7 @@
 // makes the next one riskier until it cools. Get caught and a card decides
 // the rest: fines for small things, prison for big ones.
 
-import { CAREERS, ITEMS, money, low } from './data.js';
+import { CAREERS, ITEMS, CURIOS, money, low, an } from './data.js';
 
 // What bending the rules looks like in each line of work.
 const GRAFT = {
@@ -40,6 +40,10 @@ export function install({ def, A, Life, clamp }) {
     // The chance a piece of villainy ends with a hand on your collar.
     riskOf(base) {
       const s = this.s, crew = s.job && s.job.c === 'crew' ? s.job.r * 0.01 : 0;
+      // (On the run, every constable knows your face.)
+      if (s.run) base += 0.08;
+      // (Fog is a villain's friend.)
+      if (s.wx === 'fog') base -= 0.04;
       return clamp(base + s.heat / 400 + Math.min(4, s.record) * 0.02 - s.st.smarts / 1000 - (this.perk('police') ? 0.04 : 0) - (this.perk('crew') ? 0.03 : 0) - (s.heir === 'rogue' ? 0.06 : 0) - crew, 0.03, 0.85);
     },
     // Commits one: it is counted, your name suffers and the law takes an
@@ -57,9 +61,15 @@ export function install({ def, A, Life, clamp }) {
     // What the magistrate hands down. Small things are a fine; the rest is
     // time, and more of it if you have been here before.
     sentence(sev) {
-      const s = this.s, again = s.record >= 1;
-      if (sev <= 0) return 'A stern talking-to, and you are let go. This time.';
-      const n = [0, 0, 2, 5, 12][Math.min(4, sev)] + (again ? [0, 1, 1, 2, 4][Math.min(4, sev)] : 0);
+      const s = this.s, again = s.record >= 1, k = clamp(sev, 0, 4);
+      // An escaped prisoner is known on sight: whatever this was for, what was owed comes back with it.
+      const owe = s.run ? s.run.owe : 0;
+      if (sev <= 0 && !owe) return 'A stern talking-to, and you are let go. This time.';
+      let n = [0, 0, 2, 5, 12][k] + (again ? [0, 1, 1, 2, 4][k] : 0);
+      // Caught again while out on licence: the rest of the old sentence comes back too.
+      if (n && s.t < (s.f.licence || 0)) { n += 2; s.f.licence = 0; }
+      if (n > 1 && s.heir === 'lag') n--;
+      n += owe;
       if (!n) {
         const fine = this.perk('law') ? 800 : 1500;
         s.record++;
@@ -68,10 +78,12 @@ export function install({ def, A, Life, clamp }) {
         return `A ${money(fine)} fine and a criminal record.`;
       }
       this.queue('inside', { n });
-      return `The magistrate does not look up. "${n} seasons."`;
+      return owe ? `The desk sergeant has your photograph pinned up behind him. Back to Starling Gaol: ${n} season${n === 1 ? '' : 's'}, what you owed and more.` : `The magistrate does not look up. "${n} season${n === 1 ? '' : 's'}."`;
     },
     lawWord() { const h = this.s.heat; return h >= 75 ? 'Hunting for you' : h >= 45 ? 'Wants a word' : h >= 15 ? 'Watching you' : 'No interest in you'; },
     hooked(k) { return (this.s.habit[k] || 0) >= 60; },
+    // Mr Pym does not forget being sold a fake.
+    pymShut() { return this.s.t < (this.s.f.pymOff || 0); },
     // The end of a season, on the low road: heat cools, habits bite, Sal's interest mounts.
     viceSeason() {
       const s = this.s;
@@ -86,7 +98,7 @@ export function install({ def, A, Life, clamp }) {
       if (s.shark > 0) {
         s.shark = Math.round(s.shark * 1.1);
         s.sharkT = (s.sharkT || 0) + 1;
-        if (s.sharkT >= 6 && s.sharkT % 3 === 0) this.queue('legbreakers');
+        if (s.sharkT >= 6 && s.sharkT % 3 === 0 && !s.gaol) this.queue('legbreakers');
       } else s.sharkT = 0;
     },
   });
@@ -100,7 +112,7 @@ export function install({ def, A, Life, clamp }) {
       if (L.crime(0.2, 1, 'half the shop under your coat')) return 'A hand lands on your shoulder at the door.';
       s.n.thefts = (s.n.thefts || 0) + 1;
       const take = ['books', 'rod', 'easel', 'guitar', 'phone'].filter((id) => !s.items[id]);
-      if (take.length && L.chance(0.5)) { const id = L.pick(take); s.items[id] = 1; return `You walk out with a ${ITEMS[id].name.toLowerCase()} and a hammering heart. Nobody says a word.`; }
+      if (take.length && L.chance(0.5)) { const id = L.pick(take); s.items[id] = 1; return `You walk out with ${an(ITEMS[id].name.toLowerCase())} and a hammering heart. Nobody says a word.`; }
       const got = L.int(8, 40) * 10;
       L.cash(got);
       return `Razors, perfume, a ham. Sal gives you ${money(got)} for the lot.`;
@@ -155,7 +167,9 @@ export function install({ def, A, Life, clamp }) {
         if (L.crime(base, sev, `${i === 2 ? 'the Manor’s' : 'somebody else’s'} silver in a pillowcase`)) return L.pick(['The dog was not in the plans.', 'You are halfway out of the window when the lights come on.', 'A neighbour, a telephone, a blue lamp.']);
         const got = L.int(lo / 100, hi / 100) * 100;
         L.cash(got); L.s.n.thefts = (L.s.n.thefts || 0) + 1;
-        return `${L.pick(['In by the scullery, out by the front door like you own the place.', 'Silver, a clock, and a painting of a horse.', 'You leave the fridge as you found it. You are not an animal.'])} Sal’s man gives you ${money(got)}.`;
+        // Now and then there is something too good to fence.
+        const kept = L.chance(0.15 + i * 0.1) ? L.gotCurio(L.anyCurio()) : null;
+        return `${L.pick(['In by the scullery, out by the front door like you own the place.', 'Silver, a clock, and a painting of a horse.', 'You leave the fridge as you found it. You are not an animal.'])} Sal’s man gives you ${money(got)}.${kept ? ` You keep back ${kept.a} for yourself.` : ''}`;
       },
     });
   });
@@ -167,6 +181,19 @@ export function install({ def, A, Life, clamp }) {
       const got = L.int(30, 75) * 100;
       L.cash(got); L.s.n.thefts = (L.s.n.thefts || 0) + 1;
       return `Forty seconds with a coat hanger. You deliver it before the owner has finished breakfast: ${money(got)}.`;
+    },
+  });
+  def('smuggle', {
+    place: 'sal', sec: 'Jobs', icon: '🌒', title: 'Meet a trawler off the point', time: 2,
+    desc: (L) => `Your boat, no lights, forty cases of something French. Worth $9,000 to $18,000. About ${Math.round(L.riskOf(0.17) * 100)}% the customs cutter is waiting.`,
+    show: (L) => !!L.s.items.boat,
+    why: (L) => (L.s.wx === 'storm' ? 'Not even Sal would send a boat out in this.' : L.s.t < (L.s.f.salOff || 0) ? 'Sal is not speaking to you.' : null),
+    run(L) {
+      L.gain('fitness', 0.5);
+      if (L.crime(0.17, 3, 'forty cases of brandy and no lights showing')) return 'A searchlight comes on dead ahead. The cutter has been sitting there, engines off, all night.';
+      const got = L.int(90, 180) * 100;
+      L.cash(got); L.s.n.runs = (L.s.n.runs || 0) + 1;
+      return `${L.s.wx === 'fog' ? 'Fog so thick you find the trawler by the smell of its galley.' : L.pick(['Hand over hand in the dark, and not a word spoken.', 'The skipper counts the cases twice, in French.', 'You are back on your mooring before the milk float.'])} Sal counts out ${money(got)}.`;
     },
   });
   def('torch', {
@@ -273,6 +300,27 @@ export function install({ def, A, Life, clamp }) {
     },
   });
 
+  // -- a little something Mr Pym has not seen before
+  def('forge', {
+    place: 'studios', sec: 'Under the counter', icon: '🏺', title: 'Knock up an antique', cost: 120, time: 2, per: 1,
+    desc: (L) => `Tea, shoe polish, a week in the airing cupboard. ${Math.round(L.checkOdds('craft', 65) * 100)}% Mr Pym is taken in; if he is not, he will not have you in the shop.`,
+    show: (L) => L.s.st.craft >= 45,
+    why: (L) => (L.pymShut() ? 'Mr Pym is not at home to you.' : null),
+    run(L) {
+      const s = L.s;
+      L.gain('craft', 1.5); L.karma(-3);
+      s.n.crimes++;
+      if (!L.chance(L.checkOdds('craft', 65))) {
+        s.f.pymOff = s.t + 8;
+        const caught = L.crime(0.25, 2, 'a "Georgian" tea caddy that smells of shoe polish');
+        return `Mr Pym holds it up to the light, sniffs it, and puts it down very gently. "Out."${caught ? ' He has also, it turns out, telephoned the constable.' : ' You will not be welcome there for a couple of years.'}`;
+      }
+      const c = CURIOS[L.anyCurio()], got = Math.round(c.worth * 0.6 / 10) * 10;
+      L.cash(got); s.n.fakes = (s.n.fakes || 0) + 1;
+      return `Mr Pym turns your ${c.name.toLowerCase().replace('roman', 'Roman')} over for a long time, and then pays ${money(got)} for it. It will be in the window by Friday, described as "rare".`;
+    },
+  });
+
   // -- vices
   def('binge', {
     place: 'pub', sec: 'Vices', icon: '🥃', title: 'Drink until closing', desc: 'A wonderful evening. A terrible morning.', cost: 60,
@@ -294,7 +342,9 @@ export function install({ def, A, Life, clamp }) {
       L.gain('fitness', 0.8);
       if (won) { L.joy(4); L.fame(0.3); s.n.fights = (s.n.fights || 0) + 1; } else L.rough(10, 'a fight');
       const nicked = L.crime(0.12, 1, 'a broken stool and somebody’s tooth');
-      return `${won ? 'One punch, a table of spilled drinks, and he stays down.' : 'He is bigger than he looked sitting down.'}${nicked ? ' And then the constable is in the doorway.' : won ? ' The landlord bars you until Thursday.' : ' The landlord puts a steak on your eye.'}`;
+      // Some people do not let a thing like that go.
+      const foe = L.enemies().length < 3 && L.chance(0.3) ? L.foe({ sex: 'm', grudge: won ? 55 : 35 }) : null;
+      return `${won ? 'One punch, a table of spilled drinks, and he stays down.' : 'He is bigger than he looked sitting down.'}${nicked ? ' And then the constable is in the doorway.' : won ? ' The landlord bars you until Thursday.' : ' The landlord puts a steak on your eye.'}${foe ? ` His name, you learn later, is ${foe.name}, and he is not the forgiving sort.` : ''}`;
     },
   });
   def('fling', {
@@ -330,7 +380,7 @@ export function install({ def, A, Life, clamp }) {
   def('scrounge', {
     who: true, sec: 'Behave badly', icon: '🫴', title: 'Ask for money', time: 0,
     desc: (L, p) => `You have no intention of paying it back. ${Math.round(L.checkOdds('charm', 45) * 100)}% ${p.sex === 'm' ? 'he' : 'she'} coughs up.`,
-    show: (L, p) => p.kind !== 'child' || p.age >= 18,
+    show: (L, p) => p.kind !== 'ex' && p.kind !== 'enemy' && ((p.kind !== 'child' && p.kind !== 'grandchild') || p.age >= 18),
     why: (L, p) => (L.s.t - (p.asked ?? -99) < 4 ? `You asked ${p.sex === 'm' ? 'him' : 'her'} not long ago.` : p.bond < 15 ? 'You are hardly on speaking terms.' : null),
     run(L, p) {
       p.asked = L.s.t; L.karma(-1);

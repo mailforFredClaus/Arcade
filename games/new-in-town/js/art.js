@@ -69,7 +69,7 @@ const BUILD = {
 
 // tier: which home to draw. work: the place you work at (gets a badge).
 // study: true if you're on a course. biz: the place your business is.
-export function townSvg({ tier = 0, work = null, study = false, biz = null } = {}) {
+export function townSvg({ tier = 0, work = null, study = false, biz = null, ripe = false, fest = null } = {}) {
   const road = (d) => `<path d="${d}" class="road-edge"/><path d="${d}" class="road"/>`;
   let out = `<svg viewBox="0 0 400 600" preserveAspectRatio="xMidYMid slice" class="town" xmlns="http://www.w3.org/2000/svg">`;
   // Sky, far hills, the green, the sand and the sea.
@@ -105,6 +105,8 @@ export function townSvg({ tier = 0, work = null, study = false, biz = null } = {
     out += `<g class="tag"><rect x="${-w / 2}" y="24" width="${w}" height="15" rx="7.500"/><text x="0" y="34.600">${label}</text></g>`;
     if (id === work) out += `<g class="mark"><circle cx="30" cy="-24" r="10"/><text x="30" y="-20">💼</text></g>`;
     if (id === biz) out += `<g class="mark"><circle cx="-30" cy="-24" r="10"/><text x="-30" y="-20">🏪</text></g>`;
+    if (id === fest) out += `<g class="mark fest"><circle cx="0" cy="-46" r="11"/><text x="0" y="-42">🎪</text></g>`;
+    if (id === 'park' && ripe) out += `<g class="mark"><circle cx="30" cy="-24" r="10"/><text x="30" y="-20">🥕</text></g>`;
     if (id === 'college' && study) out += `<g class="mark"><circle cx="-30" cy="-24" r="10"/><text x="-30" y="-20">✏️</text></g>`;
     out += `<rect x="-40" y="-46" width="80" height="88" fill="transparent"/></g>`;
   }
@@ -143,6 +145,26 @@ export function face(look, age = 30, mood = 60, sex = null) {
 }
 
 // A small line chart of a share's price.
+// The view from a cell: a wall, a barred window, and a tally of seasons done.
+export function gaolSvg(season, served) {
+  const sky = ['#bfe3f2', '#8fd0f0', '#f1c98a', '#cfd8e3'][season];
+  let bricks = '', tally = '';
+  for (let y = 0, row = 0; y < 150; y += 18, row++) for (let x = row % 2 ? -20 : 0; x < 400; x += 40) bricks += `<rect x="${x + 1}" y="${y + 1}" width="38" height="16" rx="2"/>`;
+  for (let i = 0; i < Math.min(served, 40); i++) {
+    const g = Math.floor(i / 5), k = i % 5, x = 18 + (g % 4) * 30, y = 30 + Math.floor(g / 4) * 34;
+    tally += k < 4 ? `<line x1="${x + k * 5}" y1="${y}" x2="${x + k * 5}" y2="${y + 20}"/>` : `<line x1="${x - 3}" y1="${y + 16}" x2="${x + 19}" y2="${y + 4}"/>`;
+  }
+  return `<svg class="cellart" viewBox="0 0 400 150" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <rect width="400" height="150" fill="#6f7480"/><g fill="#7d8390">${bricks}</g>
+    <rect x="250" y="24" width="104" height="80" rx="6" fill="${sky}"/>
+    <circle cx="328" cy="46" r="11" fill="#fff" opacity=".75"/>
+    <g stroke="#3d414b" stroke-width="6" stroke-linecap="round">${[270, 291, 312, 333].map((x) => `<line x1="${x}" y1="26" x2="${x}" y2="102"/>`).join('')}</g>
+    <rect x="246" y="20" width="112" height="88" rx="8" fill="none" stroke="#4c515c" stroke-width="8"/>
+    <g stroke="#e9e4d6" stroke-width="2.4" stroke-linecap="round" opacity=".8">${tally}</g>
+    <rect x="0" y="128" width="400" height="22" fill="#565a64"/>
+  </svg>`;
+}
+
 export function spark(list, w = 84, h = 26) {
   if (list.length < 2) return `<svg viewBox="0 0 ${w} ${h}" class="spark"></svg>`;
   const lo = Math.min(...list), hi = Math.max(...list), span = hi - lo || 1;

@@ -8,7 +8,7 @@
 // choice and returns what to say (win: whether the gamble came off).
 // L is the Life; x is whatever the event is about (often a person's id).
 
-import { money, CAREERS, NAMES, PETS, STATS, STAT_NAME, BUSINESSES } from './data.js';
+import { money, CAREERS, NAMES, PETS, STATS, STAT_NAME, BUSINESSES, CURIOS, aCurio, TRAITS, DATE_LINES, an, lowJob, STOCKS } from './data.js';
 
 const P = (L, id) => L.person(id) || { name: 'Someone', sex: 'm', bond: 0, age: 30 };
 // He or she, him or her, his or her: for whoever a card is about.
@@ -16,11 +16,16 @@ const he = (p) => (p.sex === 'm' ? 'he' : 'she');
 const He = (p) => (p.sex === 'm' ? 'He' : 'She');
 const him = (p) => (p.sex === 'm' ? 'him' : 'her');
 const his = (p) => (p.sex === 'm' ? 'his' : 'her');
+const His = (p) => (p.sex === 'm' ? 'His' : 'Her');
 // Someone you could fall for.
 const catchEye = (L, o) => L.meet({ sex: L.s.into === 'b' ? (L.chance(0.5) ? 'm' : 'f') : L.s.into, single: true, ...o });
 // Home insurance pays for most of a mishap.
 const covered = (L) => !!L.s.ins.home;
 const has = (L, id) => !!L.person(id);
+// Still your sweetheart (not an ex by now).
+const mine = (L, id) => has(L, id) && ['partner', 'spouse'].includes(L.person(id).kind);
+// Someone who might take you aside: a friend, a sweetheart, family.
+const close = (p) => ['friend', 'partner', 'spouse', 'parent', 'sibling'].includes(p.kind) || ((p.kind === 'child' || p.kind === 'grandchild') && p.age >= 18);
 const aFriend = (L) => { const f = L.friends(); return f.length ? L.pick(f).id : null; };
 const aKid = (lo, hi) => (L) => { const k = L.kids().filter((c) => c.age >= lo && c.age <= hi); return k.length ? L.pick(k).id : null; };
 const aParent = (L) => { const k = L.s.people.filter((p) => p.kind === 'parent'); return k.length ? L.pick(k).id : null; };
@@ -127,7 +132,7 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'adrift', icon: '⛵', title: 'Adrift!', w: 2, when: (L) => !!L.s.items.boat,
+    id: 'adrift', icon: '⛵', title: 'Adrift!', w: 5, when: (L) => !!L.s.items.boat && L.s.wx === 'storm',
     text: 'A gale in the night has snapped your mooring. Your boat is bobbing out past the harbour mouth.',
     opts: [
       { t: 'Swim out to her', check: ['fitness', 55], run(L, x, win) { if (win) { L.joy(5); L.fame(1); return 'Cold enough to stop your heart, but you haul yourself aboard and sail her home.'; } L.hp(-14, 'the cold sea'); delete L.s.items.boat; return 'The cold turns you back, half drowned. The boat is gone by morning.'; } },
@@ -161,24 +166,6 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'fair', icon: '🎪', title: 'The Spring Fair', w: 4, cd: 12, when: (L) => L.season === 0,
-    text: 'Bunting on the green, a brass band, and three ways to make a fool of yourself.',
-    opts: [
-      { t: 'Enter the bake-off', check: ['craft', 40], run(L, x, win) { if (win) { L.cash(300); L.joy(5); L.gain('craft', 1); return 'First prize, a rosette and $300. The vicar asks for the recipe.'; } L.joy(-1); return 'The judge says "interesting" and moves on quickly.'; } },
-      { t: 'Join the tug of war', check: ['fitness', 40], run(L, x, win) { if (win) { L.cash(200); L.joy(5); return 'Your side drags the fire brigade through the mud. $200 and glory.'; } L.joy(1); return 'You are dragged through the mud by the fire brigade.'; } },
-      { t: 'Run the tombola', check: ['charm', 35], run(L, x, win) { L.karma(2); if (win) { L.gain('charm', 1.5); L.joy(3); return 'You sell every ticket. Someone wins a tin of peaches from 1987.'; } return 'A slow day at the tombola, but all for a good cause.'; } },
-    ],
-  },
-  {
-    id: 'regatta', icon: '🚣', title: 'Regatta Day', w: 4, cd: 12, when: (L) => L.season === 1,
-    text: 'The whole bay is out: flags, boats, ice cream and shouting.',
-    opts: [
-      { t: 'Row in the big race', check: ['fitness', 50], run(L, x, win) { if (win) { L.cash(1000); L.fame(1); L.joy(6); return 'Your crew wins by half a length. $1,000 and a silver cup for the pub shelf.'; } L.gain('fitness', 1); return 'Fourth. Out of four. Your hands are blisters.'; } },
-      { t: 'Bet $200 on the lifeboat crew', cost: 200, odds: () => 0.45, run(L, x, win) { if (win) { L.cash(500); return 'They storm it. You collect $500.'; } return 'They catch a crab at the turn. So does your $200.'; } },
-      { t: 'Sell ice creams', check: ['charm', 35], run(L, x, win) { if (win) { L.cash(400); return 'You sell out by two o’clock. $400.'; } L.cash(100); return 'It rains. You make $100 and eat the stock.'; } },
-    ],
-  },
-  {
     id: 'gala', icon: '🎄', title: 'The Winter Gala', w: 4, cd: 12, when: (L) => L.season === 3,
     text: 'The lifeboat fundraiser at the Town Hall: the one night Starling Bay dresses up.',
     opts: [
@@ -188,7 +175,7 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'snow', icon: '🌨️', title: 'Snowed in', w: 2, when: (L) => L.season === 3,
+    id: 'snow', icon: '🌨️', title: 'Snowed in', w: 6, cd: 8, when: (L) => L.s.wx === 'snow',
     text: 'A foot of snow overnight. Nothing is moving. A week indoors, then.',
     opts: [
       { t: 'Read everything in the house', run(L) { L.gain('smarts', 3); return 'Including the instructions for the toaster.'; } },
@@ -197,7 +184,7 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'heat', icon: '🥵', title: 'Heatwave', w: 2, when: (L) => L.season === 1,
+    id: 'heat', icon: '🥵', title: 'Heatwave', w: 6, cd: 8, when: (L) => L.s.wx === 'hot',
     text: 'The hottest week anyone can remember. The tarmac is soft and the beach is full.',
     opts: [
       { t: 'To the beach', run(L) { L.joy(6); L.hp(-1); return 'You swim, doze, and burn your nose.'; } },
@@ -391,7 +378,7 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'gale', icon: '🌊', title: 'Caught out', w: 3, when: (L) => inJob(L, 'sea'),
+    id: 'gale', icon: '🌊', title: 'Caught out', w: 6, when: (L) => inJob(L, 'sea') && L.s.wx === 'storm',
     text: 'The forecast was wrong. Ten miles out the sky goes black, and the sea stands up.',
     opts: [
       { t: 'Ride it out and save the catch', check: ['fitness', 50], run(L, x, win) { if (win) { credit(L, 2); L.fame(1); L.joy(4); return 'Nine hours at the wheel. You bring boat, crew and catch home. They buy your drinks for a month.'; } L.hp(-15, 'a storm at sea'); return 'A wave takes you off your feet and into the winch. You are lucky to come home at all.'; } },
@@ -777,8 +764,8 @@ export const EVENTS = [
 
   // ---- the low road ----
   {
-    id: 'hooked', icon: '🫗', title: 'A quiet word', w: 6, cd: 8, when: (L) => (L.hooked('drink') || L.hooked('dust')) && L.s.people.some((p) => p.kind !== 'child' || p.age >= 18),
-    ctx: (L) => { const l = L.s.people.filter((p) => p.kind !== 'child' || p.age >= 18).sort((a, b) => b.bond - a.bond); return l.length ? l[0].id : null; }, ok: has,
+    id: 'hooked', icon: '🫗', title: 'A quiet word', w: 6, cd: 8, when: (L) => (L.hooked('drink') || L.hooked('dust')) && L.s.people.some(close),
+    ctx: (L) => { const l = L.s.people.filter(close).sort((a, b) => b.bond - a.bond); return l.length ? l[0].id : null; }, ok: (L, x) => has(L, x) && close(P(L, x)),
     text: (L, x) => `${P(L, x).name} sits you down. "I have been watching you. It is ${L.hooked('dust') ? 'that stuff from under the pier' : 'the drink'}, and it is getting worse. Let me take you to St Wren’s."`,
     opts: [
       { t: 'Go to the clinic', cost: (L) => L.medCost(3500), run(L, x) { busy(L, 3); L.s.habit = {}; L.s.f.clean = 1; L.bond(P(L, x), 8); L.hp(6); L.note('Got clean at St Wren’s.', 'big'); return `Three hard weeks. ${P(L, x).name} is there on visiting days, every one.`; } },
@@ -918,11 +905,545 @@ export const EVENTS = [
   },
   {
     id: 'inside', icon: '⛓️', title: 'Starling Gaol',
-    text: (L, x) => `${x.n} season${x.n > 1 ? 's' : ''} to serve. The gate shuts behind you, and a voice from the landing shouts something unrepeatable. How will you do your time?`,
+    text: (L, x) => `${x.n} season${x.n > 1 ? 's' : ''}. The gate shuts behind you, and a voice from the landing shouts something unrepeatable. You will live every one of them: there is a yard, a library, a workshop, and a great many men with time on their hands. How do you mean to start?`,
     opts: [
-      { t: 'Head down, library card out', run(L, x) { L.gain('smarts', Math.min(8, 2 * x.n)); L.jail(x.n); return 'You read everything on the trolley, twice, and speak to nobody. You come out pale, well-read and unemployable.'; } },
-      { t: 'Fall in with the hard cases', run(L, x) { L.gain('fitness', Math.min(8, 2 * x.n)); L.karma(-5); L.s.n.crimes += 3; L.jail(x.n); return 'You learn a great deal in there, none of it on the syllabus. You come out with new friends and their telephone numbers.'; } },
-      { t: 'Go over the wall', odds: (L) => 0.15 + L.s.st.fitness / 300 + L.s.st.smarts / 400, run(L, x, win) { if (win) { L.jail(1); L.s.heat = 100; L.s.f.escaped = 1; L.note('Broke out of Starling Gaol.', 'big'); return 'A laundry van, a bent spoon, and nerve. One season in, you are out, and every constable in the bay has your photograph.'; } L.jail(x.n + 3); return 'The sheet rope is four feet too short. Three seasons more, and no more sheets.'; } },
+      { t: 'Head down, library card out', run(L, x) { L.jail(x.n); L.behave(15); return 'You say "sir" to everybody, including a plumber. The governor makes a small note against your name. The good kind.'; } },
+      { t: 'Fall in with the hard cases', run(L, x) { L.jail(x.n); L.respect(20); L.s.gaol.good = Math.min(L.s.gaol.good, 35); L.karma(-3); return 'By lights out you have a nickname, a seat at the back table, and a debt of two cigarettes. It is a start.'; } },
+      { t: 'Look for the way out', run(L, x) { L.jail(x.n); L.s.gaol.dig = Math.max(L.s.gaol.dig, 1); L.s.gaol.good = Math.min(L.s.gaol.good, 45); return 'You count the paces between the towers, twice, and notice a grating behind the laundry that nobody else seems to have noticed.'; } },
+    ],
+  },
+  {
+    id: 'parole', icon: '🪪', title: 'The board will see you now', ok: (L) => !!L.s.gaol,
+    text: (L) => `Three people behind a long table, with your file open between them. On it: "${L.goodWord()}." ${L.s.gaol.left} season${L.s.gaol.left > 1 ? 's' : ''} left to serve.`,
+    opts: [
+      { t: (L) => `Tell them you are a changed ${L.s.sex === 'f' ? 'woman' : 'man'}`, odds: (L) => L.paroleOdds() - L.luck(), run(L, x, win) { if (win) { L.release(true); return '"Parole granted." You are on licence for two years: one more conviction in that time and the rest comes back, with interest.'; } L.joy(-5); return '"Not at this time." The chairman does not look up. They will see you again in a year, if you are still here.'; } },
+      { t: 'Tell them what you think of them', run(L) { L.respect(12); L.behave(-12); L.joy(5); return 'It takes four minutes, and you do not repeat yourself once. Parole is refused. The landing gives you a round of applause.'; } },
+    ],
+  },
+  {
+    id: 'gateOut', icon: '🚪', title: 'The gate', log: false,
+    text(L, x) {
+      const pt = L.partner(), folk = L.s.people.find((p) => p.kind === 'parent' && p.bond >= 30) || L.s.people.find((p) => p.kind === 'child' && p.age >= 18 && p.bond >= 30);
+      const who = pt && pt.bond >= 25 ? `${pt.name} is leaning on the bonnet of a borrowed car, trying not to cry.` : folk ? `${folk.name} is waiting across the road, with a flask and your old coat.` : L.s.n.crimes >= 10 ? 'A long black car is waiting at the kerb. The window comes down an inch. "Sal sends his regards."' : 'Nobody is waiting. The bus is in forty minutes.';
+      return `They give you back your watch, your shoelaces and $46. The small door in the big gate opens. ${who}${x && x.early ? ' You are out on licence: keep your nose clean for two years.' : ''}`;
+    },
+    opts: [{ t: 'Breathe', run(L) { const pt = L.partner(); L.joy(pt && pt.bond >= 25 ? 14 : 8); if (pt) L.bond(pt, 6); return ''; } }],
+  },
+  {
+    id: 'recapture', icon: '🔦', title: 'A torch in your face', ok: (L) => !!L.s.run,
+    text: '"Stay where you are." Two constables, a van, and a dog that has clearly been told about you.',
+    opts: [
+      { t: 'Run', check: ['fitness', 60], run(L, x, win) { if (win) { L.warm(10); return 'Through a garden, over a wall, along the railway. The dog gives up at the river. You do not stop until dawn.'; } const n = L.s.run.owe + 2; L.jail(n); return `The dog is faster than you. So, it turns out, is the fat constable. Back inside: ${n} seasons.`; } },
+      { t: 'Talk your way out of it', check: ['charm', 70], run(L, x, win) { if (win) { L.warm(-15); return 'You are, you explain, your own cousin, and often mistaken for yourself. They apologise for troubling you.'; } const n = L.s.run.owe + 1; L.jail(n); return `"Nice try," says the constable, almost fondly. Back inside: ${n} seasons.`; } },
+      { t: 'Hold out your wrists', run(L) { const n = L.s.run.owe; L.jail(n); return `You are tired of looking over your shoulder. Back inside: ${n} seasons, and no more for coming quietly.`; } },
+    ],
+  },
+  // ---- prison ----
+  {
+    id: 'gCellmate', icon: '🛏️', title: 'A new cellmate', gaol: true, w: 4, cd: 6,
+    text: '"Books" Bernard: sixty, mild, in for something involving a pension fund. He takes the bottom bunk without asking and lays out a travelling chess set.',
+    opts: [
+      { t: 'Let him teach you chess', run(L) { L.gain('smarts', 2.5); L.joy(2); return 'You lose forty games running. The forty-first is a draw, and you think about it for a week.'; } },
+      { t: 'Let him teach you bookkeeping', run(L) { L.gain('smarts', 1.5); L.gain('charm', 1); return '"There are two columns," he says, "and the art is in the second one."'; } },
+      { t: 'Tell him which bunk is whose', run(L) { L.respect(4); return 'He moves without a word. You feel about two inches tall, which in here passes for respect.'; } },
+    ],
+  },
+  {
+    id: 'gPudding', icon: '🍮', title: 'Treacle sponge', gaol: true, w: 4, cd: 5,
+    text: 'A man the size of a wardrobe sits down opposite and puts his spoon in your pudding. The whole table has stopped eating.',
+    opts: [
+      { t: 'Tell him where to put the spoon', check: ['fitness', 48], run(L, x, win) { L.behave(-6); if (win) { L.respect(12); return 'It is brief. He eats his own pudding from now on, and nobody else’s spoon comes near yours.'; } L.rough(10, 'a beating in Starling Gaol'); L.respect(3); return 'You wake up in the infirmary. Still: you said it, and that was noticed.'; } },
+      { t: 'Eat it very fast, looking him in the eye', odds: () => 0.5, run(L, x, win) { if (win) { L.respect(6); L.joy(3); return 'He starts to laugh. Then the table laughs. You have, apparently, got some neck.'; } L.respect(-3); return 'He takes tomorrow’s as well, in advance.'; } },
+      { t: 'Push the bowl across', run(L) { L.respect(-7); return 'He takes it. Tomorrow someone else will take your bread.'; } },
+    ],
+  },
+  {
+    id: 'gRiot', icon: '🔥', title: 'B wing goes up', gaol: true, w: 2, cd: 12,
+    text: 'It starts over the hot water and by noon there are mattresses burning on the landing and a guard locked in the tea room.',
+    opts: [
+      { t: 'Join in', run(L) { L.respect(15); L.behave(-30); L.joy(4); if (L.chance(0.4)) { L.extra(2); return 'You are on the roof by teatime, and in the Gazette by morning, waving a table leg. Two seasons are added to your sentence.'; } return 'You throw a great many things off a great height, and nobody can say afterwards who threw what.'; } },
+      { t: 'Stay in your cell with the door shut', run(L) { L.behave(3); return 'You read the same page of a western for six hours.'; } },
+      { t: 'Get the guard out of the tea room', run(L) { L.behave(25); L.respect(-15); L.karma(4); const q = L.s.gaol; if (q.left > 1 && L.chance(0.5)) { L.extra(-1); return 'You walk Mr Hobbs out through the kitchens with a tea towel over his head. The governor takes a season off your sentence. The landing takes note too.'; } return 'You walk Mr Hobbs out through the kitchens with a tea towel over his head. He never mentions it again, but your tea is always hot.'; } },
+    ],
+  },
+  {
+    id: 'gVisit', icon: '🪟', title: 'Visiting day', gaol: true, w: 4, cd: 3,
+    ctx: (L) => { const l = L.s.people.filter((p) => ['partner', 'spouse', 'parent', 'friend', 'sibling'].includes(p.kind) || ((p.kind === 'child' || p.kind === 'grandchild') && p.age >= 16)).filter((p) => p.bond >= 25); return { p: l.length ? L.pick(l).id : 0 }; },
+    text: (L, x) => (has(L, x.p) ? `${P(L, x.p).name} is on the other side of the glass, in ${his(P(L, x.p))} good coat, holding the telephone as if it might bite.` : 'Nobody has put in to see you. The chaplain, who has noticed, sits down instead and asks how you are keeping.'),
+    opts: [
+      { t: 'Put a brave face on it', run(L, x) { L.joy(4); if (has(L, x.p)) { L.bond(P(L, x.p), 8); return 'You talk about the weather, the neighbours, the dog. Twenty minutes. It is the best twenty minutes of the season.'; } return 'He talks about cricket. It is oddly restful.'; } },
+      { t: 'Tell the truth about this place', run(L, x) { L.joy(-1); if (has(L, x.p)) { L.bond(P(L, x.p), 13); return `${P(L, x.p).name} puts ${his(P(L, x.p))} hand flat on the glass. Neither of you says anything for a while.`; } L.karma(1); L.joy(4); return 'He listens. Nobody has, for a while. You feel lighter going back up the stairs.'; } },
+    ],
+  },
+  {
+    id: 'gSearch', icon: '🔦', title: 'Spin', gaol: true, w: 3, cd: 6, when: (L) => L.s.gaol.dig > 0 || L.s.gaol.rep >= 25,
+    text: 'Six in the morning: boots on the landing, every door open, every mattress on the floor. They are turning the whole wing over.',
+    opts: [
+      { t: 'Stand by your door and look bored', check: ['charm', 45], run(L, x, win) { if (win) return 'Mr Hobbs taps the wall an inch from the loose brick, looks at you, and moves on.'; const q = L.s.gaol; L.behave(-12); if (q.dig > 0) { q.dig = 0; L.extra(1); return 'They find it: the spoon, the mortar, the lot. One more season, and you start again from nothing.'; } return 'They find three ounces of tobacco that you honestly had forgotten about.'; } },
+      { t: 'Start an argument two cells down', check: ['smarts', 50], run(L, x, win) { if (win) { L.respect(3); return 'By the time it is sorted out the search party is behind schedule and skips the end of the row. Your end.'; } L.behave(-8); return 'They search yours first after that. Thoroughly.'; } },
+    ],
+  },
+  {
+    id: 'gGarden', icon: '🌹', title: 'The governor’s roses', gaol: true, w: 3, cd: 10, when: (L) => L.s.gaol.good >= 60,
+    text: 'The governor wants somebody trustworthy for the garden: fresh air, no supervision to speak of, and tea with the cook.',
+    opts: [
+      { t: 'Take it', run(L) { L.gain('craft', 3); L.joy(7); L.hp(3); L.behave(5); L.respect(-4); return 'You prune, you mulch, you sit on an upturned bucket in the sun. The roses take second prize at the county show and nobody mentions who grew them.'; } },
+      { t: 'Not for you', run(L) { L.respect(5); return '"Suit yourself." The landing approves. The roses get greenfly.'; } },
+    ],
+  },
+  {
+    id: 'gPoem', icon: '🖋️', title: 'The Hartley prize', gaol: true, w: 3, cd: 10,
+    text: 'A notice by the library trolley: a national prize for writing from prisons. Poems, stories, anything. Closing date Friday.',
+    opts: [
+      { t: 'Write something true', check: ['craft', 50], run(L, x, win) { L.gain('craft', 1.5); if (win) { L.cash(250); L.fame(2); L.joy(7); L.behave(4); L.note('Won a prize for writing in prison.', 'big'); return 'Fourteen lines about the sound of the gate. It wins. $250, and a letter from a lady novelist, which you keep.'; } L.joy(1); return 'Highly commended, along with four hundred others. You keep the pencil.'; } },
+      { t: 'Write a limerick about the governor', run(L) { L.respect(8); L.behave(-6); L.joy(4); return 'It does not win the prize. It is, however, on every wall of the wing by Thursday, and the governor’s name does rhyme with it rather well.'; } },
+    ],
+  },
+  {
+    id: 'gParcel', icon: '🎂', title: 'A cake from outside', gaol: true, w: 3, cd: 10, when: (L) => L.s.n.crimes >= 5,
+    text: 'A fruit cake, already cut open by the gate staff and put back together. They missed the bottom. Under the marzipan: $500 and a note. "Keep your mouth shut. S."',
+    opts: [
+      { t: 'Keep it', run(L) { L.cash(500); return 'You eat the cake, too. It is not a good cake.'; } },
+      { t: 'Share it along the landing', run(L) { L.respect(14); L.joy(3); return 'Tobacco for everybody, and a slice each. For one evening the wing is nearly cheerful.'; } },
+      { t: 'Hand it in', run(L) { L.behave(15); L.respect(-10); L.s.f.salOff = L.s.t + 12; return 'The governor is very interested in the handwriting. Sal will hear about that.'; } },
+    ],
+  },
+  {
+    id: 'gWilf', icon: '✉️', title: 'Old Wilf', gaol: true, w: 3, once: true,
+    text: 'Wilf is eighty-one and has been in since before decimal coinage. He will not be going out. He holds out an envelope, sealed, with an address on the cliff road. "When you are out. By hand, mind."',
+    opts: [
+      { t: 'Give him your word', run(L) { L.s.f.wilf = 1; L.karma(1); return 'He nods, once, and goes back to his jigsaw.'; } },
+      { t: 'Tell him to use the post like everybody else', run(L) { L.respect(1); return '"The post," says Wilf, "is read." He gives it to somebody else.'; } },
+    ],
+  },
+  {
+    id: 'wilfLetter', icon: '✉️', title: 'Wilf’s letter', w: 8, once: true, when: (L) => L.s.f.wilf === 1,
+    text: 'It is still in the lining of your coat. The address is a cottage at the top of the cliff road, with a blue door.',
+    opts: [
+      { t: 'Take it there, as you promised', run(L) { L.karma(6); L.joy(5); L.s.f.wilf = 2; const p = L.friends().length < 20 ? L.meet({ sex: 'f', age: 50, trait: 'kind', bond: 32, single: false }) : null; const c = L.gotCurio('bottle'); return `His daughter reads it standing in the doorway, twice. Then she makes tea, and gives you ${c.a} from the mantelpiece. "He made it in there. He would want you to have it."${p ? ` Her name is ${p.name}.` : ''}`; } },
+      { t: 'Put a stamp on it', run(L) { L.karma(2); L.s.f.wilf = 2; return 'Into the box outside the station. Near enough.'; } },
+      { t: 'Steam it open', run(L) { L.karma(-6); L.cash(4000); L.s.f.wilf = 2; return 'One line of writing, and a left-luggage ticket for the station. In the locker: $4,000 in notes they stopped printing twenty years ago. The bank changes them without a word.'; } },
+    ],
+  },
+  // ---- Mrs Pargeter ----
+  {
+    id: 'parg1', icon: '👒', title: 'Mrs Pargeter', w: 6, once: true, when: (L) => !!L.s.plot && L.s.plot.beds.some(Boolean),
+    text: 'A shadow falls across your beans. Mrs Pargeter of plot 9, six times champion of the Harvest Show, is looking at your allotment the way a heron looks at a pond.',
+    opts: [
+      { t: 'Ask her advice', check: ['charm', 40], run(L, x, win) { L.s.f.parg = 1; if (win) { for (const b of L.s.plot.beds) if (b) b.care += 2; L.gain('craft', 2); return 'She tells you three things about watering, two about slugs and one about the onion man. Your beds are better for it by the weekend.'; } return 'She says "Hm," twice, and moves on. It is, you are told later, more than most people get.'; } },
+      { t: 'Ask her if she has lost something', run(L) { L.s.f.parg = -1; L.joy(3); return 'Nobody has spoken to Mrs Pargeter like that since 1974. The onion man shakes your hand behind the water butt.'; } },
+    ],
+  },
+  {
+    id: 'parg2', icon: '🥀', title: 'The greenhouse', w: 6, once: true, when: (L) => L.s.f.parg === 1 && !!L.s.plot,
+    text: 'Somebody’s dog has been through plot 9 in the night. Mrs Pargeter is standing in what was her greenhouse, with a seed tray in each hand, not saying anything.',
+    opts: [
+      { t: 'Roll up your sleeves', run(L) { busy(L, 2); L.karma(4); L.gain('craft', 1.5); L.s.f.parg = 2; return 'It takes two days: glass, canes, forty pots. She makes tea in a flask and does not say thank you. She does save you the last biscuit.'; } },
+      { t: 'Leave her to it', run(L) { L.karma(-1); L.s.f.parg = 0; return 'You find something to do at the far end of your own plot.'; } },
+      { t: 'Pocket a few of her seeds while she is not looking', run(L) { L.karma(-5); L.s.f.seed = 1; L.s.f.parg = 0; if (L.enemies().length < 3 && L.chance(0.35)) { const p = L.foe({ name: 'Edna Pargeter', sex: 'f', age: 71, grudge: 80, hard: 20 }); return `Forty years of saved seed, in your jacket pocket. And ${p.name} turns round at exactly the wrong moment.`; } return 'Forty years of saved seed, in your jacket pocket. Your marrows will be the better for it. You, less so.'; } },
+    ],
+  },
+  {
+    id: 'parg3', icon: '🫙', title: 'An old tobacco tin', w: 6, once: true, when: (L) => L.s.f.parg === 2 && !!L.s.plot && L.s.t - L.s.plot.since >= 8,
+    text: 'Mrs Pargeter is giving up plot 9. Her knees, she says, as if they had let her down personally. She holds out an old tobacco tin with a rubber band round it. "Forty years of saved seed. Do not waste it."',
+    opts: [
+      { t: 'Take it, and promise', run(L) { L.s.f.seed = 1; L.s.f.parg = 3; L.joy(6); const p = L.friends().length < 20 ? L.meet({ name: 'Edna Pargeter', sex: 'f', age: 78, trait: 'kind', bond: 45, single: false, job: 'teaching' }) : null; L.note('Mrs Pargeter gave you her seed tin.', 'big'); return `Your marrows will never be the same again.${p ? ' Nor, it turns out, will your Sundays: she expects a visit, and a report.' : ''}`; } },
+    ],
+  },
+  {
+    id: 'headhunt', icon: '🤝', title: 'A word in your ear', w: 4, cd: 16, when: (L) => L.s.eco >= 1 && inJob(L) && !CAREERS[L.s.job.c].shady && L.s.job.perf >= 50,
+    text: 'Business is booming and good people are hard to find. An outfit up the coast has been asking about you, and has written a number on a napkin.',
+    opts: [
+      { t: 'Show the napkin to your boss', check: ['charm', 50], run(L, x, win) { const j = L.s.job; if (win) { j.raise = Math.min(0.4, (j.raise || 0) + 0.08); return `Your boss goes pale, then generous. ${money(L.shiftPay())} a shift from now on.`; } j.perf = Math.max(0, j.perf - 10); return '"If you want to go, go," says your boss. You do not, as it happens. It is a long week.'; } },
+      { t: 'Do a few weekends for them on the quiet', run(L) { const n = pay(L) * 3; L.cash(n); busy(L, 2); L.joy(-2); return `Moonlighting is exhausting, and it pays ${money(n)}.`; } },
+      { t: 'You are happy where you are', run(L) { L.s.job.perf = Math.min(100, L.s.job.perf + 6); L.joy(2); return 'You say so, out loud, at work. People look at you oddly, but the boss hears of it.'; } },
+    ],
+  },
+  {
+    id: 'date', icon: '💘', title: 'A first date', ok: (L) => !!L.dateWith() && !L.partner() && !L.s.gaol, log: false,
+    text(L) {
+      const p = L.dateWith(), from = L.s.date.from, kind = TRAITS[p.trait].name.toLowerCase();
+      if (from === 'pub') return `Somebody along the bar has caught your eye. ${DATE_LINES[p.trait].hint(p)} You have one go at this.`;
+      if (from === 'app') return `${p.name}, ${p.age}: "${kind}", says the profile, and ${an(lowJob(L.jobOf(p)))}. You are across a table from ${him(p)} at the Seagull Café, and the coffee has come.`;
+      return `You have known ${p.name} long enough to know ${he(p)} is ${kind} through and through. Friday comes. How do you play it?`;
+    },
+    opts: [0, 1, 2].map((i) => ({ t: (L) => L.dateLines()[i].t, run: (L) => L.dateGo(L.dateLines()[i].k) })),
+  },
+  // ---- brothers and sisters ----
+  {
+    id: 'sibWed', icon: '💒', title: 'Wedding bells', w: 3, cd: 40, when: (L) => L.siblings().some((p) => p.single && p.age >= 20),
+    ctx: (L) => L.pick(L.siblings().filter((p) => p.single && p.age >= 20)).id, ok: (L, x) => has(L, x) && P(L, x).kind === 'sibling',
+    text: (L, x) => `Your ${P(L, x).sex === 'm' ? 'brother' : 'sister'} ${P(L, x).name} is getting married, and wants you to say a few words.`,
+    opts: [
+      { t: 'Make the speech', check: ['charm', 45], run(L, x, win) { const p = P(L, x); p.single = false; if (win) { L.bond(p, 12); L.joy(6); L.fame(0.5); return `You tell the story about the canoe. ${p.name} cries laughing, and so does everybody’s gran.`; } L.bond(p, 4); L.joy(1); return `You tell the story about the canoe. ${p.name} had hoped you would not.`; } },
+      { t: 'Give them something handsome', cost: 800, run(L, x) { const p = P(L, x); p.single = false; L.bond(p, 10); L.joy(3); return 'A proper dinner service. They will still be eating off it in forty years.'; } },
+      { t: 'Send a card', run(L, x) { const p = P(L, x); p.single = false; L.bond(p, -8); return `It arrives the day after. ${p.name} notices.`; } },
+    ],
+  },
+  {
+    id: 'sibSofa', icon: '🛋️', title: 'Just for a few nights', w: 3, cd: 24, when: (L) => L.siblings().length > 0 && L.s.home !== 'hostel',
+    ctx: (L) => L.pick(L.siblings()).id, ok: (L, x) => has(L, x) && P(L, x).kind === 'sibling',
+    text: (L, x) => `${P(L, x).name} is on your doorstep with a holdall and a face. "It is only until I get straight."`,
+    opts: [
+      { t: 'The sofa is yours', run(L, x) { const p = P(L, x); L.bond(p, 12); L.joy(-2); busy(L, 1); return `Three weeks. ${He(p)} eats everything, fixes your dripping tap, and cries once. You are glad you said yes.`; } },
+      { t: 'Pay for a room at the Gull', cost: 400, run(L, x) { L.bond(P(L, x), 5); return 'It is the grown-up answer. It does not quite feel like the right one.'; } },
+      { t: 'It is not a good time', run(L, x) { const p = P(L, x); L.bond(p, -14); return `${He(p)} says ${he(p)} understands. ${He(p)} does not ring for a long while.`; } },
+    ],
+  },
+  {
+    id: 'sibRow', icon: '🫖', title: 'What Mum would have wanted', w: 3, once: true, when: (L) => L.siblings().length > 0 && !L.s.people.some((p) => p.kind === 'parent') && L.s.gen === 1 && L.s.age >= 35,
+    ctx: (L) => L.pick(L.siblings()).id, ok: (L, x) => has(L, x) && P(L, x).kind === 'sibling',
+    text: (L, x) => `It is about the teapot. It was never about the teapot. ${P(L, x).name} has it, and says it was promised.`,
+    opts: [
+      { t: 'Let it go', run(L, x) { const p = P(L, x); L.bond(p, 6); L.karma(1); return `"Keep it," you say, and mean it. ${He(p)} sends you a photograph of it every Christmas.`; } },
+      { t: 'Have it out', check: ['charm', 50], run(L, x, win) { const p = P(L, x); if (win) { L.bond(p, 10); L.joy(3); return 'Two hours, a lot of shouting, and then you are both laughing about the summer of the wasps. The teapot is forgotten.'; } L.bond(p, -20); return 'Things are said that have been waiting thirty years to be said.'; } },
+      { t: 'Take it back when nobody is looking', run(L, x) { const p = P(L, x); L.bond(p, -25); L.karma(-2); L.joy(2); return 'It looks very well on your shelf. Nobody visits to see it.'; } },
+    ],
+  },
+  {
+    id: 'sibDies', icon: '🕊️', title: 'A letter with a black edge', ok: (L, x) => has(L, x) && P(L, x).kind === 'sibling',
+    text: (L, x) => `Your ${P(L, x).sex === 'm' ? 'brother' : 'sister'} ${P(L, x).name} has died, at ${P(L, x).age}.`,
+    opts: [{ t: 'Goodbye', run(L, x) { const p = P(L, x); L.gone(p); L.joy(-14); const alone = !L.siblings().length && !L.s.people.some((q) => q.kind === 'parent'); return `${alone ? 'There is nobody left now who remembers the house you grew up in. ' : ''}You find you are saying "${p.name} would have laughed at that" a good deal.`; } }],
+  },
+  // ---- the weather, the town, and the people in it ----
+  {
+    id: 'flood', icon: '🌊', title: 'The culvert gives up', w: 6, cd: 12, when: (L) => L.s.wx === 'wet',
+    text: 'A week of rain, and the stream under the High Street has come up through the drains. The baker is carrying out trays of buns at shoulder height.',
+    opts: [
+      { t: 'Fill sandbags', check: ['fitness', 40], run(L, x, win) { L.gain('fitness', 1); if (win) { L.karma(5); L.fame(0.5); return 'Four hundred bags, hand to hand, until the fire brigade can get a pump in. Your picture is in the Gazette, wet through.'; } L.karma(2); L.rough(3, 'a soaking'); return 'You do your best and go under twice. The baker gives you a bun for trying.'; } },
+      { t: 'Row people’s furniture upstairs', run(L) { L.karma(3); busy(L, 1); return 'Eleven sofas. One piano. Mrs Hadley’s budgerigar, twice.'; } },
+      { t: 'Watch from the upstairs window of the Gull', run(L) { L.joy(1); return 'The landlord is charging for the view.'; } },
+    ],
+  },
+  {
+    id: 'snowman', icon: '☃️', title: 'A snow day', w: 7, cd: 8, when: (L) => L.s.wx === 'snow' && L.s.people.some((p) => (p.kind === 'child' || p.kind === 'grandchild') && p.age >= 3 && p.age <= 12),
+    ctx: (L) => L.pick(L.s.people.filter((p) => (p.kind === 'child' || p.kind === 'grandchild') && p.age >= 3 && p.age <= 12)).id, ok: has,
+    text: (L, x) => `School is shut. ${P(L, x).name} is at the window in ${his(P(L, x))} coat and one glove, vibrating.`,
+    opts: [
+      { t: 'Build the biggest snowman on the green', check: ['craft', 30], run(L, x, win) { const p = P(L, x); L.joy(6); if (win) { L.bond(p, 12); return `Seven feet, with a carrot from the allotment and your good scarf. ${p.name} tells everyone who passes that it was ${his(p)} idea.`; } L.bond(p, 7); return 'It leans. It leans more. It lies down. You both agree it is resting.'; } },
+      { t: 'Snowballs', check: ['fitness', 35], run(L, x, win) { const p = P(L, x); L.bond(p, 9); L.joy(5); return win ? `You get ${him(p)} square between the shoulders and are chased the length of the park for it.` : `${He(p)} has a much better arm than you. You go home with snow down your neck.`; } },
+      { t: 'Stay in the warm', run(L, x) { L.bond(P(L, x), -3); L.hp(1); return 'You watch from the window with a cup of tea, and are looked at reproachfully through it.'; } },
+    ],
+  },
+  {
+    id: 'meetFolks', icon: '🍗', title: 'Sunday lunch', w: 5, cd: 60, when: (L) => { const p = L.partner(); return !!p && p.kind === 'partner' && !p.eng && p.bond >= 40; },
+    ctx: (L) => L.partner().id, ok: (L, x) => has(L, x) && P(L, x).kind === 'partner',
+    text: (L, x) => `${P(L, x).name} wants you to meet ${his(P(L, x))} parents. One o’clock, in ${P(L, x).name.split(' ')[0]}’s words, "and for pity’s sake do not mention the caravan."`,
+    opts: [
+      { t: 'Be charming', check: ['charm', 45], run(L, x, win) { const p = P(L, x); if (win) { L.bond(p, 10); L.joy(3); return `${His(p)} mother gives you seconds, and thirds. ${His(p)} father shows you the shed. You are in.`; } L.bond(p, -4); return `You call ${his(p)} mother by the dog’s name. Twice. The dog is called Gerald.`; } },
+      { t: 'Bring a very good bottle', cost: 60, run(L, x) { L.bond(P(L, x), 5); return 'It is put away for a special occasion, which this is evidently not. But it is noted.'; } },
+      { t: 'Mention the caravan', run(L, x) { const p = P(L, x); L.joy(3); L.bond(p, L.chance(0.5) ? 6 : -8); return `There is a very long silence. Then ${his(p)} father begins to laugh, or possibly choke.`; } },
+    ],
+  },
+  {
+    id: 'witness', icon: '🚐', title: 'Two in the morning', w: 3, cd: 24,
+    text: 'Walking home along the quay, you pass a van backed up to the chandlery with its lights off, and two men carrying out outboard motors.',
+    opts: [
+      { t: 'Telephone the constable', run(L) { L.karma(4); if (L.enemies().length < 3 && L.chance(0.2)) { const p = L.foe({ sex: 'm', grudge: 60 }); return `They are caught at the top of the hill. One of them saw your face under the lamp, though. His name is ${p.name}, and he will be out in a year.`; } return 'They are caught at the top of the hill. The chandler sends round a bottle and a tin of varnish.'; } },
+      { t: 'Keep walking', run() { return 'You did not see a thing. You tell yourself so all the way home.'; } },
+      { t: 'Ask what your silence is worth', odds: () => 0.5, run(L, x, win) { L.karma(-5); L.s.n.crimes++; if (win) { L.cash(800); return 'They look at each other. One of them counts out $800. "You were never here, and nor were we."'; } L.rough(10, 'a beating on the quay'); return 'It is worth, it turns out, a thump and a swim.'; } },
+    ],
+  },
+  {
+    id: 'capsule', icon: '🥫', title: 'Something under the potatoes', w: 5, once: true, when: (L) => !!L.s.plot,
+    text: 'Your spade rings on metal, two feet down in the allotment: a biscuit tin, soldered shut, with "1931" scratched in the lid.',
+    opts: [
+      { t: 'Open it', run(L) { const c = L.gotCurio(L.anyCurio(['coin', 'toy'])); L.joy(4); return `A school cap, a letter to "whoever digs here", and ${c.a}. The letter asks you to look after the gooseberries.`; } },
+      { t: 'Take it to the museum unopened', run(L) { L.karma(3); L.fame(1); return 'They open it in front of the whole school. You are thanked by name, and allowed to hold the tin.'; } },
+    ],
+  },
+  {
+    id: 'courgettes', icon: '🥒', title: 'On the doorstep', w: 4, cd: 12, when: (L) => (L.season === 1 || L.season === 2) && L.s.home !== 'hostel',
+    text: 'A carrier bag of courgettes on your doorstep. No note. It is that time of year, and everybody with an allotment is doing it to everybody without.',
+    opts: [
+      { t: 'Make chutney', run(L) { L.gain('craft', 2); L.joy(2); return 'Eleven jars. You will be giving it as presents until you die.'; } },
+      { t: 'Eat courgettes for a fortnight', run(L) { L.hp(2); L.joy(-1); return 'Fried, baked, grated, stuffed. You are very healthy and you never want to see another.'; } },
+      { t: 'Leave them on somebody else’s doorstep', run(L) { L.joy(3); return 'By night, with your collar up. This is how it spreads.'; } },
+    ],
+  },
+  {
+    id: 'cafe', icon: '☕', title: 'Betty’s is closing', w: 6, once: true, when: (L) => L.s.eco <= -1,
+    text: 'There is a notice in the window of Betty’s Café: forty years, and the slump has done what the war could not. Unless somebody finds $2,500 by Friday.',
+    opts: [
+      { t: 'Find it', cost: 2500, run(L) { L.karma(6); L.s.f.cafe = 1; L.joy(5); L.s.n.given = (L.s.n.given || 0) + 2500; return 'Betty cries on your shoulder and gets flour on your coat. There will be a cup of tea and a teacake for you there every day of your life, and no bill.'; } },
+      { t: 'Start a collection', check: ['charm', 45], run(L, x, win) { if (win) { L.karma(4); L.fame(0.5); return 'A jar on every counter in town. By Friday it is $2,611 and a button.'; } L.karma(1); return 'You raise $340, a button and a great deal of sympathy. It is not enough.'; } },
+      { t: 'It is a great pity', run(L) { L.joy(-2); return 'It becomes a shop that sells mobile telephone cases.'; } },
+    ],
+  },
+  {
+    id: 'alibi', icon: '🃏', title: 'A game of cribbage', w: 3, cd: 30, when: (L) => L.s.n.crimes >= 3,
+    text: 'Sal would like it known, should anybody ask, that he was playing cribbage with you all of Tuesday night.',
+    opts: [
+      { t: 'And he won, as usual', run(L) { L.karma(-4); L.cash(1500); L.warm(8); L.s.f.salOff = 0; return 'A constable does ask. You describe the game in detail. There is $1,500 in your coat pocket the next time you put it on.'; } },
+      { t: 'You do not play cribbage', run(L) { L.karma(2); L.s.f.salOff = L.s.t + 8; return 'Sal takes it quite well, for Sal. You would be wise to keep away from the ice house for a while.'; } },
+    ],
+  },
+  {
+    id: 'nativity', icon: '🌟', title: 'Third shepherd', w: 6, cd: 8, when: (L) => L.season === 3 && L.grandkids().some((p) => p.age >= 4 && p.age <= 9),
+    ctx: (L) => L.pick(L.grandkids().filter((p) => p.age >= 4 && p.age <= 9)).id, ok: has,
+    text: (L, x) => `The infants’ nativity is on Thursday, and ${P(L, x).name.split(' ')[0]} is third shepherd, with a line. The line is "Look!"`,
+    opts: [
+      { t: 'Be in the front row', run(L, x) { const p = P(L, x); L.bond(p, 9); L.joy(7); return `${He(p)} says it perfectly, waves at you, and knocks a sheep off the stage.`; } },
+      { t: 'Film it', show: (L) => !!L.s.items.phone, run(L, x) { const p = P(L, x); L.bond(p, 5); L.joy(4); const n = Math.round(60 + L.followers() * 0.05); L.crowd(n); return `You watch the whole thing through a telephone. ${n.toLocaleString('en')} people on Chirper like the bit with the sheep.`; } },
+      { t: 'Send your love', run(L, x) { L.bond(P(L, x), -4); return 'You are told afterwards that it was the best one ever, by somebody who looked for you in the hall.'; } },
+    ],
+  },
+  {
+    id: 'bench', icon: '🪑', title: 'Somebody on your bench', w: 4, cd: 20, when: (L) => !!L.s.gifts.bench,
+    text: (L) => `An old man is sitting on the bench by the pond, feeding the ducks, reading the brass plate: "${L.s.gifts.bench} loved this view."`,
+    opts: [
+      { t: 'Sit down at the other end', run(L) { L.joy(5); const p = L.friends().length < 20 ? L.meet({ sex: 'm', age: 79, trait: 'kind', bond: 24, single: false }) : null; return p ? `"Whoever that was," he says, "had the right idea." His name is ${p.name}, and he is here most mornings.` : '"Whoever that was," he says, "had the right idea." You agree that they did.'; } },
+      { t: 'Leave him to it', run(L) { L.joy(3); return 'That is what it is for.'; } },
+    ],
+  },
+  {
+    id: 'pierPlan', icon: '🏗️', title: 'A meeting about the pier', w: 4, once: true, when: (L) => !L.s.gifts.pier && L.s.age >= 25,
+    text: 'The council means to sell the pier to a company that would like flats where the Lucky Gull is. There is a meeting at the Town Hall, and the room is full.',
+    opts: [
+      { t: 'Stand up and say what you think', check: ['charm', 50], run(L, x, win) { if (win) { L.karma(6); L.fame(2); return 'You talk about your first day here, and the lights on the water. When you sit down the chairman cannot make himself heard. The pier stays.'; } L.joy(-2); return 'You lose your place, then your temper. The vote goes through, though the company goes bust before it lays a brick.'; } },
+      { t: 'Sign the petition', run(L) { L.karma(1); return 'Four thousand names, and a dog’s paw print. The council finds a reason to think again.'; } },
+      { t: 'Buy shares in the company', cost: 2000, odds: () => 0.4, run(L, x, win) { L.karma(-2); if (win) { L.cash(6000); return 'You sell them the week before it goes bust. $6,000, and you do not walk on the pier for a while.'; } return 'It goes bust in the spring, and your $2,000 goes with it. The pier is still there.'; } },
+    ],
+  },
+  {
+    id: 'lodger', icon: '🧳', title: 'A room to let', w: 4, cd: 40, when: (L) => L.s.owned && !L.s.lodger && !L.kids().some((k) => k.age < 18),
+    text: 'A young teacher, new at the school and newer in town, has heard you have a spare room. A year, she says, while she finds her feet.',
+    opts: [
+      { t: 'Clear out the box room', run(L) { L.s.lodger = 4; L.karma(1); return 'She pays $500 a season, plays the cello quite well and labels her cheese. You have had worse arrangements.'; } },
+      { t: 'You like your own company', run() { return 'She finds somewhere over the chemist’s.'; } },
+    ],
+  },
+  // ---- three longer stories: a stray, an apprentice, and the mayor's drains ----
+  {
+    id: 'stray1', icon: '🐕', title: 'Followed home', w: 5, once: true, when: (L) => !L.s.pet && L.s.home !== 'hostel',
+    text: 'A thin brown dog has followed you up from the harbour three nights running. Tonight it is sitting on your step, pretending to look at something else.',
+    opts: [
+      { t: 'Give it the end of the sausages', run(L) { L.s.f.stray = 1; L.joy(2); return 'It eats them in one movement, looks at you for a long moment, and trots off into the dark.'; } },
+      { t: 'Shoo', run(L) { L.s.f.stray = -1; return 'It goes, without hurrying, as if it had somewhere better to be.'; } },
+    ],
+  },
+  {
+    id: 'stray2', icon: '🐕', title: 'On three legs', w: 7, once: true, when: (L) => L.s.f.stray === 1 && !L.s.pet,
+    text: 'The brown dog is back on your step, holding one front paw off the ground and not making a fuss about it.',
+    opts: [
+      { t: 'Carry it to the shelter vet', cost: 150, run(L) { L.s.f.stray = 2; L.karma(2); return 'A fish hook, in deep. The vet says it has been living on the quay for a year, and that nobody has ever got near enough to touch it before.'; } },
+      { t: 'See to it yourself', check: ['craft', 35], run(L, x, win) { L.s.f.stray = 2; if (win) { L.joy(3); return 'Pliers, a steady hand, and half a pot of honey. It licks your wrist once, which seems to be all the thanks that are going.'; } L.rough(2, 'a dog bite'); return 'You get the hook out, and it gets you. Neither of you holds it against the other.'; } },
+      { t: 'It is not your dog', run(L) { L.s.f.stray = -1; L.karma(-1); return 'It is gone in the morning. You look for it on the quay for a week or two, and tell yourself you are not looking.'; } },
+    ],
+  },
+  {
+    id: 'stray3', icon: '🐕', title: 'Nobody’s dog', w: 8, once: true, when: (L) => L.s.f.stray === 2 && !L.s.pet && L.s.home !== 'hostel',
+    text: 'The shelter has had the brown dog for a month and nobody has asked for it. It has, they say, made up its mind about where it lives, and it sits by their door facing your street.',
+    opts: [
+      { t: 'Bring it home', run(L) { const s = L.s; s.pet = { kind: 'dog', name: 'Scraps', age: 3, since: s.t }; s.f.stray = 3; L.joy(12); L.karma(2); L.note('Scraps, the brown dog from the quay, came to live with you.', 'big'); return 'It walks in as if it had only been out for the paper, turns round three times on your best chair, and sleeps for a day and a half. You call it Scraps.'; } },
+      { t: 'Find it a good home', run(L) { L.s.f.stray = -1; L.karma(3); return 'The lighthouse keeper takes it. You see it sometimes on the rocks, barking at the sea, and it always stops to look at you.'; } },
+    ],
+  },
+  {
+    id: 'app1', icon: '🧑‍🎓', title: 'Somebody to look after', w: 5, once: true, when: (L) => inJob(L) && !CAREERS[L.s.job.c].shady && L.s.job.r >= 3 && L.friends().length < 20,
+    text: 'The boss has given you a school-leaver to mind: eighteen, all elbows, and frightened of the telephone.',
+    opts: [
+      { t: 'Take the youngster under your wing', run(L) { const p = L.meet({ age: 18, job: L.s.job.c, bond: 30, single: true }); L.s.f.app = p.id; L.karma(2); return `${p.name}. By Friday ${he(p)} can answer the telephone. By the end of the month ${he(p)} is correcting your sums.`; } },
+      { t: 'Hand over the filing', run(L) { L.s.f.app = -1; return 'The filing gets done. The youngster leaves at Christmas, for a firm in the city.'; } },
+    ],
+  },
+  {
+    id: 'app2', icon: '🧑‍🎓', title: 'Whose mistake?', w: 7, once: true, when: (L) => inJob(L) && L.s.f.app > 0 && !!L.person(L.s.f.app) && L.person(L.s.f.app).kind === 'friend',
+    ctx: (L) => L.s.f.app, ok: (L, x) => has(L, x) && inJob(L),
+    text: (L, x) => `Something has gone badly wrong at work, and it will cost money. Nobody yet knows whose doing it was. You do: ${P(L, x).name} is at ${his(P(L, x))} desk, the colour of paper.`,
+    opts: [
+      { t: 'Say it was yours', run(L, x) { const p = P(L, x); L.s.job.perf = Math.max(0, L.s.job.perf - 12); L.bond(p, 22); L.karma(4); return `The boss is short with you for a month. ${p.name} never says a word about it, and never forgets it.`; } },
+      { t: (L, x) => `Go in with ${him(P(L, x))}, and stand there while ${he(P(L, x))} says it`, check: ['charm', 45], run(L, x, win) { const p = P(L, x); L.bond(p, 12); if (win) { L.s.job.perf = Math.min(100, L.s.job.perf + 4); return `It is the worst five minutes of ${his(p)} life so far, and the boss ends it by saying "Well. Don’t do it again." You are both noticed, and not badly.`; } return 'It goes about as badly as these things go. But it is said, and it is over.'; } },
+      { t: 'Say nothing', run(L, x) { const p = P(L, x); L.bond(p, -18); L.karma(-2); return `${p.name} takes it alone. ${He(p)} does not look at you on the way out of the boss’s office.`; } },
+    ],
+  },
+  {
+    id: 'app3', icon: '🧑‍🎓', title: 'A word, if you have a minute', w: 7, once: true, when: (L) => L.s.f.app > 0 && !!L.person(L.s.f.app) && L.person(L.s.f.app).bond >= 45 && L.person(L.s.f.app).age >= 24,
+    ctx: (L) => L.s.f.app, ok: has,
+    text: (L, x) => `${P(L, x).name} has been offered a big job, a long way off, and has come to ask you what to do before telling anybody else.`,
+    opts: [
+      { t: (L, x) => `Tell ${him(P(L, x))} to take it`, run(L, x) { const p = P(L, x); L.s.f.mentor = 1; L.joy(8); L.karma(3); L.bond(p, 10); L.note(`${p.name}, whom you trained, went on to great things.`, 'big'); return `${He(p)} goes, and does well, and says in every interview that ${he(p)} was taught by the best. A card comes every Christmas, with a photograph you are meant to be proud of. You are.`; } },
+      { t: (L, x) => `Ask ${him(P(L, x))} to stay`, check: ['charm', 55], run(L, x, win) { const p = P(L, x); if (win) { if (L.s.job) L.s.job.perf = Math.min(100, L.s.job.perf + 10); L.bond(p, 4); return `${He(p)} stays, for you. The firm is the better for it. You hope ${he(p)} is.`; } L.bond(p, -12); return `${He(p)} goes anyway, and it is a little cooler between you afterwards than it should have been.`; } },
+    ],
+  },
+  {
+    id: 'drains1', icon: '📒', title: 'The drains account', w: 3, once: true, when: (L) => L.s.age >= 26 && (L.s.st.smarts >= 45 || inJob(L, 'finance', 'law', 'politics')),
+    text: 'Doing somebody a favour at the Town Hall, you turn up the wrong ledger. Forty thousand dollars for drains, last year, paid to a firm at the address of the mayor’s brother-in-law. There are no new drains.',
+    opts: [
+      { t: 'Copy the page', run(L) { L.s.f.drains = 1; return 'It takes two minutes with a pencil. You put the ledger back exactly as it was, one page lighter in your conscience and one heavier in your pocket.'; } },
+      { t: 'Put it back and forget it', run(L) { L.s.f.drains = -1; return 'It is none of your business. You say so to yourself several times on the way home.'; } },
+    ],
+  },
+  {
+    id: 'drains2', icon: '🎩', title: 'The mayor would like a word', w: 8, once: true, when: (L) => L.s.f.drains === 1,
+    text: 'The mayor’s office has a carpet you sink into. "I am told," he says, pouring two glasses, "that you take an interest in drains."',
+    opts: [
+      { t: 'Take what he offers, and lose the page', run(L) { L.s.f.drains = -1; L.cash(8000); L.karma(-8); return 'An envelope, and a hand on your shoulder all the way to the door. $8,000. The drains remain a mystery.'; } },
+      { t: 'Take the page to the Gazette', run(L) { L.s.f.drains = 2; L.karma(8); L.fame(4); if (L.enemies().length < 3) L.foe({ name: 'Mayor Pennington', sex: 'm', age: 61, grudge: 85, hard: 25 }); L.note('Took the story of the mayor’s drains to the Gazette.', 'big'); return 'It is on the front page by Friday, under a photograph of a hole in the road. The mayor says he will sue. He does not.'; } },
+      { t: 'Ask what a friend of the mayor might expect', show: (L) => inJob(L, 'politics'), run(L) { L.s.f.drains = -1; L.karma(-5); L.s.job.perf = Math.min(100, L.s.job.perf + 25); L.s.job.n += 4; return 'A friend of the mayor, it turns out, can expect to get on. You get on.'; } },
+    ],
+  },
+  {
+    id: 'drains3', icon: '🗳️', title: 'A vacancy', w: 8, once: true, when: (L) => L.s.f.drains === 2,
+    text: 'The mayor has resigned "to spend more time with his family", who are not said to be pleased. People keep stopping you in the street to say that somebody honest ought to stand for the council.',
+    opts: [
+      { t: 'Stand', check: ['charm', 50], run(L, x, win) { L.s.f.drains = 3; if (win) { L.fame(5); L.karma(3); L.joy(8); if (inJob(L, 'politics')) { L.s.job.perf = 100; L.s.job.n += 6; } L.note('Elected to the council on the strength of the drains.', 'big'); return 'You win by a street. Your first act is to ask where the drains are. They are found, in the end, on a drawing.'; } L.joy(-3); return 'You lose to a man who promises a second ice cream van. That is democracy.'; } },
+      { t: 'It ought to be somebody else', run(L) { L.s.f.drains = 3; L.karma(1); return 'It is the woman from the chemist’s, and she is very good. You are thanked in her speech, which is plenty.'; } },
+    ],
+  },
+  // ---- shares ----
+  {
+    id: 'takeover', icon: '🤝', title: 'An offer for the company', w: 4, cd: 16, when: (L) => Object.keys(L.s.stk.own).some((sym) => L.s.stk.own[sym] > 0 && !STOCKS[sym].fund),
+    ctx: (L) => L.pick(Object.keys(L.s.stk.own).filter((sym) => L.s.stk.own[sym] > 0 && !STOCKS[sym].fund)), ok: (L, x) => L.s.stk.own[x] > 0,
+    text: (L, x) => `A firm from the city has bid for ${STOCKS[x].name}: ${money(L.s.stk.p[x] * 1.3)} a share, against ${money(L.s.stk.p[x])} in the market. You hold ${L.s.stk.own[x].toLocaleString('en')}, and the letter wants an answer.`,
+    opts: [
+      { t: 'Take the money', run(L, x) { const k = L.s.stk, got = Math.floor(k.own[x] * k.p[x] * 1.3); delete k.own[x]; delete k.paid[x]; L.cash(got); L.joy(4); return `Sold, at the bidder’s price: ${money(got)}. Somebody else can worry about it now.`; } },
+      { t: 'Hold out for more', odds: () => 0.45, run(L, x, win) { const k = L.s.stk; if (win) { k.p[x] = Math.round(k.p[x] * 1.5 * 100) / 100; k.news.unshift({ t: L.s.t, sym: x, up: true, text: `${STOCKS[x].name} is fought over by two bidders` }); return `A second bidder turns up, with a bigger cheque book. The price is ${money(k.p[x])} and climbing.`; } k.p[x] = Math.round(k.p[x] * 0.88 * 100) / 100; k.news.unshift({ t: L.s.t, sym: x, up: false, text: `The bid for ${STOCKS[x].name} is withdrawn` }); return `The bidder looks at the books again and goes home. The price slips to ${money(k.p[x])}.`; } },
+    ],
+  },
+  {
+    id: 'tipOff', icon: '🤫', title: 'You did not hear it from me', w: 3, cd: 20, when: (L) => L.s.cash + L.s.bank >= 2000 && L.s.people.some((p) => p.job === 'finance' && p.bond >= 40 && ['friend', 'partner', 'spouse', 'sibling'].includes(p.kind)),
+    ctx: (L) => ({ p: L.pick(L.s.people.filter((p) => p.job === 'finance' && p.bond >= 40 && ['friend', 'partner', 'spouse', 'sibling'].includes(p.kind))).id, sym: L.pick(Object.keys(STOCKS).filter((sym) => !STOCKS[sym].fund)) }), ok: (L, x) => has(L, x.p),
+    text: (L, x) => `${P(L, x.p).name} leans across the table and lowers ${his(P(L, x.p))} voice. "${STOCKS[x.sym].name}. There is an announcement on Friday. Buy before then. You did not hear it from me."`,
+    opts: [
+      { t: 'Buy as much as you dare', run(L, x) { const k = L.s.stk, spend = Math.floor((L.s.cash + L.s.bank) * 0.4), n = Math.floor(spend / k.p[x.sym]); if (n < 1) return 'You cannot afford even one. Probably for the best.'; const cost = Math.ceil(n * k.p[x.sym]); L.cash(-cost); k.own[x.sym] = (k.own[x.sym] || 0) + n; k.paid[x.sym] = (k.paid[x.sym] || 0) + cost; k.tip = { sym: x.sym, t: L.s.t }; L.karma(-4); const seen = L.crime(0.1, 2, 'a broker’s note dated the day before the news'); return `${n.toLocaleString('en')} shares, for ${money(cost)}, on a Thursday. ${seen ? 'The exchange has people whose whole job is to look at Thursdays.' : 'Then you wait for Friday, trying to look like somebody who knows nothing.'}`; } },
+      { t: 'You did not hear it at all', run(L, x) { L.karma(2); return `You change the subject. ${P(L, x.p).name} looks relieved, on the whole.`; } },
+    ],
+  },
+  // ---- bad blood ----
+  {
+    id: 'spite', icon: '😠', title: 'Bad blood', ok: (L, x) => has(L, x.p) && P(L, x.p).kind === 'enemy',
+    text: (L, x) => `${P(L, x.p).name} ${x.what}`,
+    opts: [
+      { t: 'Rise above it', run(L, x) { const p = P(L, x.p); L.karma(1); p.grudge = Math.max(1, p.grudge - 6); return 'You say nothing, and go on saying it. It is harder than it sounds.'; } },
+      { t: 'Get your own back', run(L, x) { const p = P(L, x.p); L.joy(4); L.karma(-1); p.grudge = Math.min(100, p.grudge + 10); return L.rattle(p) ? `Prawns, sewn into ${his(p)} curtain hems. ${L.seeOff(p)}` : `Prawns, sewn into ${his(p)} curtain hems. It will be weeks before ${he(p)} finds them.`; } },
+      { t: 'Go to the constable', check: ['charm', 50], run(L, x, win) { const p = P(L, x.p); if (win) { p.grudge = Math.min(100, p.grudge + 4); return L.rattle(p) ? `The constable has a long word with ${him(p)}. ${L.seeOff(p)}` : `The constable has a long word with ${him(p)}, and writes it all down.`; } return '"A civil matter," says the constable, who is eating a sandwich.'; } },
+    ],
+  },
+  {
+    id: 'rivalWork', icon: '🗂️', title: 'Credit where it is due', w: 3, cd: 20, when: (L) => inJob(L) && !CAREERS[L.s.job.c].shady && L.enemies().length < 3,
+    text: 'Your idea, your late nights, your name nowhere on it. A colleague is standing in front of the boss, taking a bow.',
+    opts: [
+      { t: 'Say so, in front of everyone', check: ['charm', 50], run(L, x, win) { const p = L.foe({ job: L.s.job.c, grudge: 50 }); if (win) { L.s.job.perf = Math.min(100, L.s.job.perf + 12); return `The boss looks from one of you to the other and works it out. ${p.name} will not forget this.`; } L.s.job.perf = Math.max(0, L.s.job.perf - 6); return `It comes out shrill. ${p.name} looks hurt, and very pleased.`; } },
+      { t: 'Let it go', run(L) { L.joy(-3); return 'You tell yourself the work speaks for itself. It does not, as a rule.'; } },
+      { t: 'Take the credit for something of theirs', run(L) { const p = L.foe({ job: L.s.job.c, grudge: 60 }); L.karma(-3); L.s.job.perf = Math.min(100, L.s.job.perf + 8); return `Two can play. ${p.name} finds out on Friday.`; } },
+    ],
+  },
+  {
+    id: 'chipQueue', icon: '🍟', title: 'The queue at Harry’s', w: 3, cd: 16, when: (L) => L.enemies().length < 3,
+    text: 'Friday, half past six, the queue out of the door. A man in a camel coat walks straight to the front and orders for six.',
+    opts: [
+      { t: 'Say something', check: ['charm', 45], run(L, x, win) { if (win) { L.joy(3); L.fame(0.5); return 'You are so polite about it that he goes to the back. The queue applauds. Harry gives you a free pickled egg.'; } const p = L.foe({ sex: 'm', grudge: 40 }); return `It becomes a discussion, then a scene. His name is ${p.name}, he says, and you have not heard the last of this.`; } },
+      { t: 'Tip his chips on the floor', run(L) { const p = L.foe({ sex: 'm', grudge: 65 }); L.joy(5); L.karma(-2); return `Six cod suppers, face down. The queue is thrilled. ${p.name} is not.`; } },
+      { t: 'Mutter', run(L) { L.joy(-1); return 'You mutter. Everyone mutters. He gets his chips.'; } },
+    ],
+  },
+  {
+    id: 'exText', icon: '📱', title: 'Two in the morning', w: 3, cd: 8, when: (L) => L.exes().length > 0 && !!L.s.items.phone,
+    ctx: (L) => L.pick(L.exes()).id, ok: (L, x) => has(L, x) && P(L, x).kind === 'ex',
+    text: (L, x) => `Your phone lights up on the bedside table. ${P(L, x).name}: "u up?"`,
+    opts: [
+      { t: 'Answer', run(L, x) { const p = P(L, x); L.bond(p, 10); p.grudge = Math.max(0, p.grudge - 12); if (L.partner()) L.karma(-2); return 'You talk until four, about nothing, the way you used to. Neither of you mentions it afterwards.'; } },
+      { t: 'Turn the phone over', run(L) { L.joy(1); return 'You lie awake anyway.'; } },
+      { t: 'Block the number', run(L, x) { L.gone(P(L, x)); L.joy(2); return 'Gone. You sleep like a child.'; } },
+    ],
+  },
+  {
+    id: 'exWedding', icon: '💌', title: 'A thick cream envelope', w: 3, cd: 12, when: (L) => L.exes().some((p) => L.s.t - p.since >= 6),
+    ctx: (L) => L.pick(L.exes().filter((p) => L.s.t - p.since >= 6)).id, ok: (L, x) => has(L, x) && P(L, x).kind === 'ex',
+    text: (L, x) => `${P(L, x).name} is getting married, to someone called ${P(L, x).sex === 'm' ? 'Fenella' : 'Giles'}. You are, astonishingly, invited.`,
+    opts: [
+      { t: 'Go, and be gracious', cost: 150, run(L, x) { const p = P(L, x); L.gone(p); L.karma(3); L.joy(-2); return `You bring a toaster and dance with ${his(p)} aunt. It is, on the whole, a relief.`; } },
+      { t: 'Go, and make a speech', cost: 150, check: ['charm', 55], run(L, x, win) { const p = P(L, x); L.gone(p); if (win) { L.joy(6); L.fame(1); return 'It is funny, warm, and four minutes long. The best man asks if you do bookings.'; } L.karma(-5); L.joy(-6); return 'You begin "I suppose I should say a few words." You are helped down from the table some time later.'; } },
+      { t: 'Send your regrets', run(L, x) { L.gone(P(L, x)); return 'A card, a cheque, and a long walk on the beach.'; } },
+    ],
+  },
+  // ---- Chirper ----
+  {
+    id: 'chViral', icon: '🐦', title: 'Caught on camera', w: 3, cd: 12, when: (L) => !!L.s.items.phone,
+    text: 'A gull takes a whole pasty out of a councillor’s hand, lands on his hat to eat it, and you have filmed every second.',
+    opts: [
+      { t: 'Put it on Chirper', run(L) { const n = Math.round(300 + L.followers() * 0.4); L.crowd(n); L.s.n.viral = (L.s.n.viral || 0) + 1; L.fame(2); L.joy(5); return `It is everywhere by teatime. ${n.toLocaleString('en')} new followers, and the councillor is trending.`; } },
+      { t: 'Sell it to the Gazette', run(L) { L.cash(300); return 'Front page, with the headline PASTY SNATCH. $300, and the councillor nods to you stiffly in the street.'; } },
+    ],
+  },
+  {
+    id: 'chTroll', icon: '👹', title: 'BayTruth99', w: 3, cd: 12, when: (L) => L.followers() >= 2000,
+    text: 'An account with no picture replies to everything you post. Your spelling, your face, your mother. It has been going on for weeks.',
+    opts: [
+      { t: 'Block, and think no more about it', run(L) { L.joy(1); return 'You think about it a little more. Then no more.'; } },
+      { t: 'Reply, once, and well', check: ['charm', 50], run(L, x, win) { if (win) { const n = Math.round(200 + L.followers() * 0.08); L.crowd(n); L.joy(5); return `Eleven words. It is screenshotted, framed and sold on a mug. ${n.toLocaleString('en')} new followers.`; } L.crowd(-Math.round(L.followers() * 0.05)); L.joy(-4); return 'You reply nine times before breakfast. Nobody comes out of it well, but you come out of it worse.'; } },
+      { t: 'Find out who it is', check: ['smarts', 55], show: (L) => L.enemies().length < 3, run(L, x, win) { if (!win) return 'The trail ends at the library computers. It could be anybody. It could be the librarian.'; const p = L.foe({ grudge: 50 }); return `It is ${p.name}, from three doors down, who has never liked the way you park. Now you both know.`; } },
+    ],
+  },
+  {
+    id: 'chCollab', icon: '🎬', title: 'A message from somebody with a blue tick', w: 3, cd: 16, when: (L) => L.followers() >= 20000,
+    text: 'A proper Chirper celebrity is coming down for the day and wants you in the video: "ur the one from the pier right?? would be SO fun."',
+    opts: [
+      { t: 'Do it', run(L) { busy(L, 2); const n = Math.round(L.followers() * 0.25); L.crowd(n); L.fame(3); L.joy(4); return `You eat a stick of rock on camera forty times. ${n.toLocaleString('en')} new followers overnight.`; } },
+      { t: 'Ask what the fee is', check: ['charm', 55], run(L, x, win) { if (win) { busy(L, 2); L.cash(5000); L.crowd(Math.round(L.followers() * 0.15)); return '"Lol ok." $5,000, and they still tag you.'; } return 'They do it with a man dressed as a lobster instead.'; } },
+      { t: 'You are busy', run(L) { return 'You are not busy. But you have your pride.'; } },
+    ],
+  },
+  // ---- finds, the plot, and the times ----
+  {
+    id: 'bootSale', icon: '🚗', title: 'Car boot sale', w: 4, cd: 8,
+    text: 'Sunday morning on the cliff car park. Under a trestle table: a cardboard box marked "OLD TAT. $40 THE LOT."',
+    opts: [
+      { t: 'Buy the box', cost: 40, odds: (L) => 0.3 + L.s.st.smarts / 250, run(L, x, win) { if (win) { const c = L.gotCurio(L.anyCurio()); return `Under a jigsaw and four odd saucers: ${c.a}. The man is already counting your $40 and does not look up.`; } return 'A jigsaw of the Matterhorn with 998 of its 1,000 pieces, four odd saucers, and a mug that says WORLD’S OKAYEST GRANDAD.'; } },
+      { t: 'Walk on', run() { return 'You buy a bacon roll instead, which is at least what it says it is.'; } },
+    ],
+  },
+  {
+    id: 'pymOffer', icon: '🧐', title: 'A gentleman from the city', w: 3, cd: 10, when: (L) => Object.keys(L.s.curios).length > 0,
+    ctx: (L) => L.pick(Object.keys(L.s.curios)), ok: (L, x) => L.s.curios[x] > 0,
+    text: (L, x) => `He has heard, from Mr Pym, that you have ${aCurio(x)}. He would like it very much, and has brought ${money(Math.round(CURIOS[x].worth * 1.6))} in an envelope to show how much.`,
+    opts: [
+      { t: 'Sell', run(L, x) { const s = L.s; if (--s.curios[x] <= 0) delete s.curios[x]; L.cash(Math.round(CURIOS[x].worth * 1.6)); return 'He wraps it in his own scarf and goes back up on the 4.15.'; } },
+      { t: 'It is not for sale', run(L) { L.joy(2); return 'He leaves a card. You use it as a bookmark.'; } },
+    ],
+  },
+  {
+    id: 'slugs', icon: '🐌', title: 'Slugs', w: 4, cd: 6, when: (L) => !!L.s.plot && L.s.plot.beds.some(Boolean),
+    text: 'A wet week, and something has been at your allotment in the night. Silver trails, and lace where there were leaves.',
+    opts: [
+      { t: 'Go out after dark with a torch and a bucket', run(L) { busy(L, 1); for (const b of L.s.plot.beds) if (b) b.care++; L.joy(1); return 'Two hundred and eleven. You count them. The onion man, also out with a torch, salutes.'; } },
+      { t: 'Beer traps', cost: 30, odds: () => 0.6, run(L, x, win) { if (win) { for (const b of L.s.plot.beds) if (b) b.care++; return 'They die happy. Your beds pull through.'; } for (const b of L.s.plot.beds) if (b) b.care = Math.max(0, b.care - 1); return 'A hedgehog drinks the lot and sleeps it off in your cold frame. The slugs carry on.'; } },
+      { t: 'Let nature take its course', run(L) { for (const b of L.s.plot.beds) if (b) b.care = Math.max(0, b.care - 2); return 'Nature takes most of it.'; } },
+    ],
+  },
+  {
+    id: 'syndicate', icon: '🎟️', title: 'The syndicate', w: 3, cd: 12, when: (L) => inJob(L) && !CAREERS[L.s.job.c].shady,
+    text: 'Somebody at work is going round with an envelope: the lotto syndicate. Fifty dollars for the season, shared eleven ways.',
+    opts: [
+      { t: 'Put in', cost: 50, odds: () => 0.05, run(L, x, win) { if (win) { const got = L.int(4, 20) * 1000; L.cash(got); L.joy(12); return `Five numbers and the bonus! Your share is ${money(got)}. Nobody does any work until Thursday.`; } return 'Three numbers. Your share buys a doughnut, which you eat with dignity.'; } },
+      { t: 'Not for you', run(L) { if (L.chance(0.96)) return 'They win nothing, as usual. You feel very wise.'; L.joy(-10); return 'They win. All of them. Ten resignation letters on one morning, and you are asked to cover.'; } },
+    ],
+  },
+  {
+    id: 'laidOff', icon: '📉', title: 'The slump reaches your desk', ok: (L) => inJob(L),
+    text: 'Half the department is called in, one at a time. Then it is your turn. "It is not you," says the boss, which is what makes it worse.',
+    opts: [
+      { t: 'Take the pay-off', run(L) { const n = L.shiftPay() * 4, t = L.jobTitle(); L.s.job = null; L.cash(n); L.joy(-8); L.note(`Laid off as ${t}, with ${money(n)}.`, 'big'); return `${money(n)} and a reference. You carry a pot plant home on the bus.`; } },
+      { t: 'Make the case for keeping you', check: ['charm', 60], run(L, x, win) { if (win) { L.s.job.perf = Math.min(100, L.s.job.perf + 10); return 'You talk for ten minutes about what only you know how to do. Somebody else carries the pot plant home.'; } const n = L.shiftPay() * 3, t = L.jobTitle(); L.s.job = null; L.cash(n); L.joy(-10); L.note(`Laid off as ${t}.`, 'big'); return `The boss lets you finish, out of kindness. ${money(n)}, and the door.`; } },
+    ],
+  },
+  {
+    id: 'midlife', icon: '🏍️', title: 'Is this it?', w: 5, once: true, when: (L) => L.s.age >= 40 && L.s.age <= 52,
+    text: 'You catch sight of yourself in the window of the chemist’s and, for a moment, do not know who it is.',
+    opts: [
+      { t: 'Buy a motorbike', cost: 6000, run(L) { L.joy(12); L.gain('charm', 1.5); if (L.chance(0.2)) { L.rough(12, 'a motorbike'); return 'It is magnificent for five weeks. Then there is a patch of wet leaves on the cliff road. You sell it from a hospital bed.'; } return 'It is loud, it is red, and it is the best idea you have had in twenty years. Everybody says so, except everybody.'; } },
+      { t: 'Take up the saxophone', cost: 800, run(L) { L.gain('craft', 4); L.joy(7); return 'The first month is hard on the street. By the third, somebody opens a window to listen.'; } },
+      { t: 'Enter the Bay marathon', check: ['fitness', 50], run(L, x, win) { L.gain('fitness', 3); if (win) { L.joy(10); L.fame(1); return 'Four hours and nine minutes. You cry at the finish, and again when you try the stairs.'; } L.joy(2); return 'You get as far as the lighthouse, and a bus brings you back. Next year.'; } },
+      { t: 'Have a quiet word with yourself', run(L) { L.gain('smarts', 1.5); L.joy(3); return 'You go home, put the kettle on, and count what you have. It comes to more than you thought.'; } },
+    ],
+  },
+  {
+    id: 'highRoller', icon: '🎩', title: 'With the compliments of the house', w: 3, once: true, when: (L) => Math.abs(L.s.n.casino) >= 20000,
+    text: 'A card under your door, gold edged. The Lucky Gull would like to offer one of its most valued guests the Admiral’s Suite, dinner, and $1,000 in chips.',
+    opts: [
+      { t: 'Accept', run(L) { L.joy(9); const kept = L.chance(0.3); if (kept) L.cash(1000); return kept ? 'Lobster, a bed the size of a boat, and for once you walk out with the chips still in your pocket.' : 'Lobster, a bed the size of a boat, and the $1,000 back across the table by midnight. They know their business.'; } },
+      { t: 'Use the card to scrape ice off the windscreen', run(L) { L.joy(1); L.gain('smarts', 0.5); return 'It is very good for that.'; } },
     ],
   },
   {
@@ -935,12 +1456,12 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'caughtOut', icon: '💔', title: 'A small town', ok: has,
+    id: 'caughtOut', icon: '💔', title: 'A small town', ok: mine,
     text: (L, x) => `${P(L, x).name} puts down the telephone very carefully. "That was a friend of mine. She was on the pier last night. So, it seems, were you."`,
     opts: [
-      { t: 'Beg forgiveness', check: ['charm', 55], run(L, x, win) { const p = P(L, x); if (win) { L.bond(p, -20); return `Tears, promises, a week on the sofa. ${p.name} stays. It will be a long time before ${he(p)} trusts you.`; } return L.split(p, false); } },
+      { t: 'Beg forgiveness', check: ['charm', 55], run(L, x, win) { const p = P(L, x); if (win) { L.bond(p, -20); return `Tears, promises, a week on the sofa. ${p.name} stays. It will be a long time before ${he(p)} trusts you.`; } return L.split(p, false, 70); } },
       { t: 'Deny everything', odds: () => 0.4, run(L, x, win) { const p = P(L, x); L.karma(-2); if (win) { L.bond(p, -8); return `You are so wounded and so plausible that ${p.name} ends up apologising. You feel dreadful. Not dreadful enough.`; } L.bond(p, -45); return `${p.name} has a photograph.`; } },
-      { t: 'Shrug', run(L, x) { return L.split(P(L, x), false); } },
+      { t: 'Shrug', run(L, x) { return L.split(P(L, x), false, 80); } },
     ],
   },
   {
@@ -951,6 +1472,7 @@ export const EVENTS = [
   {
     id: 'divorce', icon: '💔', title: 'It has not been right for a long time', ok: (L, x) => has(L, x) && P(L, x).kind === 'spouse',
     text: (L, x) => `${P(L, x).name} puts a solicitor's letter on the kitchen table, between the salt and the pepper.`,
+    inText: (L, x) => `A solicitor's letter, already opened by the censor. ${P(L, x).name} wants a divorce.`,
     opts: [
       { t: 'Beg for another chance', check: ['charm', 60], run(L, x, win) { const p = P(L, x); if (win) { L.bond(p, 25); return 'You talk all night, properly, for the first time in years. The letter goes in the drawer.'; } return L.split(p, false); } },
       { t: 'Sign', run(L, x) { return L.split(P(L, x), false); } },
@@ -977,8 +1499,9 @@ export const EVENTS = [
   {
     id: 'kid18', icon: '🎒', title: 'Eighteen', ok: has,
     text: (L, x) => `${P(L, x).name} is eighteen today, with a place at college in the city. It costs a fortune.`,
+    inText: (L, x) => `A letter from outside: ${P(L, x).name} is eighteen, with a place at college in the city. It costs a fortune.`,
     opts: [
-      { t: (L, x) => `Pay ${his(P(L, x))} way`, cost: 20000, run(L, x) { const p = P(L, x); L.bond(p, 15); L.joy(6); if (p.st) p.st.smarts = Math.min(100, p.st.smarts + 10); return 'You wave from the platform until the train is out of sight, then cry in the car park.'; } },
+      { t: (L, x) => `Pay ${his(P(L, x))} way`, cost: (L) => Math.round(20000 * (L.s.gifts.scholarship ? 0.75 : 1)), run(L, x) { const p = P(L, x); L.bond(p, 15); L.joy(6); if (p.st) p.st.smarts = Math.min(100, p.st.smarts + 10); return L.s.gaol ? `${He(p)} writes from the city every week. You read each letter until it comes apart at the folds.` : 'You wave from the platform until the train is out of sight, then cry in the car park.'; } },
       { t: 'Help a little', cost: 5000, run(L, x) { L.bond(P(L, x), 5); L.joy(3); return `${He(P(L, x))} will work evenings to make up the rest, and be proud of that, later.`; } },
       { t: (L, x) => `${He(P(L, x))} can make ${his(P(L, x))} own way, like you did`, run(L, x) { const p = P(L, x); L.bond(p, -8); return `${He(p)} gets a job on the boats instead, and says it is fine.`; } },
     ],
@@ -986,22 +1509,24 @@ export const EVENTS = [
   {
     id: 'grandchild', icon: '👶', title: 'News!', ok: has,
     text: (L, x) => `${P(L, x).name} rings, hardly able to speak. You have a grandchild.`,
-    opts: [{ t: 'Wonderful!', run(L, x) { L.s.f.grand = 1; L.joy(12); L.bond(P(L, x), 6); return `They are calling the baby ${L.pick(NAMES)}. You start knitting at once, despite not knowing how.`; } }],
+    opts: [{ t: 'Wonderful!', run(L, x) { const g = L.grandchild(P(L, x)); L.joy(12); L.bond(P(L, x), 6); return `A ${g.sex === 'm' ? 'boy' : 'girl'}, and they are calling ${g.sex === 'm' ? 'him' : 'her'} ${g.name.split(' ')[0]}. You start knitting at once, despite not knowing how.`; } }],
   },
   {
     id: 'parentDies', icon: '🕊️', title: 'A phone call in the night', ok: has,
     text: (L, x) => `${P(L, x).name} has died, peacefully, at ${P(L, x).age}.`,
-    opts: [{ t: 'Goodbye', run(L, x) { const p = P(L, x), n = Math.round((3000 + p.bond * 120) / 100) * 100; L.s.people.splice(L.s.people.indexOf(p), 1); L.joy(-16); L.cash(n); return `The funeral is on a bright, windy day. ${He(p)} left you ${money(n)}, and ${his(p)} good watch.`; } }],
+    opts: [{ t: 'Goodbye', run(L, x) { const p = P(L, x), sibs = L.siblings().length, n = Math.round((3000 + p.bond * 120) / (1 + sibs) / 100) * 100; L.s.people.splice(L.s.people.indexOf(p), 1); L.joy(-16); L.cash(n); for (const q of L.siblings()) L.bond(q, 4); return `The funeral is on a bright, windy day. ${He(p)} left you ${money(n)}${sibs ? ', your share,' : ''} and ${his(p)} good watch.`; } }],
   },
   {
-    id: 'spouseDies', icon: '🕊️', title: 'The empty chair', ok: has,
+    id: 'spouseDies', icon: '🕊️', title: 'The empty chair', ok: mine,
     text: (L, x) => `${P(L, x).name} has died, at ${P(L, x).age}, with you beside ${him(P(L, x))}.`,
-    opts: [{ t: 'Goodbye, my love', run(L, x) { const p = P(L, x); L.s.people.splice(L.s.people.indexOf(p), 1); L.joy(-28); return `The house is very quiet. ${He(p)[0] === 'H' ? 'His' : 'Her'} coat is still on its hook.`; } }],
+    inText: (L, x) => `The chaplain comes to your cell with his hat in his hands. ${P(L, x).name} has died, at ${P(L, x).age}. You were not there.`,
+    opts: [{ t: 'Goodbye, my love', run(L, x) { const p = P(L, x); L.s.people.splice(L.s.people.indexOf(p), 1); L.joy(-28); return L.s.gaol ? 'They let you out for the funeral: two hours, in handcuffs, with Mr Hobbs standing at the back.' : `The house is very quiet. ${He(p)[0] === 'H' ? 'His' : 'Her'} coat is still on its hook.`; } }],
   },
   {
     id: 'petDies', icon: '🐾', title: 'A good friend', ok: (L) => !!L.s.pet,
     text: (L) => `${L.s.pet.name} the ${PETS[L.s.pet.kind].name} has died, old and well loved.`,
-    opts: [{ t: 'Goodbye, old friend', run(L) { const n = L.s.pet.name; L.s.pet = null; L.joy(-14); return `You bury ${n} at the bottom of the garden, under the apple tree.`; } }],
+    inText: (L) => `Word comes from outside: ${L.s.pet.name} the ${PETS[L.s.pet.kind].name} has died, old and well loved.`,
+    opts: [{ t: 'Goodbye, old friend', run(L) { const n = L.s.pet.name; L.s.pet = null; L.joy(-14); return L.s.gaol ? `A neighbour buried ${n} under an apple tree, and sent you the collar.` : `You bury ${n} at the bottom of the garden, under the apple tree.`; } }],
   },
   {
     id: 'sportsRetire', icon: '🦵', title: 'Time, gentlemen', ok: (L) => inJob(L, 'sports'),
@@ -1009,7 +1534,7 @@ export const EVENTS = [
     opts: [{ t: 'One last lap of honour', run(L) { const n = pay(L) * 6; L.cash(n); L.fame(4); L.joy(4); const t = L.jobTitle(); L.s.job = null; L.note(`Retired from sport as ${t}.`, 'big'); return `A testimonial match, a standing ovation, and ${money(n)}. Now: what next?`; } }],
   },
   {
-    id: 'birthday30', icon: '🎈', title: 'Thirty',
+    id: 'birthday30', icon: '🎈', title: 'Thirty', free: true,
     text: 'The big three-oh. Where did the twenties go? What do you want from the next ten years?',
     opts: [
       { t: 'To be better at what I am worst at', run(L) { const k = lowest(L); L.gain(k, 5); return `You make a resolution about your ${STAT_NAME[k]}, and for once you keep it.`; } },
@@ -1018,7 +1543,7 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'birthday50', icon: '🏍️', title: 'Fifty',
+    id: 'birthday50', icon: '🏍️', title: 'Fifty', free: true,
     text: 'Half a century. You catch sight of yourself in a shop window and wonder who that is.',
     opts: [
       { t: 'Buy a motorbike', cost: 9000, run(L) { L.joy(14); L.gain('charm', 1); return 'It is red and ridiculous and you adore it.'; } },

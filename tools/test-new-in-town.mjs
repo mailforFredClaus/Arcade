@@ -1,7 +1,9 @@
 // Checks New in Town's rules: time and money, skills, jobs and promotions,
 // courses and exams, homes and property, the bank and shares, people and
 // love and children, a business of your own, crime and vice and the law,
-// events and the end of a life.
+// prison, exes and enemies, the pier's games, followers and royalties, the
+// economy and the Gazette, the allotment and the curio shop, events and
+// the end of a life.
 // Then practice players live whole lives: one sets out to climb each career
 // (which proves every ladder can be climbed), and one does things at random
 // (which proves nothing it can do breaks the game). After every action the
@@ -12,8 +14,10 @@ import { Life, ACTIONS, money, cashShort } from '../games/new-in-town/js/engine.
 import { EVENTS } from '../games/new-in-town/js/events.js';
 import {
   STATS, PLACES, CAREERS, SHIFTS_FOR_RUNG, COURSES, HOMES, UPGRADES, ITEMS, STOCKS, PROPS, PETS, DREAMS, QUESTS, TROPHIES, RIBBONS, BACKGROUNDS,
-  BUSINESSES, FISH, OUTINGS, KID_PLAY, PERKS, NAMES_M, NAMES_F, INSURANCE, FOOD,
+  BUSINESSES, FISH, OUTINGS, KID_PLAY, PERKS, NAMES_M, NAMES_F, INSURANCE, FOOD, CROPS, PLOT_RENT, CURIOS, CURIO_SETS, ECO, many, aCurio, theCurio, GIFTS, SIDELINES, FESTS, ODD_JOBS, WEATHER,
 } from '../games/new-in-town/js/data.js';
+import { handTotal } from '../games/new-in-town/js/pier.js';
+import { CHIRPS } from '../games/new-in-town/js/fame.js';
 
 const perCareer = Number(process.argv[2] || 12), randomLives = Number(process.argv[3] || 60);
 let failures = 0;
@@ -23,8 +27,10 @@ const check = (ok, what) => {
     console.log(`FAIL: ${what}`);
   }
 };
+// Answers a first date, playing it the way the other person would like (or not).
+const date = (X, right = true) => { const ev = X.event(); if (!ev || ev.id !== 'date') return null; const p = X.dateWith(); return X.choose(X.dateLines().findIndex((l) => (l.k === p.trait) === right)); };
 // A fresh life, with the to-do list's rewards out of the way so sums are plain.
-const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', ...o }); L.s.quest = QUESTS.length; return L; };
+const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', sibs: [], ...o }); L.s.quest = QUESTS.length; return L; };
 
 // ---- the lists hang together ------------------------------------------------------------
 
@@ -48,7 +54,7 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', ...o 
     check(c.degree || Object.values(CAREERS).some((car) => (car.entry || {})[id] || car.rungs.some((r) => r.need.edu === id)), `${id}: is good for something`);
   }
   for (const [id, it] of Object.entries(ITEMS)) check(PLACES[it.at], `${id}: sold at a real place`);
-  for (const a of Object.values(ACTIONS)) check(a.place == null || typeof a.place === 'function' || PLACES[a.place] || a.place === 'sal', `${a.id}: happens at a real place`);
+  for (const a of Object.values(ACTIONS)) check(a.place == null || typeof a.place === 'function' || PLACES[a.place] || a.place === 'sal' || (a.place === 'gaol' && a.gaol), `${a.id}: happens at a real place`);
   for (const id of Object.keys(PLACES)) check(fresh().placeActions(id).length > 0 || id === 'labs', `${id}: has something to do`);
   for (const [id, b] of Object.entries(BUSINESSES)) check(PLACES[b.place] && b.names.length === 4 && b.cost.length === 4 && b.take.length === 4 && b.skill.length === 4 && b.wait.length === 4 && b.stats.every((k) => STATS.includes(k)), `${id}: a business with four sizes`);
   for (const [id, f] of Object.entries(FISH)) check(f.pay[1] >= f.pay[0] && f.where.every((w) => w === 'wall' || w === 'boat'), `${id}: a proper fish`);
@@ -449,7 +455,10 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', ...o 
   // Romance without friendship first.
   s.st.charm = 100; s.cash = 5000;
   let tries = 0;
-  while (!L.partner() && tries++ < 40) { s.time = 6; L.act('chatup'); }
+  s.time = 6; L.act('chatup');
+  check(L.event().id === 'date' && L.event().opts.length === 3 && L.event().opts.every((o) => o.chance === null) && s.date.from === 'pub' && !L.partner(), 'chatting someone up is a card: three ways to go about it, and no odds shown');
+  date(L);
+  while (!L.partner() && tries++ < 40) { s.time = 6; L.act('chatup'); date(L); }
   const p = L.partner();
   check(p && p.kind === 'partner' && p.sex === 'f' && NAMES_F.includes(p.name.split(' ')[0]) && L.friends().length === 12, 'chat someone up at the pub and you can be seeing her by closing time, friends or no friends');
   check(!L.placeActions('pub').some((a) => a.id === 'chatup'), 'no chatting people up while you are spoken for');
@@ -461,7 +470,7 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', ...o 
   const three = L.prospects();
   check(three.length === 3 && three.every((q) => q.sex === 'f' && q.single) && L.prospects() === three, 'three faces, all of a kind you could fall for, the same until next season');
   tries = 0;
-  while (!L.partner() && tries++ < 40) { s.time = 6; if (!L.prospects().length) L.act('rematch'); else L.act('match', 0); }
+  while (!L.partner() && tries++ < 40) { s.time = 6; if (!L.prospects().length) L.act('rematch'); else { L.act('match', 0); date(L); } }
   check(L.partner() && s.people.includes(L.partner()), 'ask one on a date and it may go well');
   L.split(L.partner(), false);
   // Asking a friend out.
@@ -469,7 +478,28 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', ...o 
   check(L.can('askout', g.id).includes('30 bond'), 'a friend wants to know you a little before a date');
   g.bond = 100;
   L.act('askout', g.id);
-  check(g.kind === 'partner' && L.partner() === g, 'ask the right person and you are a couple');
+  check(L.event().id === 'date' && L.event().text.includes(g.name) && g.kind === 'friend', 'asking a friend out leads to an evening');
+  date(L);
+  check(g.kind === 'partner' && L.partner() === g, 'ask the right person, the right way, and you are a couple');
+  // Reading the person matters.
+  let good = 0, bad = 0;
+  for (let i = 0; i < 400; i++) {
+    for (const right of [true, false]) {
+      const X = fresh({ seed: 100 + i });
+      X.s.st.charm = 45; X.s.cash = 500;
+      X.act('chatup');
+      const lines = X.dateLines();
+      if (new Set(lines.map((l) => l.k)).size !== 3 || lines.filter((l) => l.k === X.dateWith().trait).length !== 1) { check(false, 'a date offers three different approaches, one of them right'); break; }
+      const r = date(X, right);
+      if (!r.ok || !r.text || X.s.date) { check(false, 'a date always ends one way or the other'); break; }
+      if (X.partner()) { if (right) good++; else bad++; }
+    }
+  }
+  check(good > bad * 1.5 && bad > 20, `playing to what someone is like goes better than not (${good} against ${bad} of 400)`);
+  const stale = fresh();
+  stale.act('chatup');
+  stale.endSeason();
+  check(!stale.s.date && !stale.s.pend.some((e) => e.id === 'date' && stale.event() && stale.event().id === 'date'), 'a date not kept is forgotten');
   const taken = L.meet({ sex: 'f', single: false, bond: 90 });
   check(!L.personActions(taken).some((a) => a.id === 'askout'), 'someone spoken for cannot be asked out');
   check(L.can('movein', g.id).includes('hostel'), 'nobody moves into a hostel bunk');
@@ -597,6 +627,20 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', ...o 
   check(Object.keys(s.fishbook).some((id) => !FISH[id].where.includes('wall')), 'a boat finds fish the wall never sees');
 }
 
+// Striking a bite well, or badly.
+{
+  const tally = (strike) => {
+    const L = fresh();
+    L.s.items.rod = 1;
+    let blanks = 0, cash = 0;
+    for (let i = 0; i < 600; i++) { L.s.time = 6; const c = L.s.cash; const r = L.act('fish', strike); if (!r.ok || !r.text) throw new Error('fishing failed'); if (L.s.cash === c) blanks++; cash += L.s.cash - c; }
+    return { blanks, cash };
+  };
+  const clean = tally(2), fair = tally(1), plain = tally(undefined), fluffed = tally(0);
+  check(clean.blanks < fair.blanks * 0.6 && fluffed.blanks > fair.blanks * 1.8, `a clean strike rarely comes up empty, a fluffed one usually does (${clean.blanks}/${fair.blanks}/${fluffed.blanks} blanks in 600)`);
+  check(clean.cash > fair.cash * 1.3 && fluffed.cash < fair.cash * 0.5 && Math.abs(plain.cash - fair.cash) < fair.cash * 0.2, 'and the catch is worth more for it; fishing without watching the float is a fair strike every time');
+}
+
 // ---- events -----------------------------------------------------------------------------
 
 {
@@ -664,20 +708,12 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', ...o 
   check(F.s.record === 1 && F.s.cash === 3500 && !F.event(), 'a petty offence is a fine and a record');
   F.sentence(2);
   check(F.event().id === 'inside' && F.s.pend[0].x.n === 3, 'something worse is prison, and longer the second time');
-  F.s.job = { c: 'kitchen', r: 1, n: 0, perf: 50, raise: 0 }; F.s.home = 'bedsit';
-  F.choose(0);
-  check(F.s.record === 2 && F.s.f.jailed && !F.s.job && F.s.t === 3 && F.s.home === 'hostel' && F.s.time === F.timeMax(), 'three seasons inside: job gone, room gone');
   const G = fresh();
   G.queue('busted', { what: 'a crate', sev: 2 });
   check(G.event().opts.length === 5 && G.event().opts[2].chance > 0, 'caught, you can go quietly, run, bribe, send for a lawyer, or blame Sal');
   G.s.cash = 12000;
   G.choose(3);
   check(G.s.record === 1 && G.s.cash === 12000 - 8000 - 1500 && !G.event(), 'a good lawyer turns prison into a fine');
-  const E = fresh();
-  E.s.st.fitness = 100; E.s.st.smarts = 100;
-  E.queue('inside', { n: 6 });
-  E.choose(2);
-  check((E.s.f.escaped && E.s.t === 1 && E.s.heat > 90) || (!E.s.f.escaped && E.s.t === 9), 'going over the wall is one season or three more');
   // Sal's crew.
   check(L.can('joinCrew').includes('crimes') && !L.placeActions('townhall').some((a) => a.id === 'apply'), 'Sal takes nobody who has not proved themselves');
   s.n.crimes = 3; s.time = 6;
@@ -779,6 +815,827 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', ...o 
   check(C.s.cash === 10000 && (C.s.record === 0 || C.s.record === 2), 'a record can be lost, for a price, usually');
 }
 
+// More of the low road: brandy by moonlight, and antiques made last week.
+{
+  const L = fresh();
+  L.s.n.crimes = 3;
+  check(!L.placeActions('sal').some((a) => a.id === 'smuggle'), 'no boat, no smuggling');
+  L.s.items.boat = 1;
+  check(L.placeActions('sal').some((a) => a.id === 'smuggle' && !a.why), 'with a boat, Sal has night work');
+  L.s.wx = 'storm';
+  check(L.can('smuggle').includes('Not even Sal'), 'but not in a gale');
+  L.s.wx = 'fair';
+  let runs = 0, nicked = 0, cash = 0;
+  for (let i = 0; i < 300; i++) { const X = new Life(JSON.parse(JSON.stringify(L.s))); X.s.rng = i * 53; const c = X.s.cash; X.act('smuggle'); if (X.s.n.runs) { runs++; cash += X.s.cash - c; } else if (X.event() && X.event().id === 'busted' && X.s.pend[0].x.sev === 3) nicked++; }
+  check(runs + nicked === 300 && nicked > 20 && nicked < 110 && cash / runs >= 9000 && cash / runs <= 18000, `a run pays well, and now and then the cutter is waiting (${nicked} of 300)`);
+  const F = fresh();
+  check(!F.placeActions('studios').some((a) => a.id === 'forge'), 'a clumsy pair of hands cannot fake anything');
+  F.s.st.craft = 100; F.s.cash = 5000;
+  let sold = null, spotted = null;
+  for (let i = 0; i < 80 && !(sold && spotted); i++) { const X = new Life(JSON.parse(JSON.stringify(F.s))); X.s.rng = i * 29; X.act('forge'); if (X.s.n.fakes) sold = X; else spotted = X; }
+  check(sold && sold.s.cash > 5000 - 120 && sold.s.karma < 0 && sold.s.n.crimes === 1 && sold.s.ach.faker && sold.can('forge') === 'Once a season.', 'a good fake sells, and is a crime');
+  check(spotted && spotted.pymShut() && spotted.can('curioBuy', 0) === 'Mr Pym is not at home to you.' && (spotted.s.use = {}, spotted.can('forge').includes('not at home')), 'a bad one shuts Mr Pym’s door to you');
+  if (spotted) { for (let i = 0; i < 8; i++) { spotted.endSeason(); spotted.s.pend = []; } check(!spotted.pymShut() || !!spotted.s.gaol, 'for two years'); }
+}
+
+// ---- Starling Gaol ----------------------------------------------------------------------
+
+{
+  const L = fresh();
+  const s = L.s;
+  s.job = { c: 'kitchen', r: 1, n: 0, perf: 50, raise: 0 }; s.home = 'bedsit'; s.cash = 20000;
+  L.queue('inside', { n: 4 });
+  check(L.event().opts.length === 3, 'the gate shuts, and you choose how to begin');
+  L.choose(0);
+  check(s.gaol && s.gaol.left === 4 && s.gaol.good === 65 && s.record === 1 && s.f.jailed && !s.job, 'sent down: a record, no job, and a sentence to serve');
+  check(s.time === 4 && L.timeMax() === 4, 'four blocks of time a season inside');
+  check(L.can('work') && L.can('rest').includes('cell') && L.can('deposit', 100) && !L.placeActions('home').some((a) => !a.why), 'nothing in town can be done from a cell');
+  check(L.placeActions('gaol').length >= 10 && L.placeActions('gaol').every((a) => a.sec), 'but there is plenty to do inside');
+  const fit = s.st.fitness, smarts = s.st.smarts;
+  check(L.act('gYard').ok && s.st.fitness > fit && L.act('gLib').ok && s.st.smarts > smarts, 'the yard builds fitness and the library smarts');
+  const good = s.gaol.good;
+  L.act('gHead');
+  check(s.gaol.good === good + 7, 'keeping your nose clean goes on your record');
+  check(L.can('gDeal').includes('25'), 'nobody trusts a new face with the tobacco');
+  L.act('gMates');
+  check(s.gaol.rep > 0 && s.gaol.good < good + 7, 'favours on the landing earn standing and cost a little of your record');
+  check(s.time === 0 && !L.act('gYard').ok, 'and then the day is over');
+  const rent = s.cash;
+  let r = L.endSeason();
+  check(s.gaol.left === 3 && s.gaol.served === 1 && s.t === 1 && !r.lines.some(([w]) => w === 'Rent') && s.cash === rent, 'a season served: no rent, no food bill');
+  s.pend = [];
+  // Study.
+  for (let i = 0; i < 5; i++) { s.time = 1; L.act('gStudy'); }
+  check(s.edu.trade && L.hasEdu('trade') && L.gaolCourse() === 'culinary', 'five sittings in the education wing is a real qualification');
+  // Fights and the block.
+  s.st.fitness = 100; s.time = 4; s.health = 90;
+  let block = false;
+  const wasGood = s.gaol.good;
+  for (let i = 0; i < 12 && !block; i++) { s.use = {}; s.time = 4; s.health = 90; L.act('gFight'); block = s.gaol.sol; }
+  check(block && s.gaol.rep >= 14 && s.gaol.good <= wasGood - 14 && s.use.trouble, 'fighting earns standing, ruins your record, and sooner or later means the block');
+  L.endSeason(); s.pend = [];
+  check(s.gaol.inSol && s.time === 1, 'a season in the block: one block of time');
+  check(L.can('gFight') === 'Not from the block.' && L.can('gMates') === 'Not from the block.' && L.can('gDeal') === 'Not from the block.' && !L.can('gLib') && !L.can('gCoast'), 'where there is a book, and nobody to fight');
+  L.endSeason(); s.pend = [];
+  check(!s.gaol.inSol && s.time === 4 && !L.can('gFight'), 'then back on the wing');
+  // Parole.
+  const P = fresh();
+  P.jail(6); P.s.gaol.good = 100; P.s.st.charm = 100;
+  for (let i = 0; i < 3; i++) { P.endSeason(); P.s.pend = P.s.pend.filter((e) => e.id === 'parole'); }
+  check(P.event() && P.event().id === 'parole' && P.event().opts[0].chance > 0.85, 'the board sits at half time, and a clean record is what it wants to see');
+  let out = false;
+  for (let i = 0; i < 20 && !out; i++) { const Q = new Life(JSON.parse(JSON.stringify(P.s))); Q.s.rng = i * 77; Q.choose(0); out = !Q.s.gaol && Q.s.f.parole && Q.s.f.licence > Q.s.t && Q.event().id === 'gateOut'; }
+  check(out, 'parole: out early, on licence, and somebody may be at the gate');
+  const lic = fresh();
+  lic.s.f.licence = 99; lic.s.record = 1;
+  lic.sentence(2);
+  check(lic.s.pend[0].x.n === 5, 'caught again on licence, the rest of the old sentence comes back');
+  // Serving it out.
+  const T = fresh();
+  T.s.home = 'bedsit';
+  T.jail(2);
+  T.endSeason(); T.s.pend = [];
+  check(T.s.gaol && T.s.gaol.left === 1, 'one season down');
+  T.endSeason();
+  check(!T.s.gaol && T.s.home === 'hostel' && T.s.time === T.timeMax() && T.event().id === 'gateOut' && T.s.n.inside === 2, 'time served: out of the gate, the rented room long gone');
+  T.choose(0);
+  check(!T.can('rest') && T.act('rest').ok, 'and life goes on');
+  // A second sentence on top of the first.
+  const D = fresh();
+  D.jail(3); D.jail(2);
+  check(D.s.gaol.left === 5 && D.s.record === 2, 'sentences run one after the other');
+  // The appeal.
+  const AP = fresh();
+  AP.jail(8); AP.s.cash = 20000; AP.s.st.smarts = 100;
+  check(AP.look('gAppeal').cost === 8000, 'a barrister is not cheap');
+  let halved = false;
+  for (let i = 0; i < 30 && !halved; i++) { const Q = new Life(JSON.parse(JSON.stringify(AP.s))); Q.s.rng = i * 31; Q.act('gAppeal'); halved = Q.s.gaol.left === 4 && Q.s.gaol.total === 4 && Q.can('gAppeal'); }
+  check(halved, 'a won appeal halves what is left, and there is only one');
+  // The wall.
+  const W = fresh();
+  W.jail(10); W.s.st.fitness = 100; W.s.st.smarts = 100;
+  check(!W.placeActions('gaol').some((a) => a.id === 'gBreak'), 'no going over the wall without a way out');
+  W.s.gaol.dig = 4;
+  check(W.breakOdds() > 0.7, 'fit, clever and prepared: good odds');
+  let away = null, caught = null;
+  for (let i = 0; i < 60 && !(away && caught); i++) { const Q = new Life(JSON.parse(JSON.stringify(W.s))); Q.s.rng = i * 13; Q.s.time = 4; Q.act('gBreak'); if (Q.s.gaol) caught = Q; else away = Q; }
+  check(away && !away.s.gaol && away.s.run.owe === 14 && away.s.heat === 100 && away.s.f.escaped, 'over the wall: free, hunted, and the rest of the sentence still owing');
+  check(caught && caught.s.gaol.left === 14 && caught.s.gaol.sol && caught.s.gaol.dig === 0, 'or four more seasons, and the block');
+  check(away.riskOf(0.2) > W.riskOf(0.2), 'on the run, every crime is riskier');
+  away.queue('recapture');
+  away.choose(2);
+  check(away.s.gaol && away.s.gaol.left === 14 && !away.s.run, 'caught again, you serve what you owed');
+  // An escaped prisoner picked up for something else still owes the old sentence.
+  const R1 = fresh();
+  R1.s.run = { owe: 9 }; R1.s.record = 1;
+  R1.sentence(1);
+  check(R1.event().id === 'inside' && R1.s.pend[0].x.n === 10, 'on the run, a petty arrest brings back all that was owed');
+  const R2 = fresh();
+  R2.s.run = { owe: 9 }; R2.s.record = 1;
+  R2.sentence(0);
+  check(R2.event() && R2.s.pend[0].x.n === 9, 'and not even a good lawyer talks that away');
+  R2.choose(0);
+  check(R2.s.gaol.left === 9 && !R2.s.run, 'back inside, no longer running');
+  check(fresh().sentence(0).startsWith('A stern talking-to'), 'though for anyone else a lawyer can still mean a talking-to');
+  const one = fresh();
+  one.s.record = 1; one.s.cash = 0;
+  check(one.sentence(1).includes('"1 season."'), 'one season is one season');
+  // A hand left at the Lucky Gull is settled when you are taken away.
+  const BJ = fresh();
+  BJ.s.cash = 1000; BJ.s.bj = { bet: 50, me: [10, 9], dl: [10, 7] }; BJ.s.hilo = { bet: 50, pot: 120, card: 5, streak: 1 };
+  BJ.jail(2);
+  check(!BJ.s.bj && !BJ.s.hilo && BJ.s.cash === 1000 + 100 + 120 && BJ.s.n.casino === 50 + 70, 'what was on the table is paid out before the van leaves');
+  const cold = fresh();
+  cold.s.run = { owe: 5 }; cold.s.heat = 5;
+  cold.endSeason();
+  check(!cold.s.run && cold.s.f.lam, 'but if the trail goes cold, they stop looking');
+  // Cards for prison are only dealt in prison.
+  const C = fresh();
+  C.jail(40); C.s.n.crimes = 6; C.s.gaol.rep = 30;
+  const seen = new Set();
+  for (let i = 0; i < 60 && C.s.gaol; i++) {
+    C.endSeason();
+    let ev;
+    while ((ev = C.event())) { seen.add(ev.id); C.choose(ev.id === 'parole' ? 1 : ev.opts.findIndex((o) => !o.why)); }
+  }
+  const gaolCards = EVENTS.filter((e) => e.gaol && e.w).map((e) => e.id);
+  check([...seen].every((id) => EVENTS.find((e) => e.id === id).gaol || ['parole', 'gateOut', 'parentDies', 'birthday30', 'birthday50'].includes(id)), `only prison cards turn up inside (${[...seen].join(' ')})`);
+  check(gaolCards.filter((id) => seen.has(id)).length >= gaolCards.length - 2, 'and nearly all of them do, in a long sentence');
+  const home = fresh();
+  home.s.age = 29; home.s.t = 43;
+  home.jail(10);
+  home.s.pet = { kind: 'dog', name: 'Rex', age: 14, since: 0 };
+  home.queue('birthday30'); home.queue('petDies');
+  check(home.event().id === 'petDies' && home.event().text.startsWith('Word comes from outside') && home.choose(0).text.includes('collar'), 'news from home reaches a cell as news, and a birthday party does not');
+  const done = new Life({ ...JSON.parse(JSON.stringify(fresh().s)), v: 2, quest: 12, cur: null });
+  const part = new Life({ ...JSON.parse(JSON.stringify(fresh().s)), v: 2, quest: 5, cur: null });
+  check(done.s.v === 3 && done.s.quest === QUESTS.length && part.s.quest === 5 && done.s.cur.stock.length === 3, 'a life from the last version keeps its place in the to-do list');
+  const free = fresh();
+  free.queue('gPudding');
+  check(!free.event(), 'a prison card means nothing outside');
+}
+
+// ---- old flames and bad blood -----------------------------------------------------------
+
+{
+  const L = fresh();
+  const s = L.s;
+  s.cash = 50000;
+  const p = L.meet({ sex: 'f', kind: 'partner', bond: 30, single: false });
+  L.split(p, false);
+  check(p.kind === 'ex' && p.was === 'partner' && p.grudge === 15 && L.exes().length === 1 && !L.partner(), 'a sweetheart who leaves becomes an old flame');
+  const acts = L.personActions(p).map((a) => a.id);
+  check(acts.includes('winback') && acts.includes('oldtimes') && acts.includes('forget') && !acts.includes('gift') && !acts.includes('out') && !acts.includes('scrounge'), 'who can be won back, or forgotten, and nothing else');
+  s.st.charm = 100;
+  let back = false;
+  for (let i = 0; i < 30 && !back; i++) { const Q = new Life(JSON.parse(JSON.stringify(s))); Q.s.rng = i * 19; Q.act('winback', p.id); back = !!Q.partner() && Q.partner().id === p.id && Q.s.f.oldflame === 1 && Q.partner().grudge === undefined; }
+  check(back, 'with charm, and flowers, they may come back');
+  s.time = 6;
+  L.act('winback', p.id);
+  if (!L.partner()) check(L.can('winback', p.id).includes('not long ago'), 'but you cannot ask every week');
+  const w = fresh();
+  const wife = w.meet({ sex: 'f', kind: 'spouse', bond: 50, single: false });
+  w.split(wife, true);
+  check(wife.kind === 'ex' && wife.was === 'spouse' && wife.grudge >= 45, 'a divorce leaves an ex who is not best pleased');
+  for (let i = 0; i < 17; i++) { w.endSeason(); w.s.pend = []; }
+  check(!w.exes().length, 'in time an ex moves away');
+
+  const gone = fresh();
+  const old = gone.meet({ sex: 'f', kind: 'spouse', bond: 5, single: false, age: 80 });
+  gone.queue('divorce', old.id); gone.queue('spouseDies', old.id); gone.queue('caughtOut', old.id);
+  gone.choose(gone.event().opts.length - 1);
+  if (old.kind === 'ex') check(!gone.event(), 'cards about a husband or wife are dropped once they are an ex');
+  const lush = fresh();
+  lush.s.habit.drink = 90; lush.s.people = [];
+  lush.foe({ grudge: 80 });
+  const hooked = EVENTS.find((e) => e.id === 'hooked');
+  check(!hooked.when(lush) && hooked.ctx(lush) === null, 'an enemy does not stage an intervention');
+  const E = fresh();
+  E.s.cash = 50000;
+  const foe = E.foe({ sex: 'm' });
+  check(foe.kind === 'enemy' && foe.grudge === 45 && foe.bond === 0 && E.enemies().length === 1 && E.news.some((n) => n.kind === 'bad'), 'somebody takes against you');
+  const fa = E.personActions(foe).map((a) => a.id);
+  check(['mend', 'prank', 'rumour', 'thump'].every((id) => fa.includes(id)) && !fa.includes('lean') && !fa.includes('gift') && !fa.includes('out'), 'an enemy can be made up with, or made war on');
+  const calm = fresh(); calm.s.cash = 50000;
+  check(E.feudGloom() === 2 && E.moodBase() === calm.moodBase() - 2, 'an enemy weighs on you');
+  E.s.n.crimes = 3;
+  check(E.personActions(foe).some((a) => a.id === 'lean'), 'those who know Sal have another way');
+  // Wearing one down.
+  foe.nerve = 1; E.s.st.fitness = 100; foe.hard = 30; E.s.time = 6;
+  E.act('thump', foe.id);
+  check(!E.person(foe.id) && E.s.n.seenOff === 1, 'an enemy who has had enough leaves you alone');
+  // Making it up.
+  const M = fresh();
+  M.s.cash = 5000; M.s.st.charm = 100;
+  const f2 = M.foe({ grudge: 20 });
+  let mended = false;
+  for (let i = 0; i < 30 && !mended; i++) { const Q = new Life(JSON.parse(JSON.stringify(M.s))); Q.s.rng = i * 23; Q.act('mend', f2.id); const q = Q.person(f2.id); mended = q.kind === 'friend' && q.grudge === undefined && Q.s.n.mended === 1; }
+  check(mended, 'or becomes a friend, if you can bring yourself to buy the drink');
+  // Left alone, a grudge cools, but not before it does some harm.
+  const H = fresh();
+  H.s.cash = 5000;
+  const f3 = H.foe({ grudge: 100 });
+  let spites = 0, n = 0;
+  while (H.person(f3.id) && n++ < 80) { H.endSeason(); if (H.s.pend.some((e) => e.id === 'spite')) spites++; H.s.pend = []; }
+  check(!H.person(f3.id) && n >= 30 && spites >= 1, `a grudge cools in the end (${n} seasons, ${spites} acts of spite)`);
+  const S = fresh();
+  const f4 = S.foe({});
+  S.queue('spite', { p: f4.id, what: S.spite(f4) });
+  check(S.event().text.startsWith(f4.name) && S.event().opts.length === 3, 'spite is a card with three answers');
+  S.choose(0);
+  check(f4.grudge < 45, 'rising above it cools things a little');
+}
+
+// ---- more games on the pier -------------------------------------------------------------
+
+{
+  check(handTotal([1, 13]) === 21 && handTotal([1, 1, 9]) === 21 && handTotal([10, 9, 5]) === 24 && handTotal([1, 5, 10]) === 16, 'a hand counts aces as eleven or one');
+  const L = fresh();
+  const s = L.s;
+  s.cash = 1e6;
+  check(L.can('bjStart', 7) === 'Pick a stake.' && L.can('bjHit') && !L.can('bjStart', 50), 'blackjack: place a bet first');
+  let net = 0, hands = 0, naturals = 0, doubles = 0;
+  for (let i = 0; i < 4000; i++) {
+    const before = s.cash;
+    let r = L.act('bjStart', 50);
+    let guard = 0;
+    while (s.bj && guard++ < 20) {
+      const t = handTotal(s.bj.me);
+      if (s.bj.me.length === 2 && (t === 10 || t === 11)) { r = L.act('bjDouble'); doubles++; } else r = L.act(t < 15 ? 'bjHit' : 'bjStand');
+    }
+    if (!r.out || s.bj) { check(false, 'a hand of blackjack always ends'); break; }
+    if (r.out.res === 'natural') naturals++;
+    net += s.cash - before; hands++;
+  }
+  check(s.f.natural && naturals > 100 && doubles > 200, `blackjacks are dealt (${naturals} in ${hands} hands)`);
+  const mood = fresh();
+  mood.s.cash = 1e7; mood.s.happy = 30;
+  let top = 30;
+  for (let i = 0; i < 300; i++) { mood.act('bjStart', 5000); let g2 = 0; while (mood.s.bj && g2++ < 20) mood.act(handTotal(mood.s.bj.me) < 15 ? 'bjHit' : 'bjStand'); top = Math.max(top, mood.s.happy); mood.act('raceBet', { i: 0, bet: 50 }); top = Math.max(top, mood.s.happy); }
+  check(top <= 35, `a win lifts the spirits once a season, not three hundred times (${top.toFixed(1)})`);
+  check(net < 0 && net > -hands * 50 * 0.2, `the house has an edge at blackjack, but not a cruel one (${(net / hands / 50 * 100).toFixed(1)}% a hand)`);
+  s.cash = 1000; s.bank = 0;
+  L.act('bjStart', 500);
+  if (s.bj) { L.endSeason(); check(!s.bj, 'a hand left on the table is played out at the end of the season'); }
+  // The gull races.
+  const R = fresh();
+  R.s.cash = 1e6;
+  const card = R.raceCard();
+  check(card.length === 5 && new Set(card.map((g) => g.name)).size === 5 && Math.abs(card.reduce((a, g) => a + g.p, 0) - 1) < 1e-9 && card.every((g) => g.pays >= 1.3), 'five gulls, each with a price');
+  check(R.raceCard() === card, 'the card stays put until the race is run');
+  let back = 0;
+  for (let i = 0; i < 4000; i++) {
+    const c = R.raceCard(), i2 = i % 5, cash = R.s.cash;
+    const r = R.act('raceBet', { i: i2, bet: 50 });
+    if (!r.ok || r.out.order.length !== 5 || new Set(r.out.order).size !== 5) { check(false, 'a race has five finishers'); break; }
+    check(r.out.pay === (r.out.order[0] === i2 ? Math.round(50 * c[i2].pays) : 0) && R.s.cash === cash - 50 + r.out.pay, 'a winner pays its price, a loser nothing');
+    back += r.out.pay;
+  }
+  check(back / (4000 * 50) > 0.7 && back / (4000 * 50) < 0.97, `the bookmaker keeps his share (${Math.round(back / 2000)}% paid back)`);
+  // The lotto.
+  const T = fresh();
+  T.s.cash = 1000;
+  for (let i = 0; i < 5; i++) T.act('lotto');
+  check(T.s.lot.n === 5 && T.s.cash === 900 && T.can('lotto') && T.s.time === T.timeMax(), 'five lotto tickets a season, twenty dollars each');
+  let won = 0, spent = 0, jack = 0;
+  const pot = T.s.lot.pot;
+  T.endSeason(); T.s.pend = [];
+  check(T.s.lot.n === 0 && (T.s.lot.pot === pot + 10000 || T.s.lot.pot === 100000), 'the draw is at the end of the season, and the jackpot rolls over');
+  const X = fresh();
+  for (let i = 0; i < 30000; i++) { X.s.lot.n = 5; X.s.cash = 0; X.s.bank = 0; X.s.debt = 0; const wasPot = X.s.lot.pot; X.pierSeason(); won += X.s.cash; spent += 100; if (X.s.cash >= wasPot) jack++; }
+  check(won < spent && won > spent * 0.3, `the lotto pays back less than it takes (${Math.round(won / spent * 100)}%, ${jack} jackpots in 150,000 tickets)`);
+}
+
+// ---- followers and royalties ------------------------------------------------------------
+
+{
+  const L = fresh();
+  const s = L.s;
+  check(L.can('chirp', 'joke') === 'You need a phone.' && !L.placeActions('home').some((a) => a.id === 'chirpOpen'), 'no phone, no Chirper');
+  s.items.phone = 1; s.st.charm = 60;
+  check(L.placeActions('home').some((a) => a.open === 'chirper'), 'Chirper is on your phone');
+  const r = L.act('chirp', 'dinner');
+  check(r.ok && s.chirp.n > 0 && s.chirp.posts === 1 && s.use.chirp === 1, 'a post brings followers');
+  for (let i = 0; i < 3; i++) L.act('chirp', 'joke');
+  check(L.can('chirp', 'joke').includes('Enough'), 'four posts a season');
+  check(L.can('chirpSpon').includes('5,000'), 'nobody pays a small account');
+  // Growth: a charming person who posts every season for ten years.
+  const G = fresh();
+  G.s.items.phone = 1; G.s.st.charm = 70;
+  for (let t = 0; t < 40; t++) { for (let i = 0; i < 4; i++) { G.s.time = 2; G.act('chirp', 'joke'); } G.s.use = {}; G.fameSeason(); }
+  check(G.followers() > 20000 && G.followers() < 5000000, `ten years of posting builds a real following (${many(G.followers())})`);
+  check(G.s.fame > 5, 'and some fame with it');
+  G.s.use = {}; G.s.time = 6;
+  const cash = G.s.cash, n = G.followers();
+  check(G.act('chirpSpon').ok && G.s.cash > cash && G.followers() < n, 'a sponsored post pays, and costs a few followers');
+  const karma = G.s.karma, c2 = G.s.cash;
+  G.act('chirpShill');
+  check(G.s.cash - c2 > (G.s.cash - cash) / 3 && G.s.karma < karma, 'slimming tea pays better and costs your good name');
+  const before = G.followers();
+  G.s.use = {}; G.fameSeason();
+  check(G.followers() < before, 'a season without posting and people drift off');
+  check(Object.keys(CHIRPS).every((k) => STATS.includes(CHIRPS[k].stat) && CHIRPS[k].say.length >= 3), 'every kind of post leans on a skill');
+  // A record.
+  const A = fresh();
+  A.s.items.guitar = 1; A.s.cash = 50000; A.s.st.craft = 30;
+  check(A.can('album') === 'Needs Craft 45.', 'a record needs some craft');
+  A.s.st.craft = 100; A.s.st.charm = 100;
+  for (let i = 0; i < 4; i++) { A.s.time = 2; A.act('album'); }
+  check(A.s.n.albums === 1 && A.s.f.hit && A.s.album.p === 0 && A.royalties() > 1500 && A.income().some(([w]) => w === 'Royalties'), 'four sessions make a record, and a hit pays royalties');
+  const roy = A.royalties();
+  A.endSeason(); A.s.pend = [];
+  check(A.royalties() < roy && A.royalties() > roy * 0.9, 'which dwindle, slowly');
+  for (let i = 0; i < 80; i++) A.fameSeason();
+  check(A.royalties() === 0 && A.s.roy.length === 0, 'and in the end stop');
+  const N = fresh();
+  N.s.items.laptop = 1; N.s.st.craft = 100; N.s.st.smarts = 100;
+  for (let i = 0; i < 10; i++) { N.s.time = 1; N.act('novel'); }
+  check(N.s.n.books === 1 && N.royalties() > 0, 'a novel that sells pays royalties too');
+}
+
+// ---- the town: good years and bad, the Gazette, the allotment, curios -------------------
+
+{
+  check(ECO.length === 5, 'five moods of the economy');
+  const L = fresh();
+  const s = L.s;
+  check(L.eco().name === 'Steady' && s.eco === 0, 'the Bay starts out steady');
+  const seenEco = new Set();
+  let sum = 0;
+  for (let i = 0; i < 400; i++) { L.ecoYear(); seenEco.add(s.eco); sum += s.eco; }
+  check(seenEco.size === 5 && Math.abs(sum / 400) < 0.5, 'it has booms and slumps, and comes back to steady');
+  const B = fresh(), D = fresh();
+  for (const X of [B, D]) { X.s.biz = { type: 'food', lvl: 1, rep: 50, mgr: false, age: 4, at: 0 }; }
+  B.s.eco = 2; D.s.eco = -2;
+  check(B.bizTake() > D.bizTake() * 1.25, 'a business takes more in a boom than a slump');
+  D.s.job = { c: 'kitchen', r: 1, n: 0, perf: 30, raise: 0 };
+  let laid = 0;
+  for (let i = 0; i < 200; i++) { D.s.job.perf = 30; D.endSeason(); if (D.s.pend.some((e) => e.id === 'laidOff')) laid++; D.s.pend = []; D.s.eco = -2; if (D.s.dead) break; }
+  check(laid >= 3, `in a slump, those who have not shone may be laid off (${laid} times in 200 seasons)`);
+  D.queue('laidOff');
+  const cash = D.s.cash + D.s.bank - D.s.debt;
+  D.choose(0);
+  check(!D.s.job && D.s.cash + D.s.bank - D.s.debt > cash, 'with a pay-off');
+  // The Gazette.
+  const G = fresh();
+  let g = G.gazette();
+  check(g.lead.h && g.items.length >= 5 && g.items.every((it) => it.icon && it.h && typeof it.t === 'string'), 'the Gazette has a front page and the rest');
+  const rng = G.s.rng;
+  G.gazette();
+  check(G.s.rng === rng, 'reading it changes nothing');
+  G.s.run = { owe: 3 };
+  check(G.gazette().lead.h.startsWith('Escaped'), 'an escaped prisoner is front-page news');
+  G.s.run = null; G.s.eco = 2; G.s.ecoAt = G.s.t;
+  check(G.gazette().lead.h.includes('boom'), 'and so is a boom');
+  for (let i = 0; i < 12; i++) { G.endSeason(); G.s.pend = []; g = G.gazette(); if (!g.lead.h || g.items.some((it) => /undefined|NaN/.test(it.t + it.h))) { check(false, `the Gazette is printed properly every season (${JSON.stringify(g)})`); break; } }
+
+  // The allotment.
+  const A = fresh();
+  const a = A.s;
+  a.cash = 5000;
+  check(A.can('sow', { b: 0, c: 'toms' }) === 'You have no plot.' && A.act('plotRent').ok && a.plot.beds.length === 3, 'an allotment: three beds');
+  check(A.bills().some(([w, n]) => w === 'Allotment rent' && n === PLOT_RENT), 'the rent goes on the bills');
+  check(A.season === 0 && !A.can('sow', { b: 0, c: 'toms' }) && A.can('sow', { b: 0, c: 'pumpkin' }).includes('summer') && A.can('sow', { b: 0, c: 'garlic' }).includes('autumn or winter'), 'what can be sown depends on the season');
+  A.act('sow', { b: 0, c: 'toms' }); A.act('sow', { b: 1, c: 'spuds' }); A.act('sow', { b: 2, c: 'marrow' });
+  check(a.cash === 5000 - 40 - 30 - 80 && A.can('sow', { b: 0, c: 'beans' }) === 'That bed is taken.' && A.can('reap'), 'seed costs money, and a sown bed is taken');
+  A.act('tend'); A.act('tend');
+  check(a.plot.beds[0].care === 2 && A.can('tend') && A.bedCare(a.plot.beds[0]) === 1 && A.bedCare(a.plot.beds[1]) === 0.5, 'weeding and watering, twice a season at most');
+  A.endSeason(); a.pend = [];
+  check(A.bedRipe(a.plot.beds[0]) && !A.bedRipe(a.plot.beds[1]), 'tomatoes are ready by summer; potatoes are not');
+  let c0 = a.cash;
+  A.act('reap');
+  check(a.cash > c0 + 300 && !a.plot.beds[0] && a.plot.beds[1] && a.grown.toms === 1, 'a well-kept bed pays well');
+  A.act('tend'); A.act('tend');
+  A.endSeason(); a.pend = [];
+  A.act('reap');
+  check(a.grown.spuds === 1 && a.grown.marrow === 1 && a.marrow > 20 && A.season === 2, 'in autumn the potatoes come up, and the marrow goes in the shed');
+  check(A.placeActions('park').some((x) => x.id === 'show'), 'the Harvest Show is on in autumn');
+  let wins = 0;
+  for (let i = 0; i < 40; i++) { const Q = new Life(JSON.parse(JSON.stringify(a))); Q.s.rng = i * 41; Q.act('show'); if (Q.s.f.marrow) wins++; if (Q.s.marrow) check(false, 'the marrow is used up at the show'); }
+  check(wins >= 5 && wins <= 39, `a good marrow can beat Mrs Pargeter (${wins} of 40)`);
+  A.endSeason(); a.pend = [];
+  check(a.marrow === 0, 'a marrow kept past autumn goes soft');
+  const late = fresh();
+  late.act('plotRent'); late.act('sow', { b: 0, c: 'marrow' });
+  for (let i = 0; i < 3; i++) { late.endSeason(); late.s.pend = []; }
+  late.act('reap');
+  check(late.season === 3 && late.s.marrow > 0, 'one brought in in winter');
+  late.endSeason(); late.s.pend = [];
+  check(late.s.marrow === 0, 'does not keep until next year’s show');
+  const N = fresh();
+  N.act('plotRent'); N.act('sow', { b: 0, c: 'toms' });
+  for (let i = 0; i < 3; i++) { N.endSeason(); N.s.pend = []; }
+  check(!N.s.plot.beds[0] && N.s.log.some((e) => e.t.includes('went over')), 'a crop nobody picks is lost');
+  check(N.act('plotQuit').ok && !N.s.plot && !N.bills().some(([w]) => w === 'Allotment rent'), 'and a plot can be given up');
+  for (const [id, c] of Object.entries(CROPS)) check(c.sow.length && c.sow.every((q) => q >= 0 && q < 4) && c.ripe >= 1 && c.seed > 0 && c.pay > c.seed, `${id}: can be sown, and is worth growing`);
+
+  // Curios.
+  check(Object.keys(CURIOS).length === 20 && Object.keys(CURIO_SETS).every((k) => Object.values(CURIOS).filter((c) => c.set === k).length === 4), 'twenty curios in five sets of four');
+  const C = fresh();
+  const c = C.s;
+  c.cash = 100000;
+  check(c.cur.stock.length === 3 && new Set(c.cur.stock.map((x) => x.id)).size === 3 && Object.keys(c.cur.bid).length === 5, 'three things in Pym’s window');
+  const first = c.cur.stock[0], worth0 = C.netWorth();
+  check(C.act('curioBuy', 0).ok && c.curios[first.id] === 1 && c.curSeen[first.id] && c.cur.stock.length === 2 && c.cash === 100000 - first.ask, 'buying one');
+  check(C.netWorth() === worth0 - first.ask + Math.round(CURIOS[first.id].worth * 0.8), 'a curio counts towards what you are worth');
+  const ask = c.cur.stock[0].ask;
+  C.act('haggle');
+  check(c.cur.stock[0].ask !== ask && C.can('haggle'), 'one haggle a season, for better or worse');
+  const bid = C.curioBid(first.id);
+  c0 = c.cash;
+  check(C.act('curioSell', first.id).ok && c.cash === c0 + bid && !c.curios[first.id] && c.curSeen[first.id] && C.can('curioSell', first.id), 'selling it back, for what Pym will pay this season');
+  const stock = JSON.stringify(c.cur.stock);
+  C.endSeason(); c.pend = [];
+  check(c.cur.stock.length === 3 && JSON.stringify(c.cur.stock) !== stock, 'new stock every season');
+  check(!C.hasSet('sea') && C.can('setSell', 'sea'), 'a set needs all four');
+  for (const id of Object.keys(CURIOS)) if (CURIOS[id].set === 'sea') C.gotCurio(id);
+  check(C.hasSet('sea') && C.s.ach.set === undefined, 'four of a kind');
+  c0 = c.cash;
+  C.act('setSell', 'sea');
+  check(c.cash === c0 + C.setWorth('sea') * 2 && !C.hasSet('sea') && c.n.sets === 1 && c.ach.set, 'a set sells for twice its parts');
+  for (const id of Object.keys(CURIOS)) if (CURIOS[id].set === 'toy') C.gotCurio(id);
+  const karma = c.karma;
+  C.act('setGive', 'toy');
+  check(c.karma > karma && c.f.patron && c.n.given === C.setWorth('toy') && c.ach.patron, 'or can be given to the museum');
+  // He buys your own things too.
+  const PW = fresh();
+  PW.s.cash = 20000;
+  PW.act('buy', 'car'); PW.act('buy', 'guitar');
+  const blocks = PW.timeMax(), had = PW.s.cash;
+  check(PW.can('pawn', 'car') === 'You have only just bought it.', 'not on the day you bought it, though');
+  PW.s.use = {};
+  check(PW.s.time === blocks && PW.act('pawn', 'car').ok && !PW.s.items.car && PW.s.cash === had + PW.pawnPrice('car') && PW.pawnPrice('car') < ITEMS.car.price / 2, 'Mr Pym buys your belongings for less than half what they cost');
+  check(PW.timeMax() === blocks - 2 && PW.s.time === PW.timeMax() && PW.can('pawn', 'car') && PW.can('pawn', 'nonsense'), 'and a car sold takes its time with it');
+  // Buying and selling a bicycle is not a way to make time.
+  const loop = fresh();
+  loop.s.cash = 50000; loop.s.time = 0;
+  let made = 0;
+  for (let i = 0; i < 6; i++) { loop.act('buy', 'bike'); made += loop.s.time; loop.s.time = 0; if (loop.act('pawn', 'bike').ok) check(false, 'a bicycle bought this season cannot be sold'); }
+  loop.endSeason(); loop.s.pend = [];
+  const t1 = loop.s.time;
+  loop.act('pawn', 'bike');
+  check(made === 1 && loop.s.time === t1 - 1 && !loop.s.items.bike, 'a bicycle gives its block of time once, and takes it back when it goes');
+  check(aCurio('atlas') === 'an old atlas' && aCurio('roman') === 'a Roman coin' && aCurio('eight') === 'some pieces of eight' && theCurio('bell') === 'the ship’s bell', 'curios are named properly in a sentence');
+  check(many(999500) === '1.0M' && many(9999) === '10k' && many(9960000) === '10M' && many(950) === '950' && many(1234) === '1.2k', 'a crowd is counted sensibly');
+  const picks = {};
+  for (let i = 0; i < 3000; i++) { const id = C.anyCurio(); picks[id] = (picks[id] || 0) + 1; }
+  check(Object.keys(picks).length === 20 && picks.plate > picks.captain * 5, 'what turns up by chance is mostly the humble things');
+  const beach = fresh();
+  let found = 0;
+  for (let i = 0; i < 400; i++) { beach.s.time = 1; beach.act('comb'); }
+  found = Object.keys(beach.s.curSeen).length;
+  check(found >= 2 && Object.keys(beach.s.curSeen).every((id) => ['sea', 'coin'].includes(CURIOS[id].set)), 'the beach gives up something now and then');
+}
+
+// ---- a new look, Mrs Pargeter, and offers in a boom ------------------------------------
+
+{
+  const B = fresh({ sex: 'm' });
+  B.s.cash = 1000;
+  const style = B.s.look.style, happy = B.s.happy;
+  check(B.can('restyle', { k: 'style', v: style }) === 'That is how it is now.' && B.can('restyle', { k: 'style', v: 99 }) === 'Change what?' && B.can('restyle') === 'Change what?', 'the barber wants to know what to change');
+  B.act('restyle', { k: 'style', v: (style + 1) % 6 });
+  check(B.s.look.style === (style + 1) % 6 && B.s.cash === 960 && B.s.happy === happy + 3 && B.s.time === B.timeMax(), 'a new cut costs forty dollars and cheers you up');
+  const beard = B.s.look.beard;
+  B.act('restyle', { k: 'beard' });
+  check(B.s.look.beard === !beard && B.s.happy === happy + 3 && B.s.cash === 920, 'but only the first time each season');
+  check(fresh({ sex: 'f' }).can('restyle', { k: 'beard' }) === 'Not for you.', 'beards are for those who can grow them');
+
+  // Mrs Pargeter.
+  const PG = fresh();
+  PG.act('plotRent'); PG.act('sow', { b: 0, c: 'marrow' });
+  PG.queue('parg1');
+  PG.choose(0);
+  check(PG.s.f.parg === 1, 'Mrs Pargeter notices your plot');
+  const karma = PG.s.karma;
+  PG.queue('parg2'); PG.choose(0);
+  check(PG.s.f.parg === 2 && PG.s.karma > karma, 'help her when her greenhouse is wrecked');
+  check(!EVENTS.find((e) => e.id === 'parg3').when(PG), 'and, in time');
+  PG.s.plot.since = -8;
+  PG.queue('parg3'); PG.choose(0);
+  check(PG.s.f.seed === 1 && PG.s.f.parg === 3 && PG.s.ach.seed && PG.friends().some((f) => f.name === 'Edna Pargeter'), 'she leaves you her seed tin');
+  const plain = fresh(), seeded = fresh();
+  seeded.s.f.seed = 1;
+  for (const X of [plain, seeded]) { X.act('plotRent'); X.act('sow', { b: 0, c: 'marrow' }); X.s.plot.beds[0].age = 2; X.s.time = 1; X.act('reap'); }
+  check(Math.abs(seeded.s.marrow - plain.s.marrow - 7) < 0.11, 'which grows a bigger marrow');
+  const thief = fresh();
+  thief.act('plotRent'); thief.s.f.parg = 1;
+  thief.queue('parg2'); thief.choose(2);
+  check(thief.s.f.seed === 1 && thief.s.karma < 0 && thief.s.f.parg === 0, 'or the seed can simply be stolen');
+  // A boom brings offers.
+  const H = fresh();
+  H.s.job = { c: 'kitchen', r: 1, n: 0, perf: 60, raise: 0 };
+  check(!EVENTS.find((e) => e.id === 'headhunt').when(H), 'nobody is poached in ordinary times');
+  H.s.eco = 2;
+  check(EVENTS.find((e) => e.id === 'headhunt').when(H), 'in a boom, other firms come calling');
+  H.queue('headhunt'); H.choose(2);
+  check(H.s.job.perf === 66, 'and loyalty is noticed');
+}
+
+// ---- the rest of the family -------------------------------------------------------------
+
+{
+  let none = 0, one = 0, two = 0;
+  for (let i = 0; i < 300; i++) { const n = Life.create({ seed: 900 + i, name: 'S' }).siblings().length; if (n === 0) none++; else if (n === 1) one++; else two++; }
+  check(none > 60 && one > 80 && two > 20 && none + one + two === 300, `some start with a brother or sister, some with two, some with none (${none}/${one}/${two})`);
+  const L = Life.create({ seed: 5, name: 'Kin', sibs: [{ name: 'Molly', sex: 'f', age: 24, job: 'medicine', trait: 'kind' }] });
+  L.s.quest = QUESTS.length;
+  const sis = L.siblings()[0];
+  check(sis.name === 'Molly' && sis.kind === 'sibling' && sis.job === 'medicine' && sis.bond === 48 && sis.likes.length === 2, 'a sister, known in advance, arrives as herself');
+  const acts = L.personActions(sis).map((a) => a.id);
+  check(acts.includes('out') && acts.includes('call') && acts.includes('gift') && !acts.includes('askout') && !acts.includes('forget') && !acts.includes('dayout'), 'a sister can be seen and telephoned, and is not a friend to be dropped');
+  check(!L.perk('medicine'), 'a sister in medicine is no help until you are close');
+  sis.bond = 70;
+  check(L.perk('medicine') && L.medCost(1000) === 700, 'and then she is');
+  const mum = L.s.people.find((q) => q.kind === 'parent'), cash = L.s.cash, share = Math.round((3000 + mum.bond * 120) / 2 / 100) * 100;
+  L.queue('parentDies', mum.id); L.choose(0);
+  check(L.s.cash === cash + share, 'what a parent leaves is shared with her');
+  let wed = false;
+  for (const e of ['sibWed', 'sibSofa']) { const ev = EVENTS.find((q) => q.id === e); L.s.home = 'flat'; sis.single = true; check(ev.when(L) && ev.ctx(L) === sis.id, `${e}: can happen to someone with a sister`); }
+  L.queue('sibWed', sis.id); L.s.cash = 5000; L.choose(1);
+  wed = !sis.single;
+  check(wed && sis.bond > 70, 'a sister’s wedding');
+  sis.age = 99;
+  let died = false;
+  for (let i = 0; i < 12 && !died; i++) { L.newYear(); died = L.s.pend.some((e) => e.id === 'sibDies'); L.s.pend = L.s.pend.filter((e) => e.id === 'sibDies'); if (L.s.dead) break; }
+  if (!L.s.dead) { check(died, 'brothers and sisters grow old too'); L.choose(0); check(!L.siblings().length, 'and are missed'); }
+
+  // Grandchildren.
+  const G = fresh();
+  const kid = G.meet({ kind: 'child', sex: 'f', age: 30, name: 'Rose', bond: 60 });
+  G.queue('grandchild', kid.id); G.choose(0);
+  const gk = G.grandkids()[0];
+  check(gk && gk.kind === 'grandchild' && gk.age === 0 && gk.of === kid.id && !gk.job && G.s.f.grand === 1 && G.s.ach.grand, 'a grandchild is a person, not just news');
+  check(G.personActions(gk).some((a) => a.id === 'dayout') && !G.personActions(gk).some((a) => a.id === 'gift'), 'who can be taken out for the day');
+  check(!G.personActions(gk).some((a) => ['scrounge', 'out', 'call', 'askout'].includes(a.id)), 'and not asked for money');
+  const base = (() => { const X = fresh(); return X.moodBase(); })();
+  const joy = G.s.happy, bond = gk.bond, kb = kid.bond;
+  G.act('dayout', gk.id);
+  check(G.s.happy > joy && gk.bond === bond + 9 && kid.bond === kb + 3 && G.can('dayout', gk.id).includes('Once a season'), 'a day out does you both good, once a season');
+  gk.age = 17;
+  G.newYear(); G.s.pend = [];
+  check(gk.age === 18 && gk.job && gk.likes && G.personActions(gk).some((a) => a.id === 'out') && !G.personActions(gk).some((a) => a.id === 'dayout'), 'at eighteen a grandchild is a grown-up, with a job');
+  // An heir's brothers and sisters are the other children.
+  const P1 = fresh();
+  P1.s.age = 70;
+  P1.meet({ kind: 'child', sex: 'f', age: 40, name: 'Ann', bond: 90, job: 'law' });
+  P1.meet({ kind: 'child', sex: 'm', age: 37, name: 'Bob', bond: 50, job: 'sea' });
+  P1.meet({ kind: 'child', sex: 'm', age: 9, name: 'Tim', bond: 40 });
+  P1.die('old age');
+  const o = P1.obituary();
+  check(o.heir.name === 'Ann' && o.sibs.length === 1 && o.sibs[0].name === 'Bob' && o.sibs[0].job === 'sea', 'the heir is the child who loved you best; the grown-up others are her brothers and sisters');
+  const H = Life.create({ seed: 9, name: 'Ann', gen: 2, sibs: o.sibs });
+  check(H.siblings().length === 1 && H.siblings()[0].name === 'Bob' && H.siblings()[0].job === 'sea' && H.siblings()[0].age === 37, 'and are there when she steps off the train');
+}
+
+// ---- things a review found ---------------------------------------------------------------
+
+{
+  // The hospital can still treat what ails you (a day out with a grandchild once took its name).
+  const I = fresh();
+  I.s.cash = 50000; I.s.ill = { name: 'pneumonia', sev: 3 };
+  check(I.placeActions('hospital').some((a) => a.id === 'treat' && !a.why) && I.act('treat').ok && !I.s.ill, 'pneumonia can be treated at St Wren’s');
+  check(new Set(Object.keys(ACTIONS)).size === Object.keys(ACTIONS).length && ACTIONS.dayout && ACTIONS.treat.place === 'hospital', 'no two actions share a name');
+  // A dream an heir could never reach is not dreamt.
+  const all = { lifeboat: 'Gran', scholarship: 'Gran', wing: 'Gran', pier: 'Gran' };
+  let dreamt = 0;
+  for (let i = 0; i < 60; i++) if (Life.create({ seed: 400 + i, name: 'H', gen: 2, gifts: all, dreams: i % 2 ? ['legacy'] : [] }).s.dreams.includes('legacy')) dreamt++;
+  check(dreamt === 0 && Life.create({ seed: 1, name: 'H', dreams: ['legacy'] }).s.dreams.includes('legacy'), 'an heir whose family has given everything does not dream of giving it again');
+  // The obituary, for lives that used to read wrongly.
+  const widow = fresh({ sex: 'f' });
+  widow.s.f.wed = 1; widow.s.worked = { kitchen: 0 }; widow.s.n.shifts = 3; widow.s.n.books = 2; widow.s.f.bestseller = 1; widow.s.n.albums = 1; widow.s.cash = 0;
+  widow.s.biz = { type: 'soft', lvl: 0, rep: 50, mgr: false, age: 4, at: 0 };
+  widow.meet({ kind: 'child', sex: 'm', age: 30, name: 'Tom' }); widow.meet({ kind: 'child', sex: 'f', age: 28, name: 'Ann' });
+  widow.grandchild(widow.kids()[0]);
+  widow.die('old age');
+  const w = widow.epitaph().join(' ');
+  check(w.includes('had been a widow') && !w.includes('never married') && w.includes('had not been long at work, as a ') && !/ a [aeiou]/i.test(w.replace(/ a (one|uni|use|eu)/gi, '')) && w.includes('two novels, one of which everybody has read, and made a record') && w.includes('two children and a grandchild'), `a widow’s obituary reads properly (${w})`);
+  const eng = fresh();
+  const fi = eng.meet({ kind: 'partner', sex: 'f', single: false, name: 'May Hart' }); fi.eng = true;
+  eng.s.cash = 0; eng.s.bank = 0;
+  eng.die('a fall');
+  const e2 = eng.epitaph().join(' ');
+  check(e2.includes('a fiancée, May') && e2.includes('leaves very little') && !e2.includes('own company'), 'and so does that of a man engaged to be married, with nothing in the bank');
+  // A brother's death, with a sister still living.
+  const two = Life.create({ seed: 4, name: 'K', sibs: [{ name: 'Al', sex: 'm', age: 80 }, { name: 'Bea', sex: 'f', age: 70 }] });
+  two.queue('sibDies', two.siblings()[0].id);
+  check(!two.choose(0).text.includes('nobody left'), 'nobody is left only when nobody is');
+  const taken = fresh();
+  taken.s.items.phone = 1; taken.meet({ kind: 'partner', sex: 'f', single: false });
+  check(taken.can('rematch') === 'You are spoken for.', 'no looking for new faces while you are spoken for');
+  let young = 0;
+  for (let i = 0; i < 300; i++) { const X = Life.create({ seed: 2000 + i, name: 'Y' }); const folks = X.s.people.filter((q) => q.kind === 'parent'); for (const sib of X.siblings()) if (folks.some((f) => f.age - sib.age < 19) || sib.name === 'Y' || X.siblings().some((o) => o !== sib && o.name === sib.name)) young++; }
+  check(young === 0, 'a brother or sister is never older than a parent could manage, and has a name of their own');
+}
+
+// ---- what you leave behind, and work on the side ----------------------------------------
+
+{
+  for (const [id, g] of Object.entries(GIFTS)) check(PLACES[g.at] && g.cost > 0 && g.plaque('Ann').includes('Ann') && g.said && g.done && g.perk && g.blurb, `${id}: a gift the town can be given`);
+  for (const c of Object.keys(CAREERS).filter((id) => !CAREERS[id].shady)) {
+    const k = SIDELINES[c];
+    check(k && k.r < CAREERS[c].rungs.length && STATS.includes(k.stat) && k.win && k.lose && (k.pay > 0 || k.karma > 0), `${c}: has a sideline`);
+  }
+  const L = fresh();
+  const s = L.s;
+  s.cash = 5e6;
+  check(L.placeActions('townhall').some((a) => a.open === 'gifts') && !L.gift('bench') && !L.plaques('park').length, 'the mayor has an appeal');
+  const sit = () => { const X = new Life(JSON.parse(JSON.stringify(s))); X.s.happy = 50; X.s.time = 1; X.act('bench'); return X.s.happy; };
+  const before = sit();
+  const karma = s.karma;
+  check(L.act('fund', 'bench').ok && s.gifts.bench === 'Test' && s.gave.bench && s.cash === 5e6 - 2500 && s.n.given === 2500 && s.karma > karma && L.can('fund', 'bench') === 'It has been given.', 'a bench, with your name on it');
+  check(L.plaques('park').length === 1 && L.plaques('park')[0].includes('Test') && s.ach.plaque && sit() === before + 2, 'it stands in the park, and does you good');
+  const fee = L.classFee('law'), med = L.medCost(1000);
+  for (const id of ['scholarship', 'wing', 'lifeboat', 'bandstand', 'pier']) { s.time = 1; L.act('fund', id); }
+  check(L.classFee('law') === Math.round(fee * 0.75) && L.medCost(1000) === med / 2, 'a scholarship and a hospital wing make courses and care cheaper for you');
+  check(L.income().some(([w, n]) => w.includes('pier') && n === 6000) && s.ach.pier && s.ach.benefactor && s.dreams && Object.keys(s.gifts).length === 6, 'and the pier company finds a seat on its board');
+  check(L.gazette().lead.h.includes('thanks'), 'the Gazette says thank you');
+  s.t = 4 * 9 + 0; s.happy = 50;
+  L.endSeason(); s.pend = [];
+  check(L.season === 1 && L.news.length === 0, 'summer');
+  // What an heir finds.
+  const o = (() => { const X = new Life(JSON.parse(JSON.stringify(s))); X.s.age = 70; X.die('old age'); return X.obituary(); })();
+  check(o.gifts.pier === 'Test' && o.ribbon.id === 'benefactor', 'a great giver is remembered as one');
+  const heir = Life.create({ seed: 3, name: 'Heir', gen: 2, gifts: o.gifts });
+  check(heir.gift('wing') === 'Test' && heir.plaques('hospital')[0].includes('Test') && heir.medCost(1000) === 500 && !heir.income().some(([w]) => w.includes('pier')) && heir.can('fund', 'pier') === 'It has been given.' && Object.keys(heir.s.gave).length === 0, 'the family’s gifts are still standing for the next of the line, though the seat on the board is not inherited');
+  check(Life.create({ seed: 3, name: 'New' }).plaques('hospital').length === 0, 'a new family starts with a town that owes it nothing');
+  check(Life.create({ seed: 3, name: 'B', heir: 'benefactor' }).s.karma === 25, 'the brass plaque starts you well thought of');
+  // The weather.
+  for (let q = 0; q < 4; q++) check(Object.values(WEATHER).reduce((n, w) => n + w.odds[q], 0) > 0 && WEATHER.fair.odds[q] > 0, `season ${q}: has weather`);
+  check(WEATHER.snow.odds.slice(0, 3).every((n) => n === 0) && WEATHER.hot.odds[3] === 0, 'no snow in summer, no heatwave in winter');
+  const Wx = fresh();
+  check(Wx.s.wx === 'fair' && Wx.weather().name === 'Fair', 'a life starts in fair weather');
+  const seenWx = new Set();
+  for (let i = 0; i < 200; i++) { Wx.endSeason(); Wx.s.pend = []; seenWx.add(`${Wx.season}${Wx.s.wx}`); if (Wx.s.dead) break; }
+  check(['3snow', '1hot', '2storm', '0wet', '2fog'].every((k) => seenWx.has(k)) && !seenWx.has('1snow') && !seenWx.has('3hot'), 'in fifty years, every kind of weather in its season');
+  const snow = fresh();
+  snow.s.items.bike = 1;
+  const t0 = snow.timeMax();
+  snow.s.wx = 'snow';
+  check(snow.timeMax() === t0 - 1, 'a bicycle is no use in snow');
+  snow.s.items.car = 1;
+  check(snow.timeMax() === t0 + 1, 'a car still is');
+  const gale = fresh();
+  gale.s.items.rod = 1; gale.s.items.boat = 1; gale.s.wx = 'storm';
+  check(gale.can('fishBoat').includes('No boats') && gale.can('sail').includes('No boats') && !gale.can('fish'), 'no boats go out in a gale, though the wall can still be fished');
+  let finds = 0, calm = 0;
+  const calmer = fresh();
+  for (let i = 0; i < 600; i++) { gale.s.time = 1; calmer.s.time = 1; const a0 = Object.values(gale.s.curios).reduce((n, v) => n + v, 0), b0 = Object.values(calmer.s.curios).reduce((n, v) => n + v, 0); gale.act('comb'); calmer.act('comb'); finds += Object.values(gale.s.curios).reduce((n, v) => n + v, 0) - a0; calm += Object.values(calmer.s.curios).reduce((n, v) => n + v, 0) - b0; }
+  check(finds > calm * 1.6, `a gale leaves more on the beach (${finds} finds against ${calm})`);
+  const rain = fresh(), dry = fresh();
+  for (const X of [rain, dry]) { X.act('plotRent'); X.act('sow', { b: 0, c: 'spuds' }); X.s.plot.beds[0].care = 2; }
+  rain.s.wx = 'wet'; dry.s.wx = 'hot';
+  rain.endSeason(); dry.endSeason();
+  check(rain.s.plot.beds[0].care === 3 && dry.s.plot.beds[0].care === 1, 'rain waters a bed for you; a heatwave dries out one you did not');
+  const fog = fresh();
+  const clear = fog.riskOf(0.3);
+  fog.s.wx = 'fog';
+  check(fog.riskOf(0.3) < clear, 'fog suits a thief');
+  check(Wx.gazette().items.some((it) => it.h.startsWith('The weather')), 'the Gazette has the weather');
+  // A lodger.
+  const Lg = fresh();
+  Lg.s.cash = 1e6; Lg.act('buyHome', { id: 'flat', trade: false });
+  check(EVENTS.find((e) => e.id === 'lodger').when(Lg), 'somebody with a home of their own may be asked for a room');
+  Lg.queue('lodger'); Lg.choose(0);
+  check(Lg.s.lodger === 4 && Lg.income().some(([w, n]) => w.includes('lodger') && n === 500), 'a lodger pays rent');
+  for (let i = 0; i < 4; i++) { Lg.endSeason(); Lg.s.pend = []; }
+  check(!Lg.s.lodger && !Lg.income().some(([w]) => w.includes('lodger')) && Lg.s.log.some((e) => e.t.includes('lodger')), 'and moves on after a year');
+  // Every card can be shown and answered, whoever it is about.
+  const all = fresh();
+  all.s.cash = 1e6; all.s.items.phone = 1; all.s.wx = 'snow'; all.act('plotRent'); all.s.gifts.bench = 'Test'; all.s.n.crimes = 5;
+  all.meet({ kind: 'child', sex: 'f', age: 7, name: 'Kit' }); all.grandchild(all.meet({ kind: 'child', sex: 'm', age: 30, name: 'Sam' })).age = 6;
+  const girl = all.meet({ kind: 'partner', sex: 'f', bond: 60, single: false });
+  for (const [id, x] of [['flood', null], ['snowman', all.kids()[0].id], ['meetFolks', girl.id], ['witness', null], ['capsule', null], ['courgettes', null], ['cafe', null], ['alibi', null], ['nativity', all.grandkids()[0].id], ['bench', null], ['pierPlan', null]]) {
+    const n = EVENTS.find((e) => e.id === id).opts.length;
+    for (let i = 0; i < n; i++) {
+      const X = new Life(JSON.parse(JSON.stringify(all.s)));
+      // (Each in the season, weather and circumstances it belongs to.)
+      Object.assign(X.s, { flood: { wx: 'wet' }, courgettes: { t: 1, home: 'flat' }, cafe: { eco: -1 }, nativity: { t: 3 }, pierPlan: { age: 30 } }[id] || {});
+      X.queue(id, x);
+      const ev = X.event();
+      if (!ev || /undefined|NaN/.test(ev.text + ev.title)) { check(false, `${id}: can be shown (${ev && ev.text})`); break; }
+      if (i >= ev.opts.length) break;
+      const r = X.choose(i);
+      check(r.ok && typeof r.text === 'string' && !/undefined|NaN/.test(r.text), `${id}, choice ${i + 1}: reads properly (${r.text || r.why})`);
+    }
+  }
+  // An offer for a company you own, and a whisper about one you do not.
+  const Tk = fresh();
+  Tk.s.cash = 100000;
+  Tk.act('shares', { sym: 'GULL', n: 100 });
+  const tk = EVENTS.find((e) => e.id === 'takeover');
+  check(tk.when(Tk) && tk.ctx(Tk) === 'GULL', 'a company you hold shares in may be bid for');
+  const price = Tk.s.stk.p.GULL, tc = Tk.s.cash;
+  Tk.queue('takeover', 'GULL'); Tk.choose(0);
+  check(Tk.s.cash === tc + Math.floor(100 * price * 1.3) && !Tk.s.stk.own.GULL && Tk.sharesWorth() === 0, 'taking the offer sells the lot at the bidder’s price');
+  const fundOnly = fresh();
+  fundOnly.s.cash = 100000; fundOnly.act('shares', { sym: 'BAY', n: 10 });
+  check(!tk.when(fundOnly), 'nobody bids for the index fund');
+  const Tp = fresh();
+  Tp.s.cash = 10000;
+  const banker = Tp.meet({ job: 'finance', bond: 60 });
+  const tp = EVENTS.find((e) => e.id === 'tipOff');
+  check(tp.when(Tp), 'a friend in banking may whisper something');
+  Tp.queue('tipOff', { p: banker.id, sym: 'SNCK' }); Tp.choose(0);
+  const held = Tp.s.stk.own.SNCK, tipPrice = Tp.s.stk.p.SNCK;
+  check(held > 0 && Tp.s.cash < 10000 && Tp.s.karma < 0 && Tp.s.n.crimes === 1 && Tp.s.stk.tip.sym === 'SNCK', 'buying on it is a crime, and a bet');
+  Tp.s.pend = [];
+  let ups = 0;
+  for (let i = 0; i < 40; i++) { const X = new Life(JSON.parse(JSON.stringify(Tp.s))); X.s.rng = i * 17; X.endSeason(); if (X.s.stk.p.SNCK > tipPrice * 1.05 && !X.s.stk.tip) ups++; }
+  check(ups >= 32, `and on Friday the news is in the paper (${ups} of 40 up)`);
+  // Three longer stories.
+  const St = fresh();
+  St.s.home = 'flat';
+  const story = (X, id, i) => { const ev = EVENTS.find((e) => e.id === id); if (!ev.when(X)) return false; X.queue(id, ev.ctx ? ev.ctx(X) : null); const r = X.choose(i); return r.ok && !/undefined|NaN/.test(r.text); };
+  check(story(St, 'stray1', 0) && St.s.f.stray === 1 && !EVENTS.find((e) => e.id === 'stray3').when(St), 'a stray dog follows you home');
+  St.s.cash = 1000;
+  check(story(St, 'stray2', 0) && St.s.f.stray === 2 && story(St, 'stray3', 0) && St.s.pet && St.s.pet.name === 'Scraps' && St.s.ach.scraps && St.s.ach.pet, 'and, looked after, stays');
+  check(!EVENTS.find((e) => e.id === 'stray1').when(St), 'one dog is enough');
+  const Ap = fresh();
+  Ap.s.job = { c: 'kitchen', r: 3, n: 0, perf: 50, raise: 0 };
+  check(story(Ap, 'app1', 0) && Ap.person(Ap.s.f.app) && Ap.person(Ap.s.f.app).job === 'kitchen', 'somebody young is put in your charge');
+  const lad = Ap.person(Ap.s.f.app), lb = lad.bond;
+  check(story(Ap, 'app2', 0) && lad.bond === lb + 22 && Ap.s.job.perf === 38, 'you can take the blame for them');
+  check(!EVENTS.find((e) => e.id === 'app3').when(Ap), 'they have to grow up first');
+  lad.age = 25;
+  check(story(Ap, 'app3', 0) && Ap.s.f.mentor && Ap.s.ach.mentor, 'and one day they outgrow you');
+  const Dr = fresh();
+  Dr.s.age = 30; Dr.s.st.smarts = 60;
+  check(story(Dr, 'drains1', 0) && Dr.s.f.drains === 1 && story(Dr, 'drains2', 1) && Dr.s.f.drains === 2 && Dr.enemies().length === 1 && Dr.s.ach.drains, 'the mayor’s drains can go to the Gazette, which makes an enemy');
+  check(story(Dr, 'drains3', 1) && Dr.s.f.drains === 3, 'and brings a vacancy');
+  const bent = fresh();
+  bent.s.age = 30; bent.s.st.smarts = 60;
+  const bc = bent.s.cash;
+  check(story(bent, 'drains1', 0) && story(bent, 'drains2', 0) && bent.s.cash === bc + 8000 && bent.s.karma < 0 && !EVENTS.find((e) => e.id === 'drains3').when(bent), 'or the page can be lost, for a price');
+  // The notice board.
+  for (const [id, j] of Object.entries(ODD_JOBS)) check(STATS.includes(j.stat) && j.win && j.lose && (j.pay > 0 || j.karma > 0) && (!j.need || ITEMS[j.need]), `${id}: a job for the notice board`);
+  const N = fresh();
+  check(N.s.board.length === 3 && new Set(N.s.board).size === 3 && N.placeActions('townhall').filter((a) => a.sec === 'The notice board').length === 3, 'three jobs pinned up outside the Town Hall');
+  const first = N.s.board[0], nc = N.s.cash;
+  N.s.st[ODD_JOBS[first].stat] = 100;
+  N.s.items.car = 1;
+  const r0 = N.act('odd0');
+  check(r0.ok && N.s.board[0] === null && N.s.n.odd === 1 && N.s.cash >= nc + ODD_JOBS[first].pay * 0.4 - 1 && N.placeActions('townhall').filter((a) => a.sec === 'The notice board').length === 2 && N.can('odd0'), 'a job done comes down off the board');
+  const board = JSON.stringify(N.s.board);
+  N.endSeason(); N.s.pend = [];
+  check(N.s.board.every(Boolean) && JSON.stringify(N.s.board) !== board, 'and there are three new ones next season');
+  const walk = fresh();
+  walk.s.board = ['wedding', 'cat', 'fence'];
+  check(walk.can('odd0') === 'You would need a car.' && !walk.can('odd1'), 'the wedding car needs a car');
+  // The year's festivals.
+  check(FESTS.length === 4 && FESTS.every((f) => PLACES[f.at] && f.games.length === 3 && new Set(f.games.map((g) => g.stat)).size === 3 && f.games.every((g) => STATS.includes(g.stat) && g.win && g.lose)), 'four festivals, each with three contests for three different skills');
+  const F = fresh();
+  F.s.st = { smarts: 100, fitness: 100, charm: 100, craft: 100 };
+  const rows = F.placeActions('park').filter((a) => a.sec === 'The Spring Fair');
+  check(F.season === 0 && F.fest().id === 'fair' && rows.length === 3 && !F.placeActions('harbour').some((a) => a.sec === 'Regatta Day'), 'in spring the fair is on in the park');
+  const fc = F.s.cash;
+  let wonBake = false;
+  for (let i = 0; i < 20 && !wonBake; i++) { const X = new Life(JSON.parse(JSON.stringify(F.s))); X.s.rng = i * 7; X.act('fest00'); wonBake = X.s.fests.bake === 1 && X.s.cash === fc + 300 && X.can('fest01').includes('One entry') && X.festBar(FESTS[0].games[0]) === 36; }
+  check(wonBake, 'win the bake-off: a prize, one entry a year, and a harder time of it next spring');
+  F.s.fests = { bake: 9 };
+  check(F.festBar(FESTS[0].games[0]) === 60, 'though a champion’s handicap has a limit');
+  const won = new Set();
+  for (let y = 0; y < 30 && won.size < 4; y++) for (let q = 0; q < 4; q++) { F.s.use = {}; F.s.time = 1; F.act(`fest${F.season}1`); for (const f of FESTS) if (f.games.some((g) => F.s.fests[g.id])) won.add(f.id); F.endSeason(); F.s.pend = []; if (F.s.dead) break; }
+  check(won.size === 4 && F.s.ach.seasons4 && F.s.ach.rosette, 'a rosette from all four festivals in time');
+  check(F.gazette().items.some((it) => FESTS.some((f) => f.name === it.h)), 'the Gazette says what is on');
+  // The people you work with.
+  const Wk = fresh();
+  Wk.s.job = { c: 'kitchen', r: 1, n: 0, perf: 50, raise: 0 };
+  let mates = 0;
+  for (let i = 0; i < 200 && Wk.friends().length < 20; i++) { Wk.s.time = 6; Wk.s.use = {}; Wk.s.health = 90; Wk.s.happy = 60; Wk.act('work'); }
+  mates = Wk.friends().filter((q) => q.job === 'kitchen').length;
+  check(mates >= 3 && mates === Wk.friends().length, `some of the people you work with become friends, in your own line of work (${mates} in 200 shifts)`);
+  const mate = Wk.friends()[0], mb = mate.bond, perf = Wk.s.job.perf;
+  Wk.s.use = {}; Wk.s.time = 6;
+  check(Wk.act('drinks').ok && mate.bond === mb + 6 && Wk.s.job.perf === Math.min(100, perf + 1) && Wk.can('drinks') === 'Once a season.', 'a drink after work brings you closer, once a season');
+  // Sidelines.
+  const W = fresh();
+  W.s.job = { c: 'kitchen', r: 1, n: 0, perf: 50, raise: 0 };
+  check(!W.sideline() && !W.placeActions(CAREERS.kitchen.place).some((a) => a.id === 'sideline'), 'no sideline until you have got somewhere');
+  W.s.job.r = 2; W.s.st.craft = 100;
+  const row = W.placeActions(CAREERS.kitchen.place).find((a) => a.id === 'sideline');
+  check(row && row.title === 'Cater a wedding' && row.time === 2, 'a head chef can cater a wedding');
+  const cash = W.s.cash;
+  W.act('sideline');
+  check(W.s.cash > cash && W.s.n.sides === 1 && W.can('sideline') === 'Once a season.', 'once a season, for good money');
+  const law = fresh();
+  law.s.job = { c: 'law', r: 3, n: 0, perf: 50, raise: 0 }; law.s.st.smarts = 100;
+  const c2 = law.s.cash, k2 = law.s.karma;
+  law.act('sideline');
+  check(law.s.cash === c2 && (law.s.karma > k2 || law.s.job.perf === 50), 'a case taken for nothing pays in other ways');
+  // The last word.
+  const E = fresh();
+  E.s.worked = { medicine: 5 }; E.s.n.inside = 3; E.s.f.escaped = 1; E.s.gave = { lifeboat: 1, bench: 1 }; E.s.n.books = 2;
+  E.meet({ kind: 'spouse', sex: 'f', single: false }); E.meet({ kind: 'child', sex: 'm', age: 9 });
+  E.die('old age');
+  const ep = E.epitaph();
+  check(ep.length >= 6 && ep.every((t) => /[.]$/.test(t) && !/undefined|NaN|  /.test(t)) && ep.some((t) => t.includes('Starling Gaol')) && ep.some((t) => t.includes('a lifeboat and a bench')) && ep.some((t) => t.includes('a wife')), `the Gazette has the last word (${ep.length} lines)`);
+  const plain = fresh();
+  plain.s.people = [];
+  plain.die('a fall');
+  check(plain.epitaph().every((t) => !/undefined|NaN/.test(t)) && plain.epitaph().some((t) => t.includes('never known to hold a job')), 'even on a life in which nothing happened');
+}
+
 // ---- the casino -------------------------------------------------------------------------
 
 {
@@ -856,7 +1713,7 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', ...o 
     { id: 4, name: 'Wren', kind: 'child', bond: 60, age: 7, trait: 'sporty', look: { skin: 1, hair: 1, top: 1, style: 2 } },
   ];
   const L = new Life(s);
-  check(s.v === 2 && s.sex === null && s.into === null, 'an old save is brought up to date, and has yet to say who it is');
+  check(s.v === 3 && s.sex === null && s.into === null, 'an old save is brought up to date, and has yet to say who it is');
   check(s.estate.length === 4 && s.homeAt === s.estate[0].id && s.estate[0].kind === 'cottage' && s.estate.filter((e) => e.let).length === 3 && !('props' in s), 'its home and its rental places become its property');
   check(Math.abs(L.netWorth() - (N.netWorth() + 2 * L.propPrice('garage') + L.propPrice('rental'))) < 2, 'worth what it was worth');
   check(s.edu.firstaid.a === 19 && s.edu.firstaid.g === 0 && s.course.mark === 100 && s.job.perf === 50 && s.stk.p.BAY > 0, 'its courses, job and shares gain what is new');
@@ -882,7 +1739,12 @@ const sane = (L, after) => {
   if (s.people.filter((p) => p.kind === 'partner' || p.kind === 'spouse').length > 1) throw new Error(`two partners at once after ${after}`);
   if (s.people.some((p) => p.sex !== 'm' && p.sex !== 'f')) throw new Error(`someone is neither man nor woman after ${after}`);
   if (s.biz && !(s.biz.rep >= 0 && s.biz.rep <= 100)) throw new Error(`a business with a broken name after ${after}`);
+  if (s.gaol && !(s.gaol.left >= 1 && s.gaol.good >= 0 && s.gaol.good <= 100 && s.gaol.rep >= 0 && s.gaol.rep <= 100)) throw new Error(`a muddled sentence after ${after}`);
+  if (s.people.some((p) => p.kind === 'enemy' && !(p.grudge > 0 && p.grudge <= 100))) throw new Error(`an enemy with no grudge after ${after}`);
+  if (s.chirp && !(s.chirp.n >= 0 && Number.isInteger(s.chirp.n))) throw new Error(`a broken count of followers after ${after}`);
+  if (Object.values(s.curios).some((n) => !(n >= 1)) || !(s.lot.pot >= 100000)) throw new Error(`curios or the lotto went wrong after ${after}`);
   if (!Number.isFinite(L.netWorth())) throw new Error(`worth is not a number after ${after}`);
+  if (Object.keys(s.gave).some((id) => !s.gifts[id])) throw new Error(`a gift given but not standing after ${after}`);
 };
 
 // Answers every card that is waiting: sensibly (the best odds it can afford) or at random.
@@ -995,7 +1857,7 @@ for (const c of Object.keys(CAREERS).filter((id) => !CAREERS[id].shady)) {
 
 // Does anything at all, for a whole life. Two in three keep to the
 // straight and narrow; the third does not.
-const LOW = new Set(['Vices', 'Under the pier', 'Light fingers', 'Behave badly', 'Under the counter', 'Work for Sal', 'Jobs', 'The ring', 'Sal’s money']);
+const LOW = new Set(['Vices', 'Under the pier', 'Light fingers', 'Behave badly', 'Under the counter', 'Work for Sal', 'Jobs', 'The ring', 'Sal’s money', 'Bad blood']);
 const lowRoad = (a) => LOW.has(a.sec) || ['graft', 'cheat', 'fiddle'].includes(a.id);
 function monkey(seed) {
   const wild = seed % 3 === 0;
@@ -1007,7 +1869,7 @@ function monkey(seed) {
     answer(L, true);
     for (let k = 0; k < 14 && !s.dead; k++) {
       const opts = [];
-      for (const p of [...Object.keys(PLACES), 'sal']) for (const a of L.placeActions(p)) if (!a.why && !a.open && (wild || !lowRoad(a))) opts.push([a.id, a.x]);
+      for (const p of [...Object.keys(PLACES), 'sal', 'gaol']) for (const a of L.placeActions(p)) if (!a.why && !a.open && (wild || !lowRoad(a))) opts.push([a.id, a.x]);
       for (const c of Object.keys(CAREERS)) if (!L.can('apply', c)) opts.push(['apply', c]);
       for (const c of Object.keys(COURSES)) for (const loan of [false, true]) if (!L.can('enrol', { id: c, loan })) opts.push(['enrol', { id: c, loan }]);
       for (const h of Object.keys(HOMES)) {
@@ -1025,7 +1887,13 @@ function monkey(seed) {
         if (!L.can('sellShares', x)) opts.push(['sellShares', x]);
       }
       if (s.items.phone && !L.partner()) { for (let i = 0; i < L.prospects().length; i++) if (!L.can('match', i)) opts.push(['match', i]); if (!L.can('rematch')) opts.push(['rematch']); }
-      for (const [id, x] of [['deposit', 500], ['withdraw', 500], ['borrow', 1000], ['repay', 500], ['repayStudent', 200], ['slots', 50], ['hiloStart', 50], ['hiloGuess', 'hi'], ['hiloGuess', 'lo'], ['hiloCash'], ['drop'], ['insure', 'health'], ['insure', 'home'], ['food', Math.floor(L.rnd() * 3)]]) if (!L.can(id, x)) opts.push([id, x]);
+      for (const [id, x] of [['deposit', 500], ['withdraw', 500], ['borrow', 1000], ['repay', 500], ['repayStudent', 200], ['slots', 50], ['hiloStart', 50], ['hiloGuess', 'hi'], ['hiloGuess', 'lo'], ['hiloCash'], ['drop'], ['insure', 'health'], ['insure', 'home'], ['food', Math.floor(L.rnd() * 3)],
+        ['bjStart', 50], ['bjHit'], ['bjStand'], ['bjDouble'], ['raceBet', { i: Math.floor(L.rnd() * 5), bet: 50 }], ['plotRent'], ['plotQuit'], ['tend'], ['reap'], ['haggle'],
+        ['chirpSpon'], ...Object.keys(CHIRPS).map((k) => ['chirp', k]), ...(wild ? [['chirpTroll'], ['chirpShill']] : []),
+        ...Object.keys(CROPS).map((c) => ['sow', { b: Math.floor(L.rnd() * 3), c }]), ...[0, 1, 2].map((i) => ['curioBuy', i]),
+        ['restyle', { k: ['style', 'hair', 'top'][Math.floor(L.rnd() * 3)], v: Math.floor(L.rnd() * 6) }], ['restyle', { k: 'beard' }],
+        ...Object.keys(GIFTS).map((id) => ['fund', id]),
+        ...Object.keys(s.curios).map((id) => ['curioSell', id]), ...(L.rnd() < 0.1 ? Object.keys(s.items).map((id) => ['pawn', id]) : []), ...Object.keys(CURIO_SETS).flatMap((k) => [['setSell', k], ['setGive', k]])]) if (!L.can(id, x)) opts.push([id, x]);
       if (!opts.length) break;
       const [id, x] = opts[Math.floor(L.rnd() * opts.length)];
       const r = L.act(id, x);
@@ -1052,15 +1920,19 @@ function monkey(seed) {
 console.log(`Random players: ${randomLives} lives`);
 {
   const ages = [], ribbons = {}, seen = new Set();
-  let trophies = 0, wed = 0, kids = 0, biz = 0, owned = 0, jailed = 0;
+  const causes = {};
+  let trophies = 0, wed = 0, kids = 0, biz = 0, owned = 0, jailed = 0, foes = 0, crowd = 0, plots = 0, finds = 0;
   for (let i = 0; i < randomLives; i++) {
     try {
       const L = monkey(5000 + i);
       const o = L.obituary();
-      if ((5000 + i) % 3) ages.push(o.age); else jailed += L.s.f.jailed ? 1 : 0;
+      const last = L.epitaph();
+      if (last.length < 5 || last.some((t) => /undefined|NaN|\s\s|\.\./.test(t) || !/[.]$/.test(t))) throw new Error(`a bad obituary: ${last.join(' | ')}`);
+      if ((5000 + i) % 3) { ages.push(o.age); causes[o.cause] = (causes[o.cause] || 0) + 1; } else jailed += L.s.f.jailed ? 1 : 0;
       ribbons[o.ribbon.id] = (ribbons[o.ribbon.id] || 0) + 1;
       trophies += o.trophies;
       wed += L.s.f.wed ? 1 : 0; kids += L.kids().length ? 1 : 0; biz += L.s.ach.shop ? 1 : 0; owned += L.s.ach.owner ? 1 : 0;
+      foes += L.s.n.seenOff || L.s.n.mended || L.enemies().length ? 1 : 0; crowd += L.followers() >= 100 ? 1 : 0; plots += Object.keys(L.s.grown).length ? 1 : 0; finds += Object.keys(L.s.curSeen).length ? 1 : 0;
       for (const id of Object.keys(L.s.seen)) seen.add(id);
       if (i === 0) {
         const again = monkey(5000);
@@ -1073,14 +1945,17 @@ console.log(`Random players: ${randomLives} lives`);
     }
   }
   ages.sort((a, b) => a - b);
-  const random = EVENTS.filter((e) => e.w);
+  const random = EVENTS.filter((e) => e.w && !e.gaol);
   console.log(`  lived to between ${ages[0]} and ${ages[ages.length - 1]} (typically ${ages[Math.floor(ages.length / 2)]}); ${(trophies / randomLives).toFixed(1)} trophies a life; ${seen.size} of ${random.length} chance events seen`);
   console.log(`  ${wed} married, ${kids} had children, ${biz} started a business, ${owned} bought property; of the wild third, ${jailed} went to prison`);
+  console.log(`  ${foes} made an enemy, ${crowd} found a following, ${plots} grew something, ${finds} found a curio`);
+  console.log(`  the honest ones died of: ${Object.entries(causes).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(', ')}`);
   console.log(`  ribbons: ${Object.entries(ribbons).map(([k, v]) => `${k} ${v}`).join(', ')}`);
   check(ages[Math.floor(ages.length / 2)] >= 60, 'even a careless life usually lasts past 60, if it keeps out of trouble');
   if (randomLives >= 40) {
     check(seen.size >= random.length * 0.75, `nearly every chance event turns up across ${randomLives} lives (${seen.size}/${random.length})`);
     check(wed > 0 && biz > 0 && owned > 0 && jailed > 0, 'some random lives marry, start a business and buy property, and some of the wild ones go to prison');
+    check(foes > 0 && crowd > 0 && plots > 0 && finds > 0, 'and some make enemies, find followers, grow vegetables and collect curios');
   }
 }
 

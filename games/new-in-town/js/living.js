@@ -5,7 +5,7 @@
 
 import {
   STATS, STAT_NAME, PLACES, CAREERS, HOMES, UPGRADES, PROPS, BUSINESSES, FISH, OUTINGS, KID_PLAY, TRAITS,
-  NAMES_M, NAMES_F, SURNAMES, money, low,
+  NAMES_M, NAMES_F, SURNAMES, DATE_LINES, money, low, an, lowJob,
 } from './data.js';
 
 export function install({ def, A, Life, clamp }) {
@@ -43,6 +43,7 @@ export function install({ def, A, Life, clamp }) {
         if (!p.st) p.st = Object.fromEntries(STATS.map((k) => [k, Math.min(40, 5 + p.age * 1.4)]));
         if (p.age < 18) return p;
       }
+      if (p.kind === 'grandchild' && p.age < 18) return p;
       if (!p.job) p.job = this.pick(Object.keys(CAREERS));
       if (!p.likes) {
         const first = { bookish: 'talk', sporty: 'walk', witty: 'pub', arty: 'film', kind: 'coffee' }[p.trait];
@@ -69,6 +70,34 @@ export function install({ def, A, Life, clamp }) {
       return r[clamp(Math.floor((p.age - 18) / 7), 0, r.length - 2)].title;
     },
     wooOdds() { const s = this.s; return clamp(0.3 + s.st.charm / 170 + s.fame / 300 + (s.items.suit ? 0.04 : 0) + this.luck(), 0.1, 0.92); },
+    // ---- a first date: s.date is who it is with (p: someone new, or id: a friend) ----
+    dateWith() { const d = this.s.date; return d ? d.p || this.person(d.id) : null; },
+    // The three things you might try: the one that suits them and two that
+    // do not, in an order that depends on who it is. (No dice: reading them is up to you.)
+    dateLines() {
+      const p = this.dateWith(), wrong = Object.keys(DATE_LINES).filter((k) => k !== p.trait), n = p.id + p.age;
+      const three = [p.trait, wrong[n % 4], wrong[(n % 4 + 1 + (n >> 2) % 3) % 4]];
+      return [0, 1, 2].map((i) => three[(i + n) % 3]).map((k) => ({ k, t: DATE_LINES[k].t(p) }));
+    },
+    // How the date goes, having tried approach k.
+    dateGo(k) {
+      const s = this.s, d = s.date, p = this.dateWith();
+      s.date = null;
+      if (!p || this.partner()) return 'You think better of it.';
+      const right = k === p.trait, friend = d.from === 'friend';
+      const said = right ? DATE_LINES[k].good(p) : DATE_LINES[k].bad(p);
+      if (!this.chance(clamp((friend ? this.askOdds(p) : this.wooOdds()) + (right ? 0.22 : -0.15), 0.04, 0.97))) {
+        const but = right ? ' A good evening, and it goes no further.' : '';
+        if (friend) { p.single = false; this.bond(p, -6); this.joy(-4); return `${said}${but} ${p.name} is kind about it afterwards. Friends, then.`; }
+        this.joy(-1);
+        return `${said}${but} ${d.from === 'pub' ? this.pick(['There is no second drink.', 'You are thanked, kindly, for the drink.', 'The taxi is called early.']) : this.pick([`${p.name} never replies to your message.`, `${p.name} cancels the second date, twice, then moves to the city.`])}`;
+      }
+      const yet = right ? '' : ' Somehow it does not matter.';
+      if (friend) { this.bond(p, 10); return this.startSeeing(p, `${said}${yet} ${p.name} says ${he(p)} thought you would never ask.`); }
+      Object.assign(p, { kind: 'partner', bond: right ? 28 : 22, single: false });
+      s.people.push(p);
+      return this.startSeeing(p, d.from === 'pub' ? `${said}${yet} ${p.name}: ${TRAITS[p.trait].name.toLowerCase()}, ${an(lowJob(this.jobOf(p)))}, and free on Friday.` : `${said}${yet} You are seeing ${p.name} again on Saturday.`);
+    },
     askOdds(p) { return clamp(0.25 + (this.s.st.charm - 30) / 110 + (p.bond - 30) / 110 + this.luck(), 0.1, 0.95); },
     proposeOdds(p) { return clamp((p.bond - 45) / 50 + this.luck(), 0.2, 1); },
     // Three people on the dating app, new every season.
@@ -97,7 +126,8 @@ export function install({ def, A, Life, clamp }) {
       this.say('💘', `You are seeing ${p.name}`, 'good');
       return how;
     },
-    split(p, yours) {
+    // yours: it was your doing. grudge: how hard they take it.
+    split(p, yours, grudge = yours ? 30 : 15) {
       const s = this.s;
       let text;
       // A baby on the way goes with its mother.
@@ -111,7 +141,7 @@ export function install({ def, A, Life, clamp }) {
         s.f.divorced = 1;
         this.note(`Divorced ${p.name}.`, 'love');
         text = `It is over. The lawyers take their time and ${p.name} takes ${money(half)}.`;
-        s.people.splice(s.people.indexOf(p), 1);
+        this.makeEx(p, Math.max(45, grudge));
         return text;
       }
       this.joy(yours ? -5 : -10);
@@ -121,7 +151,7 @@ export function install({ def, A, Life, clamp }) {
         Object.assign(p, { kind: 'friend', bond: 30, single: true, live: false });
         return `You tell ${p.name} it is not working. A long evening, but ${he(p)} takes it well: friends, then.`;
       }
-      s.people.splice(s.people.indexOf(p), 1);
+      this.makeEx(p, grudge);
       return yours ? `You tell ${p.name} it is not working. It is a long evening.` : `${p.name} is gone.`;
     },
     // A child, a year older.
@@ -155,7 +185,7 @@ export function install({ def, A, Life, clamp }) {
     who: true, sec: 'Do something together',
     icon: (L, p, x) => OUTINGS[x.a].icon, title: (L, p, x) => OUTINGS[x.a].name, cost: (L, p, x) => OUTINGS[x.a].cost,
     desc: (L, p, x) => (p.known[x.a] ? (p.likes.includes(x.a) ? `♥ ${p.name.split(' ')[0]} loves this.` : 'Pleasant enough.') : 'See how it goes down.'),
-    show: (L, p) => CLOSE.includes(p.kind) || (p.kind === 'child' && p.age >= 18),
+    show: (L, p) => CLOSE.includes(p.kind) || p.kind === 'sibling' || ((p.kind === 'child' || p.kind === 'grandchild') && p.age >= 18),
     why: (L, p, x) => (!OUTINGS[x.a] ? 'No such thing.' : OUTINGS[x.a].not === L.season ? 'Not in winter.' : null),
     run(L, p, x) {
       const o = OUTINGS[x.a], loved = p.likes.includes(x.a), first = !p.known[x.a];
@@ -189,24 +219,20 @@ export function install({ def, A, Life, clamp }) {
   });
   def('call', {
     who: true, sec: 'Keep in touch', title: 'Call for a chat', icon: '📞', desc: 'A good long natter.',
-    show: (L, p) => p.kind === 'parent' || (p.kind === 'child' && p.age >= 18),
+    show: (L, p) => p.kind === 'parent' || p.kind === 'sibling' || ((p.kind === 'child' || p.kind === 'grandchild') && p.age >= 16),
     run(L, p) { L.bond(p, 7); L.joy(2); return p.kind === 'parent' ? `${p.name} asks if you are eating properly. You lie.` : `${p.name} tells you all ${his(p)} news. You hang up smiling.`; },
   });
   def('gift', {
     who: true, sec: 'Keep in touch', title: 'Give a present', icon: '🎁', desc: 'Once a season.', time: 0, cost: 80,
-    show: (L, p) => p.kind !== 'child' || p.age >= 3,
+    show: (L, p) => p.kind !== 'ex' && p.kind !== 'enemy' && ((p.kind !== 'child' && p.kind !== 'grandchild') || p.age >= 3),
     why: (L, p) => (L.s.use[`gift${p.id}`] ? 'Once a season.' : null),
     run(L, p) { L.s.use[`gift${p.id}`] = 1; L.bond(p, 6); return `${p.name} ${L.pick(['is delighted', 'pretends to be surprised', 'says you should not have, twice'])}.`; },
   });
   def('askout', {
-    who: true, sec: 'Love', title: (L, p) => `Ask ${p.sex === 'm' ? 'him' : 'her'} out`, icon: '💐', desc: (L, p) => `Your chances: ${Math.round(L.askOdds(p) * 100)}%.`,
+    who: true, sec: 'Love', title: (L, p) => `Ask ${p.sex === 'm' ? 'him' : 'her'} out`, icon: '💐', desc: (L, p) => `About ${Math.round(L.askOdds(p) * 100)}%, and better if you play it the way ${he(p)} would like.`,
     show: (L, p) => p.kind === 'friend' && p.single && L.fancy(p) && !L.partner(),
     why: (L, p) => (p.bond < 30 ? 'Get to know each other a little first (30 bond).' : null),
-    run(L, p) {
-      if (L.chance(L.askOdds(p))) { L.bond(p, 10); return L.startSeeing(p, `${p.name} says ${he(p)} thought you would never ask.`); }
-      p.single = false; L.bond(p, -6); L.joy(-4);
-      return `${p.name} is kind about it. Friends, then.`;
-    },
+    run(L, p) { L.s.date = { id: p.id, from: 'friend' }; L.queue('date'); return `${p.name} looks surprised, then pleased. "Friday?"`; },
   });
   def('movein', {
     who: true, sec: 'Love', title: 'Move in together', icon: '🔑', desc: 'Share a home, and the bills.', time: 0,
@@ -240,23 +266,23 @@ export function install({ def, A, Life, clamp }) {
     run(L, p) { return L.split(p, true); },
   });
   def('forget', {
-    who: true, sec: 'Keep in touch', title: 'Lose touch', icon: '👋', desc: 'Let this friendship go.', time: 0,
-    show: (L, p) => p.kind === 'friend',
-    run(L, p) { L.s.people.splice(L.s.people.indexOf(p), 1); return `You stop calling. So does ${p.name}. It happens.`; },
+    who: true, sec: (L, p) => (p.kind === 'ex' ? 'Old flames' : 'Keep in touch'), title: (L, p) => (p.kind === 'ex' ? `Lose ${p.sex === 'm' ? 'his' : 'her'} number` : 'Lose touch'), icon: '👋', desc: (L, p) => (p.kind === 'ex' ? 'It is over. Let it be over.' : 'Let this friendship go.'), time: 0,
+    show: (L, p) => p.kind === 'friend' || p.kind === 'ex',
+    run(L, p) { L.s.people.splice(L.s.people.indexOf(p), 1); return p.kind === 'ex' ? `You tear the page out of your address book. ${p.name} is the past.` : `You stop calling. So does ${p.name}. It happens.`; },
   });
-  const PEOPLE = ['out', 'kid', 'askout', 'movein', 'propose', 'baby', 'split', 'school', 'call', 'gift', 'forget', 'scrounge'];
+  const PEOPLE = ['out', 'kid', 'askout', 'movein', 'propose', 'baby', 'split', 'school', 'call', 'gift', 'dayout', 'winback', 'oldtimes', 'mend', 'prank', 'rumour', 'thump', 'lean', 'forget', 'scrounge'];
 
   // Meeting someone with romance in mind, no friendship first.
   def('chatup', {
     place: 'pub', sec: 'Mingle', icon: '😉', title: 'Chat someone up', cost: 30,
-    desc: (L) => `Buy a drink for someone who has caught your eye. Your chances: ${Math.round(L.wooOdds() * 100)}%.`,
+    desc: (L) => `Buy a drink for someone who has caught your eye. About ${Math.round(L.wooOdds() * 100)}%, and better if you read them right.`,
     show: (L) => !L.partner(),
     run(L) {
       const s = L.s, sex = s.into === 'b' ? (L.chance(0.5) ? 'm' : 'f') : s.into;
       L.gain('charm', 1);
-      if (!L.chance(L.wooOdds())) { L.joy(-1); return L.pick(['"I am waiting for someone," they say, and then nobody comes.', 'Your best line gets a polite smile. Only polite.', 'You knock a drink into their lap. It does not recover from there.']); }
-      const p = L.meet({ sex, kind: 'partner', bond: 22, single: false, age: clamp(s.age + L.int(-5, 5), 18, 90) });
-      return L.startSeeing(p, `${p.sex === 'm' ? 'He' : 'She'} laughs at your joke, the real laugh. ${p.name}: ${TRAITS[p.trait].name.toLowerCase()}, ${L.jobOf(p).toLowerCase()}, and free on Friday.`);
+      s.date = { p: L.makePerson({ sex, single: true, age: clamp(s.age + L.int(-5, 5), 18, 90) }), from: 'pub' };
+      L.queue('date');
+      return 'You take your drink along the bar.';
     },
   });
   def('datingOpen', { place: 'home', sec: 'At home', icon: '💘', title: 'Seaside Singles', desc: 'The dating app. Three new faces every season.', time: 0, open: 'dating', show: (L) => !!L.s.items.phone && !L.partner() });
@@ -265,14 +291,14 @@ export function install({ def, A, Life, clamp }) {
     why: (L, i) => (L.partner() ? 'You are spoken for.' : L.prospects()[i] ? null : 'They have gone.'),
     run(L, i) {
       const s = L.s, p = s.matches.splice(i, 1)[0];
-      if (!L.chance(L.wooOdds())) { L.joy(-1); return L.pick([`${p.name} never replies.`, `One coffee with ${p.name}. Forty minutes about ${his(p)} ex.`, `${p.name} cancels, twice, then moves to the city.`]); }
-      Object.assign(p, { kind: 'partner', bond: 22, single: false });
-      s.people.push(p);
-      return L.startSeeing(p, `Dinner with ${p.name}, and neither of you looks at a phone once. You are seeing each other again on Saturday.`);
+      s.date = { p, from: 'app' };
+      L.queue('date');
+      return `${p.name} says yes to a coffee.`;
     },
   });
   def('rematch', {
     title: 'Look for new faces',
+    why: (L) => (L.partner() ? 'You are spoken for.' : null),
     run(L) { L.s.matches = null; L.prospects(); return 'You swipe until your thumb aches. Three new faces.'; },
   });
 
@@ -405,7 +431,7 @@ export function install({ def, A, Life, clamp }) {
       L.pay(p);
       const e = { id: s.eid++, kind, ups: {}, let: true };
       s.estate.push(e);
-      L.note(`Bought a ${L.propSaid(e)} to let out.`);
+      L.note(`Bought ${an(L.propSaid(e))} to let out.`);
       return `The ${L.propSaid(e)} is yours${p.loan ? ` (${money(p.loan)} of it borrowed)` : ''}, and a tenant moves in. It should bring in about ${money(L.propEarn(e))} a season.`;
     },
   });
@@ -467,9 +493,9 @@ export function install({ def, A, Life, clamp }) {
       const u = UPGRADES[x.id], e = L.homeEntry();
       e.ups[x.id] = 1;
       L.joy(4);
-      if (!x.diy) return `The builders are in for a fortnight. Then: a ${u.name.toLowerCase()}. ${u.blurb}`;
+      if (!x.diy) return `The builders are in for a fortnight. Then: ${an(u.name.toLowerCase())}. ${u.blurb}`;
       L.gain('craft', 2.5); L.s.f.diy = 1;
-      return `Weekends of sawdust and swearing, and it is done: a ${u.name.toLowerCase()}, built with your own hands. ${u.blurb}`;
+      return `Weekends of sawdust and swearing, and it is done: ${an(u.name.toLowerCase())}, built with your own hands. ${u.blurb}`;
     },
   });
   def('estateOpen', { place: 'home', sec: 'Moving', icon: '🏘️', title: 'Your property', desc: 'What you own: live in it, let it out, or sell it.', time: 0, open: 'estate', show: (L) => L.s.estate.length > 0 });
@@ -483,7 +509,7 @@ export function install({ def, A, Life, clamp }) {
       const s = this.s, b = s.biz;
       if (!b) return 0;
       const k = BUSINESSES[b.type], skill = s.st[k.stats[0]] * 0.6 + s.st[k.stats[1]] * 0.4;
-      return k.take[b.lvl] * (0.5 + skill / 100) * (0.7 + b.rep / 200) * (s.heir === 'founder' ? 1.15 : 1);
+      return k.take[b.lvl] * (0.5 + skill / 100) * (0.7 + b.rep / 200) * (s.heir === 'founder' ? 1.15 : 1) * (1 + 0.07 * s.eco);
     },
     // What it earns in a season without you: nothing while it is only you,
     // a little once there are staff, most of it with a manager.
@@ -519,7 +545,7 @@ export function install({ def, A, Life, clamp }) {
       const k = BUSINESSES[type];
       L.s.biz = { type, lvl: 0, rep: 30, mgr: false, age: 0, at: L.s.t };
       L.joy(6);
-      L.note(`Went into business: a ${k.names[0].toLowerCase()}.`, 'big');
+      L.note(`Went into business: ${an(lowJob(k.names[0]))}.`, 'big');
       return `You are in business. Your ${k.names[0].toLowerCase()} is at ${PLACES[k.place].name}: work in it to bring in money and build its name.`;
     },
   });
@@ -540,7 +566,7 @@ export function install({ def, A, Life, clamp }) {
   });
   def('bizGrow', {
     place: bizPlace, sec: 'Your business', icon: '📈',
-    title: (L) => `Grow it into a ${BUSINESSES[L.s.biz.type].names[L.s.biz.lvl + 1].toLowerCase()}`,
+    title: (L) => `Grow it into ${an(lowJob(BUSINESSES[L.s.biz.type].names[L.s.biz.lvl + 1]))}`,
     desc: 'More takings, and it starts to earn without you.',
     cost: (L) => L.bizCost(L.s.biz.lvl + 1),
     show: (L) => !!L.s.biz && L.s.biz.lvl < 3,
@@ -554,8 +580,8 @@ export function install({ def, A, Life, clamp }) {
       const b = L.s.biz;
       b.lvl++; b.rep = 45; b.at = L.s.t; L.joy(8);
       if (b.lvl === 3) L.s.f.mogul = 1;
-      L.note(`The business grew into a ${L.bizName().toLowerCase()}.`, 'big');
-      return `New premises, new staff, your name over the door in bigger letters. You now run a ${L.bizName().toLowerCase()}.`;
+      L.note(`The business grew into ${an(lowJob(L.bizName()))}.`, 'big');
+      return `New premises, new staff, your name over the door in bigger letters. You now run ${an(lowJob(L.bizName()))}.`;
     },
   });
   def('bizMgr', {
@@ -580,8 +606,9 @@ export function install({ def, A, Life, clamp }) {
   // ---- fishing ----------------------------------------------------------------------------
 
   // where: 'wall' or 'boat'.
-  Life.prototype.goFishing = function goFishing(where) {
-    const s = this.s, mult = (where === 'boat' ? 1.3 : 1) * (s.heir === 'salt' ? 2 : 1) * (this.perk('sea') ? 1.3 : 1);
+  // strike: how well the bite was struck (2 cleanly, 1 well enough, 0 badly).
+  Life.prototype.goFishing = function goFishing(where, strike = 1) {
+    const s = this.s, clean = strike === 2, fluffed = strike === 0, mult = (clean ? 1.15 : 1) * (where === 'boat' ? 1.3 : 1) * (s.heir === 'salt' ? 2 : 1) * (this.perk('sea') ? 1.3 : 1);
     const wise = (s.f.marlow || 0) >= 2;
     this.joy(3);
     const land = (id) => {
@@ -589,29 +616,31 @@ export function install({ def, A, Life, clamp }) {
       s.fishbook[id] = (s.fishbook[id] || 0) + 1; s.n.fish++;
       if (first) this.say(FISH[id].icon, `New in your fish book: ${FISH[id].name}`, 'good');
     };
-    if (wise && !s.f.bream && this.chance(where === 'boat' ? 0.06 : 0.03)) {
+    if (wise && !s.f.bream && !fluffed && this.chance((where === 'boat' ? 0.06 : 0.03) * (clean ? 1.5 : 1))) {
       s.f.bream = 1; land('bream'); this.cash(5000 * mult); this.fame(3); this.joy(10);
       this.note('Caught the golden bream of Starling Bay.', 'big');
       return `The line goes tight and stays tight. Half an hour later a fish the colour of a sunrise is in your net. The golden bream! The aquarium pays ${money(5000 * mult)} for it.`;
     }
-    if (this.chance(wise ? 0.2 : 0.3)) return this.pick(['Nothing bites. The sea keeps its secrets.', 'You catch a boot. It is not even your size.', 'Something steals your bait and waves a claw.']);
+    if (fluffed && this.chance(0.7)) return this.pick(['You strike a moment wrong, and whatever it was is gone.', 'The float bobs up again, empty. It was a good one, too. They always are.', 'You pull the hook clean out of its mouth.']);
+    if (this.chance((wise ? 0.2 : 0.3) * (clean ? 0.35 : 1))) return this.pick(['Nothing bites. The sea keeps its secrets.', 'You catch a boot. It is not even your size.', 'Something steals your bait and waves a claw.']);
     const pool = Object.keys(FISH).filter((id) => FISH[id].where.includes(where) && (!FISH[id].when || FISH[id].when.includes(this.season)));
     let r = this.rnd() * pool.reduce((a, id) => a + FISH[id].w, 0), id = pool[0];
     for (const q of pool) { id = q; r -= FISH[q].w; if (r < 0) break; }
-    const f = FISH[id], pay = Math.round(this.int(f.pay[0], f.pay[1]) * mult / 10) * 10;
+    const f = FISH[id], pay = Math.round(this.int(f.pay[0], f.pay[1]) * mult * (s.gifts.lifeboat ? 1.2 : 1) / 10) * 10;
     land(id);
     this.cash(pay);
-    return `You land ${/^[aeiou]/i.test(f.name) ? 'an' : 'a'} ${f.name.toLowerCase()} and sell it on the quay for ${money(pay)}.`;
+    return `${clean ? 'A clean strike. ' : fluffed ? 'A clumsy strike, but it holds. ' : ''}You land ${/^[aeiou]/i.test(f.name) ? 'an' : 'a'} ${f.name.toLowerCase()} and sell it on the quay for ${money(pay)}.`;
   };
   def('fish', {
     place: 'harbour', sec: 'The water', icon: '🎣', title: 'Fish off the harbour wall', desc: 'Sell what you catch. What is biting changes with the seasons.',
     show: (L) => !!L.s.items.rod,
-    run: (L) => L.goFishing('wall'),
+    run: (L, x) => L.goFishing('wall', x === 0 || x === 2 ? x : 1),
   });
   def('fishBoat', {
     place: 'harbour', sec: 'The water', icon: '🚤', title: 'Fish out in the bay', desc: 'Bigger fish, from your boat.',
     show: (L) => !!L.s.items.rod && !!L.s.items.boat,
-    run: (L) => L.goFishing('boat'),
+    why: (L) => (L.s.wx === 'storm' ? 'No boats are going out in this.' : null),
+    run: (L, x) => L.goFishing('boat', x === 0 || x === 2 ? x : 1),
   });
   def('fishbookOpen', { place: 'harbour', sec: 'The water', icon: '📒', title: 'Your fish book', desc: (L) => `${Object.keys(L.s.fishbook).length} of ${Object.keys(FISH).length} kinds caught.`, time: 0, open: 'fishbook', show: (L) => !!L.s.items.rod });
 }

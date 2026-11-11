@@ -444,3 +444,93 @@ summary { font-size: 12.5px; font-weight: 900; color: var(--teal-d); cursor: poi
 .sx { font-style: normal; font-size: .82em; font-weight: 900; margin-left: 2px; }
 .sx.m { color: #2f7fd0; }
 .sx.f { color: #d6498a; }
+
+/* ---- prison: the town tab becomes the cell ---- */
+.gaol { position: absolute; inset: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 12px 12px 18px; display: grid; grid-auto-rows: max-content; gap: 10px; align-content: start; background: #e4e1d8; }
+.gaol[hidden], .map[hidden] { display: none; }
+.cell { padding: 0; background: #565a64; color: #fff; }
+.cellart { display: block; width: 100%; height: 132px; border-radius: 18px 18px 0 0; }
+.cell-text { padding: 9px 14px 12px; }
+.cell-text p { font-size: 13.5px; font-weight: 700; opacity: .85; }
+.said { background: #eaf6f4; }
+.said p { margin: 0 0 5px; font-size: 14px; font-weight: 700; line-height: 1.35; color: #17606b; }
+.said.flash { animation: flash .5s; }
+.gaol .acts h3 { margin: 12px 2px 6px; font-size: 12px; font-weight: 900; letter-spacing: .07em; text-transform: uppercase; color: #8a8572; }
+.gaol .acts h3:first-child { margin-top: 0; }
+
+/* ---- blackjack ---- */
+.hand-of { margin: 12px 0 4px; text-align: center; font-size: 12px; font-weight: 900; letter-spacing: .07em; text-transform: uppercase; color: #9a8f78; }
+.hand { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px; min-height: 84px; }
+.pc { width: 56px; height: 80px; border-radius: 10px; background: #fff; box-shadow: inset 0 0 0 2.5px #f1eadb, 0 4px 0 #e2d8c0; display: grid; place-items: center; align-content: center; font-size: 26px; font-weight: 900; line-height: 1; animation: drop .22s; }
+.pc small { font-size: 17px; }
+.pc.red { color: var(--bad); }
+.pc.back { background: repeating-linear-gradient(45deg, var(--teal), var(--teal) 6px, var(--teal-d) 6px, var(--teal-d) 12px); animation: none; }
+
+/* ---- the gull races ---- */
+.lanes { display: grid; gap: 6px; margin: 12px 0 8px; }
+.lane { display: grid; grid-template-columns: 92px 1fr 30px; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 12px; background: #fff; box-shadow: 0 2px 0 var(--line); }
+.lane small { font-size: 12px; font-weight: 800; line-height: 1.15; color: var(--muted); }
+.lane.mine small { color: var(--teal-d); }
+.lane.won { box-shadow: 0 0 0 2.5px var(--sun); }
+.lane b { font-size: 12px; font-weight: 900; text-align: right; }
+.track { position: relative; height: 28px; border-radius: 8px; background: linear-gradient(90deg, #e6f4f8, #cfeaf2); overflow: hidden; }
+.track::after { content: '🍟'; position: absolute; right: 2px; top: 5px; font-size: 14px; }
+.track i { position: absolute; left: 0; top: 2px; font-style: normal; font-size: 20px; transform: scaleX(-1); }
+.lanes.go .track i { animation: fly var(--d) cubic-bezier(.35, .05, .6, 1) forwards; }
+.lanes.done .track i { left: calc(100% - 26px); }
+@keyframes fly { from { left: 0; } to { left: calc(100% - 26px); } }
+
+/* ---- Chirper, the Gazette, curios ---- */
+.bigstat { text-align: center; margin: 12px 0 2px; }
+.bigstat b { display: block; font-size: 38px; font-weight: 900; line-height: 1; color: var(--teal-d); }
+.bigstat small { font-size: 13px; font-weight: 800; color: var(--muted); }
+.paper { margin-top: 10px; padding: 14px 14px 6px; border-radius: 6px; background: #fbf6e9; box-shadow: 0 2px 0 var(--line), inset 0 0 0 1px #e9dfc6; font-family: Georgia, 'Times New Roman', serif; color: #2b2a26; }
+.paper .mast { margin: 0; text-align: center; font-size: 22px; font-weight: 700; letter-spacing: .01em; }
+.paper .dateline { margin: 3px 0 10px; padding: 3px 0; text-align: center; font-size: 11.5px; border-top: 2px solid #2b2a26; border-bottom: 1px solid #2b2a26; }
+.paper h2 { margin: 0 0 6px; font-size: 23px; line-height: 1.12; font-weight: 700; }
+.paper .story { margin: 0 0 10px; font-size: 14.5px; line-height: 1.4; }
+.paper .col { padding: 8px 0; border-top: 1px solid #d9cfb6; }
+.paper .col h4 { margin: 0 0 3px; font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #6b6048; font-family: inherit; }
+.paper .col p { margin: 0; font-size: 14px; line-height: 1.4; }
+.things.cur { margin-top: 8px; }
+.things.cur > * { display: grid; justify-items: center; align-content: start; gap: 2px; padding: 7px 2px; border: 0; border-radius: 12px; background: #f6efdf; font-size: 24px; font-family: inherit; color: inherit; }
+.things.cur button { background: #fff; box-shadow: 0 2px 0 var(--line); }
+.things.cur button:active { transform: translateY(2px); box-shadow: none; }
+.things.cur em { font-style: normal; font-size: 10px; font-weight: 900; color: var(--teal-d); }
+.things.cur .unknown { opacity: .5; }
+.things.cur .had { opacity: .7; filter: grayscale(1); }
+.bondbar.grudge { background: #ece6da; }
+.bondbar.grudge span { background: #8a4a3a; }
+
+/* ---- a new look ---- */
+.mirror { display: grid; place-items: center; margin: 12px 0 0; }
+.mirror .ava { box-shadow: 0 0 0 5px #fff, 0 0 0 8px #e2d8c0; }
+.cuts { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.cut { padding: 4px; border-radius: 14px; background: #fff; box-shadow: 0 2px 0 var(--line); }
+.cut.on { box-shadow: 0 0 0 2.5px var(--teal); }
+.cut .ava { display: block; width: 100%; height: auto; aspect-ratio: 1; }
+
+/* ---- what the town was given, and the last word ---- */
+.plaque { margin: 10px 2px 0; padding: 8px 10px; border-radius: 10px; background: #f3ead2; box-shadow: inset 0 0 0 1.5px #dccb9c; font-size: 13px; font-weight: 800; color: #6b5a2c; line-height: 1.35; }
+.paper.obit { margin: 0; text-align: left; }
+.paper.obit .story { margin: 0 0 7px; }
+
+.town .mark.fest circle { fill: var(--sun); }
+
+/* ---- fishing by hand ---- */
+.cast { position: fixed; inset: 0; z-index: 30; display: grid; grid-template-rows: 1fr auto auto; justify-items: center; align-items: center; gap: 14px; padding: 0 20px calc(26px + env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, #bfe6f3 0%, #7fcbe6 34%, #2f93bd 35%, #1c6f98 100%); touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.cast[hidden] { display: none; }
+.cast-sea { position: relative; width: 160px; height: 160px; align-self: center; margin-top: 30vh; }
+.cast .float { position: absolute; left: 50%; top: 50%; width: 30px; height: 56px; margin: -40px 0 0 -15px; border-radius: 15px; background: linear-gradient(180deg, #ff5a4d 0 46%, #fff 46% 100%); box-shadow: 0 0 0 3px #1f2a44; animation: floatbob 1.6s ease-in-out infinite alternate; }
+.cast .float::before { content: ''; position: absolute; left: 50%; top: -26px; width: 4px; height: 26px; margin-left: -2px; border-radius: 2px; background: #1f2a44; }
+.cast .ripple { position: absolute; left: 50%; top: 50%; width: 120px; height: 34px; margin: -6px 0 0 -60px; border-radius: 50%; box-shadow: 0 0 0 3px rgba(255, 255, 255, .5); animation: ripple 1.6s ease-out infinite; }
+.cast .bang { position: absolute; left: 50%; top: -34px; transform: translateX(-50%); font-size: 64px; font-weight: 900; color: #ffc93c; text-shadow: 0 3px 0 #1f2a44; opacity: 0; }
+.cast.bite .float { animation: floatdip .18s ease-out forwards; }
+.cast.bite .ripple { animation: ripple .45s ease-out infinite; box-shadow: 0 0 0 4px #fff; }
+.cast.bite .bang { opacity: 1; animation: jig .12s infinite; }
+.cast p { margin: 0; font-size: 20px; font-weight: 900; color: #fff; text-align: center; text-shadow: 0 2px 0 rgba(31, 42, 68, .4); }
+.cast-skip { padding: 9px 14px; border-radius: 12px; background: rgba(255, 255, 255, .18); color: #fff; font-size: 13px; font-weight: 800; }
+@keyframes floatbob { from { transform: translateY(-4px) rotate(-3deg); } to { transform: translateY(4px) rotate(3deg); } }
+@keyframes floatdip { to { transform: translateY(30px); } }
+@keyframes ripple { from { transform: scale(.5); opacity: .9; } to { transform: scale(1.3); opacity: 0; } }

@@ -38,7 +38,7 @@
     </header>
 
     <main class="view" id="view">
-      <section class="panel" id="pTown"><div class="map" id="map"><div id="mapArt"></div><div class="me" id="me"></div><div class="season" id="season"></div></div></section>
+      <section class="panel" id="pTown"><div class="gaol" id="gaol" hidden></div><div class="map" id="map"><div id="mapArt"></div><div class="me" id="me"></div></div><div class="season" id="season"></div></section>
       <section class="panel scroll" id="pMe" hidden></section>
       <section class="panel scroll" id="pPeople" hidden></section>
       <section class="panel scroll" id="pJournal" hidden></section>
@@ -70,6 +70,13 @@
   <!-- Starting a life, and the end of one. -->
   <div class="full" id="start" hidden></div>
   <div class="full" id="end" hidden></div>
+
+  <!-- Fishing: a float on the water. Tap when it dips. -->
+  <div class="cast" id="cast" hidden>
+    <div class="cast-sea"><span class="ripple"></span><span class="float"></span><b class="bang">!</b></div>
+    <p id="castSay" aria-live="assertive"></p>
+    <button class="cast-skip" data-do="autofish">Fish without watching the float</button>
+  </div>
 
   <div class="news" id="news" aria-live="polite"></div>
   <div class="toast" id="toast" role="status"></div>
