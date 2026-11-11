@@ -396,7 +396,7 @@ const SHEET = {
 
   dating() {
     const list = life.prospects(), odds = pct(life.wooOdds());
-    let body = `<p class="lead">Three new faces every season. A first date costs $60 and an evening; whether there is a second is down to charm (yours gives you a ${odds} chance).</p>`;
+    let body = `<p class="lead">Three new faces every season. A first date costs $60 and an evening. Whether there is a second is down to charm (yours gives you about a ${odds} chance), and to reading the person: the profile says what they are like, so play to it.</p>`;
     list.forEach((p, i) => {
       body += `<div class="item"><div class="item-top"><span class="ava">${face(p.look, p.age, 70, p.sex)}</span><div><b>${esc(p.name)}, ${p.age} ${sexMark(p)}</b><small>${p.sex === 'm' ? 'He' : 'She'} is ${TRAITS[p.trait].name.toLowerCase()}, and works as ${/^[aeiou]/i.test(life.jobOf(p)) ? 'an' : 'a'} ${life.jobOf(p).toLowerCase()}</small></div></div>
         <div class="facts"><span>${TRAITS[p.trait].icon} ${TRAITS[p.trait].name}</span><span>Loves ${OUTINGS[p.likes[0]].icon} ${OUTINGS[p.likes[0]].name.toLowerCase()}</span></div>
@@ -951,6 +951,7 @@ function showNew() {
     <p><b>♠️ Blackjack and the gull races</b> on the pier, and the <b>🎟️ Bay Lotto</b> on the High Street.</p>
     <p><b>🏗️ The mayor’s appeal</b> at the Town Hall: give the town a lifeboat, a hospital wing, a new pier. Your name stays on it for the family that follows.</p>
     <p><b>🎪 A festival every season</b>, marked on the map: the Spring Fair, Regatta Day, the Harvest Show and the Winter Lights. One entry each.</p>
+    <p><b>💘 A first date is yours to play.</b> Read the person (a profile, or how they look across the bar) and choose how to go about it.</p>
     <p><b>📰 The Gazette</b> (at home, or from the Me tab) has the news: the Bay now has booms and slumps, and they reach your pay, your shares and your house.</p></div>
     <div class="actions"><button class="btn btn-primary" data-action="evDone">Show me</button></div>`);
 }

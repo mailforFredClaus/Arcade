@@ -1397,6 +1397,7 @@ export class Life {
       if (!jailed && this.chance(0.08)) this.drawEvent();
     }
     s.use = {};
+    s.date = null;
     s.time = this.timeMax();
     this.after();
     if (s.dead) s.pend = [];

@@ -690,6 +690,45 @@ export const RIBBONS = [
 ];
 export const RIBBON = Object.fromEntries(RIBBONS.map((r) => [r.id, r]));
 
+// ---- a first date -----------------------------------------------------------------------
+
+// Five ways to play it, one for each kind of person. t: what you do.
+// hint: how such a person looks across a bar. good: how it goes with the
+// right person. bad: how it goes with anybody else.
+const dHe = (p) => (p.sex === 'm' ? 'He' : 'She'), dhe = (p) => (p.sex === 'm' ? 'he' : 'she'), dhim = (p) => (p.sex === 'm' ? 'him' : 'her'), dhis = (p) => (p.sex === 'm' ? 'his' : 'her');
+export const DATE_LINES = {
+  bookish: {
+    t: () => 'Talk about books',
+    hint: (p) => `${dHe(p)} has a paperback open on the bar and has not looked up in ten minutes.`,
+    good: () => 'You argue about an ending until the bell goes for last orders.',
+    bad: (p) => `You talk about a novel for twenty minutes before it comes out that ${dhe(p)} has not read one since school.`,
+  },
+  sporty: {
+    t: (p) => `Dare ${dhim(p)} to race you to the end of the pier`,
+    hint: (p) => `${dHe(p)} is in running shoes, drinking a pint of water, looking pleased with ${dhim(p)}self.`,
+    good: () => 'You lose by a yard and are told, with a grin, that you can have a rematch.',
+    bad: (p) => `${dHe(p)} looks at ${dhis(p)} shoes, then at you, then at the rain.`,
+  },
+  witty: {
+    t: (p) => `Try to make ${dhim(p)} laugh`,
+    hint: (p) => `${dHe(p)} is doing the landlord’s voice for the whole end of the bar, and it is very good.`,
+    good: () => 'It takes three goes. The third gets the real laugh, the one with the snort in it.',
+    bad: (p) => `${dHe(p)} smiles politely, the way people do at a child’s recorder concert.`,
+  },
+  arty: {
+    t: (p) => `Ask what ${dhe(p)} is making these days`,
+    hint: (p) => `${dHe(p)} has paint on one sleeve and is drawing the barmaid on a beer mat.`,
+    good: (p) => `${dHe(p)} shows you a sketchbook that nobody else has seen.`,
+    bad: (p) => `"Making?" says ${dhe(p)}. "Tea, mostly."`,
+  },
+  kind: {
+    t: (p) => `Ask about ${dhim(p)}, and listen`,
+    hint: (p) => `${dHe(p)} has just carried an old boy’s shopping in out of the rain, and waved away the thanks.`,
+    good: (p) => `You hear about ${dhis(p)} gran, ${dhis(p)} dog and ${dhis(p)} worst job. ${dHe(p)} notices that you listened.`,
+    bad: (p) => `${dHe(p)} would rather you said something. Anything. The silence gets long.`,
+  },
+};
+
 // ---- the mayor's appeal -----------------------------------------------------------------
 
 // Things the town can be given. at: where it stands. said: how it is

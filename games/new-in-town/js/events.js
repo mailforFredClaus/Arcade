@@ -8,7 +8,7 @@
 // choice and returns what to say (win: whether the gamble came off).
 // L is the Life; x is whatever the event is about (often a person's id).
 
-import { money, CAREERS, NAMES, PETS, STATS, STAT_NAME, BUSINESSES, CURIOS, aCurio } from './data.js';
+import { money, CAREERS, NAMES, PETS, STATS, STAT_NAME, BUSINESSES, CURIOS, aCurio, TRAITS, DATE_LINES } from './data.js';
 
 const P = (L, id) => L.person(id) || { name: 'Someone', sex: 'm', bond: 0, age: 30 };
 // He or she, him or her, his or her: for whoever a card is about.
@@ -1057,6 +1057,16 @@ export const EVENTS = [
       { t: 'Do a few weekends for them on the quiet', run(L) { const n = pay(L) * 3; L.cash(n); busy(L, 2); L.joy(-2); return `Moonlighting is exhausting, and it pays ${money(n)}.`; } },
       { t: 'You are happy where you are', run(L) { L.s.job.perf = Math.min(100, L.s.job.perf + 6); L.joy(2); return 'You say so, out loud, at work. People look at you oddly, but the boss hears of it.'; } },
     ],
+  },
+  {
+    id: 'date', icon: '💘', title: 'A first date', ok: (L) => !!L.dateWith() && !L.partner(), log: false,
+    text(L) {
+      const p = L.dateWith(), from = L.s.date.from, kind = TRAITS[p.trait].name.toLowerCase();
+      if (from === 'pub') return `Somebody along the bar has caught your eye. ${DATE_LINES[p.trait].hint(p)} You have one go at this.`;
+      if (from === 'app') return `${p.name}, ${p.age}: "${kind}", says the profile, and a ${L.jobOf(p).toLowerCase()}. You are across a table from ${him(p)} at the Seagull Café, and the coffee has come.`;
+      return `You have known ${p.name} long enough to know ${he(p)} is ${kind} through and through. Friday comes. How do you play it?`;
+    },
+    opts: [0, 1, 2].map((i) => ({ t: (L) => L.dateLines()[i].t, run: (L) => L.dateGo(L.dateLines()[i].k) })),
   },
   // ---- bad blood ----
   {

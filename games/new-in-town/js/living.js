@@ -5,7 +5,7 @@
 
 import {
   STATS, STAT_NAME, PLACES, CAREERS, HOMES, UPGRADES, PROPS, BUSINESSES, FISH, OUTINGS, KID_PLAY, TRAITS,
-  NAMES_M, NAMES_F, SURNAMES, money, low,
+  NAMES_M, NAMES_F, SURNAMES, DATE_LINES, money, low,
 } from './data.js';
 
 export function install({ def, A, Life, clamp }) {
@@ -69,6 +69,32 @@ export function install({ def, A, Life, clamp }) {
       return r[clamp(Math.floor((p.age - 18) / 7), 0, r.length - 2)].title;
     },
     wooOdds() { const s = this.s; return clamp(0.3 + s.st.charm / 170 + s.fame / 300 + (s.items.suit ? 0.04 : 0) + this.luck(), 0.1, 0.92); },
+    // ---- a first date: s.date is who it is with (p: someone new, or id: a friend) ----
+    dateWith() { const d = this.s.date; return d ? d.p || this.person(d.id) : null; },
+    // The three things you might try: the one that suits them and two that
+    // do not, in an order that depends on who it is. (No dice: reading them is up to you.)
+    dateLines() {
+      const p = this.dateWith(), wrong = Object.keys(DATE_LINES).filter((k) => k !== p.trait), n = p.id + p.age;
+      const three = [p.trait, wrong[n % 4], wrong[(n % 4 + 1 + (n >> 2) % 3) % 4]];
+      return [0, 1, 2].map((i) => three[(i + n) % 3]).map((k) => ({ k, t: DATE_LINES[k].t(p) }));
+    },
+    // How the date goes, having tried approach k.
+    dateGo(k) {
+      const s = this.s, d = s.date, p = this.dateWith();
+      s.date = null;
+      if (!p || this.partner()) return 'You think better of it.';
+      const right = k === p.trait, friend = d.from === 'friend';
+      const said = right ? DATE_LINES[k].good(p) : DATE_LINES[k].bad(p);
+      if (!this.chance(clamp((friend ? this.askOdds(p) : this.wooOdds()) + (right ? 0.22 : -0.15), 0.04, 0.97))) {
+        if (friend) { p.single = false; this.bond(p, -6); this.joy(-4); return `${said} ${p.name} is kind about it afterwards. Friends, then.`; }
+        this.joy(-1);
+        return `${said} ${d.from === 'pub' ? this.pick(['"I am waiting for someone," comes next, and then nobody arrives.', 'You knock a drink into a lap. It does not recover from there.', 'The taxi is called early.']) : this.pick([`${p.name} never replies to your message.`, `The rest is forty minutes about ${his(p)} ex.`, `${p.name} cancels the second date, twice, then moves to the city.`])}`;
+      }
+      if (friend) { this.bond(p, 10); return this.startSeeing(p, `${said} ${p.name} says ${he(p)} thought you would never ask.`); }
+      Object.assign(p, { kind: 'partner', bond: right ? 28 : 22, single: false });
+      s.people.push(p);
+      return this.startSeeing(p, d.from === 'pub' ? `${said} ${p.name}: ${TRAITS[p.trait].name.toLowerCase()}, ${this.jobOf(p).toLowerCase()}, and free on Friday.` : `${said} Neither of you looks at a phone once. You are seeing ${p.name} again on Saturday.`);
+    },
     askOdds(p) { return clamp(0.25 + (this.s.st.charm - 30) / 110 + (p.bond - 30) / 110 + this.luck(), 0.1, 0.95); },
     proposeOdds(p) { return clamp((p.bond - 45) / 50 + this.luck(), 0.2, 1); },
     // Three people on the dating app, new every season.
@@ -200,14 +226,10 @@ export function install({ def, A, Life, clamp }) {
     run(L, p) { L.s.use[`gift${p.id}`] = 1; L.bond(p, 6); return `${p.name} ${L.pick(['is delighted', 'pretends to be surprised', 'says you should not have, twice'])}.`; },
   });
   def('askout', {
-    who: true, sec: 'Love', title: (L, p) => `Ask ${p.sex === 'm' ? 'him' : 'her'} out`, icon: '💐', desc: (L, p) => `Your chances: ${Math.round(L.askOdds(p) * 100)}%.`,
+    who: true, sec: 'Love', title: (L, p) => `Ask ${p.sex === 'm' ? 'him' : 'her'} out`, icon: '💐', desc: (L, p) => `About ${Math.round(L.askOdds(p) * 100)}%, and better if you play it the way ${he(p)} would like.`,
     show: (L, p) => p.kind === 'friend' && p.single && L.fancy(p) && !L.partner(),
     why: (L, p) => (p.bond < 30 ? 'Get to know each other a little first (30 bond).' : null),
-    run(L, p) {
-      if (L.chance(L.askOdds(p))) { L.bond(p, 10); return L.startSeeing(p, `${p.name} says ${he(p)} thought you would never ask.`); }
-      p.single = false; L.bond(p, -6); L.joy(-4);
-      return `${p.name} is kind about it. Friends, then.`;
-    },
+    run(L, p) { L.s.date = { id: p.id, from: 'friend' }; L.queue('date'); return `${p.name} looks surprised, then pleased. "Friday?"`; },
   });
   def('movein', {
     who: true, sec: 'Love', title: 'Move in together', icon: '🔑', desc: 'Share a home, and the bills.', time: 0,
@@ -250,14 +272,14 @@ export function install({ def, A, Life, clamp }) {
   // Meeting someone with romance in mind, no friendship first.
   def('chatup', {
     place: 'pub', sec: 'Mingle', icon: '😉', title: 'Chat someone up', cost: 30,
-    desc: (L) => `Buy a drink for someone who has caught your eye. Your chances: ${Math.round(L.wooOdds() * 100)}%.`,
+    desc: (L) => `Buy a drink for someone who has caught your eye. About ${Math.round(L.wooOdds() * 100)}%, and better if you read them right.`,
     show: (L) => !L.partner(),
     run(L) {
       const s = L.s, sex = s.into === 'b' ? (L.chance(0.5) ? 'm' : 'f') : s.into;
       L.gain('charm', 1);
-      if (!L.chance(L.wooOdds())) { L.joy(-1); return L.pick(['"I am waiting for someone," they say, and then nobody comes.', 'Your best line gets a polite smile. Only polite.', 'You knock a drink into their lap. It does not recover from there.']); }
-      const p = L.meet({ sex, kind: 'partner', bond: 22, single: false, age: clamp(s.age + L.int(-5, 5), 18, 90) });
-      return L.startSeeing(p, `${p.sex === 'm' ? 'He' : 'She'} laughs at your joke, the real laugh. ${p.name}: ${TRAITS[p.trait].name.toLowerCase()}, ${L.jobOf(p).toLowerCase()}, and free on Friday.`);
+      s.date = { p: L.makePerson({ sex, single: true, age: clamp(s.age + L.int(-5, 5), 18, 90) }), from: 'pub' };
+      L.queue('date');
+      return 'You take your drink along the bar.';
     },
   });
   def('datingOpen', { place: 'home', sec: 'At home', icon: '💘', title: 'Seaside Singles', desc: 'The dating app. Three new faces every season.', time: 0, open: 'dating', show: (L) => !!L.s.items.phone && !L.partner() });
@@ -266,10 +288,9 @@ export function install({ def, A, Life, clamp }) {
     why: (L, i) => (L.partner() ? 'You are spoken for.' : L.prospects()[i] ? null : 'They have gone.'),
     run(L, i) {
       const s = L.s, p = s.matches.splice(i, 1)[0];
-      if (!L.chance(L.wooOdds())) { L.joy(-1); return L.pick([`${p.name} never replies.`, `One coffee with ${p.name}. Forty minutes about ${his(p)} ex.`, `${p.name} cancels, twice, then moves to the city.`]); }
-      Object.assign(p, { kind: 'partner', bond: 22, single: false });
-      s.people.push(p);
-      return L.startSeeing(p, `Dinner with ${p.name}, and neither of you looks at a phone once. You are seeing each other again on Saturday.`);
+      s.date = { p, from: 'app' };
+      L.queue('date');
+      return `${p.name} says yes to a coffee.`;
     },
   });
   def('rematch', {

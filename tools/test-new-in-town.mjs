@@ -27,6 +27,8 @@ const check = (ok, what) => {
     console.log(`FAIL: ${what}`);
   }
 };
+// Answers a first date, playing it the way the other person would like (or not).
+const date = (X, right = true) => { const ev = X.event(); if (!ev || ev.id !== 'date') return null; const p = X.dateWith(); return X.choose(X.dateLines().findIndex((l) => (l.k === p.trait) === right)); };
 // A fresh life, with the to-do list's rewards out of the way so sums are plain.
 const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', ...o }); L.s.quest = QUESTS.length; return L; };
 
@@ -453,7 +455,10 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', ...o 
   // Romance without friendship first.
   s.st.charm = 100; s.cash = 5000;
   let tries = 0;
-  while (!L.partner() && tries++ < 40) { s.time = 6; L.act('chatup'); }
+  s.time = 6; L.act('chatup');
+  check(L.event().id === 'date' && L.event().opts.length === 3 && L.event().opts.every((o) => o.chance === null) && s.date.from === 'pub' && !L.partner(), 'chatting someone up is a card: three ways to go about it, and no odds shown');
+  date(L);
+  while (!L.partner() && tries++ < 40) { s.time = 6; L.act('chatup'); date(L); }
   const p = L.partner();
   check(p && p.kind === 'partner' && p.sex === 'f' && NAMES_F.includes(p.name.split(' ')[0]) && L.friends().length === 12, 'chat someone up at the pub and you can be seeing her by closing time, friends or no friends');
   check(!L.placeActions('pub').some((a) => a.id === 'chatup'), 'no chatting people up while you are spoken for');
@@ -465,7 +470,7 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', ...o 
   const three = L.prospects();
   check(three.length === 3 && three.every((q) => q.sex === 'f' && q.single) && L.prospects() === three, 'three faces, all of a kind you could fall for, the same until next season');
   tries = 0;
-  while (!L.partner() && tries++ < 40) { s.time = 6; if (!L.prospects().length) L.act('rematch'); else L.act('match', 0); }
+  while (!L.partner() && tries++ < 40) { s.time = 6; if (!L.prospects().length) L.act('rematch'); else { L.act('match', 0); date(L); } }
   check(L.partner() && s.people.includes(L.partner()), 'ask one on a date and it may go well');
   L.split(L.partner(), false);
   // Asking a friend out.
@@ -473,7 +478,28 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', ...o 
   check(L.can('askout', g.id).includes('30 bond'), 'a friend wants to know you a little before a date');
   g.bond = 100;
   L.act('askout', g.id);
-  check(g.kind === 'partner' && L.partner() === g, 'ask the right person and you are a couple');
+  check(L.event().id === 'date' && L.event().text.includes(g.name) && g.kind === 'friend', 'asking a friend out leads to an evening');
+  date(L);
+  check(g.kind === 'partner' && L.partner() === g, 'ask the right person, the right way, and you are a couple');
+  // Reading the person matters.
+  let good = 0, bad = 0;
+  for (let i = 0; i < 400; i++) {
+    for (const right of [true, false]) {
+      const X = fresh({ seed: 100 + i });
+      X.s.st.charm = 45; X.s.cash = 500;
+      X.act('chatup');
+      const lines = X.dateLines();
+      if (new Set(lines.map((l) => l.k)).size !== 3 || lines.filter((l) => l.k === X.dateWith().trait).length !== 1) { check(false, 'a date offers three different approaches, one of them right'); break; }
+      const r = date(X, right);
+      if (!r.ok || !r.text || X.s.date) { check(false, 'a date always ends one way or the other'); break; }
+      if (X.partner()) { if (right) good++; else bad++; }
+    }
+  }
+  check(good > bad * 1.5 && bad > 20, `playing to what someone is like goes better than not (${good} against ${bad} of 400)`);
+  const stale = fresh();
+  stale.act('chatup');
+  stale.endSeason();
+  check(!stale.s.date && !stale.s.pend.some((e) => e.id === 'date' && stale.event() && stale.event().id === 'date'), 'a date not kept is forgotten');
   const taken = L.meet({ sex: 'f', single: false, bond: 90 });
   check(!L.personActions(taken).some((a) => a.id === 'askout'), 'someone spoken for cannot be asked out');
   check(L.can('movein', g.id).includes('hostel'), 'nobody moves into a hostel bunk');
