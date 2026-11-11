@@ -16,6 +16,9 @@ export function money(n) {
   return (n < 0 ? '−$' : '$') + v.toLocaleString('en-US');
 }
 // Short, for tight corners: $1.2M, $34k.
+// A name said in the middle of a sentence: "the harbour-view flat", but
+// "the High Street townhouse".
+export const low = (name) => (/^(High Street|Starling)/.test(name) ? name : name[0].toLowerCase() + name.slice(1));
 export function cashShort(n) {
   const v = Math.abs(n), sign = n < 0 ? '−' : '';
   if (v >= 1e9) return `${sign}$${(v / 1e9).toFixed(1)}B`;
@@ -199,6 +202,20 @@ export const CAREERS = {
       rung('Chair of the Bank', 29000, { smarts: 92, charm: 72 }),
     ],
   },
+  // Not on the job board at the Town Hall: you ask in Sal's back room.
+  // Every shift is a crime, and may end with a hand on your collar.
+  crew: {
+    name: 'Sal\u2019s crew', icon: '🦊', place: 'harbour', stats: ['fitness', 'charm'], stress: 2, shady: true,
+    blurb: 'Nobody hands in their notice.',
+    rungs: [
+      rung('Lookout', 2200, { crimes: 3 }),
+      rung('Runner', 3400, { fitness: 30, crimes: 8 }),
+      rung('Enforcer', 5600, { fitness: 50, crimes: 15, bad: 10 }),
+      rung('Fixer', 9500, { charm: 50, smarts: 45, crimes: 25, bad: 20 }),
+      rung('Underboss', 17000, { charm: 65, smarts: 60, bad: 35 }),
+      rung('Boss of the Bay', 32000, { charm: 78, smarts: 70, bad: 50 }),
+    ],
+  },
   politics: {
     name: 'Politics', entry: { degree: 1 }, icon: '🗳️', place: 'townhall', stats: ['charm', 'smarts'], stress: 2, clean: true, fame: true,
     blurb: 'Bins, potholes, and one day the big chain of office.',
@@ -257,12 +274,13 @@ export const HOMES = {
 
 // Work you can have done on a home you own and live in. diy: the Craft it
 // takes to do it yourself, for a third of the price and some of your time.
-// value: what it adds, as a share of the home's worth.
+// It adds what it costs the builders to the home's worth, so doing it
+// yourself leaves you ahead.
 export const UPGRADES = {
-  garden: { name: 'Landscaped garden', icon: '🌷', cost: 4000, diy: 30, time: 2, comfort: 1, value: 0.03, blurb: 'A lift to your mood every season.' },
-  kitchen: { name: 'New kitchen', icon: '🍳', cost: 12000, diy: 50, time: 3, comfort: 1.5, value: 0.05, blurb: 'More comfort, and it adds to what the place is worth.' },
-  solar: { name: 'Solar panels and insulation', icon: '☀️', cost: 9000, diy: 0, time: 0, comfort: 0, value: 0.03, bills: 250, blurb: 'Takes $250 a season off your bills.' },
-  extension: { name: 'Extra bedroom', icon: '🧱', cost: 30000, diy: 70, time: 4, comfort: 1, value: 0.1, kids: 1, blurb: 'Room for one more child.' },
+  garden: { name: 'Landscaped garden', icon: '🌷', cost: 4000, diy: 30, time: 2, comfort: 1, blurb: 'A lift to your mood every season.' },
+  kitchen: { name: 'New kitchen', icon: '🍳', cost: 12000, diy: 50, time: 3, comfort: 1.5, blurb: 'More comfort every season.' },
+  solar: { name: 'Solar panels and insulation', icon: '☀️', cost: 9000, diy: 0, time: 0, comfort: 0, bills: 250, blurb: 'Takes $250 a season off your bills.' },
+  extension: { name: 'Extra bedroom', icon: '🧱', cost: 30000, diy: 70, time: 4, comfort: 1, kids: 1, blurb: 'Room for one more child.' },
 };
 
 // How you eat. cost: on top of the usual bills each season.
@@ -275,7 +293,7 @@ export const FOOD = [
 // Cover you can take out at the bank. cost: each season.
 export const INSURANCE = {
   health: { name: 'Health cover', icon: '🩺', cost: 250, blurb: 'The hospital costs you 60% less.' },
-  home: { name: 'Home and contents', icon: '🏠', cost: 150, blurb: 'Pays out for burglars, burst boilers and storms.' },
+  home: { name: 'Home and contents', icon: '🏠', cost: 150, blurb: 'Pays out for burglars and burst boilers.' },
 };
 
 // ---- things to buy ----------------------------------------------------------------------
@@ -442,6 +460,7 @@ export const PERKS = {
   sea: 'better catches',
   finance: 'a better rate on your savings',
   politics: 'Charm grows faster',
+  crew: 'the law looks the other way a little',
 };
 
 // ---- starting out -----------------------------------------------------------------------
@@ -525,7 +544,7 @@ export const TROPHIES = {
   k100: { name: 'Six figures', icon: '💵', desc: 'Be worth $100,000.', test: (L) => L.netWorth() >= 1e5 },
   m1: { name: 'Millionaire', icon: '💰', desc: 'Be worth $1,000,000.', test: (L) => L.netWorth() >= 1e6 },
   m10: { name: 'Tycoon', icon: '👑', desc: 'Be worth $10,000,000.', test: (L) => L.netWorth() >= 1e7 },
-  owner: { name: 'Keys to the door', icon: '🔑', desc: 'Buy a home.', test: (L) => L.s.estate.length > 0 },
+  owner: { name: 'Keys to the door', icon: '🔑', desc: 'Buy a home.', test: (L) => L.s.estate.some((e) => HOMES[e.kind]) },
   manor: { name: 'Lord of the manor', icon: '🏰', desc: 'Own Starling Manor.', test: (L) => L.owns('manor') },
   landlord: { name: 'Landlord', icon: '🏘️', desc: 'Let out three properties.', test: (L) => L.s.estate.filter((e) => e.let).length >= 3 },
   shares: { name: 'Bull market', icon: '🐂', desc: 'Hold $250,000 in shares.', test: (L) => L.sharesWorth() >= 250000 },
@@ -560,6 +579,15 @@ export const TROPHIES = {
   creel: { name: 'The full creel', icon: '🦞', desc: 'Catch every kind of fish in the book.', test: (L) => Object.keys(FISH).every((id) => L.s.fishbook[id]) },
   doer: { name: 'Home improver', icon: '🧰', desc: 'Do up a home with your own hands.', test: (L) => !!L.s.f.diy },
   raised: { name: 'Chip off the old block', icon: '🧒', desc: 'Raise a child with a skill of 60.', test: (L) => L.kids().some((k) => k.age >= 18 && Object.values(k.st || {}).some((v) => v >= 60)) },
+  crime: { name: 'First offence', icon: '🧤', desc: 'Commit a crime.', test: (L) => L.s.n.crimes >= 1 },
+  thief: { name: 'Light fingers', icon: '👛', desc: 'Steal ten times without being caught.', test: (L) => (L.s.n.thefts || 0) >= 10 },
+  brawler: { name: 'Brawler', icon: '🥊', desc: 'Win ten fights.', test: (L) => (L.s.n.fights || 0) >= 10 },
+  bent: { name: 'Bent', icon: '🤫', desc: 'Bend the rules at work five times.', test: (L) => (L.s.n.grafts || 0) >= 5 },
+  heist: { name: 'The big one', icon: '🏦', desc: 'Rob Harbour Bank and get away with it.', test: (L) => !!L.s.f.heist },
+  kingpin: { name: 'Boss of the Bay', icon: '🦊', desc: 'Reach the top of Sal\u2019s crew.', test: (L) => !!L.s.f.kingpin },
+  wall: { name: 'Over the wall', icon: '🧱', desc: 'Break out of prison.', test: (L) => !!L.s.f.escaped },
+  clean: { name: 'One day at a time', icon: '🧃', desc: 'Get clean at the clinic.', test: (L) => !!L.s.f.clean },
+  wanted: { name: 'Wanted', icon: '🚨', desc: 'Have the law hunting for you.', test: (L) => L.s.heat >= 75 },
   dream1: { name: 'Dream come true', icon: '✨', desc: 'Make a dream come true.', test: (L) => Object.keys(L.s.dreamDone).length >= 1 },
   dream3: { name: 'Living the dream', icon: '🌈', desc: 'Make all three dreams come true in one life.', test: (L) => Object.keys(L.s.dreamDone).length >= 3 },
   age90: { name: 'Evergreen', icon: '🌲', desc: 'Live to 90.', test: (L) => L.s.age >= 90 },
@@ -592,8 +620,10 @@ export const RIBBONS = [
     heir: { name: 'Paint-stained easel', icon: '🖌️', desc: 'Start with an easel; paintings and novels earn more.' } },
   { id: 'heart', name: 'Heart of the Family', icon: '❤️', desc: 'Married, with two children who love you.', test: (L) => L.s.f.wed && L.kids().filter((k) => k.bond >= 60).length >= 2,
     heir: { name: 'Family album', icon: '📔', desc: 'A happier outlook on everything.' } },
-  { id: 'rogue', name: 'The Rogue', icon: '🦊', desc: 'Ran a dozen errands for Shady Sal.', test: (L) => (L.s.n.crimes || 0) >= 12,
-    heir: { name: 'Loaded dice', icon: '🎲', desc: 'Sal’s errands are safer and the casino is kinder.' } },
+  { id: 'kingpin', name: 'The Kingpin', icon: '🕴️', desc: 'Ran Sal\u2019s crew, or robbed the bank.', test: (L) => !!L.s.f.kingpin || !!L.s.f.heist,
+    heir: { name: 'Sal\u2019s little black book', icon: '📓', desc: 'Start with 5 crimes to your name and a bad reputation; the law is slower to notice you.' } },
+  { id: 'rogue', name: 'The Rogue', icon: '🦊', desc: 'Two dozen crimes to your name.', test: (L) => (L.s.n.crimes || 0) >= 24,
+    heir: { name: 'Loaded dice', icon: '🎲', desc: 'Crime is safer and the casino is kinder.' } },
   { id: 'salt', name: 'Old Salt', icon: '⚓', desc: 'Captained a ship, or caught 100 fish.', test: (L) => !!L.s.f.wasCaptain || (L.s.n.fish || 0) >= 100,
     heir: { name: 'Brass compass', icon: '🧭', desc: 'Start with a rod; every catch is worth double.' } },
   { id: 'globe', name: 'The Globetrotter', icon: '🧳', desc: 'Took all eight holidays.', test: (L) => Object.keys(L.s.trips).length >= 8,

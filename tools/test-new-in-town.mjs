@@ -1,6 +1,7 @@
 // Checks New in Town's rules: time and money, skills, jobs and promotions,
 // courses and exams, homes and property, the bank and shares, people and
-// love and children, a business of your own, events and the end of a life.
+// love and children, a business of your own, crime and vice and the law,
+// events and the end of a life.
 // Then practice players live whole lives: one sets out to climb each career
 // (which proves every ladder can be climbed), and one does things at random
 // (which proves nothing it can do breaks the game). After every action the
@@ -31,6 +32,7 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', ...o 
   for (const [id, c] of Object.entries(CAREERS)) {
     check(PLACES[c.place], `${id}: works at a real place`);
     check(c.rungs.length >= 5 && c.rungs.length <= SHIFTS_FOR_RUNG.length, `${id}: five or six rungs`);
+    check(!c.shady || !c.clean, `${id}: is honest or it is not`);
     check(c.stats.every((k) => STATS.includes(k)), `${id}: trains real skills`);
     check(PERKS[id], `${id}: knowing someone in it is worth something`);
     c.rungs.forEach((r, i) => {
@@ -46,7 +48,7 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', ...o 
     check(c.degree || Object.values(CAREERS).some((car) => (car.entry || {})[id] || car.rungs.some((r) => r.need.edu === id)), `${id}: is good for something`);
   }
   for (const [id, it] of Object.entries(ITEMS)) check(PLACES[it.at], `${id}: sold at a real place`);
-  for (const a of Object.values(ACTIONS)) check(a.place == null || typeof a.place === 'function' || PLACES[a.place], `${a.id}: happens at a real place`);
+  for (const a of Object.values(ACTIONS)) check(a.place == null || typeof a.place === 'function' || PLACES[a.place] || a.place === 'sal', `${a.id}: happens at a real place`);
   for (const id of Object.keys(PLACES)) check(fresh().placeActions(id).length > 0 || id === 'labs', `${id}: has something to do`);
   for (const [id, b] of Object.entries(BUSINESSES)) check(PLACES[b.place] && b.names.length === 4 && b.cost.length === 4 && b.take.length === 4 && b.skill.length === 4 && b.wait.length === 4 && b.stats.every((k) => STATS.includes(k)), `${id}: a business with four sizes`);
   for (const [id, f] of Object.entries(FISH)) check(f.pay[1] >= f.pay[0] && f.where.every((w) => w === 'wall' || w === 'boat'), `${id}: a proper fish`);
@@ -170,8 +172,12 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', ...o 
   s.worked.kitchen = 3; s.st.craft = 99; s.st.charm = 99; s.edu.culinary = { a: 20, g: 0 }; s.time = 6;
   L.act('apply', 'kitchen');
   check(s.job.r === 3, 'going back to a career picks up where you left off');
+  s.job.perf = 20; s.stand.kitchen = 20;
   L.act('quit');
   check(!s.job, 'you can hand in your notice');
+  s.time = 6; L.act('apply', 'kitchen');
+  check(s.job.perf === 20, 'walking out and back in does not mend your standing with the boss');
+  L.act('quit');
   s.record = 1;
   check(L.can('apply', 'police') === 'Not with your record.', 'the police will not take you with a record');
   s.record = 0; s.age = 66; s.time = 6;
@@ -197,7 +203,8 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', ...o 
   check(s.cash === cash - 200 && s.time === 4 && s.course.p === 1, 'a class costs its fee and two blocks');
   L.act('class');
   check(s.course.exam && !s.edu.firstaid && !L.placeActions('college').some((a) => a.id === 'class') && L.placeActions('college').some((a) => a.id === 'exam'), 'after the last class comes the exam');
-  const mark = L.examMark();
+  const mark = L.examMark(), rng = s.rng;
+  check(L.examMark() === mark && s.rng === rng, 'looking at where your mark is heading does not change it');
   L.act('revise');
   check(L.examMark() === mark + 5 && s.time === 1, 'revising lifts the mark you are heading for');
   s.course.mark = 2 * 95;
@@ -249,7 +256,7 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', ...o 
   s.cash = 5000;
   check(L.act('rentHome', 'bedsit').ok && s.home === 'bedsit' && s.cash === 4400 && !s.owned && s.time === 5, 'moving into a rented place costs half a season’s rent');
   check(L.can('buyHome', { id: 'bedsit' }) === 'Not for sale.', 'the bedsit cannot be bought');
-  check(L.can('buyHome', { id: 'flat' }).includes('deposit'), 'buying needs a fifth down');
+  check(L.can('buyHome', { id: 'flat' }).includes('fifth'), 'buying needs a fifth down');
   s.cash = 40000;
   const price = L.propPrice('flat');
   check(L.act('buyHome', { id: 'flat' }).ok && s.owned && s.home === 'flat' && s.estate.length === 1 && s.homeAt === s.estate[0].id, 'with the deposit you can buy');
@@ -293,7 +300,7 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', ...o 
   check(L.placeActions('home').filter((a) => a.id === 'improve').length >= Object.keys(UPGRADES).length, 'a home you own can be improved');
   s.cash = 50000;
   L.act('improve', { id: 'kitchen' });
-  check(home.ups.kitchen && L.propValue(home) > value && L.comfort() > comfort && s.cash === 38000, 'a new kitchen adds comfort and value');
+  check(home.ups.kitchen && L.propValue(home) > value && L.propValue(home) <= value + 12000 * s.idx + 1000 && L.comfort() > comfort && s.cash === 38000, 'a new kitchen adds comfort, and no more value than it cost');
   check(L.can('improve', { id: 'kitchen' }) === 'Done already.' && L.can('improve', { id: 'garden', diy: true }).includes('Craft'), 'once is enough; doing it yourself takes Craft');
   s.st.craft = 80; s.time = 6;
   const c2 = s.cash;
@@ -338,6 +345,7 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', ...o 
   const cost = I.medCost(1000);
   I.act('insure', 'health');
   check(I.s.ins.health && I.medCost(1000) === cost * 0.4 && I.bills().some(([w]) => w === INSURANCE.health.name), 'health cover costs a premium and cuts hospital bills');
+  check(I.s.cash === 5000 - INSURANCE.health.cost, 'and the first premium is paid on the spot');
   I.act('insure', 'health');
   check(!I.s.ins.health, 'and can be cancelled');
 }
@@ -544,6 +552,7 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', ...o 
   L.act('bizStart', 'food');
   check(s.biz && s.biz.lvl === 0 && s.cash === 6000 && L.bizName() === 'Food stall' && !L.placeActions('townhall').some((a) => a.id === 'bizOpen'), 'a food stall costs $4,000 to start');
   check(L.placeActions('highstreet').some((a) => a.id === 'bizWork') && L.bizIdle() === 0, 'you work in it where it stands; a stall earns nothing without you');
+  check(L.bizWorth() < 4000, 'a business sold the day it opens loses money');
   const rep = s.biz.rep, cash = s.cash;
   L.act('bizWork');
   check(s.cash > cash && s.biz.rep > rep && s.time === 3, 'working in it brings in money and builds its name');
@@ -634,12 +643,140 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', ...o 
   check(M.event().id === 'marlow3' && M.event().opts[0].t.startsWith('Accept'), 'and at last he offers his boat to a friend');
   M.choose(0);
   check(M.s.items.boat && M.s.f.marlow === 3, 'the Peggy Sue is yours');
-  // Getting caught.
-  const J = fresh();
-  J.s.job = { c: 'kitchen', r: 1, n: 0, perf: 50, raise: 0 }; J.s.record = 1; J.s.home = 'bedsit';
-  J.queue('busted');
-  J.choose(0);
-  check(J.s.record === 2 && J.s.f.jailed && !J.s.job && J.s.t === 2 && J.s.home === 'hostel' && J.s.time === J.timeMax(), 'a second offence is two seasons inside: job gone, room gone');
+}
+
+// ---- the low road -----------------------------------------------------------------------
+
+{
+  const L = fresh();
+  const s = L.s;
+  check(L.placeActions('harbour').some((a) => a.open === 'sal') && L.placeActions('sal').some((a) => a.id === 'errand'), 'Sal’s back room is behind the harbour');
+  const risk = L.riskOf(0.2), karma = s.karma;
+  L.crime(0, 2, 'a test');
+  s.pend = [];
+  check(s.n.crimes === 1 && s.karma < karma && s.heat === 6 && L.riskOf(0.2) > risk, 'a crime is counted, blackens your name and draws the law’s eye, which makes the next one riskier');
+  L.endSeason(); s.pend = [];
+  check(s.heat === 0, 'the heat cools with time');
+  // What the magistrate hands down.
+  const F = fresh();
+  F.s.cash = 5000;
+  F.sentence(1);
+  check(F.s.record === 1 && F.s.cash === 3500 && !F.event(), 'a petty offence is a fine and a record');
+  F.sentence(2);
+  check(F.event().id === 'inside' && F.s.pend[0].x.n === 3, 'something worse is prison, and longer the second time');
+  F.s.job = { c: 'kitchen', r: 1, n: 0, perf: 50, raise: 0 }; F.s.home = 'bedsit';
+  F.choose(0);
+  check(F.s.record === 2 && F.s.f.jailed && !F.s.job && F.s.t === 3 && F.s.home === 'hostel' && F.s.time === F.timeMax(), 'three seasons inside: job gone, room gone');
+  const G = fresh();
+  G.queue('busted', { what: 'a crate', sev: 2 });
+  check(G.event().opts.length === 5 && G.event().opts[2].chance > 0, 'caught, you can go quietly, run, bribe, send for a lawyer, or blame Sal');
+  G.s.cash = 12000;
+  G.choose(3);
+  check(G.s.record === 1 && G.s.cash === 12000 - 8000 - 1500 && !G.event(), 'a good lawyer turns prison into a fine');
+  const E = fresh();
+  E.s.st.fitness = 100; E.s.st.smarts = 100;
+  E.queue('inside', { n: 6 });
+  E.choose(2);
+  check((E.s.f.escaped && E.s.t === 1 && E.s.heat > 90) || (!E.s.f.escaped && E.s.t === 9), 'going over the wall is one season or three more');
+  // Sal's crew.
+  check(L.can('joinCrew').includes('crimes') && !L.placeActions('townhall').some((a) => a.id === 'apply'), 'Sal takes nobody who has not proved themselves');
+  s.n.crimes = 3; s.time = 6;
+  check(L.act('joinCrew').ok && s.job.c === 'crew' && L.placeActions('harbour').some((a) => a.id === 'work'), 'with three crimes behind you, you are in');
+  const before = s.n.crimes;
+  s.time = 2; L.act('work'); s.pend = [];
+  check(s.n.crimes === before + 1 && (!s.job || s.job.c === 'crew'), 'every shift for Sal is a crime');
+  if (!s.job) s.job = { c: 'crew', r: 0, n: 0, perf: 50, raise: 0 };
+  s.age = 66;
+  check(!L.placeActions('townhall').some((a) => a.id === 'retire') && !L.placeActions('harbour').some((a) => a.id === 'graft'), 'there is no pension in it, and nothing to embezzle');
+  s.job = null;
+  // Stealing.
+  const T = fresh();
+  let got = 0, nicked = 0;
+  for (let i = 0; i < 60; i++) { T.s.time = 6; T.s.heat = 0; const c = T.s.cash; T.act('dip'); if (T.s.cash > c) got++; if (T.s.pend.length) { nicked++; T.s.pend = []; } }
+  check(got > 30 && nicked > 3 && got + nicked === 60 && T.s.n.thefts === got, 'picking pockets mostly pays, and sometimes ends with a hand on your collar');
+  // Bending the rules at work.
+  const W = fresh();
+  W.s.job = { c: 'finance', r: 2, n: 0, perf: 50, raise: 0 };
+  check(W.placeActions('bank').some((a) => a.id === 'graft' && a.title.includes('should not know')), 'a banker can trade on what he should not know');
+  const cash = W.s.cash;
+  W.act('graft');
+  check((W.s.cash > cash && W.s.job) || (!W.s.job && W.s.pend.some((e) => e.id === 'busted')), 'it pays, or it is the sack and the law');
+  check(W.s.job ? W.can('graft') === 'Once a season.' : true, 'once a season at most');
+  // Vices.
+  const V = fresh();
+  V.s.cash = 9000;
+  const mood = V.s.happy, hp = V.s.health;
+  V.act('binge');
+  check(V.s.happy > mood && V.s.health < hp && V.s.habit.drink === 9, 'a night on the drink is a fine time, bad for you, and habit-forming');
+  for (let i = 0; i < 6; i++) { V.s.time = 6; V.act('binge'); }
+  check(V.hooked('drink') && V.placeActions('hospital').some((a) => a.id === 'rehab'), 'keep it up and you are hooked; the clinic can help');
+  const dry = fresh();
+  dry.s.time = V.s.time = 0; dry.s.happy = V.s.happy = 60; V.s.use = {}; dry.s.health = V.s.health = 80; dry.s.cash = V.s.cash;
+  V.endSeason(); dry.endSeason();
+  check(V.s.happy < dry.s.happy - 4 && V.s.health < dry.s.health, 'a season without it, once hooked, is a miserable one');
+  V.s.pend = []; V.s.time = 6;
+  V.act('rehab');
+  check(!V.hooked('drink') && V.s.f.clean && !V.placeActions('hospital').some((a) => a.id === 'rehab'), 'and the clinic gets you clean');
+  // Fights.
+  const B = fresh();
+  B.s.st.fitness = 100;
+  let wins = 0;
+  for (let i = 0; i < 20; i++) { B.s.time = 6; B.s.use = {}; B.s.health = 90; const c = B.s.cash; B.act('bout0'); if (B.s.cash === c + 500) wins++; }
+  check(wins >= 16 && B.s.n.fights === wins && B.can('bout0') === 'Once a season.', 'a fit fighter usually beats Wee Dougie, once a season');
+  // Sal's money.
+  const S = fresh();
+  const worth = S.netWorth();
+  S.act('shark2000');
+  check(S.s.shark === 2000 && S.s.cash === 3500 && S.netWorth() === worth, 'Sal lends without forms');
+  S.s.time = 0; S.endSeason(); S.s.pend = [];
+  check(S.s.shark === 2200, 'at ten per cent a season');
+  for (let i = 0; i < 5; i++) { S.s.cash = 5000; S.endSeason(); S.s.pend = S.s.pend.filter((e) => e.id === 'legbreakers'); }
+  check(S.s.pend.length === 1 && S.event().id === 'legbreakers', 'and sends people round if it drags on');
+  S.s.cash = 99999;
+  S.choose(0);
+  check(S.s.shark === 0, 'who will take it in cash');
+  // Leaning on people.
+  const Q = fresh();
+  Q.s.st.charm = 100;
+  const mum = Q.s.people[0], bond = mum.bond, c0 = Q.s.cash;
+  let asks = 0;
+  while (Q.s.cash === c0 && asks++ < 20) { mum.asked = -99; mum.bond = bond; Q.act('scrounge', mum.id); }
+  check(Q.s.cash > c0 && mum.bond < bond && Q.can('scrounge', mum.id).includes('not long ago'), 'your mother will lend you money, and think less of you');
+  // Straying.
+  check(!Q.placeActions('pub').some((a) => a.id === 'fling'), 'you cannot stray with nobody to stray from');
+  const wife = Q.meet({ sex: 'f', kind: 'spouse', bond: 90 });
+  let n = 0;
+  while (!Q.s.n.flings && n++ < 30) { Q.s.time = 6; Q.s.cash = 500; Q.act('fling'); }
+  check(Q.s.n.flings === 1 && Q.partner() === wife, 'with a wife at home, you can');
+  Q.s.pend = [];
+  Q.queue('caughtOut', wife.id);
+  Q.choose(2);
+  check(!Q.partner() && Q.s.f.divorced, 'and if she finds out and you shrug, that is that');
+  // The bank job.
+  const H = fresh();
+  check(H.can('heist').includes('15 crimes'), 'Sal keeps the bank job for people he trusts');
+  H.s.n.crimes = 15; H.s.cash = 20000;
+  const hc = H.s.cash;
+  H.act('heist');
+  check((H.s.f.heist && H.s.cash >= hc - 10000 + 250000) || (H.event().id === 'busted' && H.s.pend[0].x.sev === 4), 'the bank job is a fortune or a hand on the collar');
+  check(H.can('heist').includes('jumpy') && H.s.heat >= 45, 'and not something to try twice in a hurry');
+  if (!H.s.f.heist) { H.choose(0); check(H.event().id === 'inside' && H.s.pend[0].x.n === 12, 'a dozen seasons, for the bank'); }
+  // An accident with a candle.
+  const A = fresh();
+  A.s.cash = 500000; A.act('buyLet', 'garage');
+  check(A.can('torch').includes('not insured'), 'a fire is only worth having if you are insured');
+  A.s.ins.home = true;
+  const c1 = A.s.cash, v = A.propValue(A.s.estate[0]);
+  A.act('torch');
+  check(A.s.estate.length === 0 && (A.s.cash === c1 + v || A.s.pend.some((e) => e.id === 'busted')), 'the lock-up burns, and the insurance pays unless they work it out');
+  // Cheating, and a clerk with a shredder.
+  const C = fresh();
+  C.act('enrol', { id: 'firstaid' }); C.act('class'); C.act('class');
+  C.act('cheat');
+  check((C.s.edu.firstaid && C.s.edu.firstaid.g === 2) || (!C.s.course && !C.s.edu.firstaid), 'cheat in the exam and it is a distinction, or the door');
+  C.s.record = 2; C.s.cash = 50000;
+  C.act('bribeClerk');
+  check(C.s.cash === 10000 && (C.s.record === 0 || C.s.record === 2), 'a record can be lost, for a price, usually');
 }
 
 // ---- the casino -------------------------------------------------------------------------
@@ -835,8 +972,8 @@ function climber(seed, target) {
   return { L, topAt, top: !!s.worked[target] && s.worked[target] === car.rungs.length - 1 };
 }
 
-console.log(`Climbers: ${perCareer} lives for each of ${Object.keys(CAREERS).length} careers`);
-for (const c of Object.keys(CAREERS)) {
+console.log(`Climbers: ${perCareer} lives for each of ${Object.keys(CAREERS).filter((id) => !CAREERS[id].shady).length} honest careers`);
+for (const c of Object.keys(CAREERS).filter((id) => !CAREERS[id].shady)) {
   let tops = 0;
   const ages = [], worth = [], died = [];
   for (let i = 0; i < perCareer; i++) {
@@ -856,8 +993,12 @@ for (const c of Object.keys(CAREERS)) {
   check(tops >= Math.ceil(perCareer * 0.5), `${c}: a determined player reaches the top at least half the time (${tops}/${perCareer})`);
 }
 
-// Does anything at all, for a whole life.
+// Does anything at all, for a whole life. Two in three keep to the
+// straight and narrow; the third does not.
+const LOW = new Set(['Vices', 'Under the pier', 'Light fingers', 'Behave badly', 'Under the counter', 'Work for Sal', 'Jobs', 'The ring', 'Sal’s money']);
+const lowRoad = (a) => LOW.has(a.sec) || ['graft', 'cheat', 'fiddle'].includes(a.id);
 function monkey(seed) {
+  const wild = seed % 3 === 0;
   const L = Life.create({ seed, name: 'Monkey', bg: Object.keys(BACKGROUNDS)[seed % 6], sex: seed % 2 ? 'f' : 'm', into: ['m', 'f', 'b'][seed % 3] });
   const s = L.s;
   let guard = 0;
@@ -866,7 +1007,7 @@ function monkey(seed) {
     answer(L, true);
     for (let k = 0; k < 14 && !s.dead; k++) {
       const opts = [];
-      for (const p of Object.keys(PLACES)) for (const a of L.placeActions(p)) if (!a.why && !a.open) opts.push([a.id, a.x]);
+      for (const p of [...Object.keys(PLACES), 'sal']) for (const a of L.placeActions(p)) if (!a.why && !a.open && (wild || !lowRoad(a))) opts.push([a.id, a.x]);
       for (const c of Object.keys(CAREERS)) if (!L.can('apply', c)) opts.push(['apply', c]);
       for (const c of Object.keys(COURSES)) for (const loan of [false, true]) if (!L.can('enrol', { id: c, loan })) opts.push(['enrol', { id: c, loan }]);
       for (const h of Object.keys(HOMES)) {
@@ -875,7 +1016,7 @@ function monkey(seed) {
       }
       for (const kind of [...Object.keys(HOMES), ...Object.keys(PROPS)]) if (!L.can('buyLet', kind)) opts.push(['buyLet', kind]);
       for (const e of s.estate) for (const id of ['letProp', 'sellEstate', 'moveIn']) if (!L.can(id, e.id)) opts.push([id, e.id]);
-      for (const p of s.people) for (const a of L.personActions(p)) if (!a.why) opts.push([a.id, a.x]);
+      for (const p of s.people) for (const a of L.personActions(p)) if (!a.why && (wild || !lowRoad(a))) opts.push([a.id, a.x]);
       for (const kind of Object.keys(PETS)) if (!L.can('pet', kind)) opts.push(['pet', kind]);
       for (const type of Object.keys(BUSINESSES)) if (!L.can('bizStart', type)) opts.push(['bizStart', type]);
       for (const sym of Object.keys(STOCKS)) {
@@ -911,12 +1052,12 @@ function monkey(seed) {
 console.log(`Random players: ${randomLives} lives`);
 {
   const ages = [], ribbons = {}, seen = new Set();
-  let trophies = 0, wed = 0, kids = 0, biz = 0, owned = 0;
+  let trophies = 0, wed = 0, kids = 0, biz = 0, owned = 0, jailed = 0;
   for (let i = 0; i < randomLives; i++) {
     try {
       const L = monkey(5000 + i);
       const o = L.obituary();
-      ages.push(o.age);
+      if ((5000 + i) % 3) ages.push(o.age); else jailed += L.s.f.jailed ? 1 : 0;
       ribbons[o.ribbon.id] = (ribbons[o.ribbon.id] || 0) + 1;
       trophies += o.trophies;
       wed += L.s.f.wed ? 1 : 0; kids += L.kids().length ? 1 : 0; biz += L.s.ach.shop ? 1 : 0; owned += L.s.ach.owner ? 1 : 0;
@@ -934,12 +1075,12 @@ console.log(`Random players: ${randomLives} lives`);
   ages.sort((a, b) => a - b);
   const random = EVENTS.filter((e) => e.w);
   console.log(`  lived to between ${ages[0]} and ${ages[ages.length - 1]} (typically ${ages[Math.floor(ages.length / 2)]}); ${(trophies / randomLives).toFixed(1)} trophies a life; ${seen.size} of ${random.length} chance events seen`);
-  console.log(`  ${wed} married, ${kids} had children, ${biz} started a business, ${owned} bought property`);
+  console.log(`  ${wed} married, ${kids} had children, ${biz} started a business, ${owned} bought property; of the wild third, ${jailed} went to prison`);
   console.log(`  ribbons: ${Object.entries(ribbons).map(([k, v]) => `${k} ${v}`).join(', ')}`);
-  check(ages[Math.floor(ages.length / 2)] >= 60, 'even a careless life usually lasts past 60');
+  check(ages[Math.floor(ages.length / 2)] >= 60, 'even a careless life usually lasts past 60, if it keeps out of trouble');
   if (randomLives >= 40) {
     check(seen.size >= random.length * 0.75, `nearly every chance event turns up across ${randomLives} lives (${seen.size}/${random.length})`);
-    check(wed > 0 && biz > 0 && owned > 0, 'some random lives marry, start a business and buy property');
+    check(wed > 0 && biz > 0 && owned > 0 && jailed > 0, 'some random lives marry, start a business and buy property, and some of the wild ones go to prison');
   }
 }
 

@@ -6,8 +6,8 @@
 // you're done, endSeason pays the bills, moves the markets, ages everyone
 // and may bring an event: a card with choices (event, choose).
 //
-// The people, property, businesses and fishing are in living.js, which adds
-// to what is here. Everything about the life is in this.s, which is plain
+// The people, property, businesses and fishing are in living.js, and the
+// low road (crime, vice and the law) in vice.js; both add to what is here. Everything about the life is in this.s, which is plain
 // data and is what gets saved. The random numbers come from a seed kept there too, so the
 // same seed and the same choices always give the same life.
 
@@ -18,6 +18,7 @@ import {
 } from './data.js';
 import { EVENTS } from './events.js';
 import { install } from './living.js';
+import { install as installVice } from './vice.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const val = (v, L, x, y) => (typeof v === 'function' ? v(L, x, y) : v);
@@ -125,7 +126,7 @@ def('quit', {
 });
 def('retire', {
   place: 'townhall', sec: 'Work', icon: '🌅', title: 'Retire', desc: (L) => `Stop work, on a pension of ${money(Math.max(L.pensionFor(), L.s.f.jobPension || 0))} a season.`, time: 0,
-  show: (L) => !!L.s.job && L.s.age >= 65,
+  show: (L) => !!L.s.job && L.s.age >= 65 && !CAREERS[L.s.job.c].shady,
   run(L) {
     // (Only the best pension you have earned counts: retiring twice doesn't pay twice.)
     const s = L.s, t = L.jobTitle(), had = s.f.jobPension || 0, p = Math.max(L.pensionFor(), had);
@@ -327,18 +328,6 @@ def('marlow', {
     return L.pick(['Marlow tells you about the winter of the great storm. The waves get bigger every telling.', '"Red sky at night," says Marlow, "means it’s night."', 'You share a flask of tea and watch the boats come in.']);
   },
 });
-def('errand', {
-  place: 'harbour', sec: 'Odd jobs', icon: '🦊', title: 'Run an errand for Shady Sal', desc: (L) => `No questions asked. Good money. About ${Math.round(L.bustOdds() * 100)}% it goes wrong.`, time: 2,
-  why: (L) => (L.s.t < (L.s.f.salOff || 0) ? 'Sal is not speaking to you.' : null),
-  run(L) {
-    const s = L.s;
-    s.n.crimes++; L.karma(-4);
-    if (L.chance(L.bustOdds())) { L.queue('busted'); return 'You are halfway down the quay with the crate when a torch clicks on.'; }
-    const pay = Math.min(8000, 2000 + L.int(0, 30) * 100 + s.n.crimes * 100);
-    L.cash(pay);
-    return `${L.pick(['You drive a van to a lay-by and walk away from it.', 'A crate of "designer" handbags changes hands.', 'You keep watch while some boxes fall off a boat.'])} Sal counts out ${money(pay)}.`;
-  },
-});
 def('sail', {
   place: 'harbour', sec: 'The water', icon: '⛵', title: 'Take your boat out', desc: 'Nothing lifts the spirits like it.',
   show: (L) => !!L.s.items.boat,
@@ -519,7 +508,8 @@ def('apply', {
   why: (L, c) => L.applyWhy(c),
   run(L, c) {
     const s = L.s, car = CAREERS[c], r = L.startRung(c);
-    s.job = { c, r, n: 0, perf: 50, raise: 0 };
+    // (Leaving and coming back does not wipe the slate: the boss remembers.)
+    s.job = { c, r, n: 0, perf: Math.min(50, s.stand[c] ?? 50), raise: 0 };
     s.worked[c] = Math.max(s.worked[c] ?? 0, r);
     s.retired = false;
     L.note(`Started work as ${car.rungs[r].title}.`);
@@ -541,7 +531,7 @@ for (const [id, e] of Object.entries(EFFORT)) {
   });
 }
 def('raise', {
-  place: (L) => (L.s.job ? CAREERS[L.s.job.c].place : null), sec: 'Work', icon: '💷', title: 'Ask for a raise', time: 0,
+  place: (L) => (L.s.job ? CAREERS[L.s.job.c].place : null), sec: 'Work', icon: '💷', title: 'Ask for a pay rise', time: 0,
   desc: (L) => `Your chances: ${Math.round(L.raiseOdds() * 100)}%. Better if the boss thinks well of you.`,
   show: (L) => !!L.s.job,
   why: (L) => (L.s.job.raise >= 0.4 ? 'You are at the top of the pay scale for this job.' : L.s.t - (L.s.job.asked ?? -99) < 8 ? 'You asked not long ago.' : null),
@@ -699,6 +689,8 @@ def('sellShares', {
 });
 def('insure', {
   time: 0, why: (L, id) => (INSURANCE[id] ? null : 'No such cover.'),
+  // (The first premium is paid on the spot, so cover can't be had for nothing.)
+  cost: (L, id) => (INSURANCE[id] && !L.s.ins[id] ? INSURANCE[id].cost : 0),
   run(L, id) { const on = (L.s.ins[id] = !L.s.ins[id]); return on ? `You take out ${INSURANCE[id].name.toLowerCase()}: ${money(INSURANCE[id].cost)} a season.` : `You cancel the ${INSURANCE[id].name.toLowerCase()}.`; },
 });
 def('food', {
@@ -714,6 +706,7 @@ export class Life {
     this.news = [];
     this.out = null;
     if ((state.v || 1) < 2) this.upgrade();
+    for (const [k, v] of [['heat', 0], ['shark', 0], ['habit', {}], ['stand', {}]]) if (state[k] == null) state[k] = v;
   }
 
   // name, sex ('m' or 'f'), into: who you fall for ('m', 'f' or 'b' for both),
@@ -734,7 +727,7 @@ export class Life {
       home: 'hostel', owned: false, homeAt: null, estate: [], eid: 1, items: {}, food: 1, ins: {},
       people: [], pid: 1, pet: null, due: null, matches: null,
       stk: { p: {}, h: {}, own: {}, paid: {}, news: [] },
-      biz: null, fishbook: {}, hist: [],
+      biz: null, fishbook: {}, hist: [], heat: 0, habit: {}, shark: 0, stand: {},
       paintings: 0, novel: { p: 0, q: 0 }, trips: {}, ill: null, hilo: null,
       f: {}, n: { shifts: 0, earned: 0, fish: 0, crimes: 0, books: 0, given: 0, casino: 0, streak: 0 },
       use: {}, cd: {}, seen: {},
@@ -751,13 +744,14 @@ export class Life {
     if (heir === 'star') s.items.guitar = 1;
     if (heir === 'artist') s.items.easel = 1;
     if (heir === 'salt') s.items.rod = 1;
+    if (heir === 'kingpin') { s.n.crimes = 5; s.karma = -15; }
     while (s.dreams.length < 3) {
       const id = L.pick(Object.keys(DREAMS));
       if (!s.dreams.includes(id)) s.dreams.push(id);
     }
     // The first of a family has a mum and dad back home; later ones may have
     // a parent still living from the life before.
-    if (parent) s.people.push(L.makePerson({ name: parent.name, sex: parent.sex || 'f', kind: 'parent', bond: 60, age: Math.max(40, parent.age), trait: 'kind', look: parent.look, single: false }));
+    if (parent) s.people.push(L.makePerson({ name: parent.name, sex: parent.sex || (NAMES_M.includes(parent.name.split(' ')[0]) ? 'm' : 'f'), kind: 'parent', bond: 60, age: Math.max(40, parent.age), trait: 'kind', look: parent.look, single: false }));
     else if (gen === 1) {
       for (const [who, x] of [['Mum', 'f'], ['Dad', 'm']]) s.people.push(L.makePerson({ name: who, sex: x, kind: 'parent', bond: 60, age: 18 + L.int(24, 32), trait: 'kind', single: false }));
     }
@@ -804,7 +798,10 @@ export class Life {
     if (p && into !== 'b' && p.sex !== into) {
       p.sex = into;
       const [first, ...rest] = p.name.split(' ');
-      if ((into === 'f' ? NAMES_M : NAMES_F).includes(first)) p.name = [this.pick(into === 'f' ? NAMES_F : NAMES_M), ...rest].join(' ');
+      if ((into === 'f' ? NAMES_M : NAMES_F).includes(first)) {
+        p.name = [this.pick(into === 'f' ? NAMES_F : NAMES_M), ...rest].join(' ');
+        this.note(`${first} goes by ${p.name.split(' ')[0]} these days.`);
+      }
       p.look.style = this.pick(LOOKS[into]);
       p.look.beard = false;
     }
@@ -908,7 +905,7 @@ export class Life {
   blacklisted() { return this.s.f.bustAt != null && this.s.t - this.s.f.bustAt < 20; }
   sharesWorth() { const k = this.s.stk; return Object.keys(k.own).reduce((a, sym) => a + k.own[sym] * k.p[sym], 0); }
   dividends() { const k = this.s.stk; return Math.floor(Object.keys(k.own).reduce((a, sym) => a + k.own[sym] * k.p[sym] * STOCKS[sym].div, 0)); }
-  netWorth() { const s = this.s; return Math.round(s.cash + s.bank - s.debt - s.sloan + this.sharesWorth() + this.estateWorth() + this.bizWorth()); }
+  netWorth() { const s = this.s; return Math.round(s.cash + s.bank - s.debt - s.sloan - s.shark + this.sharesWorth() + this.estateWorth() + this.bizWorth()); }
   creditLimit() {
     const s = this.s, pay = s.job ? CAREERS[s.job.c].rungs[s.job.r].pay : s.pension;
     return Math.round(2000 + 12 * pay + 0.8 * this.estateWorth() + 0.5 * this.sharesWorth());
@@ -973,6 +970,8 @@ export class Life {
     if (need.item) out.push({ text: `A ${ITEMS[need.item].name.toLowerCase()}`, ok: !!s.items[need.item] });
     if (need.karma) out.push({ text: 'A good name in town', ok: s.karma >= need.karma });
     if (need.fame) out.push({ text: `Fame ${need.fame}`, ok: s.fame >= need.fame });
+    if (need.crimes) out.push({ text: `${need.crimes} crimes to your name (${Math.min(s.n.crimes, need.crimes)} so far)`, ok: s.n.crimes >= need.crimes });
+    if (need.bad) out.push({ text: 'A bad name in town', ok: s.karma <= -need.bad });
     if (need.flag === 'elected') out.push({ text: 'Win the election for mayor', ok: !!s.f.elected });
     return out;
   }
@@ -1031,6 +1030,7 @@ export class Life {
     this.cash(pay - loan);
     s.n.shifts++; s.n.earned += pay; j.n += e.n;
     j.perf = clamp(j.perf + e.perf + (s.happy >= 60 ? 1 : s.happy < 25 ? -2 : 0), 0, 100);
+    s.stand[j.c] = j.perf;
     this.gain(c.stats[0], 0.9 * e.n);
     this.gain(c.stats[1], 0.45 * e.n);
     this.joy(-c.stress * 0.75 * e.stress);
@@ -1040,6 +1040,7 @@ export class Life {
     let text = `${this.pick(how)} ${money(pay)}${loan ? ` (${money(loan)} of it to your student loan)` : ''}.`;
     s.use.work = (s.use.work || 0) + 1;
     if (s.use.work > 3) { this.hp(-3, 'overwork'); this.joy(-2); text += ' You are running on fumes.'; }
+    if (c.shady && this.crime(0.02, 2, 'one of Sal\u2019s little jobs', 2)) text += ' And then, round the corner, a constable.';
     const up = this.nextRung();
     if (up && up.ready) {
       j.r++; j.n = 0; j.raise = 0;
@@ -1047,6 +1048,7 @@ export class Life {
       s.f.promoted = 1;
       this.joy(8);
       if (j.r === c.rungs.length - 1) s.f.top = 1;
+      if (j.c === 'crew' && j.r === c.rungs.length - 1) s.f.kingpin = 1;
       if (j.c === 'medicine' && j.r >= 4) s.f.wasDoctor = 1;
       if (j.c === 'sea' && j.r >= 4) s.f.wasCaptain = 1;
       if (j.c === 'politics' && j.r >= 4) s.f.wasMayor = 1;
@@ -1062,11 +1064,12 @@ export class Life {
   // The skill a course leans on.
   courseStat(id) { return { finearts: 'craft', musicdip: 'craft', culinary: 'craft', trade: 'craft', sportsdip: 'fitness', academy: 'fitness' }[id] || 'smarts'; }
   // What one class adds to your running mark: 50 if you only just got in.
-  classMark(id) { const k = this.courseStat(id); return clamp(50 + (this.s.st[k] - (COURSES[id].need[k] || 15)) * 0.9 + this.int(-6, 6), 0, 100); }
+  // (roll: with the luck of the day, or without it, for looking ahead.)
+  classMark(id, roll = true) { const k = this.courseStat(id); return clamp(50 + (this.s.st[k] - (COURSES[id].need[k] || 15)) * 0.9 + (roll ? this.int(-6, 6) : 0), 0, 100); }
   // The mark you are heading for in the exam.
   examMark() {
     const k = this.s.course;
-    return (k.p ? k.mark / k.p : this.classMark(k.id)) + k.rev * 5;
+    return (k.p ? k.mark / k.p : this.classMark(k.id, false)) + k.rev * 5;
   }
   gradeWord(mark) { return mark >= 72 ? 'a distinction' : mark >= 58 ? 'a merit' : mark >= 44 ? 'a pass' : 'a narrow pass, or worse'; }
 
@@ -1076,7 +1079,6 @@ export class Life {
   checkOdds(stat, dc) { return clamp(0.5 + (this.s.st[stat] - dc) / 60 + this.luck(), 0.05, 0.95); }
   mayorOdds() { const s = this.s; return clamp(0.25 + (s.st.charm - 60) / 100 + s.karma / 200 + s.fame / 300 + this.luck(), 0.1, 0.9); }
   pitchOdds() { const s = this.s; return clamp(0.15 + (s.st.smarts - 60) / 100 + s.st.charm / 400 + this.luck(), 0.1, 0.6); }
-  bustOdds() { const s = this.s; return clamp(0.18 - s.st.smarts / 1000 + s.record * 0.04 - (s.heir === 'rogue' ? 0.07 : 0) - (this.perk('police') ? 0.05 : 0), 0.05, 0.5); }
   hiloOdds(dir) { const h = this.s.hilo; return h ? (dir === 'hi' ? 13 - h.card : h.card - 1) / 13 : 0; }
 
   // ---- prices ----
@@ -1191,7 +1193,7 @@ export class Life {
 
   snap() {
     const s = this.s;
-    return { cash: s.cash + s.bank - s.debt - s.sloan, health: s.health, happy: s.happy, ...s.st, fame: s.fame, karma: s.karma };
+    return { cash: s.cash + s.bank - s.debt - s.sloan - s.shark, health: s.health, happy: s.happy, ...s.st, fame: s.fame, karma: s.karma };
   }
   diff(b) {
     const a = this.snap(), out = [];
@@ -1306,6 +1308,7 @@ export class Life {
     if (s.debt > owed) lines.push(['Short! Put on your overdraft', 0]);
     if (s.debt > this.creditLimit() * 1.1 + 1000) this.bailiffs();
     this.bizSeason();
+    this.viceSeason();
 
     // How you stand at work: a good name earns a bonus, a bad one the sack.
     const j = s.job;
@@ -1313,6 +1316,7 @@ export class Life {
       if (j.perf >= 80 && this.chance(0.25)) { const n = this.shiftPay(); s.cash += n; lines.push(['A bonus for good work', n]); }
       if (j.perf < 12) this.queue('sacked');
       j.perf += j.perf > 50 ? -1 : j.perf < 50 ? 1 : 0;
+      s.stand[j.c] = j.perf;
     }
 
     // Mood drifts towards how life is going; the body does what bodies do.
@@ -1338,6 +1342,8 @@ export class Life {
     // People drift unless you keep in touch.
     const phone = s.items.phone ? 0.5 : 1;
     for (const p of s.people.slice()) {
+      // A good school shows, a season at a time.
+      if (p.kind === 'child' && p.priv) { p.st.smarts = Math.min(100, p.st.smarts + 0.4); p.st.charm = Math.min(100, p.st.charm + 0.15); }
       const drop = p.kind === 'friend' ? 2 * phone : p.kind === 'partner' ? (p.live ? 1 : 2) : p.kind === 'parent' ? 0.5 : 1;
       this.bond(p, -drop);
       if (p.kind === 'friend' && p.bond <= 0) {
@@ -1356,7 +1362,7 @@ export class Life {
       const adopt = !!s.due.adopt, sex = this.chance(0.5) ? 'm' : 'f', names = sex === 'm' ? NAMES_M : NAMES_F;
       s.due = null;
       const one = this.pick(names), two = this.pick(names.filter((n) => n !== one));
-      if (this.partner() || adopt) this.queue('baby', { names: [one, two], sex, adopt, age: adopt ? this.int(1, 6) : 0 });
+      if (this.partner() || adopt || s.sex === 'f') this.queue('baby', { names: [one, two], sex, adopt, age: adopt ? this.int(1, 6) : 0 });
     }
     const fiance = s.people.find((p) => p.eng && p.kind === 'partner');
     if (fiance && !jailed) this.queue('wedding', fiance.id);
@@ -1464,7 +1470,7 @@ export class Life {
       if (settle()) break;
       s.cash += Math.round(this.propValue(e) * 0.9);
       s.estate.splice(s.estate.indexOf(e), 1);
-      sold.push(`the ${this.propName(e).toLowerCase()}`);
+      sold.push(`the ${this.propSaid(e)}`);
     }
     if (!settle() && s.biz) { s.cash += Math.round(this.bizWorth() * 0.8); sold.push(`your ${this.bizName().toLowerCase()}`); s.biz = null; }
     for (const id of ['boat', 'sportscar', 'watch', 'car', 'piano']) {
@@ -1530,5 +1536,6 @@ export class Life {
 }
 
 install({ def, A, Life, clamp });
+installVice({ def, A, Life, clamp });
 
 export { A as ACTIONS, money, cashShort };

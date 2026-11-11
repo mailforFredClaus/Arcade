@@ -187,6 +187,7 @@ const SHEET = {
     const s = life.s;
     let body = '<p class="lead">Every career is a ladder. Skills and shifts worked take you up it, and the right qualification lets you start partway up. Your job is done at the place it belongs to.</p>';
     for (const [c, car] of Object.entries(CAREERS)) {
+      if (car.shady) continue; // (Sal does not advertise.)
       const mine = s.job && s.job.c === c, why = life.can('apply', c), start = life.startRung(c);
       const last = car.rungs[car.rungs.length - 1];
       const ways = Object.entries(car.entry || {}).map(([q, r]) => `<i class="need ${(q === 'degree' ? life.hasDegree() : life.hasEdu(q)) ? 'ok' : ''}">${q === 'degree' ? 'Any degree' : COURSES[q].name} → ${car.rungs[r].title}</i>`).join('');
@@ -237,9 +238,9 @@ const SHEET = {
           ${here ? `<span class="note ok">You live here${s.owned ? ', and own it' : ''}</span>` : ''}
           ${h.rent != null && !(here && !s.owned) ? pick(`Rent · ${money(life.rentOf(id))} a season ${chip('time', '⏱ 1')}`, 'rentHome', id, life.can('rentHome', id)) : ''}
           ${plan && !(here && s.owned) ? pick(`Buy and move in ${chip('time', '⏱ 1')}`, 'buyHome', { id }, life.can('buyHome', { id })) : ''}
-          ${trade ? pick(`Trade in the ${life.propName(mine).toLowerCase()} ${chip('time', '⏱ 1')}`, 'buyHome', { id, trade: true }, life.can('buyHome', { id, trade: true }), 'quiet') : ''}
+          ${trade ? pick(`Trade in the ${life.propSaid(mine)} ${chip('time', '⏱ 1')}`, 'buyHome', { id, trade: true }, life.can('buyHome', { id, trade: true }), 'quiet') : ''}
         </div>
-        ${plan && !(here && s.owned) ? `<p class="fine">To buy: ${how(plan)}${mine && !trade ? '' : ''}.${trade ? ` Trading in: ${how(trade)}.` : mine ? ` Your ${life.propName(mine).toLowerCase()} stays yours.` : ''}</p>` : ''}
+        ${plan && !(here && s.owned) ? `<p class="fine">To buy: ${how(plan)}${mine && !trade ? '' : ''}.${trade ? ` Trading in: ${how(trade)}.` : mine ? ` Your ${life.propSaid(mine)} stays yours.` : ''}</p>` : ''}
       </div>`;
     }
     return { icon: '📦', title: 'Move house', sub: 'Tidewater Estates', body };
@@ -266,6 +267,16 @@ const SHEET = {
       </div>`;
     }
     return { icon: '🏘️', title: 'Property', sub: s.estate.length ? `Worth ${money(life.estateWorth())}. Rent coming in: ${money(life.letIncome())} a season` : 'You own no property yet', body };
+  },
+
+  sal() {
+    const s = life.s, crew = CAREERS.crew, mine = s.job && s.job.c === 'crew';
+    const body = `<p class="lead">Every crime blackens your name and draws the law’s eye, and the more it is watching, the likelier the next one goes wrong. It cools off if you keep your nose clean for a while. Small things are a fine; big ones are prison.</p>
+      <div class="facts"><span>🚨 The law: ${life.lawWord().toLowerCase()}</span><span>${s.n.crimes} crime${s.n.crimes === 1 ? '' : 's'} to your name</span>${s.record ? `<span class="down">Record: ${s.record}</span>` : ''}${s.shark ? `<span class="down">You owe Sal ${money(s.shark)}</span>` : ''}</div>
+      ${sections(life.placeActions('sal'))}
+      <div class="item${mine ? ' mine' : ''}"><div class="item-top"><span class="act-ico">${crew.icon}</span><div><b>The crew</b><small>${esc(crew.blurb)} Every shift is a crime.</small></div></div>
+        ${crew.rungs.map((r, i) => `<div class="rung${mine && s.job.r === i ? ' now' : ''}"><b>${i + 1}. ${r.title}</b><span>${money(r.pay)} a shift</span><div>${needChips(life.needs(r.need))}</div></div>`).join('')}</div>`;
+    return { icon: '🦊', title: 'Sal’s back room', sub: 'Behind the ice house. Knock twice.', body };
   },
 
   pets() {
@@ -640,8 +651,8 @@ function meHtml() {
   ${s.ill ? `<div class="box warn">🤒 ${ill}: it costs you health every season${s.ill.sev >= 3 ? ', and it could kill you' : ''}. St Wren’s can treat it.</div>` : ''}
   <div class="box"><h3>Skills</h3>${STATS.map((k) => `<div class="skill"><i>${STAT_ICON[k]}</i><span>${STAT_NAME[k]}</span><span class="bar"><span style="width:${s.st[k]}%"></span></span><b>${Math.floor(s.st[k])}</b></div>`).join('')}
     <p class="fine">Skills grow by doing things, more slowly the higher they get, and faster when you are happy.</p></div>
-  <div class="box"><h3>Work</h3>${job ? `<div class="line"><span>${job.icon} ${life.jobTitle()}, ${PLACES[job.place].name}</span><b>${money(life.shiftPay())} a shift</b></div>
-      <div class="line"><span>How you stand</span><b>${life.standing()}</b></div>
+  <div class="box"><h3>Work</h3>${job ? `<div class="line"><span>${job.icon} ${life.jobTitle()}, ${job.shady ? 'Sal’s crew' : PLACES[job.place].name}</span><b>${money(life.shiftPay())} a shift</b></div>
+      ${job.shady ? '' : `<div class="line"><span>How you stand</span><b>${life.standing()}</b></div>`}
       ${next ? `<p class="sub">Next: <b>${next.title}</b> (${money(next.pay)} a shift)</p><div class="needs">${needChips(next.list)}</div>` : '<p class="sub">You are at the very top. 🏆</p>'}`
     : s.retired ? `<p class="sub">Retired, on a pension of ${money(s.pension)} a season.</p>` : s.biz ? '<p class="sub">No job: you work for yourself.</p>' : '<p class="sub">Between jobs. The Town Hall has a job board, and the harbour always wants crates unloading.</p>'}
     ${s.biz ? `<div class="line"><span>${BUSINESSES[s.biz.type].icon} Your ${life.bizName().toLowerCase()}, ${PLACES[BUSINESSES[s.biz.type].place].name}</span><b>${s.biz.mgr ? 'Has a manager' : 'Run by you'}</b></div>
@@ -650,11 +661,16 @@ function meHtml() {
   <div class="box"><h3>Study</h3>${s.course ? `<div class="line"><span>${COURSES[s.course.id].icon} ${COURSES[s.course.id].name}</span><b>${s.course.exam ? 'Exam to sit' : `${s.course.p} of ${COURSES[s.course.id].classes}`}</b></div><p class="fine">Heading for ${life.gradeWord(life.examMark())}.</p>` : ''}
     ${Object.keys(s.edu).length ? `<div class="needs">${Object.keys(s.edu).map((id) => `<i class="need ok">${COURSES[id].icon} ${COURSES[id].name}${s.edu[id].g ? `: ${GRADES[s.edu[id].g].toLowerCase()}` : ''}</i>`).join('')}</div>` : s.course ? '' : '<p class="sub">No qualifications yet. The right one lets you start a career partway up.</p>'}</div>
   <div class="box"><h3>Money</h3>
-    ${row('Cash on you', s.cash) || '<div class="line"><span>Cash on you</span><b>$0</b></div>'}${row('Savings', s.bank)}${row('Shares', life.sharesWorth())}${row(`Property (${s.estate.length})`, life.estateWorth())}${row('Your business', life.bizWorth())}${row('Loan', -s.debt, 'down')}${row('Student loan', -s.sloan, 'down')}
+    ${row('Cash on you', s.cash) || '<div class="line"><span>Cash on you</span><b>$0</b></div>'}${row('Savings', s.bank)}${row('Shares', life.sharesWorth())}${row(`Property (${s.estate.length})`, life.estateWorth())}${row('Your business', life.bizWorth())}${row('Loan', -s.debt, 'down')}${row('Student loan', -s.sloan, 'down')}${row('Owed to Sal', -s.shark, 'down')}
     <div class="line total"><span>Worth, all told</span><b>${money(life.netWorth())}</b></div>
     ${s.hist.length > 1 ? `${spark([...s.hist, life.netWorth()], 300, 44)}<p class="fine">What you have been worth, year by year.</p>` : ''}
     <h4>Every season</h4>${bills.map(([what, n]) => row(esc(what), -n, 'down')).join('')}${income.map(([what, n]) => row(esc(what), n, 'up')).join('')}
     <div class="line total"><span>Before any work</span><b>${money(comeIn - out)}</b></div></div>
+  ${s.n.crimes || s.record || s.heat || Object.keys(s.habit).length ? `<div class="box"><h3>The low road</h3>
+    <div class="line"><span>🚨 The law</span><b>${life.lawWord()}</b></div>
+    <div class="line"><span>Crimes to your name</span><b>${s.n.crimes}</b></div>${s.record ? `<div class="line down"><span>Criminal record</span><b>${s.record} conviction${s.record > 1 ? 's' : ''}</b></div>` : ''}
+    ${Object.keys(s.habit).map((k) => `<div class="skill"><i>${k === 'drink' ? '🥃' : '✨'}</i><span>${k === 'drink' ? 'Drink' : 'Dust'}</span><span class="bar"><span style="width:${Math.min(100, s.habit[k])}%;background:${s.habit[k] >= 60 ? 'var(--bad)' : 'var(--sun)'}"></span></span><b>${Math.round(Math.min(100, s.habit[k]))}</b></div>`).join('')}
+    ${life.hooked('drink') || life.hooked('dust') ? '<p class="fine">You are hooked: it costs you health every season, and a season without it is a miserable one. Going without wears it down; the clinic at St Wren’s ends it.</p>' : ''}</div>` : ''}
   ${perks.length ? `<div class="box"><h3>Friends in the right places</h3>${perks.map((c) => `<div class="line"><span>${CAREERS[c].icon} ${CAREERS[c].name}</span><b class="perk">${PERKS[c]}</b></div>`).join('')}</div>` : ''}
   <div class="box"><h3>Dreams</h3>${s.dreams.map((id) => `<div class="dream${s.dreamDone[id] ? ' done' : ''}"><i>${DREAMS[id].icon}</i><div><b>${DREAMS[id].name}</b><small>${s.dreamDone[id] ? `Came true at ${s.dreamDone[id]}` : DREAMS[id].desc}</small></div><em>${s.dreamDone[id] ? '✓' : ''}</em></div>`).join('')}</div>
   <div class="box"><h3>Belongings</h3>${items.length ? `<div class="things">${items.map((id) => `<span title="${ITEMS[id].name}">${ITEMS[id].icon}<small>${ITEMS[id].name}</small></span>`).join('')}</div>` : '<p class="sub">One suitcase. The High Street can fix that.</p>'}
@@ -731,6 +747,7 @@ function showHow() {
     <p><b>Bills fall due every season.</b> Save at the bank, buy shares (the index fund is the steady one) or property to let out, start a business, or borrow. A bicycle or a car gives you more time.</p>
     <p><b>People.</b> Friends are made all over town, and everyone has things they love doing. For romance, chat someone up at the pub, try the dating app, or ask out a friend who is single. Close friends in the right jobs do you favours.</p>
     <p><b>Life happens.</b> Cards turn up with choices. A percentage shows your chance where a skill decides it.</p>
+    <p><b>Or go bad.</b> Pick pockets at the station, lift from the shops, drink and brawl at the pub, bend the rules at work. Sal’s back room at the harbour has worse: burglary, bare-knuckle fights, his crew, the bank. The law takes an interest.</p>
     <p><b>At the end</b> your life earns a ribbon, and each ribbon unlocks an heirloom that a later life can carry. Your heir inherits a share of what you leave.</p></div>
     <div class="actions"><button class="btn btn-primary" data-action="close">Got it</button></div>`);
 }

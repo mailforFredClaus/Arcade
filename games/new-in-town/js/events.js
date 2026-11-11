@@ -29,6 +29,8 @@ const pay = (L) => (L.s.job ? CAREERS[L.s.job.c].rungs[L.s.job.r].pay : 0);
 const busy = (L, n) => { L.s.time = Math.max(0, L.s.time - n); };
 const credit = (L, n) => { if (L.s.job) L.s.job.n += n; };
 const fire = (L) => { if (L.s.job) { L.note(`Sacked as ${L.jobTitle()}.`, 'big'); L.s.job = null; } };
+// How serious an offence is: 1 petty, 4 the bank.
+const sev = (x) => (x && x.sev) || 2;
 const lowest = (L) => STATS.slice().sort((a, b) => L.s.st[a] - L.s.st[b])[0];
 
 export const EVENTS = [
@@ -283,7 +285,7 @@ export const EVENTS = [
     id: 'tooth', icon: '🦷', title: 'Toothache', w: 2,
     text: 'It started as a twinge. It is now the only thing you can think about.',
     opts: [
-      { t: 'See the dentist', cost: 300, run() { return 'Twenty unpleasant minutes and it is over.'; } },
+      { t: 'See the dentist', cost: (L) => L.medCost(300), run() { return 'Twenty unpleasant minutes and it is over.'; } },
       { t: 'It will pass', run(L) { L.sicken('toothache', 1); L.joy(-3); return 'It does not pass.'; } },
     ],
   },
@@ -299,7 +301,7 @@ export const EVENTS = [
     id: 'back', icon: '🧍', title: 'Your back has opinions', w: 2, when: (L) => L.s.age >= 36,
     text: 'You bent down to pick up a sock. You are still down there.',
     opts: [
-      { t: 'See a physio', cost: 400, run(L) { L.hp(2); return 'She does something terrible to your spine and you can stand again.'; } },
+      { t: 'See a physio', cost: (L) => L.medCost(400), run(L) { L.hp(2); return 'She does something terrible to your spine and you can stand again.'; } },
       { t: 'Lie on the floor for a week', run(L) { busy(L, 2); return 'You learn every inch of the ceiling.'; } },
       { t: 'Ignore it', run(L) { L.sicken('bad back', 1); return 'You walk like a question mark.'; } },
     ],
@@ -316,7 +318,7 @@ export const EVENTS = [
     id: 'scare', icon: '💓', title: 'A tightness in the chest', w: 2, when: (L) => L.s.age >= 50,
     text: 'Halfway up the hill you have to stop and hold the railing. It passes. Probably nothing.',
     opts: [
-      { t: 'Go straight to St Wren’s', cost: 1200, run(L) { L.hp(5); return 'Tests, tablets, and a talking-to. Caught early.'; } },
+      { t: 'Go straight to St Wren’s', cost: (L) => L.medCost(1200), run(L) { L.hp(5); return 'Tests, tablets, and a talking-to. Caught early.'; } },
       { t: 'Probably nothing', odds: () => 0.5, run(L, x, win) { if (win) return 'It was nothing. This time.'; L.sicken('heart trouble', 3); L.hp(-15, 'heart trouble'); return 'It was not nothing.'; } },
     ],
   },
@@ -490,8 +492,8 @@ export const EVENTS = [
     id: 'pals', icon: '💒', title: 'Save the date', w: 2, ctx: aFriend, ok: has,
     text: (L, x) => `${P(L, x).name} is getting married, and you are invited.`,
     opts: [
-      { t: 'Go, with a good present', cost: 200, run(L, x) { L.bond(P(L, x), 10); L.joy(5); const p = L.maybeMeet(0.35); return p ? `You are put on the odd-ones-out table, which is how you meet ${p.name}.` : 'You cry at the vows and dance to everything.'; } },
-      { t: 'Send your regrets', run(L, x) { L.bond(P(L, x), -6); return 'You see the photographs afterwards.'; } },
+      { t: 'Go, with a good present', cost: 200, run(L, x) { P(L, x).single = false; L.bond(P(L, x), 10); L.joy(5); const p = L.maybeMeet(0.35); return p ? `You are put on the odd-ones-out table, which is how you meet ${p.name}.` : 'You cry at the vows and dance to everything.'; } },
+      { t: 'Send your regrets', run(L, x) { P(L, x).single = false; L.bond(P(L, x), -6); return 'You see the photographs afterwards.'; } },
     ],
   },
   {
@@ -565,7 +567,7 @@ export const EVENTS = [
     text: (L, x) => `${P(L, x).name} is in the school play. The part is Second Tree. They have been practising standing still for weeks.`,
     opts: [
       { t: 'Front row', run(L, x) { busy(L, 1); L.bond(P(L, x), 8); L.joy(5); return 'The best tree you have ever seen. You tell everyone near you whose tree that is.'; } },
-      { t: 'Work comes first', run(L, x) { L.bond(P(L, x), -7); return 'They say it does not matter. They looked for you from the stage.'; } },
+      { t: 'Work comes first', run(L, x) { L.bond(P(L, x), -7); return `${He(P(L, x))} says it does not matter. ${He(P(L, x))} looked for you from the stage.`; } },
     ],
   },
   {
@@ -573,7 +575,7 @@ export const EVENTS = [
     text: (L, x) => `${P(L, x).name} has been skipping lessons to sit on the harbour wall with friends.`,
     opts: [
       { t: 'A long talk', check: ['charm', 45], run(L, x, win) { const p = P(L, x); if (win) { L.bond(p, 8); return 'It takes an hour to get past the shrugging. Then it all comes out, and you sort it together.'; } L.bond(p, -3); return 'A door slams. Music comes on, loud.'; } },
-      { t: 'Grounded', run(L, x) { L.bond(P(L, x), -5); return 'They do go to school. They do not speak to you.'; } },
+      { t: 'Grounded', run(L, x) { L.bond(P(L, x), -5); return `${He(P(L, x))} does go to school. ${He(P(L, x))} does not speak to you.`; } },
       { t: 'You did the same at that age', run(L, x) { const p = P(L, x); L.bond(p, 3); L.karma(-1); return `You say nothing. ${He(p)} looks at you with new interest.`; } },
     ],
   },
@@ -773,6 +775,61 @@ export const EVENTS = [
     opts: [{ t: 'Fill in the form', run(L) { const n = Math.min(L.s.sloan, 3000); L.s.sloan -= n; L.joy(4); return `${money(n)} comes off what you owe, with the compliments of some long-dead sea captains.`; } }],
   },
 
+  // ---- the low road ----
+  {
+    id: 'hooked', icon: '🫗', title: 'A quiet word', w: 6, cd: 8, when: (L) => (L.hooked('drink') || L.hooked('dust')) && L.s.people.some((p) => p.kind !== 'child' || p.age >= 18),
+    ctx: (L) => { const l = L.s.people.filter((p) => p.kind !== 'child' || p.age >= 18).sort((a, b) => b.bond - a.bond); return l.length ? l[0].id : null; }, ok: has,
+    text: (L, x) => `${P(L, x).name} sits you down. "I have been watching you. It is ${L.hooked('dust') ? 'that stuff from under the pier' : 'the drink'}, and it is getting worse. Let me take you to St Wren’s."`,
+    opts: [
+      { t: 'Go to the clinic', cost: (L) => L.medCost(3500), run(L, x) { busy(L, 3); L.s.habit = {}; L.s.f.clean = 1; L.bond(P(L, x), 8); L.hp(6); L.note('Got clean at St Wren’s.', 'big'); return `Three hard weeks. ${P(L, x).name} is there on visiting days, every one.`; } },
+      { t: 'I can stop whenever I like', run(L, x) { L.bond(P(L, x), -10); return 'You both know what that is worth.'; } },
+      { t: 'Mind your own business', run(L, x) { L.bond(P(L, x), -20); L.joy(2); return `${P(L, x).name} leaves without another word.`; } },
+    ],
+  },
+  {
+    id: 'protection', icon: '🧱', title: 'Nice place you have here', w: 3, cd: 12, when: (L) => !!L.s.biz,
+    text: (L) => `Two of Sal’s lads admire your ${L.bizName().toLowerCase()}. "Lot of glass. Be a shame if there was an accident. Sal can see that there is not."`,
+    opts: [
+      { t: 'Pay up', cost: (L) => Math.round(L.bizTake() / 100) * 100, run() { return 'An envelope changes hands. You are, apparently, now insured.'; } },
+      { t: 'Show them the door', check: ['fitness', 55], run(L, x, win) { const b = L.s.biz; if (win) { b.rep = Math.min(100, b.rep + 4); L.joy(4); return 'They leave faster than they came. Word gets round, and people rather like it.'; } L.rough(12, 'Sal’s lads'); b.rep = Math.max(0, b.rep - 10); return 'They break the window, and then, for completeness, your nose.'; } },
+      { t: '"I work for Sal"', show: (L) => inJob(L, 'crew'), run() { return 'A long pause. "Our mistake," says the big one, and straightens your sign on the way out.'; } },
+    ],
+  },
+  {
+    id: 'blackmail', icon: '🗳️', title: 'Through a lit window', w: 2, once: true,
+    text: 'Late, behind the Town Hall, a lit window: Councillor Pemberton, alone, stuffing voting papers into his own briefcase.',
+    opts: [
+      { t: 'Ask him what your silence is worth', odds: () => 0.65, run(L, x, win) { L.karma(-6); if (win) { L.cash(5000); return 'It turns out to be worth $5,000, in a carrier bag, and a look you will remember.'; } L.s.n.crimes++; L.queue('busted', { what: 'a note made of letters cut out of the Gazette', sev: 2 }); return 'He has friends at the station. Demanding money with menaces, they call it.'; } },
+      { t: 'Tell the Gazette', run(L) { L.karma(4); L.fame(3); return 'Front page. He resigns "to spend more time with his family", who look alarmed.'; } },
+      { t: 'Walk on', run() { return 'You saw nothing. You tell yourself that for a week.'; } },
+    ],
+  },
+  {
+    id: 'crunch', icon: '🚗', title: 'A small crunch', w: 2, when: (L) => !!L.s.items.car || !!L.s.items.sportscar,
+    text: 'Backing out by the chandlery there is a crunch. A parked car, its light in pieces. Nobody about.',
+    opts: [
+      { t: 'Leave a note with your number', cost: 400, run(L) { L.karma(3); return 'The owner rings, astonished. You pay for the light, and are bought a pint.'; } },
+      { t: 'Drive off', odds: () => 0.75, run(L, x, win) { L.karma(-3); if (win) return 'Nobody saw. The gulls are not talking.'; L.cash(-1200); L.warm(8); return 'A curtain twitched. A $1,200 fine, and the whole street knows.'; } },
+    ],
+  },
+  {
+    id: 'tin', icon: '🥫', title: 'The lifeboat tin', w: 2,
+    text: 'The landlord has gone down to the cellar. On the bar, at your elbow, the lifeboat collection tin. It is heavy.',
+    opts: [
+      { t: 'Put a note in', cost: 20, run(L) { L.karma(2); return 'It rattles gratefully.'; } },
+      { t: 'Tip it into your pocket', run(L) { L.karma(-5); if (L.crime(0.1, 1, 'your pockets, jingling')) return 'The landlord comes back up for the bottle opener.'; L.cash(180); return '$180, mostly in coppers. You clank all the way home.'; } },
+      { t: 'Leave it be', run() { return 'You straighten it on the bar, for some reason.'; } },
+    ],
+  },
+  {
+    id: 'snitch', icon: '🕵️', title: 'A detective buys you a tea', w: 3, once: true, when: (L) => L.s.record >= 1 && L.s.n.crimes >= 5,
+    text: '"We do not want you," says the detective. "We want Sal. Tell me about the ice house, and that record of yours could get lost."',
+    opts: [
+      { t: 'Tell her everything', run(L) { L.s.record = 0; L.s.heat = 0; L.cash(3000); L.s.f.salOff = L.s.t + 24; L.karma(2); if (inJob(L, 'crew')) { L.s.job = null; } return 'You talk for three hours. Your record vanishes, $3,000 appears, and you would do well to stay away from the harbour for a few years.'; } },
+      { t: 'You know nothing', run(L) { L.warm(6); return '"Suit yourself," she says, and leaves you with the bill.'; } },
+    ],
+  },
+
   // ---- three longer stories ----
   {
     id: 'bottle1', icon: '🍾', title: 'A bottle on the tideline', w: 2, once: true,
@@ -807,7 +864,7 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'dee2', icon: '🎤', title: 'Dee has an idea', w: 6, cd: 6, when: (L) => L.s.f.dee === 1 && L.s.st.craft >= 40,
+    id: 'dee2', icon: '🎤', title: 'Dee has an idea', w: 6, cd: 6, when: (L) => L.s.f.dee === 1 && L.s.st.craft >= 40 && L.s.people.some((p) => p.name === 'Dee Calloway'),
     text: '"A drummer, a bass, you and me," says Dee. "I have even got the name. The Tidal Waves."',
     opts: [
       { t: 'Let us do it', run(L) { L.s.f.dee = 2; L.s.f.band = 1; L.fame(3); L.joy(8); L.note('Formed a band: The Tidal Waves.', 'big'); return 'Rehearsals in a net loft that smells of tar. You are terrible. Then, one night, you are not.'; } },
@@ -815,7 +872,7 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'dee3', icon: '🎸', title: 'The big stage', w: 6, cd: 6, when: (L) => L.s.f.dee === 2 && L.s.st.craft >= 55,
+    id: 'dee3', icon: '🎸', title: 'The big stage', w: 6, cd: 6, when: (L) => L.s.f.dee === 2 && L.s.st.craft >= 55 && L.s.people.some((p) => p.name === 'Dee Calloway'),
     text: 'The Tidal Waves are top of the bill at the Regatta. Four thousand people. Dee counts you in.',
     opts: [
       { t: 'Play like you mean it', check: ['craft', 60], run(L, x, win) { L.s.f.dee = 3; if (win) { L.fame(8); L.cash(3000); L.joy(12); return 'The whole bay sings the last chorus back at you. $3,000 each, and a man from a record label at the side of the stage.'; } L.fame(2); L.joy(3); return 'A string breaks in the second song. You get through it. Dee says there will be other nights.'; } },
@@ -850,11 +907,40 @@ export const EVENTS = [
   },
   {
     id: 'busted', icon: '🚔', title: 'Evening, all',
-    text: '"Well now," says the constable. "And what might be in the crate?"',
+    text: (L, x) => `A hand on your collar. "Well now," says the constable, looking at ${x && x.what ? x.what : 'what you are carrying'}. "And what have we here?"`,
     opts: [
-      { t: 'Come quietly', run(L) { if (L.s.record >= 1) { L.jail(2); return 'Second time. The magistrate is not amused: two seasons inside.'; } L.s.record++; L.cash(L.perk('law') ? -2000 : -4000); if (L.s.job && CAREERS[L.s.job.c].clean) fire(L); return `${L.perk('law') ? 'Your lawyer friend talks it down to a $2,000 fine' : 'A $4,000 fine'} and a criminal record. Sal has never heard of you.`; } },
-      { t: 'Run for it', check: ['fitness', 55], run(L, x, win) { if (win) return 'Over the nets, round the ice house, and away. Your heart does not slow down for an hour.'; L.hp(-6, 'a fall'); L.jail(2); return 'You make it thirty yards before a lobster pot brings you down. Two seasons inside.'; } },
-      { t: 'It was all Sal', check: ['charm', 60], run(L, x, win) { L.s.f.salOff = L.s.t + 8; if (win) return 'You are so convincing that the constable gives you a lift home. Sal will not be pleased.'; L.jail(3); return 'Sal has an alibi, and three witnesses. You get three seasons, and no friends at the harbour.'; } },
+      { t: 'Come quietly', run(L, x) { return L.sentence(sev(x)); } },
+      { t: 'Run for it', check: ['fitness', 55], run(L, x, win) { if (win) { L.warm(15); return 'Over the nets, round the ice house, and away. Your heart does not slow down for an hour. They will be looking for you now.'; } L.hp(-6, 'a fall'); return `You make it thirty yards before a lobster pot brings you down. Resisting arrest, on top of the rest. ${L.sentence(sev(x) + 1)}`; } },
+      { t: 'Slip the constable something', cost: (L, x) => 1500 * sev(x), odds: (L) => 0.25 + L.s.st.charm / 250 + (L.perk('police') ? 0.2 : 0), run(L, x, win) { L.karma(-2); if (win) return 'The constable looks at the notes, then at the sea, then at nothing at all. "Mind how you go."'; return `"Attempting to bribe an officer," the constable writes, slowly. ${L.sentence(sev(x) + 1)}`; } },
+      { t: 'Say nothing, and send for a good lawyer', cost: (L, x) => (L.perk('law') ? 2000 : 4000) * sev(x), run(L, x) { return `She costs a fortune and earns it. ${L.sentence(sev(x) - 1)}`; } },
+      { t: 'It was all Sal', check: ['charm', 60], show: (L, x) => sev(x) === 2, run(L, x, win) { L.s.f.salOff = L.s.t + 8; if (win) return 'You are so convincing that the constable gives you a lift home. Sal will not be pleased.'; return `Sal has an alibi, and three witnesses. ${L.sentence(sev(x) + 1)}`; } },
+    ],
+  },
+  {
+    id: 'inside', icon: '⛓️', title: 'Starling Gaol',
+    text: (L, x) => `${x.n} season${x.n > 1 ? 's' : ''} to serve. The gate shuts behind you, and a voice from the landing shouts something unrepeatable. How will you do your time?`,
+    opts: [
+      { t: 'Head down, library card out', run(L, x) { L.gain('smarts', Math.min(8, 2 * x.n)); L.jail(x.n); return 'You read everything on the trolley, twice, and speak to nobody. You come out pale, well-read and unemployable.'; } },
+      { t: 'Fall in with the hard cases', run(L, x) { L.gain('fitness', Math.min(8, 2 * x.n)); L.karma(-5); L.s.n.crimes += 3; L.jail(x.n); return 'You learn a great deal in there, none of it on the syllabus. You come out with new friends and their telephone numbers.'; } },
+      { t: 'Go over the wall', odds: (L) => 0.15 + L.s.st.fitness / 300 + L.s.st.smarts / 400, run(L, x, win) { if (win) { L.jail(1); L.s.heat = 100; L.s.f.escaped = 1; L.note('Broke out of Starling Gaol.', 'big'); return 'A laundry van, a bent spoon, and nerve. One season in, you are out, and every constable in the bay has your photograph.'; } L.jail(x.n + 3); return 'The sheet rope is four feet too short. Three seasons more, and no more sheets.'; } },
+    ],
+  },
+  {
+    id: 'legbreakers', icon: '🦈', title: 'A knock at the door', ok: (L) => L.s.shark > 0,
+    text: (L) => `Two of Sal’s lads fill your doorway. "It is about the ${money(L.s.shark)}. Sal has been ever so patient."`,
+    opts: [
+      { t: 'Hand over all you have', show: (L) => L.s.cash > 0, run(L) { const s = L.s, n = Math.min(s.cash, s.shark); s.cash -= n; s.shark -= n; if (!s.shark) s.sharkT = 0; return s.shark ? `They count it on your kitchen table. ${money(s.shark)} to go. "See you soon."` : 'They count it twice, and one of them wipes his feet on the way out.'; } },
+      { t: 'Ask for more time', check: ['charm', 50], run(L, x, win) { if (win) { L.s.sharkT = 0; return '"Sal likes you," says the big one, doubtfully. You have a few more seasons.'; } L.rough(20, 'Sal’s lads'); return 'They are very sorry about your kneecap. It is nothing personal.'; } },
+      { t: 'Throw the first punch', check: ['fitness', 65], run(L, x, win) { if (win) { L.s.sharkT = 3; L.joy(5); L.s.n.fights = (L.s.n.fights || 0) + 1; return 'One goes into the hedge and the other thinks better of it. They will be back, and there will be more of them.'; } const s = L.s; L.rough(25, 'Sal’s lads'); const n = Math.min(s.cash, s.shark); s.cash -= n; s.shark -= n; return 'It is a short fight. They help themselves to your wallet on the way out.'; } },
+    ],
+  },
+  {
+    id: 'caughtOut', icon: '💔', title: 'A small town', ok: has,
+    text: (L, x) => `${P(L, x).name} puts down the telephone very carefully. "That was a friend of mine. She was on the pier last night. So, it seems, were you."`,
+    opts: [
+      { t: 'Beg forgiveness', check: ['charm', 55], run(L, x, win) { const p = P(L, x); if (win) { L.bond(p, -20); return `Tears, promises, a week on the sofa. ${p.name} stays. It will be a long time before ${he(p)} trusts you.`; } return L.split(p, false); } },
+      { t: 'Deny everything', odds: () => 0.4, run(L, x, win) { const p = P(L, x); L.karma(-2); if (win) { L.bond(p, -8); return `You are so wounded and so plausible that ${p.name} ends up apologising. You feel dreadful. Not dreadful enough.`; } L.bond(p, -45); return `${p.name} has a photograph.`; } },
+      { t: 'Shrug', run(L, x) { return L.split(P(L, x), false); } },
     ],
   },
   {
@@ -910,7 +996,7 @@ export const EVENTS = [
   {
     id: 'spouseDies', icon: '🕊️', title: 'The empty chair', ok: has,
     text: (L, x) => `${P(L, x).name} has died, at ${P(L, x).age}, with you beside ${him(P(L, x))}.`,
-    opts: [{ t: 'Goodbye, my love', run(L, x) { const p = P(L, x); L.s.people.splice(L.s.people.indexOf(p), 1); L.joy(-28); return 'The house is very quiet. Their coat is still on its hook.'; } }],
+    opts: [{ t: 'Goodbye, my love', run(L, x) { const p = P(L, x); L.s.people.splice(L.s.people.indexOf(p), 1); L.joy(-28); return `The house is very quiet. ${He(p)[0] === 'H' ? 'His' : 'Her'} coat is still on its hook.`; } }],
   },
   {
     id: 'petDies', icon: '🐾', title: 'A good friend', ok: (L) => !!L.s.pet,

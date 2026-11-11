@@ -5,7 +5,7 @@
 
 import {
   STATS, STAT_NAME, PLACES, CAREERS, HOMES, UPGRADES, PROPS, BUSINESSES, FISH, OUTINGS, KID_PLAY, TRAITS,
-  NAMES_M, NAMES_F, SURNAMES, money,
+  NAMES_M, NAMES_F, SURNAMES, money, low,
 } from './data.js';
 
 export function install({ def, A, Life, clamp }) {
@@ -33,6 +33,7 @@ export function install({ def, A, Life, clamp }) {
         age: clamp(s.age + this.int(-5, 5), 18, 95), trait: this.pick(Object.keys(TRAITS)),
         look: this.randomLook(sex), single: this.chance(0.55),
       }, o);
+      p.sex = sex;
       if (!p.look) p.look = this.randomLook(sex);
       return this.fillPerson(p);
     },
@@ -99,6 +100,8 @@ export function install({ def, A, Life, clamp }) {
     split(p, yours) {
       const s = this.s;
       let text;
+      // A baby on the way goes with its mother.
+      if (s.due && !s.due.adopt && s.sex !== 'f') s.due = null;
       if (p.kind === 'spouse') {
         const half = Math.round((s.cash + s.bank) * (this.perk('law') ? 0.3 : 0.4));
         const fromCash = Math.min(s.cash, half);
@@ -125,7 +128,6 @@ export function install({ def, A, Life, clamp }) {
     growUp(p) {
       if (p.age <= 18) {
         for (const k of STATS) p.st[k] = Math.min(100, p.st[k] + 1.4 + (TRAITS[p.trait].stat === k ? 0.6 : 0) + (p.bond >= 60 ? 0.3 : 0));
-        if (p.priv) { p.st.smarts = Math.min(100, p.st.smarts + 1.6); p.st.charm = Math.min(100, p.st.charm + 0.6); }
       }
       if (p.age === 18) {
         // They go into whatever they are best at.
@@ -140,7 +142,7 @@ export function install({ def, A, Life, clamp }) {
     // What you can do with someone, for their sheet.
     personActions(p) {
       const out = [];
-      for (const a of PEOPLE) {
+      for (const a of PEOPLE.map((id) => A[id]).filter(Boolean)) {
         if (a.id === 'out') { for (const k of Object.keys(OUTINGS)) if (a.show(this, p)) out.push(this.view(a, { p: p.id, a: k })); }
         else if (a.id === 'kid') { for (const k of Object.keys(KID_PLAY)) if (a.show(this, p)) out.push(this.view(a, { p: p.id, a: k })); }
         else if (!a.show || a.show(this, p, {})) out.push(this.view(a, p.id));
@@ -181,7 +183,7 @@ export function install({ def, A, Life, clamp }) {
   def('school', {
     who: true, sec: 'Schooling', icon: '🏫', time: 0,
     title: (L, p) => (p.priv ? 'Back to the village school' : 'Send to St Wren’s School'),
-    desc: (L, p) => (p.priv ? 'Free, and all their friends are there.' : `$2,500 a season. ${he(p) === 'he' ? 'His' : 'Her'} Smarts and Charm grow faster.`),
+    desc: (L, p) => (p.priv ? `Free, and all ${his(p)} friends are there.` : `$2,500 a season. ${he(p) === 'he' ? 'His' : 'Her'} Smarts and Charm grow faster.`),
     show: (L, p) => p.kind === 'child' && p.age >= 4 && p.age < 18,
     run(L, p) { p.priv = !p.priv; return p.priv ? `${p.name} looks very small in the blazer.` : `${p.name} is back with the old gang by lunchtime.`; },
   });
@@ -242,7 +244,7 @@ export function install({ def, A, Life, clamp }) {
     show: (L, p) => p.kind === 'friend',
     run(L, p) { L.s.people.splice(L.s.people.indexOf(p), 1); return `You stop calling. So does ${p.name}. It happens.`; },
   });
-  const PEOPLE = ['out', 'kid', 'askout', 'movein', 'propose', 'baby', 'school', 'call', 'gift', 'forget', 'split'].map((id) => A[id]);
+  const PEOPLE = ['out', 'kid', 'askout', 'movein', 'propose', 'baby', 'split', 'school', 'call', 'gift', 'forget', 'scrounge'];
 
   // Meeting someone with romance in mind, no friendship first.
   def('chatup', {
@@ -282,14 +284,16 @@ export function install({ def, A, Life, clamp }) {
     homeEntry() { return this.estateOf(this.s.homeAt); },
     owns(kind) { return this.s.estate.some((e) => e.kind === kind); },
     propName(e) { return kindOf(e.kind).name; },
+    // As said in the middle of a sentence.
+    propSaid(e) { return low(kindOf(e.kind).name); },
     // What a home costs to rent today: rents rise with prices.
     rentOf(kind) { return Math.round(HOMES[kind].rent * this.s.idx / 10) * 10; },
     // What a kind of property sells for today.
     propPrice(kind) { return Math.round(kindOf(kind).price * this.s.idx / 1000) * 1000; },
     // What one of yours is worth, with whatever has been done to it.
     propValue(e) {
-      const more = Object.keys(e.ups).reduce((a, id) => a + UPGRADES[id].value, 0);
-      return Math.round(kindOf(e.kind).price * this.s.idx * (1 + more) / 1000) * 1000;
+      const more = Object.keys(e.ups).reduce((a, id) => a + UPGRADES[id].cost, 0);
+      return Math.round((kindOf(e.kind).price + more) * this.s.idx / 1000) * 1000;
     },
     // What it brings in each season, let out.
     propEarn(e) { return Math.round(this.propValue(e) * kindOf(e.kind).earn); },
@@ -313,13 +317,16 @@ export function install({ def, A, Life, clamp }) {
     planWhy(p) {
       const s = this.s;
       if (p.ok) return null;
-      return s.cash + s.bank < p.cash ? `You need a deposit of ${money(p.down)}.` : this.blacklisted() ? 'The bank remembers your bankruptcy.' : 'The bank will not lend you enough.';
+      return s.cash + s.bank < p.cash ? `You need ${money(p.cash)} towards it (a fifth has to be paid down).` : this.blacklisted() ? 'The bank remembers your bankruptcy.' : 'The bank will not lend you enough.';
     },
     // Why you couldn't live in a kind of home (the family, mostly).
-    liveWhy(kind) {
+    // e: the property itself, if it is one of yours (it may have an extra bedroom).
+    liveWhy(kind, e = null) {
       const s = this.s, h = HOMES[kind];
       if (!h) return 'Nobody could live there.';
-      if (this.kids().filter((k) => k.age < 18).length > h.kids) return 'No room for the children there.';
+      const room = h.kids + (e && e.ups.extension ? 1 : 0), young = this.kids().filter((k) => k.age < 18).length;
+      if (young > room) return 'No room for the children there.';
+      if (s.due && young + 1 > room) return 'No room there for the little one on the way.';
       if (kind === 'hostel' && this.partner()?.live) return 'Your other half will not live in a hostel.';
       if (kind === 'hostel' && s.pet) return 'No pets in the hostel.';
       return null;
@@ -356,8 +363,8 @@ export function install({ def, A, Life, clamp }) {
     run(L, kind) {
       const s = L.s, old = L.homeEntry(), h = HOMES[kind];
       L.settleIn(kind, null);
-      L.note(`Moved into the ${h.name.toLowerCase()}.`);
-      return `You move into the ${h.name.toLowerCase()}. ${h.blurb}${old ? ` Your ${L.propName(old).toLowerCase()} stands empty: let it out or sell it, under Your property.` : ''}`;
+      L.note(`Moved into the ${low(h.name)}.`);
+      return `You move into the ${low(h.name)}. ${h.blurb}${old ? ` Your ${L.propSaid(old)} stands empty: let it out or sell it, under Your property.` : ''}`;
     },
   });
   // x: { id: the kind of home, trade: sell the one you live in towards it }.
@@ -378,10 +385,10 @@ export function install({ def, A, Life, clamp }) {
       const e = { id: s.eid++, kind: x.id, ups: {}, let: false };
       s.estate.push(e);
       L.settleIn(x.id, e);
-      L.note(`Bought the ${h.name.toLowerCase()} for ${money(p.price)}.`, 'big');
+      L.note(`Bought the ${low(h.name)} for ${money(p.price)}.`, 'big');
       const how = p.loan ? `${money(p.price - p.loan)} down and ${money(p.loan)} borrowed` : `${money(p.price)}, paid outright`;
-      if (x.trade) return `You sell the ${L.propName(old).toLowerCase()} for ${money(p.sale)} and get the keys to the ${h.name.toLowerCase()}: ${how}.`;
-      return `You get the keys to the ${h.name.toLowerCase()}: ${how}.${old ? ` The ${L.propName(old).toLowerCase()} is still yours: let it out or sell it, under Your property.` : ''}`;
+      if (x.trade) return `You sell the ${L.propSaid(old)} for ${money(p.sale)} and get the keys to the ${low(h.name)}: ${how}.`;
+      return `You get the keys to the ${low(h.name)}: ${how}.${old ? ` The ${L.propSaid(old)} is still yours: let it out or sell it, under Your property.` : ''}`;
     },
   });
   // Buying somewhere to let out, not to live in.
@@ -398,8 +405,8 @@ export function install({ def, A, Life, clamp }) {
       L.pay(p);
       const e = { id: s.eid++, kind, ups: {}, let: true };
       s.estate.push(e);
-      L.note(`Bought a ${L.propName(e).toLowerCase()} to let out.`);
-      return `The ${L.propName(e).toLowerCase()} is yours${p.loan ? ` (${money(p.loan)} of it borrowed)` : ''}, and a tenant moves in. It should bring in about ${money(L.propEarn(e))} a season.`;
+      L.note(`Bought a ${L.propSaid(e)} to let out.`);
+      return `The ${L.propSaid(e)} is yours${p.loan ? ` (${money(p.loan)} of it borrowed)` : ''}, and a tenant moves in. It should bring in about ${money(L.propEarn(e))} a season.`;
     },
   });
   def('letProp', {
@@ -410,7 +417,7 @@ export function install({ def, A, Life, clamp }) {
       if (e.id === L.s.homeAt) return 'You live there.';
       return e.let && PROPS[e.kind] ? 'It is no use to anyone empty.' : null;
     },
-    run(L, id) { const e = L.estateOf(id); e.let = !e.let; return e.let ? `A tenant takes the ${L.propName(e).toLowerCase()}: about ${money(L.propEarn(e))} a season.` : `You give the tenant notice. The ${L.propName(e).toLowerCase()} stands empty.`; },
+    run(L, id) { const e = L.estateOf(id); e.let = !e.let; return e.let ? `A tenant takes the ${L.propSaid(e)}: about ${money(L.propEarn(e))} a season.` : `You give the tenant notice. The ${L.propSaid(e)} stands empty.`; },
   });
   def('sellEstate', {
     time: 0,
@@ -426,7 +433,7 @@ export function install({ def, A, Life, clamp }) {
       // The bank takes back whatever it would no longer lend against.
       const over = Math.min(got, Math.max(0, s.debt - L.creditLimit()));
       s.cash -= over; s.debt -= over;
-      return `The ${L.propName(e).toLowerCase()} sells for ${money(got)} after fees${over ? ` (${money(over)} of it goes to the bank, towards your loan)` : ''}.`;
+      return `The ${L.propSaid(e)} sells for ${money(got)} after fees${over ? ` (${money(over)} of it goes to the bank, towards your loan)` : ''}.`;
     },
   });
   def('moveIn', {
@@ -434,14 +441,14 @@ export function install({ def, A, Life, clamp }) {
       const e = L.estateOf(id);
       if (!e) return 'It is not yours.';
       if (e.id === L.s.homeAt) return 'You live there.';
-      return L.liveWhy(e.kind);
+      return L.liveWhy(e.kind, e);
     },
     run(L, id) {
       const e = L.estateOf(id), was = e.let, old = L.homeEntry();
       e.let = false;
       L.settleIn(e.kind, e);
-      L.note(`Moved into the ${L.propName(e).toLowerCase()}.`);
-      return `${was ? 'The tenant moves out, and you' : 'You'} move into your ${L.propName(e).toLowerCase()}.${old ? ` The ${L.propName(old).toLowerCase()} stands empty.` : ''}`;
+      L.note(`Moved into the ${L.propSaid(e)}.`);
+      return `${was ? 'The tenant moves out, and you' : 'You'} move into your ${L.propSaid(e)}.${old ? ` The ${L.propSaid(old)} stands empty.` : ''}`;
     },
   });
   // x: { id: which improvement, diy: do it yourself }.
@@ -485,7 +492,8 @@ export function install({ def, A, Life, clamp }) {
       const b = this.s.biz;
       if (!b) return 0;
       const k = BUSINESSES[b.type];
-      return Math.round((k.cost.slice(0, b.lvl + 1).reduce((a, n) => a + n, 0) * 0.6 + this.bizTake() * 4) / 100) * 100;
+      // (Its goodwill is worth nothing until it has been going a while.)
+      return Math.round((k.cost.slice(0, b.lvl + 1).reduce((a, n) => a + n, 0) * 0.6 + this.bizTake() * Math.min(4, b.age / 2)) / 100) * 100;
     },
     bizCost(lvl) { return Math.round(BUSINESSES.food.cost[lvl] * (lvl === 0 && this.s.heir === 'founder' ? 0.5 : 1)); },
     // The end of a season in the life of the business.
