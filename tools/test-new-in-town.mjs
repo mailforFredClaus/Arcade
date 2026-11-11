@@ -1519,6 +1519,30 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', sibs:
       check(r.ok && typeof r.text === 'string' && !/undefined|NaN/.test(r.text), `${id}, choice ${i + 1}: reads properly (${r.text || r.why})`);
     }
   }
+  // Three longer stories.
+  const St = fresh();
+  St.s.home = 'flat';
+  const story = (X, id, i) => { const ev = EVENTS.find((e) => e.id === id); if (!ev.when(X)) return false; X.queue(id, ev.ctx ? ev.ctx(X) : null); const r = X.choose(i); return r.ok && !/undefined|NaN/.test(r.text); };
+  check(story(St, 'stray1', 0) && St.s.f.stray === 1 && !EVENTS.find((e) => e.id === 'stray3').when(St), 'a stray dog follows you home');
+  St.s.cash = 1000;
+  check(story(St, 'stray2', 0) && St.s.f.stray === 2 && story(St, 'stray3', 0) && St.s.pet && St.s.pet.name === 'Scraps' && St.s.ach.scraps && St.s.ach.pet, 'and, looked after, stays');
+  check(!EVENTS.find((e) => e.id === 'stray1').when(St), 'one dog is enough');
+  const Ap = fresh();
+  Ap.s.job = { c: 'kitchen', r: 3, n: 0, perf: 50, raise: 0 };
+  check(story(Ap, 'app1', 0) && Ap.person(Ap.s.f.app) && Ap.person(Ap.s.f.app).job === 'kitchen', 'somebody young is put in your charge');
+  const lad = Ap.person(Ap.s.f.app), lb = lad.bond;
+  check(story(Ap, 'app2', 0) && lad.bond === lb + 22 && Ap.s.job.perf === 38, 'you can take the blame for them');
+  check(!EVENTS.find((e) => e.id === 'app3').when(Ap), 'they have to grow up first');
+  lad.age = 25;
+  check(story(Ap, 'app3', 0) && Ap.s.f.mentor && Ap.s.ach.mentor, 'and one day they outgrow you');
+  const Dr = fresh();
+  Dr.s.age = 30; Dr.s.st.smarts = 60;
+  check(story(Dr, 'drains1', 0) && Dr.s.f.drains === 1 && story(Dr, 'drains2', 1) && Dr.s.f.drains === 2 && Dr.enemies().length === 1 && Dr.s.ach.drains, 'the mayor’s drains can go to the Gazette, which makes an enemy');
+  check(story(Dr, 'drains3', 1) && Dr.s.f.drains === 3, 'and brings a vacancy');
+  const bent = fresh();
+  bent.s.age = 30; bent.s.st.smarts = 60;
+  const bc = bent.s.cash;
+  check(story(bent, 'drains1', 0) && story(bent, 'drains2', 0) && bent.s.cash === bc + 8000 && bent.s.karma < 0 && !EVENTS.find((e) => e.id === 'drains3').when(bent), 'or the page can be lost, for a price');
   // The notice board.
   for (const [id, j] of Object.entries(ODD_JOBS)) check(STATS.includes(j.stat) && j.win && j.lose && (j.pay > 0 || j.karma > 0) && (!j.need || ITEMS[j.need]), `${id}: a job for the notice board`);
   const N = fresh();

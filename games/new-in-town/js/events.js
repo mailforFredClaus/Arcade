@@ -1213,6 +1213,84 @@ export const EVENTS = [
       { t: 'You like your own company', run() { return 'She finds somewhere over the chemist’s.'; } },
     ],
   },
+  // ---- three longer stories: a stray, an apprentice, and the mayor's drains ----
+  {
+    id: 'stray1', icon: '🐕', title: 'Followed home', w: 5, once: true, when: (L) => !L.s.pet && L.s.home !== 'hostel',
+    text: 'A thin brown dog has followed you up from the harbour three nights running. Tonight it is sitting on your step, pretending to look at something else.',
+    opts: [
+      { t: 'Give it the end of the sausages', run(L) { L.s.f.stray = 1; L.joy(2); return 'It eats them in one movement, looks at you for a long moment, and trots off into the dark.'; } },
+      { t: 'Shoo', run(L) { L.s.f.stray = -1; return 'It goes, without hurrying, as if it had somewhere better to be.'; } },
+    ],
+  },
+  {
+    id: 'stray2', icon: '🐕', title: 'On three legs', w: 7, once: true, when: (L) => L.s.f.stray === 1 && !L.s.pet,
+    text: 'The brown dog is back on your step, holding one front paw off the ground and not making a fuss about it.',
+    opts: [
+      { t: 'Carry it to the shelter vet', cost: 150, run(L) { L.s.f.stray = 2; L.karma(2); return 'A fish hook, in deep. The vet says it has been living on the quay for a year, and that nobody has ever got near enough to touch it before.'; } },
+      { t: 'See to it yourself', check: ['craft', 35], run(L, x, win) { L.s.f.stray = 2; if (win) { L.joy(3); return 'Pliers, a steady hand, and half a pot of honey. It licks your wrist once, which seems to be all the thanks that are going.'; } L.rough(2, 'a dog bite'); return 'You get the hook out, and it gets you. Neither of you holds it against the other.'; } },
+      { t: 'It is not your dog', run(L) { L.s.f.stray = -1; L.karma(-1); return 'It is gone in the morning. You look for it on the quay for a week or two, and tell yourself you are not looking.'; } },
+    ],
+  },
+  {
+    id: 'stray3', icon: '🐕', title: 'Nobody’s dog', w: 8, once: true, when: (L) => L.s.f.stray === 2 && !L.s.pet && L.s.home !== 'hostel',
+    text: 'The shelter has had the brown dog for a month and nobody has asked for it. It has, they say, made up its mind about where it lives, and it sits by their door facing your street.',
+    opts: [
+      { t: 'Bring it home', run(L) { const s = L.s; s.pet = { kind: 'dog', name: 'Scraps', age: 3, since: s.t }; s.f.stray = 3; L.joy(12); L.karma(2); L.note('Scraps, the brown dog from the quay, came to live with you.', 'big'); return 'It walks in as if it had only been out for the paper, turns round three times on your best chair, and sleeps for a day and a half. You call it Scraps.'; } },
+      { t: 'Find it a good home', run(L) { L.s.f.stray = -1; L.karma(3); return 'The lighthouse keeper takes it. You see it sometimes on the rocks, barking at the sea, and it always stops to look at you.'; } },
+    ],
+  },
+  {
+    id: 'app1', icon: '🧑‍🎓', title: 'Somebody to look after', w: 5, once: true, when: (L) => inJob(L) && !CAREERS[L.s.job.c].shady && L.s.job.r >= 3 && L.friends().length < 20,
+    text: 'The boss has given you a school-leaver to mind: eighteen, all elbows, and frightened of the telephone.',
+    opts: [
+      { t: 'Take the youngster under your wing', run(L) { const p = L.meet({ age: 18, job: L.s.job.c, bond: 30, single: true }); L.s.f.app = p.id; L.karma(2); return `${p.name}. By Friday ${he(p)} can answer the telephone. By the end of the month ${he(p)} is correcting your sums.`; } },
+      { t: 'Hand over the filing', run(L) { L.s.f.app = -1; return 'The filing gets done. The youngster leaves at Christmas, for a firm in the city.'; } },
+    ],
+  },
+  {
+    id: 'app2', icon: '🧑‍🎓', title: 'Whose mistake?', w: 7, once: true, when: (L) => inJob(L) && L.s.f.app > 0 && !!L.person(L.s.f.app) && L.person(L.s.f.app).kind === 'friend',
+    ctx: (L) => L.s.f.app, ok: (L, x) => has(L, x) && inJob(L),
+    text: (L, x) => `Something has gone badly wrong at work, and it will cost money. Nobody yet knows whose doing it was. You do: ${P(L, x).name} is at ${his(P(L, x))} desk, the colour of paper.`,
+    opts: [
+      { t: 'Say it was yours', run(L, x) { const p = P(L, x); L.s.job.perf = Math.max(0, L.s.job.perf - 12); L.bond(p, 22); L.karma(4); return `The boss is short with you for a month. ${p.name} never says a word about it, and never forgets it.`; } },
+      { t: (L, x) => `Go in with ${him(P(L, x))}, and stand there while ${he(P(L, x))} says it`, check: ['charm', 45], run(L, x, win) { const p = P(L, x); L.bond(p, 12); if (win) { L.s.job.perf = Math.min(100, L.s.job.perf + 4); return `It is the worst five minutes of ${his(p)} life so far, and the boss ends it by saying "Well. Don’t do it again." You are both noticed, and not badly.`; } return 'It goes about as badly as these things go. But it is said, and it is over.'; } },
+      { t: 'Say nothing', run(L, x) { const p = P(L, x); L.bond(p, -18); L.karma(-2); return `${p.name} takes it alone. ${He(p)} does not look at you on the way out of the boss’s office.`; } },
+    ],
+  },
+  {
+    id: 'app3', icon: '🧑‍🎓', title: 'A word, if you have a minute', w: 7, once: true, when: (L) => L.s.f.app > 0 && !!L.person(L.s.f.app) && L.person(L.s.f.app).bond >= 45 && L.person(L.s.f.app).age >= 24,
+    ctx: (L) => L.s.f.app, ok: has,
+    text: (L, x) => `${P(L, x).name} has been offered a big job, a long way off, and has come to ask you what to do before telling anybody else.`,
+    opts: [
+      { t: (L, x) => `Tell ${him(P(L, x))} to take it`, run(L, x) { const p = P(L, x); L.s.f.mentor = 1; L.joy(8); L.karma(3); L.bond(p, 10); L.note(`${p.name}, whom you trained, went on to great things.`, 'big'); return `${He(p)} goes, and does well, and says in every interview that ${he(p)} was taught by the best. A card comes every Christmas, with a photograph you are meant to be proud of. You are.`; } },
+      { t: (L, x) => `Ask ${him(P(L, x))} to stay`, check: ['charm', 55], run(L, x, win) { const p = P(L, x); if (win) { if (L.s.job) L.s.job.perf = Math.min(100, L.s.job.perf + 10); L.bond(p, 4); return `${He(p)} stays, for you. The firm is the better for it. You hope ${he(p)} is.`; } L.bond(p, -12); return `${He(p)} goes anyway, and it is a little cooler between you afterwards than it should have been.`; } },
+    ],
+  },
+  {
+    id: 'drains1', icon: '📒', title: 'The drains account', w: 3, once: true, when: (L) => L.s.age >= 26 && (L.s.st.smarts >= 45 || inJob(L, 'finance', 'law', 'politics')),
+    text: 'Doing somebody a favour at the Town Hall, you turn up the wrong ledger. Forty thousand dollars for drains, last year, paid to a firm at the address of the mayor’s brother-in-law. There are no new drains.',
+    opts: [
+      { t: 'Copy the page', run(L) { L.s.f.drains = 1; return 'It takes two minutes with a pencil. You put the ledger back exactly as it was, one page lighter in your conscience and one heavier in your pocket.'; } },
+      { t: 'Put it back and forget it', run(L) { L.s.f.drains = -1; return 'It is none of your business. You say so to yourself several times on the way home.'; } },
+    ],
+  },
+  {
+    id: 'drains2', icon: '🎩', title: 'The mayor would like a word', w: 8, once: true, when: (L) => L.s.f.drains === 1,
+    text: 'The mayor’s office has a carpet you sink into. "I am told," he says, pouring two glasses, "that you take an interest in drains."',
+    opts: [
+      { t: 'Take what he offers, and lose the page', run(L) { L.s.f.drains = -1; L.cash(8000); L.karma(-8); return 'An envelope, and a hand on your shoulder all the way to the door. $8,000. The drains remain a mystery.'; } },
+      { t: 'Take the page to the Gazette', run(L) { L.s.f.drains = 2; L.karma(8); L.fame(4); if (L.enemies().length < 3) L.foe({ name: 'Mayor Pennington', sex: 'm', age: 61, grudge: 85, hard: 25 }); L.note('Took the story of the mayor’s drains to the Gazette.', 'big'); return 'It is on the front page by Friday, under a photograph of a hole in the road. The mayor says he will sue. He does not.'; } },
+      { t: 'Ask what a friend of the mayor might expect', show: (L) => inJob(L, 'politics'), run(L) { L.s.f.drains = -1; L.karma(-5); L.s.job.perf = Math.min(100, L.s.job.perf + 25); L.s.job.n += 4; return 'A friend of the mayor, it turns out, can expect to get on. You get on.'; } },
+    ],
+  },
+  {
+    id: 'drains3', icon: '🗳️', title: 'A vacancy', w: 8, once: true, when: (L) => L.s.f.drains === 2,
+    text: 'The mayor has resigned "to spend more time with his family", who are not said to be pleased. People keep stopping you in the street to say that somebody honest ought to stand for the council.',
+    opts: [
+      { t: 'Stand', check: ['charm', 50], run(L, x, win) { L.s.f.drains = 3; if (win) { L.fame(5); L.karma(3); L.joy(8); if (inJob(L, 'politics')) { L.s.job.perf = 100; L.s.job.n += 6; } L.note('Elected to the council on the strength of the drains.', 'big'); return 'You win by a street. Your first act is to ask where the drains are. They are found, in the end, on a drawing.'; } L.joy(-3); return 'You lose to a man who promises a second ice cream van. That is democracy.'; } },
+      { t: 'It ought to be somebody else', run(L) { L.s.f.drains = 3; L.karma(1); return 'It is the woman from the chemist’s, and she is very good. You are thanked in her speech, which is plenty.'; } },
+    ],
+  },
   // ---- bad blood ----
   {
     id: 'spite', icon: '😠', title: 'Bad blood', ok: (L, x) => has(L, x.p) && P(L, x.p).kind === 'enemy',
