@@ -295,7 +295,7 @@ export function install({ def, A, Life, clamp }) {
   def('pymOpen', { place: 'highstreet', sec: 'Pym’s Curios', icon: '🏺', title: 'Browse the curios', desc: (L) => `Old things, bought and sold. ${Object.keys(L.s.curSeen).length} of ${Object.keys(CURIOS).length} found.`, time: 0, open: 'curios' });
   def('curioBuy', {
     time: 0, cost: (L, i) => (L.s.cur && L.s.cur.stock[i] ? L.s.cur.stock[i].ask : 0),
-    why: (L, i) => (L.s.cur && L.s.cur.stock[i] ? null : 'It has gone.'),
+    why: (L, i) => (L.pymShut() ? 'Mr Pym is not at home to you.' : L.s.cur && L.s.cur.stock[i] ? null : 'It has gone.'),
     run(L, i) {
       const [c] = L.s.cur.stock.splice(i, 1), k = L.gotCurio(c.id);
       return `Mr Pym wraps ${k.the} in last week’s Gazette${c.ask < k.worth * 0.75 ? '. You try not to look pleased until you are outside' : c.ask > k.worth * 1.2 ? ', humming' : ''}.`;
@@ -303,7 +303,7 @@ export function install({ def, A, Life, clamp }) {
   });
   def('haggle', {
     time: 0, per: 1,
-    why: (L) => (L.s.cur && L.s.cur.stock.length ? null : 'There is nothing to haggle over.'),
+    why: (L) => (L.pymShut() ? 'Mr Pym is not at home to you.' : L.s.cur && L.s.cur.stock.length ? null : 'There is nothing to haggle over.'),
     run(L) {
       const cur = L.s.cur, won = L.chance(L.checkOdds('charm', 50));
       for (const c of cur.stock) c.ask = round10(c.ask * (won ? 0.82 : 1.1));
@@ -312,7 +312,7 @@ export function install({ def, A, Life, clamp }) {
   });
   def('curioSell', {
     time: 0,
-    why: (L, id) => (L.s.curios[id] > 0 ? null : 'You have not got one.'),
+    why: (L, id) => (L.pymShut() ? 'Mr Pym is not at home to you.' : L.s.curios[id] > 0 ? null : 'You have not got one.'),
     run(L, id) {
       const s = L.s, pay = L.curioBid(id);
       if (--s.curios[id] <= 0) delete s.curios[id];
@@ -323,7 +323,7 @@ export function install({ def, A, Life, clamp }) {
   // He takes your own things too, for a good deal less than they cost.
   def('pawn', {
     time: 0,
-    why: (L, id) => (!(ITEMS[id] && L.s.items[id]) ? 'You have not got one.' : L.s.use[`got_${id}`] ? 'You have only just bought it.' : null),
+    why: (L, id) => (L.pymShut() ? 'Mr Pym is not at home to you.' : !(ITEMS[id] && L.s.items[id]) ? 'You have not got one.' : L.s.use[`got_${id}`] ? 'You have only just bought it.' : null),
     run(L, id) {
       const s = L.s, pay = L.pawnPrice(id), was = L.timeMax();
       delete s.items[id];

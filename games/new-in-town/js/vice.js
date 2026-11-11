@@ -7,7 +7,7 @@
 // makes the next one riskier until it cools. Get caught and a card decides
 // the rest: fines for small things, prison for big ones.
 
-import { CAREERS, ITEMS, money, low } from './data.js';
+import { CAREERS, ITEMS, CURIOS, money, low } from './data.js';
 
 // What bending the rules looks like in each line of work.
 const GRAFT = {
@@ -82,6 +82,8 @@ export function install({ def, A, Life, clamp }) {
     },
     lawWord() { const h = this.s.heat; return h >= 75 ? 'Hunting for you' : h >= 45 ? 'Wants a word' : h >= 15 ? 'Watching you' : 'No interest in you'; },
     hooked(k) { return (this.s.habit[k] || 0) >= 60; },
+    // Mr Pym does not forget being sold a fake.
+    pymShut() { return this.s.t < (this.s.f.pymOff || 0); },
     // The end of a season, on the low road: heat cools, habits bite, Sal's interest mounts.
     viceSeason() {
       const s = this.s;
@@ -179,6 +181,19 @@ export function install({ def, A, Life, clamp }) {
       const got = L.int(30, 75) * 100;
       L.cash(got); L.s.n.thefts = (L.s.n.thefts || 0) + 1;
       return `Forty seconds with a coat hanger. You deliver it before the owner has finished breakfast: ${money(got)}.`;
+    },
+  });
+  def('smuggle', {
+    place: 'sal', sec: 'Jobs', icon: '🌒', title: 'Meet a trawler off the point', time: 2,
+    desc: (L) => `Your boat, no lights, forty cases of something French. Worth $9,000 to $18,000. About ${Math.round(L.riskOf(0.17) * 100)}% the customs cutter is waiting.`,
+    show: (L) => !!L.s.items.boat,
+    why: (L) => (L.s.wx === 'storm' ? 'Not even Sal would send a boat out in this.' : L.s.t < (L.s.f.salOff || 0) ? 'Sal is not speaking to you.' : null),
+    run(L) {
+      L.gain('fitness', 0.5);
+      if (L.crime(0.17, 3, 'forty cases of brandy and no lights showing')) return 'A searchlight comes on dead ahead. The cutter has been sitting there, engines off, all night.';
+      const got = L.int(90, 180) * 100;
+      L.cash(got); L.s.n.runs = (L.s.n.runs || 0) + 1;
+      return `${L.s.wx === 'fog' ? 'Fog so thick you find the trawler by the smell of its galley.' : L.pick(['Hand over hand in the dark, and not a word spoken.', 'The skipper counts the cases twice, in French.', 'You are back on your mooring before the milk float.'])} Sal counts out ${money(got)}.`;
     },
   });
   def('torch', {
@@ -282,6 +297,27 @@ export function install({ def, A, Life, clamp }) {
       L.karma(-3);
       if (L.chance(0.8)) { L.s.record = 0; return 'The file goes into the shredder a page at a time. As far as Starling Bay knows, you have never put a foot wrong.'; }
       return 'The clerk takes the money and loses his nerve. Your record is exactly where it was.';
+    },
+  });
+
+  // -- a little something Mr Pym has not seen before
+  def('forge', {
+    place: 'studios', sec: 'Under the counter', icon: '🏺', title: 'Knock up an antique', cost: 120, time: 2, per: 1,
+    desc: (L) => `Tea, shoe polish, a week in the airing cupboard. ${Math.round(L.checkOdds('craft', 65) * 100)}% Mr Pym is taken in; if he is not, he will not have you in the shop.`,
+    show: (L) => L.s.st.craft >= 45,
+    why: (L) => (L.pymShut() ? 'Mr Pym is not at home to you.' : null),
+    run(L) {
+      const s = L.s;
+      L.gain('craft', 1.5); L.karma(-3);
+      s.n.crimes++;
+      if (!L.chance(L.checkOdds('craft', 65))) {
+        s.f.pymOff = s.t + 8;
+        const caught = L.crime(0.25, 2, 'a "Georgian" tea caddy that smells of shoe polish');
+        return `Mr Pym holds it up to the light, sniffs it, and puts it down very gently. "Out."${caught ? ' He has also, it turns out, telephoned the constable.' : ' You will not be welcome there for a couple of years.'}`;
+      }
+      const c = CURIOS[L.anyCurio()], got = Math.round(c.worth * 0.6 / 10) * 10;
+      L.cash(got); s.n.fakes = (s.n.fakes || 0) + 1;
+      return `Mr Pym turns your ${c.name.toLowerCase().replace('roman', 'Roman')} over for a long time, and then pays ${money(got)} for it. It will be in the window by Friday, described as "rare".`;
     },
   });
 

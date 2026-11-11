@@ -636,6 +636,8 @@ export const TROPHIES = {
   reigning: { name: 'Reigning champion', icon: '👑', desc: 'Win the same contest three times.', test: (L) => Object.values(L.s.fests).some((n) => n >= 3) },
   oddjobs: { name: 'Odd-job man', icon: '📌', desc: 'Do twenty jobs from the notice board.', test: (L) => (L.s.n.odd || 0) >= 20 },
   slump: { name: 'Seen it all', icon: '📰', desc: 'Live through a boom and a deep slump.', test: (L) => !!L.s.f.sawBoom && !!L.s.f.sawSlump },
+  runner: { name: 'Moonlight', icon: '🌒', desc: 'Bring five loads ashore for Sal.', test: (L) => (L.s.n.runs || 0) >= 5 },
+  faker: { name: 'Genuine antique', icon: '🏺', desc: 'Sell Mr Pym something you made last week.', test: (L) => (L.s.n.fakes || 0) >= 1 },
   dream1: { name: 'Dream come true', icon: '✨', desc: 'Make a dream come true.', test: (L) => Object.keys(L.s.dreamDone).length >= 1 },
   dream3: { name: 'Living the dream', icon: '🌈', desc: 'Make all three dreams come true in one life.', test: (L) => Object.keys(L.s.dreamDone).length >= 3 },
   age90: { name: 'Evergreen', icon: '🌲', desc: 'Live to 90.', test: (L) => L.s.age >= 90 },

@@ -542,6 +542,7 @@ const SHEET = {
 
   curios() {
     const s = life.s, cur = s.cur;
+    if (life.pymShut()) return { icon: '🏺', title: 'Pym’s Curios', sub: 'Closed, to you', body: '<p class="lead">The card in the door says OPEN. Mr Pym, seeing you through the glass, turns it round. He has not forgotten the tea caddy, and will not for a while yet.</p>' };
     let body = '<p class="lead">Mr Pym buys and sells old things, and his prices wander: the guide price is what a thing is really worth. Four of a kind make a set, and a set is worth twice its parts to a collector.</p><h3>In the window</h3>';
     cur.stock.forEach((c, i) => {
       const k = CURIOS[c.id];

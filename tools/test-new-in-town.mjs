@@ -815,6 +815,29 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', sibs:
   check(C.s.cash === 10000 && (C.s.record === 0 || C.s.record === 2), 'a record can be lost, for a price, usually');
 }
 
+// More of the low road: brandy by moonlight, and antiques made last week.
+{
+  const L = fresh();
+  L.s.n.crimes = 3;
+  check(!L.placeActions('sal').some((a) => a.id === 'smuggle'), 'no boat, no smuggling');
+  L.s.items.boat = 1;
+  check(L.placeActions('sal').some((a) => a.id === 'smuggle' && !a.why), 'with a boat, Sal has night work');
+  L.s.wx = 'storm';
+  check(L.can('smuggle').includes('Not even Sal'), 'but not in a gale');
+  L.s.wx = 'fair';
+  let runs = 0, nicked = 0, cash = 0;
+  for (let i = 0; i < 300; i++) { const X = new Life(JSON.parse(JSON.stringify(L.s))); X.s.rng = i * 53; const c = X.s.cash; X.act('smuggle'); if (X.s.n.runs) { runs++; cash += X.s.cash - c; } else if (X.event() && X.event().id === 'busted' && X.s.pend[0].x.sev === 3) nicked++; }
+  check(runs + nicked === 300 && nicked > 20 && nicked < 110 && cash / runs >= 9000 && cash / runs <= 18000, `a run pays well, and now and then the cutter is waiting (${nicked} of 300)`);
+  const F = fresh();
+  check(!F.placeActions('studios').some((a) => a.id === 'forge'), 'a clumsy pair of hands cannot fake anything');
+  F.s.st.craft = 100; F.s.cash = 5000;
+  let sold = null, spotted = null;
+  for (let i = 0; i < 80 && !(sold && spotted); i++) { const X = new Life(JSON.parse(JSON.stringify(F.s))); X.s.rng = i * 29; X.act('forge'); if (X.s.n.fakes) sold = X; else spotted = X; }
+  check(sold && sold.s.cash > 5000 - 120 && sold.s.karma < 0 && sold.s.n.crimes === 1 && sold.s.ach.faker && sold.can('forge') === 'Once a season.', 'a good fake sells, and is a crime');
+  check(spotted && spotted.pymShut() && spotted.can('curioBuy', 0) === 'Mr Pym is not at home to you.' && (spotted.s.use = {}, spotted.can('forge').includes('not at home')), 'a bad one shuts Mr Pym’s door to you');
+  if (spotted) { for (let i = 0; i < 8; i++) { spotted.endSeason(); spotted.s.pend = []; } check(!spotted.pymShut() || !!spotted.s.gaol, 'for two years'); }
+}
+
 // ---- Starling Gaol ----------------------------------------------------------------------
 
 {
