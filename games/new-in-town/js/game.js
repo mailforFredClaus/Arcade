@@ -7,7 +7,7 @@ import { Life } from './engine.js';
 import {
   money, cashShort, SEASONS, SEASON_ICON, STATS, STAT_NAME, STAT_ICON, PLACES, CAREERS, COURSES, GRADES, STUDENT_RATE, HOMES, UPGRADES, FOOD, INSURANCE, ITEMS,
   STOCKS, PROPS, BUSINESSES, FISH, OUTINGS, PERKS, PETS, TRAITS, BACKGROUNDS, LOOKS, DREAMS, QUESTS, TROPHIES, RIBBONS, RIBBON, NAMES_M, NAMES_F, LOAN_RATE,
-  CROPS, PLOT_RENT, CURIOS, CURIO_SETS, GIFTS, many,
+  CROPS, PLOT_RENT, CURIOS, CURIO_SETS, GIFTS, many, an, lowJob,
 } from './data.js';
 import { handTotal } from './pier.js';
 import { CHIRPS } from './fame.js';
@@ -398,7 +398,7 @@ const SHEET = {
     const list = life.prospects(), odds = pct(life.wooOdds());
     let body = `<p class="lead">Three new faces every season. A first date costs $60 and an evening. Whether there is a second is down to charm (yours gives you about a ${odds} chance), and to reading the person: the profile says what they are like, so play to it.</p>`;
     list.forEach((p, i) => {
-      body += `<div class="item"><div class="item-top"><span class="ava">${face(p.look, p.age, 70, p.sex)}</span><div><b>${esc(p.name)}, ${p.age} ${sexMark(p)}</b><small>${p.sex === 'm' ? 'He' : 'She'} is ${TRAITS[p.trait].name.toLowerCase()}, and works as ${/^[aeiou]/i.test(life.jobOf(p)) ? 'an' : 'a'} ${life.jobOf(p).toLowerCase()}</small></div></div>
+      body += `<div class="item"><div class="item-top"><span class="ava">${face(p.look, p.age, 70, p.sex)}</span><div><b>${esc(p.name)}, ${p.age} ${sexMark(p)}</b><small>${p.sex === 'm' ? 'He' : 'She'} is ${TRAITS[p.trait].name.toLowerCase()}, and works as ${an(lowJob(life.jobOf(p)))}</small></div></div>
         <div class="facts"><span>${TRAITS[p.trait].icon} ${TRAITS[p.trait].name}</span><span>Loves ${OUTINGS[p.likes[0]].icon} ${OUTINGS[p.likes[0]].name.toLowerCase()}</span></div>
         <div class="picks">${pick(`Ask on a date · $60 ${chip('time', '⏱ 1')}`, 'match', i, life.can('match', i))}</div></div>`;
     });
@@ -516,11 +516,11 @@ const SHEET = {
 
   gifts() {
     const s = life.s;
-    let body = '<p class="lead">The mayor keeps a list of things Starling Bay needs and cannot afford. Pay for one and your name goes on it, for good: if your family carries on here, it will still be standing, and still doing them good.</p>';
+    let body = '<p class="lead">The mayor keeps a list of things Starling Bay needs and cannot afford. Pay for one and your name goes on it, for good: if your family carries on here, it will still be standing, and most of them will still be doing your heirs good.</p>';
     for (const [id, g] of Object.entries(GIFTS)) {
       const by = s.gifts[id], why = life.can('fund', id);
       body += `<div class="item${by ? ' mine' : ''}"><div class="item-top"><span class="act-ico">${g.icon}</span><div><b>${g.name}</b><small>${esc(by ? life.plaque(id) : g.blurb)}</small></div>${by ? '' : `<div class="quote"><b>${cashShort(g.cost)}</b></div>`}</div>
-        <div class="facts"><span class="${by ? 'up' : ''}">${by ? '✓ ' : ''}${g.perk}</span></div>
+        <div class="facts"><span class="${by && !(g.own && !s.gave[id]) ? 'up' : ''}">${by && !(g.own && !s.gave[id]) ? '✓ ' : ''}${by && g.own && !s.gave[id] ? 'The seat on the pier company’s board went with the one who paid for it.' : g.perk}</span></div>
         ${by ? '' : `<div class="picks">${pick(`Pay for it · ${cashShort(g.cost)} ${chip('time', '⏱ 1')}`, 'fund', id, why)}${why ? `<span class="note">${esc(why)}</span>` : ''}</div>`}</div>`;
     }
     return { icon: '🏗️', title: 'The mayor’s appeal', sub: `${Object.keys(s.gifts).length} of ${Object.keys(GIFTS).length} given`, body };
@@ -820,6 +820,7 @@ function chooseOpt(el) {
   const r = life.choose(i);
   if (!r.ok) { sfx('nope'); toast(r.why); return; }
   if (wasIn !== !!life.s.gaol) { sheets = []; result = null; tab = 'town'; }
+  if (ev.id === 'date' && life.partner()) sheets = sheets.filter((sh) => sh.kind !== 'dating');
   haptic();
   persist();
   render();
@@ -1056,7 +1057,9 @@ function showStart() {
   const rand = (n) => Math.floor(Math.random() * n);
   const ids = Object.keys(DREAMS);
   const offered = [];
-  while (offered.length < 6) { const id = ids[rand(ids.length)]; if (!offered.includes(id)) offered.push(id); }
+  // (An heir is not offered a dream the family has already made impossible.)
+  const open = (id) => !DREAMS[id].open || DREAMS[id].open({ gifts: (nx && nx.gifts) || {} });
+  while (offered.length < 6) { const id = ids[rand(ids.length)]; if (!offered.includes(id) && open(id)) offered.push(id); }
   const sex = nx && nx.sex ? nx.sex : 'm';
   draft = {
     name: nx && nx.name ? nx.name : '', sex, into: sex === 'm' ? 'f' : 'm',

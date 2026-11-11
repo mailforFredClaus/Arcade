@@ -44,7 +44,11 @@ const SHADY_SECS = ['Light fingers', 'Vices', 'Under the counter', 'Under the pi
 // action is aimed at (x). why: a reason it can't be done just now.
 // per: how many times a season. run does it and returns what to say.
 const A = {};
-const def = (id, o) => { A[id] = Object.assign({ id, time: 1, cost: 0 }, o); };
+const def = (id, o) => {
+  // (Two actions with one name, and the second silently replaces the first.)
+  if (A[id]) throw new Error(`there are two actions called ${id}`);
+  A[id] = Object.assign({ id, time: 1, cost: 0 }, o);
+};
 
 // -- home
 def('rest', {
@@ -782,9 +786,10 @@ export class Life {
     if (heir === 'kingpin') { s.n.crimes = 5; s.karma = -15; }
     if (heir === 'benefactor') s.karma = 25;
     if (heir === 'sensation') { s.items.phone = 1; s.chirp = { n: 2000, posts: 0, ban: 0 }; }
+    s.dreams = s.dreams.filter((id) => !DREAMS[id].open || DREAMS[id].open(s));
     while (s.dreams.length < 3) {
       const id = L.pick(Object.keys(DREAMS));
-      if (!s.dreams.includes(id)) s.dreams.push(id);
+      if (!s.dreams.includes(id) && (!DREAMS[id].open || DREAMS[id].open(s))) s.dreams.push(id);
     }
     // The first of a family has a mum and dad back home; later ones may have
     // a parent still living from the life before.
@@ -1589,7 +1594,7 @@ export class Life {
       inherit: Math.max(0, Math.min(kids.length ? 150000 : 60000, Math.round(worth * (kids.length ? 0.1 : 0.05) / 100) * 100)),
       heir: heirKid ? { name: heirKid.name.split(' ')[0], look: heirKid.look, sex: heirKid.sex, st: heirKid.st } : null,
       // An heir's brothers and sisters are the other children, if they are old enough to be out in the world.
-      sibs: heirKid ? kids.filter((k) => k !== heirKid && k.age >= 16).slice(0, 3).map((k) => ({ name: k.name.split(' ')[0], sex: k.sex, age: k.age, look: k.look, job: k.job, trait: k.trait })) : null,
+      sibs: heirKid ? kids.filter((k) => k !== heirKid && k.age >= 18).slice(0, 3).map((k) => ({ name: k.name.split(' ')[0], sex: k.sex, age: k.age, look: k.look, job: k.job, trait: k.trait })) : null,
       parent: spouse ? { name: spouse.name, age: spouse.age, look: spouse.look, sex: spouse.sex } : null,
       gifts: s.gifts,
     };

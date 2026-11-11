@@ -5,7 +5,7 @@
 
 import {
   STATS, STAT_NAME, PLACES, CAREERS, HOMES, UPGRADES, PROPS, BUSINESSES, FISH, OUTINGS, KID_PLAY, TRAITS,
-  NAMES_M, NAMES_F, SURNAMES, DATE_LINES, money, low,
+  NAMES_M, NAMES_F, SURNAMES, DATE_LINES, money, low, an, lowJob,
 } from './data.js';
 
 export function install({ def, A, Life, clamp }) {
@@ -87,14 +87,16 @@ export function install({ def, A, Life, clamp }) {
       const right = k === p.trait, friend = d.from === 'friend';
       const said = right ? DATE_LINES[k].good(p) : DATE_LINES[k].bad(p);
       if (!this.chance(clamp((friend ? this.askOdds(p) : this.wooOdds()) + (right ? 0.22 : -0.15), 0.04, 0.97))) {
-        if (friend) { p.single = false; this.bond(p, -6); this.joy(-4); return `${said} ${p.name} is kind about it afterwards. Friends, then.`; }
+        const but = right ? ' A good evening, and it goes no further.' : '';
+        if (friend) { p.single = false; this.bond(p, -6); this.joy(-4); return `${said}${but} ${p.name} is kind about it afterwards. Friends, then.`; }
         this.joy(-1);
-        return `${said} ${d.from === 'pub' ? this.pick(['"I am waiting for someone," comes next, and then nobody arrives.', 'You knock a drink into a lap. It does not recover from there.', 'The taxi is called early.']) : this.pick([`${p.name} never replies to your message.`, `The rest is forty minutes about ${his(p)} ex.`, `${p.name} cancels the second date, twice, then moves to the city.`])}`;
+        return `${said}${but} ${d.from === 'pub' ? this.pick(['There is no second drink.', 'You are thanked, kindly, for the drink.', 'The taxi is called early.']) : this.pick([`${p.name} never replies to your message.`, `${p.name} cancels the second date, twice, then moves to the city.`])}`;
       }
-      if (friend) { this.bond(p, 10); return this.startSeeing(p, `${said} ${p.name} says ${he(p)} thought you would never ask.`); }
+      const yet = right ? '' : ' Somehow it does not matter.';
+      if (friend) { this.bond(p, 10); return this.startSeeing(p, `${said}${yet} ${p.name} says ${he(p)} thought you would never ask.`); }
       Object.assign(p, { kind: 'partner', bond: right ? 28 : 22, single: false });
       s.people.push(p);
-      return this.startSeeing(p, d.from === 'pub' ? `${said} ${p.name}: ${TRAITS[p.trait].name.toLowerCase()}, ${this.jobOf(p).toLowerCase()}, and free on Friday.` : `${said} Neither of you looks at a phone once. You are seeing ${p.name} again on Saturday.`);
+      return this.startSeeing(p, d.from === 'pub' ? `${said}${yet} ${p.name}: ${TRAITS[p.trait].name.toLowerCase()}, ${an(lowJob(this.jobOf(p)))}, and free on Friday.` : `${said}${yet} You are seeing ${p.name} again on Saturday.`);
     },
     askOdds(p) { return clamp(0.25 + (this.s.st.charm - 30) / 110 + (p.bond - 30) / 110 + this.luck(), 0.1, 0.95); },
     proposeOdds(p) { return clamp((p.bond - 45) / 50 + this.luck(), 0.2, 1); },
@@ -222,7 +224,7 @@ export function install({ def, A, Life, clamp }) {
   });
   def('gift', {
     who: true, sec: 'Keep in touch', title: 'Give a present', icon: '🎁', desc: 'Once a season.', time: 0, cost: 80,
-    show: (L, p) => p.kind !== 'ex' && p.kind !== 'enemy' && (p.kind !== 'child' || p.age >= 3),
+    show: (L, p) => p.kind !== 'ex' && p.kind !== 'enemy' && ((p.kind !== 'child' && p.kind !== 'grandchild') || p.age >= 3),
     why: (L, p) => (L.s.use[`gift${p.id}`] ? 'Once a season.' : null),
     run(L, p) { L.s.use[`gift${p.id}`] = 1; L.bond(p, 6); return `${p.name} ${L.pick(['is delighted', 'pretends to be surprised', 'says you should not have, twice'])}.`; },
   });
@@ -268,7 +270,7 @@ export function install({ def, A, Life, clamp }) {
     show: (L, p) => p.kind === 'friend' || p.kind === 'ex',
     run(L, p) { L.s.people.splice(L.s.people.indexOf(p), 1); return p.kind === 'ex' ? `You tear the page out of your address book. ${p.name} is the past.` : `You stop calling. So does ${p.name}. It happens.`; },
   });
-  const PEOPLE = ['out', 'kid', 'askout', 'movein', 'propose', 'baby', 'split', 'school', 'call', 'gift', 'treat', 'winback', 'oldtimes', 'mend', 'prank', 'rumour', 'thump', 'lean', 'forget', 'scrounge'];
+  const PEOPLE = ['out', 'kid', 'askout', 'movein', 'propose', 'baby', 'split', 'school', 'call', 'gift', 'dayout', 'winback', 'oldtimes', 'mend', 'prank', 'rumour', 'thump', 'lean', 'forget', 'scrounge'];
 
   // Meeting someone with romance in mind, no friendship first.
   def('chatup', {
@@ -296,6 +298,7 @@ export function install({ def, A, Life, clamp }) {
   });
   def('rematch', {
     title: 'Look for new faces',
+    why: (L) => (L.partner() ? 'You are spoken for.' : null),
     run(L) { L.s.matches = null; L.prospects(); return 'You swipe until your thumb aches. Three new faces.'; },
   });
 

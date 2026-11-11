@@ -4,7 +4,7 @@
 // season; Mr Pym's shop of curios on the High Street, to collect and to
 // trade; and the beach, which is free.
 
-import { GIFTS, FESTS, ODD_JOBS, WEATHER, PLACES, CROPS, PLOT_RENT, PLOT_BEDS, CURIOS, CURIO_SETS, CURIO_SET_SAID, aCurio, theCurio, curioSaid, ECO, FILLER, SMALL_ADS, FISH, SEASONS, LOOKS, ITEMS, money, many } from './data.js';
+import { GIFTS, FESTS, ODD_JOBS, WEATHER, CROPS, PLOT_RENT, PLOT_BEDS, CURIOS, CURIO_SETS, CURIO_SET_SAID, aCurio, theCurio, curioSaid, ECO, FILLER, SMALL_ADS, FISH, SEASONS, LOOKS, ITEMS, money, many } from './data.js';
 
 const round10 = (n) => Math.round(n / 10) * 10;
 const seasonsOf = (list) => list.map((q) => SEASONS[q].toLowerCase()).join(' or ');
@@ -51,7 +51,7 @@ export function install({ def, A, Life, clamp }) {
       const fish = Object.values(FISH).filter((f) => f.when && f.when.includes(q) && f.where.length).slice(0, 3).map((f) => f.name.toLowerCase());
       const sow = Object.values(CROPS).filter((c) => c.sow.includes(q)).map((c) => c.name.toLowerCase());
       items.push({ icon: '🎣', h: 'What is on', t: `${fish.length ? `Biting now: ${fish.join(', ')}. ` : ''}${sow.length ? `On the allotments, it is time to sow ${sow.join(', ')}.` : 'Nothing to sow on the allotments until spring.'}${q === 2 ? ' Marrows to the big tent.' : ''}` });
-      items.splice(1, 0, { icon: this.fest().icon, h: this.fest().name, t: `${this.fest().blurb} At ${PLACES[this.fest().at].name} this season: ${this.fest().games.map((g) => g.title.toLowerCase()).join(', ')}. One entry each.` });
+      items.splice(1, 0, { icon: this.fest().icon, h: this.fest().name, t: `${this.fest().blurb} It is ${this.fest().where} this season: ${this.fest().games.map((g) => g.title[0].toLowerCase() + g.title.slice(1)).join(', ')}. One entry a year.` });
       if (s.cur && s.cur.stock.length) {
         const hot = Object.keys(CURIO_SETS).sort((a, b) => s.cur.bid[b] - s.cur.bid[a])[0];
         items.push({ icon: '🏺', h: 'Pym’s Curios', t: `In the window this season: ${s.cur.stock.map((c) => curioSaid(c.id)).join(', ')}. Collectors are paying well for ${CURIO_SET_SAID[hot]}.` });

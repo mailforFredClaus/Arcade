@@ -28,6 +28,10 @@ export function cashShort(n) {
   return money(n);
 }
 
+// The right one of a and an in front of a word, and a job title said mid-sentence (an IT helpdesk).
+export const an = (w) => `${/^[aeiou]/i.test(w) ? 'an' : 'a'} ${w}`;
+export const lowJob = (t) => t.toLowerCase().replace(/\bit\b/g, 'IT');
+
 // A crowd, counted: 950, 12.4k, 1.2M.
 export function many(n) {
   if (n >= 999500) return `${(n / 1e6).toFixed(n >= 9.95e6 ? 0 : 1)}M`;
@@ -518,7 +522,9 @@ export const DREAMS = {
   record: { name: 'A hit record', icon: '💿', desc: 'Record an album that goes to number one.', test: (L) => !!L.s.f.hit },
   magpie: { name: 'The collector', icon: '🏺', desc: 'Complete two sets of curios.', test: (L) => Object.keys(CURIO_SETS).filter((k) => L.hasSet(k)).length + (L.s.n.sets || 0) >= 2 },
   plot: { name: 'Best in show', icon: '🥒', desc: 'Win the Harvest Show.', test: (L) => !!L.s.f.marrow },
-  legacy: { name: 'Something that lasts', icon: '🏗️', desc: 'Give the town a lifeboat, or something bigger.', test: (L) => ['lifeboat', 'scholarship', 'wing', 'pier'].some((id) => L.s.gave[id]) },
+  legacy: { name: 'Something that lasts', icon: '🏗️', desc: 'Give the town a lifeboat, or something bigger.', test: (L) => ['lifeboat', 'scholarship', 'wing', 'pier'].some((id) => L.s.gave[id]),
+    // (Not for an heir whose family has already given all there is to give.)
+    open: (s) => ['lifeboat', 'scholarship', 'wing', 'pier'].some((id) => !(s.gifts || {})[id]) },
   invest: { name: 'Money that works', icon: '📈', desc: 'Hold $500,000 in shares.', test: (L) => L.sharesWorth() >= 5e5 },
 };
 
@@ -747,13 +753,13 @@ export const GIFTS = {
     blurb: 'The old one is older than its coxswain.', perk: 'The crew tell you where the fish are: fishing pays a fifth more.',
     plaque: (n) => `The lifeboat ${n} rides at her mooring.`, done: 'She is launched with a bottle of the good stuff, which is your doing too. The coxswain cannot speak.' },
   scholarship: { name: 'A scholarship at the college', icon: '🎓', at: 'college', cost: 300000, karma: 12, fame: 4, said: 'a scholarship at the college',
-    blurb: 'Two students a year who could not otherwise go.', perk: 'Your own courses, and your family’s, cost a quarter less.',
+    blurb: 'Two students a year who could not otherwise go.', perk: 'Your courses cost a quarter less, and so will your heirs’.',
     plaque: (n) => `The ${n} Scholarship sends two students a year.`, done: 'The first two are announced at assembly. One of them wants to be a marine biologist. The other wants to be you.' },
   wing: { name: 'A new wing for St Wren’s', icon: '🏥', at: 'hospital', cost: 750000, karma: 18, fame: 8, said: 'a wing of St Wren’s',
     blurb: 'Forty beds, and a roof that does not leak.', perk: 'Hospital visits cost you, and your family, half.',
     plaque: (n) => `The ${n} Wing has forty beds and a view of the sea.`, done: 'A ribbon, a pair of gold scissors, and a matron who shakes your hand as though she means to keep it.' },
   pier: { name: 'Rebuild the pier', icon: '🎡', at: 'casino', cost: 2000000, karma: 20, fame: 15, said: 'its pier',
-    blurb: 'The far end has been shut since the storm of your grandparents’ day.', perk: 'A seat on the pier company’s board: $6,000 a season for the rest of your life.',
+    blurb: 'The far end has been shut since the storm of your grandparents’ day.', own: true, perk: 'A seat on the pier company’s board: $6,000 a season for the rest of your life (yours alone: it is not passed on).',
     plaque: (n) => `A stone at the pier gates: "Rebuilt by ${n}, for the town."`, done: 'New ironwork to the very end, a carousel, and lights you can see from the lighthouse. The whole Bay walks out along it on the first night.' },
 };
 
@@ -764,7 +770,7 @@ export const GIFTS = {
 export const SIDELINES = {
   kitchen: { r: 2, icon: '🍰', title: 'Cater a wedding', desc: 'A marquee, a hundred covers, one oven.', stat: 'craft', dc: 45, pay: 2, win: 'The bride’s mother asks for the recipe. You say it is a secret. It is tinned.', lose: 'The oven trips the generator during the speeches. Cold beef, then.' },
   retail: { r: 2, icon: '🏷️', title: 'Run a clearance sale', desc: 'Everything must go, and you are on commission.', stat: 'charm', dc: 45, pay: 1.8, win: 'You sell a man a lawnmower. He lives in a flat.', lose: 'A long day beside a rail of beige slacks.' },
-  trades: { r: 1, icon: '🔧', title: 'Do a job on the side', desc: 'A foreigner, they call it: somebody’s kitchen, at the weekend, for cash.', stat: 'craft', dc: 40, pay: 2, win: 'Level, square and done by Sunday teatime.', lose: 'The wall was not where the plans said it was. You make good, at your own cost.' },
+  trades: { r: 1, icon: '🔧', title: 'Do a job on the side', desc: 'A foreigner, they call it: somebody’s kitchen, at the weekend, for cash.', stat: 'craft', dc: 40, pay: 2, win: 'Level, square and done by Sunday teatime.', lose: 'The wall was not where the plans said it was. Putting it right takes most of the fee.' },
   tech: { r: 2, icon: '🖥️', title: 'Fix the Town Hall computers', desc: 'They have been "meaning to back things up".', stat: 'smarts', dc: 50, pay: 2.2, win: 'You turn it off and on again, then charge for a day.', lose: 'You are there until three in the morning, and the printer still hates everyone.' },
   medicine: { r: 3, icon: '🌙', title: 'Cover a night as a locum', desc: 'The next town along is short of doctors too.', stat: 'smarts', dc: 55, pay: 1.6, win: 'A quiet night, a good breakfast, a fat envelope.', lose: 'Three ambulances at once. You earn every penny and remember none of it.' },
   police: { r: 1, icon: '🕴️', title: 'Work the door at the regatta ball', desc: 'In a borrowed dinner jacket.', stat: 'fitness', dc: 45, pay: 1.5, win: 'You see a councillor into a taxi and forget what you saw.', lose: 'Somebody’s uncle gets past you twice, in two different hats.' },
@@ -783,22 +789,22 @@ export const SIDELINES = {
 // with three things to enter: one go a year. A skill decides it, and a
 // reigning champion is given less room every time.
 export const FESTS = [
-  { id: 'fair', name: 'The Spring Fair', icon: '🎪', at: 'park', blurb: 'Bunting on the green, and a brass band.', games: [
+  { id: 'fair', name: 'The Spring Fair', icon: '🎪', at: 'park', where: 'in Pebble Park', blurb: 'Bunting on the green, and a brass band.', games: [
     { id: 'bake', icon: '🧁', title: 'Enter the bake-off', stat: 'craft', dc: 30, prize: 300, win: 'First prize and a rosette. The vicar asks for the recipe.', lose: 'The judge says "interesting" and moves on quickly.' },
     { id: 'tug', icon: '🪢', title: 'Pull in the tug of war', stat: 'fitness', dc: 30, prize: 250, win: 'Your side drags the fire brigade through the mud.', lose: 'You are dragged through the mud by the fire brigade.' },
     { id: 'tombola', icon: '🎟️', title: 'Run the tombola', stat: 'charm', dc: 25, prize: 0, karma: 3, win: 'You sell every ticket. Somebody wins a tin of peaches from 1987.', lose: 'A slow day at the tombola, but all in a good cause.' },
   ] },
-  { id: 'regatta', name: 'Regatta Day', icon: '🚣', at: 'harbour', blurb: 'The whole bay is out: flags, boats, ice cream and shouting.', games: [
+  { id: 'regatta', name: 'Regatta Day', icon: '🚣', at: 'harbour', where: 'at the harbour', blurb: 'The whole bay is out: flags, boats, ice cream and shouting.', games: [
     { id: 'row', icon: '🚣', title: 'Row in the big race', stat: 'fitness', dc: 38, prize: 600, fame: 1, win: 'Your crew wins by half a length, and there is a silver cup for the pub shelf.', lose: 'Fourth. Out of four. Your hands are blisters.' },
     { id: 'castle', icon: '🏰', title: 'Enter the sandcastle contest', stat: 'craft', dc: 30, prize: 250, win: 'A scale model of the Town Hall, with the clock four minutes slow. The judges are speechless.', lose: 'The tide has views about your east tower.' },
     { id: 'ices', icon: '🍦', title: 'Sell ice creams along the front', stat: 'charm', dc: 28, prize: 400, win: 'You sell out by two o’clock.', lose: 'It rains. You eat the stock.' },
   ] },
-  { id: 'harvest', name: 'The Harvest Show', icon: '🌾', at: 'park', blurb: 'A big tent, long tables, and vegetables being taken very seriously.', games: [
+  { id: 'harvest', name: 'The Harvest Show', icon: '🌾', at: 'park', where: 'in Pebble Park', blurb: 'A big tent, long tables, and vegetables being taken very seriously.', games: [
     { id: 'quiz', icon: '❓', title: 'Captain a team in the harvest quiz', stat: 'smarts', dc: 35, prize: 300, win: 'It comes down to the capital of Peru. You know the capital of Peru.', lose: 'You change a right answer to a wrong one, and your team watches you do it.' },
     { id: 'pies', icon: '🥧', title: 'Enter the pie-eating', stat: 'fitness', dc: 28, prize: 150, win: 'Eleven. A parish record. You may never eat again.', lose: 'Beaten by a girl of nine, who then asks for pudding.' },
     { id: 'jams', icon: '🍓', title: 'Judge the jams', stat: 'charm', dc: 33, prize: 0, karma: 2, fame: 1, win: 'You find something kind and true to say about forty jams. It is an art.', lose: 'You call Mrs Hadley’s damson "brave". She has not forgiven you.' },
   ] },
-  { id: 'lights', name: 'The Winter Lights', icon: '🎄', at: 'highstreet', blurb: 'The lights go on along the High Street, usually at the second try.', games: [
+  { id: 'lights', name: 'The Winter Lights', icon: '🎄', at: 'highstreet', where: 'on the High Street', blurb: 'The lights go on along the High Street, usually at the second try.', games: [
     { id: 'carols', icon: '🎶', title: 'Sing the solo at the carol concert', stat: 'craft', dc: 35, prize: 200, fame: 1, win: 'The last verse, unaccompanied, in the cold. Nobody coughs.', lose: 'You come in a bar early and stay there.' },
     { id: 'swim', icon: '🥶', title: 'Take the New Year swim', stat: 'fitness', dc: 33, prize: 200, win: 'In, out, and a bacon roll. You feel immortal for about a week.', lose: 'You get as far as your knees, and make a noise people remember.' },
     { id: 'panto', icon: '🎭', title: 'Play the dame in the pantomime', stat: 'charm', dc: 38, prize: 350, fame: 2, win: '"Oh no it isn’t!" Six nights and a matinee, and the best fun you have had in years.', lose: 'The wig comes off in the second act. The children think it is the best bit.' },

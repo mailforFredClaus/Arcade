@@ -8,7 +8,7 @@
 // choice and returns what to say (win: whether the gamble came off).
 // L is the Life; x is whatever the event is about (often a person's id).
 
-import { money, CAREERS, NAMES, PETS, STATS, STAT_NAME, BUSINESSES, CURIOS, aCurio, TRAITS, DATE_LINES } from './data.js';
+import { money, CAREERS, NAMES, PETS, STATS, STAT_NAME, BUSINESSES, CURIOS, aCurio, TRAITS, DATE_LINES, an, lowJob } from './data.js';
 
 const P = (L, id) => L.person(id) || { name: 'Someone', sex: 'm', bond: 0, age: 30 };
 // He or she, him or her, his or her: for whoever a card is about.
@@ -1060,11 +1060,11 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'date', icon: '💘', title: 'A first date', ok: (L) => !!L.dateWith() && !L.partner(), log: false,
+    id: 'date', icon: '💘', title: 'A first date', ok: (L) => !!L.dateWith() && !L.partner() && !L.s.gaol, log: false,
     text(L) {
       const p = L.dateWith(), from = L.s.date.from, kind = TRAITS[p.trait].name.toLowerCase();
       if (from === 'pub') return `Somebody along the bar has caught your eye. ${DATE_LINES[p.trait].hint(p)} You have one go at this.`;
-      if (from === 'app') return `${p.name}, ${p.age}: "${kind}", says the profile, and a ${L.jobOf(p).toLowerCase()}. You are across a table from ${him(p)} at the Seagull Café, and the coffee has come.`;
+      if (from === 'app') return `${p.name}, ${p.age}: "${kind}", says the profile, and ${an(lowJob(L.jobOf(p)))}. You are across a table from ${him(p)} at the Seagull Café, and the coffee has come.`;
       return `You have known ${p.name} long enough to know ${he(p)} is ${kind} through and through. Friday comes. How do you play it?`;
     },
     opts: [0, 1, 2].map((i) => ({ t: (L) => L.dateLines()[i].t, run: (L) => L.dateGo(L.dateLines()[i].k) })),
@@ -1103,7 +1103,7 @@ export const EVENTS = [
   {
     id: 'sibDies', icon: '🕊️', title: 'A letter with a black edge', ok: (L, x) => has(L, x) && P(L, x).kind === 'sibling',
     text: (L, x) => `Your ${P(L, x).sex === 'm' ? 'brother' : 'sister'} ${P(L, x).name} has died, at ${P(L, x).age}.`,
-    opts: [{ t: 'Goodbye', run(L, x) { const p = P(L, x); L.gone(p); L.joy(-14); return `There is nobody left now who remembers the house you grew up in. You find you are saying "${p.name} would have laughed at that" a good deal.`; } }],
+    opts: [{ t: 'Goodbye', run(L, x) { const p = P(L, x); L.gone(p); L.joy(-14); const alone = !L.siblings().length && !L.s.people.some((q) => q.kind === 'parent'); return `${alone ? 'There is nobody left now who remembers the house you grew up in. ' : ''}You find you are saying "${p.name} would have laughed at that" a good deal.`; } }],
   },
   // ---- the weather, the town, and the people in it ----
   {

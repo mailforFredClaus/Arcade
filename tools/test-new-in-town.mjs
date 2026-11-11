@@ -1343,7 +1343,7 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', sibs:
   const sis = L.siblings()[0];
   check(sis.name === 'Molly' && sis.kind === 'sibling' && sis.job === 'medicine' && sis.bond === 48 && sis.likes.length === 2, 'a sister, known in advance, arrives as herself');
   const acts = L.personActions(sis).map((a) => a.id);
-  check(acts.includes('out') && acts.includes('call') && acts.includes('gift') && !acts.includes('askout') && !acts.includes('forget') && !acts.includes('treat'), 'a sister can be seen and telephoned, and is not a friend to be dropped');
+  check(acts.includes('out') && acts.includes('call') && acts.includes('gift') && !acts.includes('askout') && !acts.includes('forget') && !acts.includes('dayout'), 'a sister can be seen and telephoned, and is not a friend to be dropped');
   check(!L.perk('medicine'), 'a sister in medicine is no help until you are close');
   sis.bond = 70;
   check(L.perk('medicine') && L.medCost(1000) === 700, 'and then she is');
@@ -1366,15 +1366,15 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', sibs:
   G.queue('grandchild', kid.id); G.choose(0);
   const gk = G.grandkids()[0];
   check(gk && gk.kind === 'grandchild' && gk.age === 0 && gk.of === kid.id && !gk.job && G.s.f.grand === 1 && G.s.ach.grand, 'a grandchild is a person, not just news');
-  check(G.personActions(gk).map((a) => a.id).join() === 'gift,treat' || G.personActions(gk).some((a) => a.id === 'treat'), 'who can be taken out for the day');
+  check(G.personActions(gk).some((a) => a.id === 'dayout') && !G.personActions(gk).some((a) => a.id === 'gift'), 'who can be taken out for the day');
   check(!G.personActions(gk).some((a) => ['scrounge', 'out', 'call', 'askout'].includes(a.id)), 'and not asked for money');
   const base = (() => { const X = fresh(); return X.moodBase(); })();
   const joy = G.s.happy, bond = gk.bond, kb = kid.bond;
-  G.act('treat', gk.id);
-  check(G.s.happy > joy && gk.bond === bond + 9 && kid.bond === kb + 3 && G.can('treat', gk.id).includes('Once a season'), 'a day out does you both good, once a season');
+  G.act('dayout', gk.id);
+  check(G.s.happy > joy && gk.bond === bond + 9 && kid.bond === kb + 3 && G.can('dayout', gk.id).includes('Once a season'), 'a day out does you both good, once a season');
   gk.age = 17;
   G.newYear(); G.s.pend = [];
-  check(gk.age === 18 && gk.job && gk.likes && G.personActions(gk).some((a) => a.id === 'out') && !G.personActions(gk).some((a) => a.id === 'treat'), 'at eighteen a grandchild is a grown-up, with a job');
+  check(gk.age === 18 && gk.job && gk.likes && G.personActions(gk).some((a) => a.id === 'out') && !G.personActions(gk).some((a) => a.id === 'dayout'), 'at eighteen a grandchild is a grown-up, with a job');
   // An heir's brothers and sisters are the other children.
   const P1 = fresh();
   P1.s.age = 70;
@@ -1386,6 +1386,46 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', sibs:
   check(o.heir.name === 'Ann' && o.sibs.length === 1 && o.sibs[0].name === 'Bob' && o.sibs[0].job === 'sea', 'the heir is the child who loved you best; the grown-up others are her brothers and sisters');
   const H = Life.create({ seed: 9, name: 'Ann', gen: 2, sibs: o.sibs });
   check(H.siblings().length === 1 && H.siblings()[0].name === 'Bob' && H.siblings()[0].job === 'sea' && H.siblings()[0].age === 37, 'and are there when she steps off the train');
+}
+
+// ---- things a review found ---------------------------------------------------------------
+
+{
+  // The hospital can still treat what ails you (a day out with a grandchild once took its name).
+  const I = fresh();
+  I.s.cash = 50000; I.s.ill = { name: 'pneumonia', sev: 3 };
+  check(I.placeActions('hospital').some((a) => a.id === 'treat' && !a.why) && I.act('treat').ok && !I.s.ill, 'pneumonia can be treated at St Wren’s');
+  check(new Set(Object.keys(ACTIONS)).size === Object.keys(ACTIONS).length && ACTIONS.dayout && ACTIONS.treat.place === 'hospital', 'no two actions share a name');
+  // A dream an heir could never reach is not dreamt.
+  const all = { lifeboat: 'Gran', scholarship: 'Gran', wing: 'Gran', pier: 'Gran' };
+  let dreamt = 0;
+  for (let i = 0; i < 60; i++) if (Life.create({ seed: 400 + i, name: 'H', gen: 2, gifts: all, dreams: i % 2 ? ['legacy'] : [] }).s.dreams.includes('legacy')) dreamt++;
+  check(dreamt === 0 && Life.create({ seed: 1, name: 'H', dreams: ['legacy'] }).s.dreams.includes('legacy'), 'an heir whose family has given everything does not dream of giving it again');
+  // The obituary, for lives that used to read wrongly.
+  const widow = fresh({ sex: 'f' });
+  widow.s.f.wed = 1; widow.s.worked = { kitchen: 0 }; widow.s.n.shifts = 3; widow.s.n.books = 2; widow.s.f.bestseller = 1; widow.s.n.albums = 1; widow.s.cash = 0;
+  widow.s.biz = { type: 'soft', lvl: 0, rep: 50, mgr: false, age: 4, at: 0 };
+  widow.meet({ kind: 'child', sex: 'm', age: 30, name: 'Tom' }); widow.meet({ kind: 'child', sex: 'f', age: 28, name: 'Ann' });
+  widow.grandchild(widow.kids()[0]);
+  widow.die('old age');
+  const w = widow.epitaph().join(' ');
+  check(w.includes('had been a widow') && !w.includes('never married') && w.includes('had not been long at work, as a ') && !/ a [aeiou]/i.test(w.replace(/ a (one|uni|use|eu)/gi, '')) && w.includes('two novels, one of which everybody has read, and made a record') && w.includes('two children and a grandchild'), `a widow’s obituary reads properly (${w})`);
+  const eng = fresh();
+  const fi = eng.meet({ kind: 'partner', sex: 'f', single: false, name: 'May Hart' }); fi.eng = true;
+  eng.s.cash = 0; eng.s.bank = 0;
+  eng.die('a fall');
+  const e2 = eng.epitaph().join(' ');
+  check(e2.includes('a fiancée, May') && e2.includes('leaves very little') && !e2.includes('own company'), 'and so does that of a man engaged to be married, with nothing in the bank');
+  // A brother's death, with a sister still living.
+  const two = Life.create({ seed: 4, name: 'K', sibs: [{ name: 'Al', sex: 'm', age: 80 }, { name: 'Bea', sex: 'f', age: 70 }] });
+  two.queue('sibDies', two.siblings()[0].id);
+  check(!two.choose(0).text.includes('nobody left'), 'nobody is left only when nobody is');
+  const taken = fresh();
+  taken.s.items.phone = 1; taken.meet({ kind: 'partner', sex: 'f', single: false });
+  check(taken.can('rematch') === 'You are spoken for.', 'no looking for new faces while you are spoken for');
+  let young = 0;
+  for (let i = 0; i < 300; i++) { const X = Life.create({ seed: 2000 + i, name: 'Y' }); const folks = X.s.people.filter((q) => q.kind === 'parent'); for (const sib of X.siblings()) if (folks.some((f) => f.age - sib.age < 19) || sib.name === 'Y' || X.siblings().some((o) => o !== sib && o.name === sib.name)) young++; }
+  check(young === 0, 'a brother or sister is never older than a parent could manage, and has a name of their own');
 }
 
 // ---- what you leave behind, and work on the side ----------------------------------------
@@ -1832,6 +1872,7 @@ function monkey(seed) {
 console.log(`Random players: ${randomLives} lives`);
 {
   const ages = [], ribbons = {}, seen = new Set();
+  const causes = {};
   let trophies = 0, wed = 0, kids = 0, biz = 0, owned = 0, jailed = 0, foes = 0, crowd = 0, plots = 0, finds = 0;
   for (let i = 0; i < randomLives; i++) {
     try {
@@ -1839,7 +1880,7 @@ console.log(`Random players: ${randomLives} lives`);
       const o = L.obituary();
       const last = L.epitaph();
       if (last.length < 5 || last.some((t) => /undefined|NaN|\s\s|\.\./.test(t) || !/[.]$/.test(t))) throw new Error(`a bad obituary: ${last.join(' | ')}`);
-      if ((5000 + i) % 3) ages.push(o.age); else jailed += L.s.f.jailed ? 1 : 0;
+      if ((5000 + i) % 3) { ages.push(o.age); causes[o.cause] = (causes[o.cause] || 0) + 1; } else jailed += L.s.f.jailed ? 1 : 0;
       ribbons[o.ribbon.id] = (ribbons[o.ribbon.id] || 0) + 1;
       trophies += o.trophies;
       wed += L.s.f.wed ? 1 : 0; kids += L.kids().length ? 1 : 0; biz += L.s.ach.shop ? 1 : 0; owned += L.s.ach.owner ? 1 : 0;
@@ -1860,6 +1901,7 @@ console.log(`Random players: ${randomLives} lives`);
   console.log(`  lived to between ${ages[0]} and ${ages[ages.length - 1]} (typically ${ages[Math.floor(ages.length / 2)]}); ${(trophies / randomLives).toFixed(1)} trophies a life; ${seen.size} of ${random.length} chance events seen`);
   console.log(`  ${wed} married, ${kids} had children, ${biz} started a business, ${owned} bought property; of the wild third, ${jailed} went to prison`);
   console.log(`  ${foes} made an enemy, ${crowd} found a following, ${plots} grew something, ${finds} found a curio`);
+  console.log(`  the honest ones died of: ${Object.entries(causes).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(', ')}`);
   console.log(`  ribbons: ${Object.entries(ribbons).map(([k, v]) => `${k} ${v}`).join(', ')}`);
   check(ages[Math.floor(ages.length / 2)] >= 60, 'even a careless life usually lasts past 60, if it keeps out of trouble');
   if (randomLives >= 40) {

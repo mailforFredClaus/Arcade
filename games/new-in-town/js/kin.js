@@ -18,11 +18,16 @@ export function install({ def, A, Life, clamp }) {
       const s = this.s;
       if (!list) {
         const n = this.chance(0.6) ? (this.chance(0.3) ? 2 : 1) : 0;
-        list = Array.from({ length: n }, () => ({ age: this.int(18, 29) }));
+        // (Younger than you or a little older, but never older than a parent could have managed.)
+        const oldest = Math.min(29, ...s.people.filter((p) => p.kind === 'parent').map((p) => p.age - 19));
+        list = Array.from({ length: n }, () => ({ age: this.int(18, Math.max(18, oldest)) }));
       }
       for (const o of list.slice(0, 3)) {
         const sex = o.sex || (this.chance(0.5) ? 'm' : 'f');
-        const p = this.makePerson({ ...o, sex, name: o.name || this.pick(sex === 'm' ? NAMES_M : NAMES_F), kind: 'sibling', bond: 48, age: clamp(o.age || 20, 14, 95), single: this.chance(0.5) });
+        const taken = [s.name.split(' ')[0], ...s.people.map((q) => q.name.split(' ')[0])];
+        let name = o.name;
+        for (let i = 0; !name && i < 20; i++) { const n = this.pick(sex === 'm' ? NAMES_M : NAMES_F); if (!taken.includes(n) || i === 19) name = n; }
+        const p = this.makePerson({ ...o, sex, name, kind: 'sibling', bond: 48, age: clamp(o.age || 20, 14, 95), single: this.chance(0.5) });
         s.people.push(p);
       }
     },
@@ -44,14 +49,14 @@ export function install({ def, A, Life, clamp }) {
     },
   });
 
-  def('treat', {
+  def('dayout', {
     who: true, sec: 'Do something together', icon: '🍦', cost: 40,
     title: (L, p) => (p.age < 5 ? 'An afternoon with the pram' : p.age < 13 ? 'A day out, your treat' : 'Lunch, and a slipped banknote'),
     desc: (L, p) => `${p.name.split(' ')[0]} thinks the world of you, and it does you more good than ${he(p)} knows.`,
     show: (L, p) => p.kind === 'grandchild' && p.age < 18,
-    why: (L, p) => (L.s.use[`treat${p.id}`] ? `Once a season: ${his(p)} parents have views.` : null),
+    why: (L, p) => (L.s.use[`dayout${p.id}`] ? `Once a season: ${his(p)} parents have views.` : null),
     run(L, p) {
-      L.s.use[`treat${p.id}`] = 1;
+      L.s.use[`dayout${p.id}`] = 1;
       L.bond(p, 9); L.joy(7); L.hp(1);
       const kid = L.person(p.of);
       if (kid) L.bond(kid, 3);
