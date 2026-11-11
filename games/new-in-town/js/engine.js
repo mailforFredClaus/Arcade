@@ -16,7 +16,7 @@
 
 import {
   SEASONS, STATS, STAT_NAME, PLACES, CAREERS, SHIFTS_FOR_RUNG, COURSES, GRADES, STUDENT_RATE, HOMES, UPGRADES, FOOD, INSURANCE, ITEMS, TRIPS,
-  SAVINGS_RATE, LOAN_RATE, STOCKS, HEADLINES, PLOT_RENT, FESTS, NAMES_M, NAMES_F, PET_NAMES, PETS, BACKGROUNDS, LOOKS,
+  SAVINGS_RATE, LOAN_RATE, STOCKS, HEADLINES, PLOT_RENT, FESTS, JOB_GAMES, PLAY_EVERY, NAMES_M, NAMES_F, PET_NAMES, PETS, BACKGROUNDS, LOOKS,
   DREAMS, QUESTS, TROPHIES, RIBBONS, money, cashShort, an, lowJob,
 } from './data.js';
 import { EVENTS } from './events.js';
@@ -29,6 +29,7 @@ import { install as installFame } from './fame.js';
 import { install as installTown } from './town.js';
 import { install as installLegacy } from './legacy.js';
 import { install as installKin } from './kin.js';
+import { grade } from './minilogic.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const val = (v, L, x, y) => (typeof v === 'function' ? v(L, x, y) : v);
@@ -543,9 +544,27 @@ for (const [id, e] of Object.entries(EFFORT)) {
     place: (L) => (L.s.job ? CAREERS[L.s.job.c].place : null), sec: 'Work', icon: e.icon, time: 2, title: e.title,
     desc: (L) => ((L.s.use.work || 0) >= 3 ? 'You are worn out: more shifts this season will cost your health.' : e.desc(L)),
     show: (L) => !!L.s.job,
+    why: (L) => (L.playDue() ? `${CAREERS[L.s.job.c].shady ? 'Sal wants' : 'The boss wants'} to watch you work today: do this shift by hand.` : null),
     run: (L) => L.work(e),
   });
 }
+// A shift done by hand: x is how well you played the job's game, from 0 to 1
+// (the screen plays it; left out, it is a fair shift).
+const PLAYED = [{ n: 0.6, perf: -4, pay: 0.75 }, { n: 1, perf: 1, pay: 1 }, { n: 1.2, perf: 3, pay: 1.25 }, { n: 1.4, perf: 5, pay: 1.5 }];
+def('workPlay', {
+  place: (L) => (L.s.job ? CAREERS[L.s.job.c].place : null), sec: 'Work', time: 2,
+  icon: (L) => JOB_GAMES[L.s.job.c].icon, title: (L) => JOB_GAMES[L.s.job.c].title,
+  desc: (L) => (L.playDue() ? `${CAREERS[L.s.job.c].shady ? 'Sal' : 'The boss'} is watching today: make a mess of it and it will be remembered. Done well, it pays up to half as much again and counts for more.` : 'Play the shift. Done well, it pays up to half as much again and counts for more towards promotion; done badly, less.'),
+  show: (L) => !!L.s.job,
+  why: (L, x) => (x === undefined || (typeof x === 'number' && x >= 0 && x <= 1) ? null : 'Roll your sleeves up.'),
+  run(L, x) {
+    const s = L.s, c = s.job.c, g = grade(x === undefined ? 0.5 : x), watched = L.playDue();
+    s.n.played = (s.n.played || 0) + 1;
+    if (g === 3) s.aced[c] = (s.aced[c] || 0) + 1;
+    // (A mess made in front of the boss costs twice over.)
+    return L.work({ ...PLAYED[g], perf: PLAYED[g].perf - (watched && g === 0 ? 4 : 0), stress: 1, played: true, said: JOB_GAMES[c].said[g] });
+  },
+});
 def('drinks', {
   place: (L) => (L.s.job && !CAREERS[L.s.job.c].shady ? CAREERS[L.s.job.c].place : null), sec: 'Work', icon: '🍺', title: 'A drink with the others after work', cost: 30, per: 1,
   desc: 'Good for your standing, and for knowing the people you work with.',
@@ -738,7 +757,7 @@ export class Life {
     if ((state.v || 1) < 2) this.upgrade();
     // (Four to-do items were added before the last; a life that had finished the list has finished it still.)
     if (state.v < 3) { state.v = 3; if (state.quest >= 12) state.quest += 4; }
-    const later = { wx: 'fair', gifts: {}, gave: {}, fests: {}, heat: 0, shark: 0, habit: {}, stand: {}, eco: 0, roy: [], album: { p: 0, q: 0 }, lot: { n: 0, pot: 100000 }, curios: {}, curSeen: {}, grown: {}, marrow: 0 };
+    const later = { aced: {}, wx: 'fair', gifts: {}, gave: {}, fests: {}, heat: 0, shark: 0, habit: {}, stand: {}, eco: 0, roy: [], album: { p: 0, q: 0 }, lot: { n: 0, pot: 100000 }, curios: {}, curSeen: {}, grown: {}, marrow: 0 };
     for (const [k, v] of Object.entries(later)) if (state[k] == null) state[k] = v;
     if (!state.cur) this.restock();
     if (!state.board) this.pinUp();
@@ -766,7 +785,7 @@ export class Life {
       stk: { p: {}, h: {}, own: {}, paid: {}, news: [] },
       biz: null, fishbook: {}, hist: [], heat: 0, habit: {}, shark: 0, stand: {},
       gaol: null, run: null, eco: 0, chirp: null, roy: [], album: { p: 0, q: 0 }, bj: null, race: null, lot: { n: 0, pot: 100000 },
-      plot: null, grown: {}, marrow: 0, curios: {}, curSeen: {}, cur: null, gifts: { ...(gifts || {}) }, gave: {}, fests: {}, wx: 'fair',
+      plot: null, grown: {}, marrow: 0, curios: {}, curSeen: {}, cur: null, gifts: { ...(gifts || {}) }, gave: {}, fests: {}, wx: 'fair', aced: {},
       paintings: 0, novel: { p: 0, q: 0 }, trips: {}, ill: null, hilo: null,
       f: {}, n: { shifts: 0, earned: 0, fish: 0, crimes: 0, books: 0, given: 0, casino: 0, streak: 0 },
       use: {}, cd: {}, seen: {},
@@ -994,6 +1013,10 @@ export class Life {
 
   // ---- work ----
 
+  // The boss wants to see the next shift done by hand.
+  playDue() { const j = this.s.job; return !!j && (j.auto || 0) >= PLAY_EVERY; }
+  // What the screen needs to put this job's game on: which, how hard, and how much your skill helps.
+  shiftGame() { const j = this.s.job, k = JOB_GAMES[j.c]; const stat = CAREERS[j.c].stats[0]; return { id: k.game, title: k.title, icon: k.icon, level: j.r, ease: this.s.st[stat] / 100, skill: STAT_NAME[stat] }; }
   jobTitle() { const j = this.s.job; return j ? CAREERS[j.c].rungs[j.r].title : ''; }
   // The best grade you hold in any course that belongs to a career.
   gradeFor(c) {
@@ -1071,7 +1094,7 @@ export class Life {
   // e: how hard you work (see EFFORT).
   work(e) {
     const s = this.s, j = s.job, c = CAREERS[j.c];
-    let pay = this.shiftPay();
+    let pay = Math.round(this.shiftPay() * (e.pay || 1) / 10) * 10;
     if (c.swing) pay = Math.round(pay * (1 + (this.rnd() * 2 - 1) * c.swing) / 10) * 10;
     // A tenth of every pay packet goes to a student loan until it's gone.
     const loan = Math.min(s.sloan, Math.round(pay * 0.1));
@@ -1085,16 +1108,18 @@ export class Life {
     this.joy(-c.stress * 0.75 * e.stress);
     if (e.hp) this.hp(e.hp, 'overwork');
     if (c.fame && j.r >= 2) this.fame(0.35 * (j.r - 1));
-    const how = e.n > 1 ? ['First in, last out.', 'You do the work of two.', 'The boss notices. Good.'] : e.n < 1 ? ['You look busy. It is an art.', 'A long lunch and a short afternoon.', 'You get away with it.'] : ['A solid shift.', 'Busy, but it flies by.', 'A long one.', 'You earn every penny.', 'Nothing goes wrong, which is rare.'];
+    const how = e.said ? [e.said] : e.n > 1 ? ['First in, last out.', 'You do the work of two.', 'The boss notices. Good.'] : e.n < 1 ? ['You look busy. It is an art.', 'A long lunch and a short afternoon.', 'You get away with it.'] : ['A solid shift.', 'Busy, but it flies by.', 'A long one.', 'You earn every penny.', 'Nothing goes wrong, which is rare.'];
     let text = `${this.pick(how)} ${money(pay)}${loan ? ` (${money(loan)} of it to your student loan)` : ''}.`;
     s.use.work = (s.use.work || 0) + 1;
+    // (Shifts left to look after themselves are counted; one done by hand starts the count again.)
+    j.auto = e.played ? 0 : (j.auto || 0) + 1;
     if (s.use.work > 3) { this.hp(-3, 'overwork'); this.joy(-2); text += ' You are running on fumes.'; }
     if (c.shady && this.crime(0.02, 2, 'one of Sal\u2019s little jobs', 2)) text += ' And then, round the corner, a constable.';
     // Now and then somebody at work becomes a friend.
     if (!c.shady && this.friends().length < 20 && this.chance(0.06)) { const p = this.meet({ job: j.c }); text += ` You get talking to ${p.name} over the tea urn.`; }
     const up = this.nextRung();
     if (up && up.ready) {
-      j.r++; j.n = 0; j.raise = 0;
+      j.r++; j.n = 0; j.raise = 0; j.auto = 0;
       s.worked[j.c] = Math.max(s.worked[j.c] ?? 0, j.r);
       s.f.promoted = 1;
       this.joy(8);
@@ -1193,7 +1218,8 @@ export class Life {
       if (a.show && !a.show(this)) continue;
       out.push(this.view(a));
     }
-    out.sort((p, q) => (q.id === 'work') - (p.id === 'work'));
+    const first = (a) => (a.id === 'work' ? 2 : a.id === 'workPlay' ? 1 : 0);
+    out.sort((p, q) => first(q) - first(p));
     for (const [id, it] of Object.entries(ITEMS)) {
       if (it.at !== place) continue;
       const v = this.view(A.buy, id);

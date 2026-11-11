@@ -14,10 +14,11 @@ import { Life, ACTIONS, money, cashShort } from '../games/new-in-town/js/engine.
 import { EVENTS } from '../games/new-in-town/js/events.js';
 import {
   STATS, PLACES, CAREERS, SHIFTS_FOR_RUNG, COURSES, HOMES, UPGRADES, ITEMS, STOCKS, PROPS, PETS, DREAMS, QUESTS, TROPHIES, RIBBONS, BACKGROUNDS,
-  BUSINESSES, FISH, OUTINGS, KID_PLAY, PERKS, NAMES_M, NAMES_F, INSURANCE, FOOD, CROPS, PLOT_RENT, CURIOS, CURIO_SETS, ECO, many, aCurio, theCurio, GIFTS, SIDELINES, FESTS, ODD_JOBS, WEATHER,
+  BUSINESSES, FISH, OUTINGS, KID_PLAY, PERKS, NAMES_M, NAMES_F, INSURANCE, FOOD, CROPS, PLOT_RENT, CURIOS, CURIO_SETS, ECO, many, aCurio, theCurio, GIFTS, SIDELINES, FESTS, ODD_JOBS, WEATHER, JOB_GAMES, PLAY_EVERY,
 } from '../games/new-in-town/js/data.js';
 import { handTotal } from '../games/new-in-town/js/pier.js';
 import { CHIRPS } from '../games/new-in-town/js/fame.js';
+import { grade, pipes, flow, turn, sweep, dig, sale, COINS, lineup, smallPrint, sum, tune, ticker, bestTrade } from '../games/new-in-town/js/minilogic.js';
 
 const perCareer = Number(process.argv[2] || 12), randomLives = Number(process.argv[3] || 60);
 let failures = 0;
@@ -150,16 +151,17 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', sibs:
   check(s.job.n === 3 && s.job.perf < perf + 6, 'coasting counts for half, and the boss notices that too');
   // Promotion needs both the shifts and the skills.
   s.st.charm = 5;
-  for (let i = 0; i < SHIFTS_FOR_RUNG[1]; i++) { s.time = 2; s.use = {}; L.act('work'); }
+  for (let i = 0; i < SHIFTS_FOR_RUNG[1]; i++) { s.time = 2; s.use = {}; s.job.auto = 0; L.act('work'); }
   check(s.job.r === 0, 'no promotion without the skill, however many shifts');
   const next = L.nextRung();
   check(next.title === 'Waiter' && !next.ready && next.list.some((n) => !n.ok && n.text.includes('Charm')), 'the next rung lists what is still needed');
   s.st.charm = 25; s.time = 2; s.use = {};
+  s.job.auto = 0;
   const up = L.act('work');
   check(s.job.r === 1 && s.job.n === 0 && s.f.promoted && up.news.some((n) => n.kind === 'promo'), 'with the skill, the next shift brings the promotion');
   // Too many shifts in one season costs health.
   const hp = s.health;
-  for (let i = 0; i < 4; i++) { s.time = 2; L.act('work'); }
+  for (let i = 0; i < 4; i++) { s.time = 2; s.job.auto = 0; L.act('work'); }
   check(s.health < hp, 'more than three shifts a season wears you down');
   // A raise.
   s.job.perf = 100; s.st.charm = 100; s.use = {};
@@ -194,6 +196,93 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', sibs:
   const pension = s.pension;
   s.time = 6; L.act('apply', 'kitchen'); L.act('retire');
   check(s.pension === pension, 'retiring a second time does not pay a second pension');
+}
+
+// ---- a shift done by hand ---------------------------------------------------------------
+
+{
+  for (const c of Object.keys(CAREERS)) check(JOB_GAMES[c] && JOB_GAMES[c].said.length === 4 && JOB_GAMES[c].title.endsWith('yourself'), `${c}: has a game of its own`);
+  check(new Set(Object.values(JOB_GAMES).map((k) => k.game)).size === Object.keys(CAREERS).length, 'and no two careers share one');
+  check(grade(0) === 0 && grade(0.34) === 0 && grade(0.35) === 1 && grade(0.65) === 2 && grade(0.89) === 2 && grade(0.9) === 3 && grade(1) === 3, 'a score becomes one of four marks');
+  const job = () => { const L = fresh(); L.s.job = { c: 'kitchen', r: 1, n: 0, perf: 50, raise: 0 }; L.s.time = 2; return L; };
+  const run = (x) => { const L = job(); const cash = L.s.cash; const r = L.act('workPlay', x); return { L, r, pay: L.s.cash - cash }; };
+  const plain = (() => { const L = job(); const cash = L.s.cash; L.act('work'); return { L, pay: L.s.cash - cash }; })();
+  const bad = run(0.1), fair = run(0.45), good = run(0.7), great = run(1), unplayed = run(undefined);
+  check(great.r.ok && great.pay === Math.round(plain.pay * 1.5 / 10) * 10 && good.pay === Math.round(plain.pay * 1.25 / 10) * 10 && fair.pay === plain.pay && bad.pay === Math.round(plain.pay * 0.75 / 10) * 10, 'played well a shift pays half as much again; played badly, a quarter less');
+  check(great.L.s.job.n === 1.4 && good.L.s.job.n === 1.2 && fair.L.s.job.n === 1 && bad.L.s.job.n === 0.6, 'and it counts for more, or less, towards promotion');
+  check(great.L.s.job.perf > plain.L.s.job.perf && bad.L.s.job.perf < plain.L.s.job.perf, 'and the boss notices which');
+  check(great.r.text.startsWith(JOB_GAMES.kitchen.said[3]) && bad.r.text.startsWith(JOB_GAMES.kitchen.said[0]), 'what is said fits how it went');
+  check(great.L.s.aced.kitchen === 1 && great.L.s.ach.blinder && !good.L.s.aced.kitchen && great.L.s.n.played === 1, 'a blinder is remembered');
+  check(unplayed.pay === plain.pay && unplayed.L.s.job.n === 1, 'left unplayed, a shift by hand is a fair one');
+  check(job().can('workPlay', 2) === 'Roll your sleeves up.' && job().can('workPlay', 'x') === 'Roll your sleeves up.', 'a score is a number from nought to one');
+  // The boss wants to watch now and then.
+  const L = job();
+  for (let i = 0; i < PLAY_EVERY; i++) { L.s.time = 2; L.s.use = {}; check(!L.playDue() && L.act('work').ok, `shift ${i + 1} can look after itself`); }
+  L.s.time = 6;
+  check(L.playDue() && L.can('work').includes('by hand') && L.can('workHard').includes('by hand') && L.can('workEasy').includes('by hand') && !L.can('workPlay', 0.5), `after ${PLAY_EVERY} of those the boss wants to watch`);
+  const rows = L.placeActions(CAREERS.kitchen.place);
+  check(rows[0].id === 'work' && rows[1].id === 'workPlay' && !rows[1].why && rows[0].why, 'and the hands-on shift is the one on offer');
+  L.act('workPlay', 0.5);
+  check(!L.playDue() && L.s.job.auto === 0 && !L.can('work'), 'one shift by hand and the rest can look after themselves again');
+  const g = L.shiftGame();
+  check(g.id === 'pans' && g.level === 1 && g.ease === L.s.st.craft / 100 && g.skill === 'Craft' && g.title && g.icon, 'the screen is told which game, how hard, and how much your skill helps');
+  // A mess made while the boss is watching costs more than one made unwatched.
+  const seen = job(), unseen = job();
+  seen.s.job.auto = PLAY_EVERY;
+  seen.act('workPlay', 0); unseen.act('workPlay', 0);
+  check(seen.s.job.perf === unseen.s.job.perf - 4, 'a mess made in front of the boss is remembered');
+  // Promotion starts the count again.
+  const up = job();
+  up.s.job = { c: 'kitchen', r: 0, n: SHIFTS_FOR_RUNG[1] - 1, perf: 50, raise: 0, auto: PLAY_EVERY - 1 };
+  for (const k of STATS) up.s.st[k] = 100;
+  up.act('work');
+  check(up.s.job.r === 1 && up.s.job.auto === 0 && !up.playDue(), 'a new post starts with nobody looking over your shoulder');
+  const crew = fresh();
+  crew.s.job = { c: 'crew', r: 0, n: 0, perf: 50, raise: 0 }; crew.s.time = 2;
+  crew.act('workPlay', 1);
+  check(crew.s.n.crimes === 1 && crew.s.aced.crew === 1, 'a shift for Sal done by hand is still a crime');
+  crew.s.job.auto = PLAY_EVERY; crew.s.time = 2;
+  check(crew.can('work').startsWith('Sal wants'), 'and it is Sal who wants to watch');
+
+  // The puzzles can always be done.
+  let seed = 12345;
+  const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+  check(turn(1) === 2 && turn(2) === 4 && turn(4) === 8 && turn(8) === 1 && turn(5) === 10 && turn(15) === 15, 'a pipe turns a quarter at a time');
+  for (const n of [4, 5]) for (let i = 0; i < 200; i++) {
+    const p = pipes(n, rnd);
+    if (flow(p).done) { check(false, 'a pipe puzzle never starts solved'); break; }
+    const solved = flow({ n, tiles: p.answer });
+    if (!solved.done || p.tiles.length !== n * n || p.path < 2 * n - 1 || solved.wet.size < p.path) { check(false, `a ${n} by ${n} pipe puzzle can always be solved`); break; }
+    // Every tile can be turned back to its answer.
+    if (!p.tiles.every((m, k) => [m, turn(m), turn(turn(m)), turn(turn(turn(m)))].includes(p.answer[k]))) { check(false, 'the answer is only ever a matter of turning'); break; }
+  }
+  for (let i = 0; i < 200; i++) {
+    const first = Math.floor(rnd() * 36), b = sweep(6, 8, first, rnd), open = new Set();
+    if (b.bug.filter(Boolean).length !== 8 || b.bug[first] || b.near(first).some((j) => b.bug[j]) || b.safe !== 28) { check(false, 'the first square opened is never a bug, nor beside one'); break; }
+    if (dig(b, open, first) || open.size < 4) { check(false, 'the first square opens up a patch'); break; }
+    for (let k = 0; k < 36; k++) if (!b.bug[k]) dig(b, open, k);
+    if (open.size !== b.safe || [...open].some((k) => b.bug[k])) { check(false, 'every safe square can be opened'); break; }
+    if (!dig(b, new Set(), b.bug.indexOf(true))) { check(false, 'a bug is a bug'); break; }
+  }
+  for (let lv = 0; lv <= 5; lv++) for (let i = 0; i < 100; i++) {
+    const c = sale(lv, rnd);
+    let left = c.due, coins = 0;
+    for (const v of COINS) while (left >= v) { left -= v; coins++; }
+    if (c.due !== c.paid - c.price || c.due <= 0 || left !== 0 || coins > 12) { check(false, `change can always be made (${JSON.stringify(c)})`); break; }
+  }
+  for (let lv = 0; lv <= 5; lv++) for (let i = 0; i < 100; i++) {
+    const l = lineup(lv, rnd), w = l.faces[l.who], fits = l.faces.filter((f) => f.sex === w.sex && f.hair === w.hair && f.top === w.top && f.beard === w.beard);
+    if (l.faces.length !== 6 || fits.length !== 1 || !l.says.includes(w.sex === 'm' ? 'man' : 'woman')) { check(false, 'the description fits exactly one face'); break; }
+    if (l.faces.some((f) => f !== w && f.hair === w.hair && f.top === w.top)) { check(false, 'no face differs from the right one by a beard alone'); break; }
+    const sp = smallPrint(lv, rnd);
+    if (sp.rows.filter((r) => r.was !== r.now).length !== 1 || sp.rows[sp.odd].was === sp.rows[sp.odd].now) { check(false, 'exactly one clause has been changed'); break; }
+    const q = sum(lv, rnd), m = q.text.match(/^(\d+) (.) (\d+) = (-?\d+)$/);
+    const real = m && (m[2] === '+' ? +m[1] + +m[3] : m[2] === '−' ? +m[1] - +m[3] : +m[1] * +m[3]);
+    if (!m || (real === +m[4]) !== q.right || +m[4] < 0) { check(false, `a sum is right when it says it is (${q.text})`); break; }
+    const t = tune(lv, rnd);
+    if (t.length < 16 || t.some((n, k) => n.lane < 0 || n.lane > 3 || (k && n.t <= t[k - 1].t)) || t[t.length - 1].t > 19.5) { check(false, 'a tune is a run of notes in four lanes'); break; }
+  }
+  for (let i = 0; i < 100; i++) { const p = ticker(200, rnd); if (p.length !== 200 || p.some((v) => !(v > 60 && v < 140)) || bestTrade(p) < 1.3 || Math.abs(p[199] - p[0]) > 0.02 || Math.abs(p[0] - 100) > 0.02) { check(false, `a share price swings enough to trade on, and ends where it began (${p[0]} to ${p[199]}, best ${bestTrade(p).toFixed(2)})`); break; } }
 }
 
 // ---- study, and where it gets you -------------------------------------------------------
@@ -1602,7 +1691,7 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', sibs:
   const Wk = fresh();
   Wk.s.job = { c: 'kitchen', r: 1, n: 0, perf: 50, raise: 0 };
   let mates = 0;
-  for (let i = 0; i < 200 && Wk.friends().length < 20; i++) { Wk.s.time = 6; Wk.s.use = {}; Wk.s.health = 90; Wk.s.happy = 60; Wk.act('work'); }
+  for (let i = 0; i < 200 && Wk.friends().length < 20; i++) { Wk.s.time = 6; Wk.s.use = {}; Wk.s.health = 90; Wk.s.happy = 60; Wk.act(Wk.playDue() ? 'workPlay' : 'work'); }
   mates = Wk.friends().filter((q) => q.job === 'kitchen').length;
   check(mates >= 3 && mates === Wk.friends().length, `some of the people you work with become friends, in your own line of work (${mates} in 200 shifts)`);
   const mate = Wk.friends()[0], mb = mate.bond, perf = Wk.s.job.perf;
@@ -1779,7 +1868,8 @@ function climber(seed, target) {
   const bg = { smarts: 'bookworm', fitness: 'athlete', charm: 'charmer', craft: 'maker' }[CAREERS[target].stats[0]];
   const L = Life.create({ seed, name: 'Climber', bg, sex: seed % 2 ? 'f' : 'm' });
   const s = L.s, car = CAREERS[target];
-  const go = (id, x) => { const r = L.act(id, x); if (r.ok) { sane(L, id); answer(L, false); } return r.ok; };
+  // (When the boss wants to watch, the shift is done by hand, and done fairly.)
+  const go = (id, x) => { if (id === 'work' && L.playDue()) id = 'workPlay'; const r = L.act(id, x); if (r.ok) { sane(L, id); answer(L, false); } return r.ok; };
   let guard = 0, topAt = null;
   while (!s.dead) {
     if (++guard > 500) throw new Error('a life that never ends');
@@ -1887,6 +1977,7 @@ function monkey(seed) {
         if (!L.can('sellShares', x)) opts.push(['sellShares', x]);
       }
       if (s.items.phone && !L.partner()) { for (let i = 0; i < L.prospects().length; i++) if (!L.can('match', i)) opts.push(['match', i]); if (!L.can('rematch')) opts.push(['rematch']); }
+      if (s.job && !L.can('workPlay', 0.5)) opts.push(['workPlay', Math.round(L.rnd() * 100) / 100]);
       for (const [id, x] of [['deposit', 500], ['withdraw', 500], ['borrow', 1000], ['repay', 500], ['repayStudent', 200], ['slots', 50], ['hiloStart', 50], ['hiloGuess', 'hi'], ['hiloGuess', 'lo'], ['hiloCash'], ['drop'], ['insure', 'health'], ['insure', 'home'], ['food', Math.floor(L.rnd() * 3)],
         ['bjStart', 50], ['bjHit'], ['bjStand'], ['bjDouble'], ['raceBet', { i: Math.floor(L.rnd() * 5), bet: 50 }], ['plotRent'], ['plotQuit'], ['tend'], ['reap'], ['haggle'],
         ['chirpSpon'], ...Object.keys(CHIRPS).map((k) => ['chirp', k]), ...(wild ? [['chirpTroll'], ['chirpShill']] : []),
