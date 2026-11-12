@@ -371,7 +371,9 @@ export default function ({ check, fresh, Life, ACTIONS }) {
 
 // For the random practice players: the noticeboard's jobs, the graves, and the bells.
 export function moves(L) {
-  const out = [['soulSoup'], ['soulVisit'], ['soulJumble'], ['soulRoofGive'], ['soulBells', Math.round(L.rnd() * 100) / 100]];
+  // (One job off the noticeboard at a time, as if it were one row on a place's list: offering
+  // all four every time made the random players far busier at St Brigid's than anywhere else.)
+  const out = [[L.pick(['soulSoup', 'soulVisit', 'soulJumble', 'soulRoofGive'])], ['soulBells', Math.round(L.rnd() * 100) / 100]];
   const g = L.s.soul ? L.s.soul.graves : [];
   if (g.length) out.push(['soulGrave', Math.floor(L.rnd() * g.length)]);
   return out;
