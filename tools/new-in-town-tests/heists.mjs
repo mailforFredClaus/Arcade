@@ -60,9 +60,9 @@ export default function ({ check, fresh, Life, ACTIONS }) {
     }
     for (const id of ['heistsOpen', 'heistsPick', 'heistsCase0', 'heistsCase1', 'heistsCase2', 'heistsDig', 'heistsCopy', 'heistsAsk', 'heistsLad', 'heistsSelf', 'heistsOff', 'heistsSet', 'heistsGo', 'heistsDrop', 'heistsWashSal', 'heistsWashChips', 'heistsWashBiz', 'heistsWashBank', 'heistsWashHouse', 'heistsSpend', 'heistsTea', 'heistsPatchOff']) check(ACTIONS[id], `there is an action ${id}`);
     const ids = new Set(EVENTS.map((e) => e.id));
-    for (const id of ['heistIn', 'heistSnag', 'heistTake', 'heistOut', 'heistDone', 'heistBlown', 'heistGrass', 'heistStale', 'heistLoose', 'kittoMeet', 'kittoVisit', 'kittoFlash', 'kittoPromo', 'kittoBent', 'kittoRetire', 'kittoGaol', 'lagMate', 'lagFoe', 'lagGate', 'salHome', 'carneArrive', 'carneNan', 'carneFire', 'carneHit', 'carneSitdown', 'carneWar']) check(ids.has(id), `card ${id} is in the deck`);
+    for (const id of ['heistIn', 'heistSnag', 'heistTake', 'heistOut', 'heistDone', 'heistBlown', 'heistGrass', 'heistStale', 'heistLoose', 'kittoMeet', 'kittoVisit', 'kittoFlash', 'kittoPromo', 'kittoBent', 'kittoRetire', 'kittoGaol', 'lagMate', 'lagFoe', 'lagGate', 'salHome', 'carneArrive', 'carneNan', 'carneFire', 'carneHit', 'carneSitdown', 'carneWar', 'carneStash']) check(ids.has(id), `card ${id} is in the deck`);
     // (All sent for by the rules here: none of them crowds the random deck.)
-    const mine = ['heistIn', 'heistSnag', 'heistTake', 'heistOut', 'heistDone', 'heistBlown', 'heistGrass', 'heistStale', 'heistLoose', 'kittoMeet', 'kittoVisit', 'kittoFlash', 'kittoPromo', 'kittoBent', 'kittoRetire', 'kittoGaol', 'lagMate', 'lagFoe', 'lagGate', 'salHome', 'carneArrive', 'carneNan', 'carneFire', 'carneHit', 'carneSitdown', 'carneWar'];
+    const mine = ['heistIn', 'heistSnag', 'heistTake', 'heistOut', 'heistDone', 'heistBlown', 'heistGrass', 'heistStale', 'heistLoose', 'kittoMeet', 'kittoVisit', 'kittoFlash', 'kittoPromo', 'kittoBent', 'kittoRetire', 'kittoGaol', 'lagMate', 'lagFoe', 'lagGate', 'salHome', 'carneArrive', 'carneNan', 'carneFire', 'carneHit', 'carneSitdown', 'carneWar', 'carneStash'];
     check(EVENTS.filter((e) => mine.includes(e.id)).every((e) => !e.w), 'the new cards are all sent for, never dealt at random');
     check(EVENTS.find((e) => e.id === 'gCellmate').w === 0, 'Bernard is sent for, not dealt over and over');
     check(!ACTIONS.heist, 'the one-tap bank job is gone');
@@ -519,6 +519,60 @@ export default function ({ check, fresh, Life, ACTIONS }) {
     while (S.event() && S.event().id !== 'salHome') S.choose(0);
     S.choose(S.event().opts.length - 1);
     check(S.s.f.salOff > S.s.t + 30, 'and knows who put him there');
+  }
+
+  // ---- traits, cellmates, the gate and the stash ----
+  {
+    // A trait from soul.js opens a choice of its own.
+    const L = ready('villa', { way: 'quiet' });
+    L.act('heistsGo');
+    let e;
+    while ((e = L.event()) && e.id !== 'heistTake' && e.id !== 'busted') L.choose(careful(e));
+    if (e && e.id === 'heistTake') {
+      check(!e.opts.some((o) => o.t.startsWith('🪂')), 'no daredevil, no going back for the safe');
+      L.s.soul.has.daredevil = L.s.t;
+      check(L.event().opts.some((o) => o.t.startsWith('🪂')), 'a daredevil may go back for the safe as well');
+    }
+    // Every cellmate's card can be answered, every way.
+    for (const m of ['bernard', 'tiny', 'kev', 'moss', 'sal', 'danny']) {
+      const X = fresh();
+      X.jail(6);
+      X.s.heists.lag.mates[m] = { met: 0, out: 99, bond: 50, n: 2 };
+      X.queue('lagMate', { m });
+      const n = X.event().opts.length;
+      let ok = n >= 1 && n <= 3;
+      for (let i = 0; i < n; i++) { const Y = clone(X, i + 1); const r = Y.choose(i); if (!r.ok || !r.text) ok = false; }
+      check(ok, `${m}: a cellmate with a few things to say to`);
+    }
+    // At the gate: Nan Carne's Rover, or the detective on a lamppost.
+    const G = fresh();
+    G.s.heists.rival.stage = 2; G.s.heists.sal = 20;
+    let nan = false, det = false;
+    for (let i = 0; i < 30 && !(nan && det); i++) {
+      const X = clone(G, i * 3 + 1);
+      X.s.heists.det.file = 60; X.s.heists.det.met = 0;
+      X.jail(1); X.endSeason();
+      while (X.event() && X.event().id !== 'lagGate') X.choose(0);
+      const g = X.event(), o = g ? g.opts.map((q) => q.t) : [];
+      if (o.includes('Get in the pink Rover')) { nan = true; const c = X.s.cash; X.choose(o.indexOf('Get in the pink Rover')); check(X.s.heists.rival.side === 'nan' && X.s.cash === c + 2000, 'Nan Carne’s car, and her money, and her side'); } else if (o.includes('Nod to the detective')) det = true;
+    }
+    check(nan && det, 'somebody different across the road, now and then');
+    // The detective's tea.
+    const T = fresh();
+    T.s.heists.det.met = 0; T.s.heists.det.file = 30;
+    const r = T.act('heistsTea');
+    check(r.ok && r.text.length > 20 && T.s.heists.det.bond > 0 && T.can('heistsTea') === 'Once a season.', 'a cup of tea with the detective, once a season');
+    // Nan's lads find the stash.
+    const S = fresh();
+    S.s.heists.hot = 50000; S.s.heists.rival.stage = 3;
+    S.queue('carneStash'); S.choose(1);
+    check(S.s.heists.hot === 20000, 'hot money in the loft is a temptation to the other side');
+    // Robbing the Gull in the middle of the war finishes Nan Carne.
+    const W = ready('gull', { way: 'inside' });
+    W.s.heists.rival.stage = 3;
+    let fin = null;
+    for (let i = 0; i < 40 && !fin; i++) { const X = clone(W, i * 7 + 1); const how = night(X, careful); if (how === 'clean' || how === 'messy') fin = X; }
+    check(fin && fin.s.heists.rival.end === 'gone', 'without the pier’s takings, Nan’s lot are just a family');
   }
 
   // ---- the paper, the obituary and the trophies ----
