@@ -214,7 +214,8 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
       if (spend > 0) { L.karma(2); L.fame(0.4); L.joy(2); }
       if (tr.fund < tr.start * 0.25) L.queue('midTrustLow');
       else if (tr.chair !== s.t && tr.chair !== s.t - 1 && tr.chair !== s.t - 2 && L.chance(0.35)) L.queue('midTrustBooks');
-      else if (spend > 0) L.queue('midTrustYear', { i: tr.n % CAUSES[tr.cause].good.length });
+      // (You hear what it did in its first good years; after that it goes on doing it quietly.)
+      else if (spend > 0 && tr.good < CAUSES[tr.cause].good.length) L.queue('midTrustYear', { i: tr.good });
     }
     // Money lent to a grown child for a house, paid back a little each season, mostly.
     for (const l of m.lent.slice()) {
