@@ -1773,7 +1773,8 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', sibs:
   T.kids()[0].st.craft = 77;
   T.die('old age');
   const ob = T.obituary();
-  check(ob.ribbon.id === 'tycoon' && ob.inherit === 150000 && ob.heir.name === 'Kit' && ob.heir.sex === 'm' && ob.heir.st.craft === 77, 'a tycoon leaves a child the most that can be inherited, and the child takes what he learned');
+  // (There is no flat cap on an inheritance any more: death duty takes its share, by plain rules: see new-in-town-tests/chapters.mjs.)
+  check(ob.ribbon.id === 'tycoon' && ob.inherit === T.s.chap.out.left && ob.inherit > 150000 && ob.inherit < 2e7 * 0.3 && ob.heir.name === 'Kit' && ob.heir.sex === 'm' && ob.heir.st.craft === 77, 'a tycoon leaves an only child what death duty leaves of it, and the child takes what he learned');
   const U = fresh();
   U.s.age = 120;
   U.endSeason(); U.endSeason(); U.endSeason(); U.endSeason();

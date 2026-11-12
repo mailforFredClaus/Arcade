@@ -11,5 +11,6 @@ import market from './market-ui.js'; // Windle Farm and Market Square
 import folk from './folk-ui.js'; // the people of the town
 import flutter from './flutter-ui.js'; // the gambling habit
 import careers from './careers-ui.js'; // a story for every career
+import chapters from './chapters-ui.js'; // the chapters of a life, old age, and the will
 
-export const SCREENS = [soul, coast, motor, clubs, market, folk, flutter, careers];
+export const SCREENS = [soul, coast, motor, clubs, market, folk, flutter, careers, chapters];

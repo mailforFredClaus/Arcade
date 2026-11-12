@@ -1154,11 +1154,9 @@ let draft = null;
 function showStart() {
   const nx = save.next;
   const rand = (n) => Math.floor(Math.random() * n);
-  const ids = Object.keys(DREAMS);
-  const offered = [];
-  // (An heir is not offered a dream the family has already made impossible.)
-  const open = (id) => !DREAMS[id].open || DREAMS[id].open({ gifts: (nx && nx.gifts) || {} });
-  while (offered.length < 6) { const id = ids[rand(ids.length)]; if (!offered.includes(id) && open(id)) offered.push(id); }
+  // (An heir is not offered a dream the family has already made impossible, nor one already come true,
+  // nor one out of reach at the heir's age: chapters.js looks at the life the heir would start.)
+  const offered = Life.chapOffer(nx, Math.random);
   const sex = nx && nx.sex ? nx.sex : 'm';
   draft = {
     name: nx && nx.name ? nx.name : '', sex, into: sex === 'm' ? 'f' : 'm',
@@ -1182,10 +1180,10 @@ function renderStart() {
   $('start').innerHTML = `<div class="start-in">
     <div class="start-top"><a class="ico-btn" href="../../index.html" aria-label="Back to the arcade">${ICON.back}</a><button class="ico-btn" data-do="menu" aria-label="Menu">${ICON.gear}</button></div>
     <h1 class="logo"><span>New</span><span>in Town</span></h1>
-    <p class="tag">${nx ? `Generation ${nx.gen}. ${esc(nx.from)} left you ${money(nx.inherit)}${raised.length ? `, and brought you up with a head start in ${raised.length > 1 ? `${raised.slice(0, -1).join(', ')} and ${raised[raised.length - 1]}` : raised[0]}` : ''}.` : 'One suitcase. One town. One whole life.'}</p>
+    <p class="tag">${nx ? (nx.carry && nx.carry.said ? `Generation ${nx.gen}. ${esc(nx.carry.said)}${nx.carry.how === 'home' ? ` You are ${nx.carry.age}, and the Bay is home.` : ''}` : `Generation ${nx.gen}. ${esc(nx.from)} left you ${money(nx.inherit)}${raised.length ? `, and brought you up with a head start in ${raised.length > 1 ? `${raised.slice(0, -1).join(', ')} and ${raised[raised.length - 1]}` : raised[0]}` : ''}.`) : 'One suitcase. One town. One whole life.'}</p>
 
     <div class="box"><h3>Who are you?</h3>
-      <div class="namer"><span class="ava big">${face(d.look, 18, 70, d.sex)}</span>
+      <div class="namer"><span class="ava big">${face(d.look, (nx && nx.carry && nx.carry.how === 'home' && nx.carry.age) || 18, 70, d.sex)}</span>
         <div><input id="nameIn" type="text" maxlength="16" placeholder="Your name" value="${esc(d.name)}" autocomplete="off" autocapitalize="words" spellcheck="false">
         <div class="picks"><button class="pick quiet" data-do="rname">🎲 Name</button><button class="pick quiet" data-do="rlook">🎲 Look</button><button class="pick quiet" data-do="style">💇 Hair</button>${d.sex === 'm' ? `<button class="pick quiet" data-do="beard">🧔 ${d.look.beard ? 'Shave' : 'Beard'}</button>` : ''}</div></div></div>
       <div class="row"><span>I am a</span><div class="seg">${seg('sex', 'm', 'Man', d.sex === 'm')}${seg('sex', 'f', 'Woman', d.sex === 'f')}</div></div>
@@ -1194,11 +1192,11 @@ function renderStart() {
 
     <div class="box"><h3>What were you like at school?</h3><div class="grid3">${Object.entries(BACKGROUNDS).map(([id, b]) => `<button class="opt-card${d.bg === id ? ' on' : ''}" data-do="bg" data-id="${id}"><i>${b.icon}</i><b>${b.name}</b><small>${b.blurb}</small></button>`).join('')}</div></div>
 
-    <div class="box"><h3>What do you dream of? <em>Pick three</em></h3><div class="grid2">${d.offered.map((id) => `<button class="opt-card wide${d.dreams.includes(id) ? ' on' : ''}" data-do="dream" data-id="${id}"><i>${DREAMS[id].icon}</i><b>${DREAMS[id].name}</b><small>${DREAMS[id].desc}</small></button>`).join('')}</div></div>
+    <div class="box"><h3>What do you dream of? <em>Pick three</em></h3><div class="grid2">${d.offered.map((id) => `<button class="opt-card wide${d.dreams.includes(id) ? ' on' : ''}" data-do="dream" data-id="${id}"><i>${DREAMS[id].icon}</i><b>${DREAMS[id].name}</b><small>${DREAMS[id].desc}</small></button>`).join('')}</div><button class="pick quiet reroll" data-do="dreamsAgain">🎲 Other dreams</button></div>
 
     ${heirs.length ? `<div class="box"><h3>An heirloom <em>Pick one to bring</em></h3><div class="grid2">${heirs.map((r) => `<button class="opt-card wide${d.heir === r.id ? ' on' : ''}" data-do="heir" data-id="${r.id}"><i>${r.heir.icon}</i><b>${r.heir.name}</b><small>${r.heir.desc}</small></button>`).join('')}</div></div>` : ''}
 
-    <button class="btn btn-primary go-btn${ready ? '' : ' off'}" data-do="begin">${ready ? 'Catch the train to Starling Bay' : !d.name.trim() ? 'Choose a name' : `Pick ${3 - d.dreams.length} more dream${3 - d.dreams.length > 1 ? 's' : ''}`}</button>
+    <button class="btn btn-primary go-btn${ready ? '' : ' off'}" data-do="begin">${ready ? (nx && nx.carry && nx.carry.how === 'home' ? `Carry on as ${esc(d.name.trim())}` : 'Catch the train to Starling Bay') : !d.name.trim() ? 'Choose a name' : `Pick ${3 - d.dreams.length} more dream${3 - d.dreams.length > 1 ? 's' : ''}`}</button>
   </div>`;
   const input = $('nameIn');
   input.addEventListener('input', () => {
@@ -1216,6 +1214,8 @@ function beginLife() {
     inherit: nx ? nx.inherit : 0, gen: nx ? nx.gen : 1, parent: nx ? nx.parent : null, raised: nx ? nx.st : null, gifts: nx ? nx.gifts : null, sibs: nx && nx.sibs ? nx.sibs : nx ? [] : null,
     seed: (Math.random() * 2 ** 32) >>> 0,
   });
+  // (A grown child or grandchild starts at their own age, at home, with what the will gave them: chapters.js.)
+  life.chapBegin(nx ? nx.carry : null, d.dreams);
   save.next = null;
   save.counted = false;
   save.yearWorth = life.netWorth();
@@ -1225,7 +1225,13 @@ function beginLife() {
   $('start').hidden = true;
   $('app').hidden = false;
   render();
-  const s = life.s;
+  const s = life.s, intro = life.chapIntro();
+  if (intro) {
+    ui.show(`<div class="ev-ico">${intro.icon}</div><h2>${esc(intro.title)}</h2>${intro.text.map((t) => `<p class="ev-text">${esc(t)}</p>`).join('')}
+      ${intro.letter ? `<p class="ev-text letter">${esc(intro.letter)}</p>` : ''}
+      <div class="actions"><button class="btn btn-primary" data-action="begin">${esc(intro.btn)}</button></div>`);
+    return;
+  }
   ui.show(`<div class="ev-ico">🚂</div><h2>Starling Bay</h2>
     <p class="ev-text">The train pulls out and leaves you on the platform with one suitcase, ${money(s.cash)}, and a bunk booked at the Seagull Hostel.${s.gen > 1 ? ' Your family has history here.' : ' You do not know a soul.'}</p>
     <p class="ev-text">Gulls. Salt in the air. A whole town, and a whole life to live in it.</p>
@@ -1255,37 +1261,40 @@ function showEnd() {
     m.hall.unshift({ name: s.name, age: o.age, ribbon: o.ribbon.id, score: o.score, gen: s.gen, title: o.title, worth: o.worth });
     m.hall.length = Math.min(m.hall.length, 40);
     save.fresh = fresh;
-    save.next = { sibs: o.sibs, gifts: o.gifts, gen: s.gen + 1, inherit: o.inherit, from: s.name, name: o.heir ? o.heir.name : '', look: o.heir ? o.heir.look : null, sex: o.heir ? o.heir.sex : null, st: o.heir ? o.heir.st : null, parent: o.parent };
+    save.next = life.chapNextLife(0);
     persist();
   } else fresh = !!save.fresh;
   closeSheets();
   ui.close();
   newsQueue.length = 0;
   $('news').innerHTML = '';
-  const big = s.log.filter((e) => e.k === 'big' || e.k === 'love').slice(1, -1).slice(-9);
+  // The biggest moments of the life, in order (chapters.js keeps them as they happen).
+  const big = o.highlights;
   $('app').hidden = true;
   $('end').hidden = false;
   $('end').innerHTML = `<div class="start-in end-in">
     <p class="rip">In loving memory</p>
     <span class="ava huge">${face(s.look, s.age, 70, s.sex)}</span>
     <h1 class="end-name">${esc(s.name)}</h1>
-    <p class="tag">Came to Starling Bay at 18. Died at ${o.age}, of ${esc(o.cause)}.</p>
+    <p class="tag">${esc(life.chapOrigin())} Died at ${o.age}, of ${esc(o.cause)}.</p>
     <div class="ribbon"><i>${o.ribbon.icon}</i><b>${o.ribbon.name}</b><small>${o.ribbon.desc}</small></div>
     ${fresh ? `<div class="box warn good">New heirloom for the lives to come: ${o.ribbon.heir.icon} <b>${o.ribbon.heir.name}</b>. ${o.ribbon.heir.desc}</div>` : ''}
     <div class="stats"><div><b>${o.score.toLocaleString()}</b><span>Score</span></div><div><b>${cashShort(o.worth)}</b><span>Left behind</span></div><div><b>${o.trophies}</b><span>Trophies</span></div></div>
-    <div class="box"><h3>Dreams</h3>${o.dreams.map((d) => `<div class="dream${d.done ? ' done' : ''}"><i>${DREAMS[d.id].icon}</i><div><b>${DREAMS[d.id].name}</b><small>${d.done ? 'Came true' : 'Not this time'}</small></div><em>${d.done ? '✓' : ''}</em></div>`).join('')}</div>
+    <div class="box"><h3>Dreams</h3>${o.dreams.map((d) => `<div class="dream${d.done ? ' done' : ''}"><i>${DREAMS[d.id].icon}</i><div><b>${DREAMS[d.id].name}</b><small>${d.done ? 'Came true' : d.was ? 'Let go, for another' : 'Not this time'}</small></div><em>${d.done ? '✓' : ''}</em></div>`).join('')}</div>
     <div class="paper obit"><p class="mast">The Starling Bay Gazette</p><p class="dateline">${SEASONS[life.season]}, year ${life.year} · Obituaries</p><h2>${esc(s.name)}, ${o.age}</h2>${life.epitaph().slice(1).map((t) => `<p class="story">${esc(t)}</p>`).join('')}</div>
     ${big.length ? `<div class="box"><h3>A life</h3>${big.map((e) => `<p class="entry"><i>${e.a}</i>${esc(e.t)}</p>`).join('')}</div>` : ''}
     <div class="box"><h3>Skills at the end</h3>${STATS.map((k) => `<div class="skill"><i>${STAT_ICON[k]}</i><span>${STAT_NAME[k]}</span><span class="bar"><span style="width:${s.st[k]}%"></span></span><b>${Math.floor(s.st[k])}</b></div>`).join('')}</div>
-    <button class="btn btn-primary go-btn" data-do="heirLife">${o.heir ? `Carry on as ${esc(o.heir.name)}, your ${o.heir.sex === 'm' ? 'son' : 'daughter'}` : 'Carry on as a distant cousin'}<small>Inherits ${money(o.inherit)}${o.heir ? ', and what you taught' : ''}</small></button>
+    ${o.carry.map((c, i) => `<button class="btn ${i ? 'btn-soft' : 'btn-primary'} go-btn" data-do="heirLife" data-i="${i}">${c.how === 'train' ? 'Carry on as a distant cousin' : `Carry on as ${esc(c.name)}, your ${c.rel}`}<small>${esc(life.chapStartSaid(c))}</small></button>`).join('')}
     <button class="btn btn-soft go-btn" data-do="newFamily">Start a new family from nothing</button>
   </div>`;
   $('end').scrollTop = 0;
   if (fresh) confetti();
 }
 
-function afterEnd(keep) {
+function afterEnd(keep, i = 0) {
   if (!keep) save.next = null;
+  // (Carrying on as somebody other than the one the will names: they come with what the will gave them.)
+  else if (i && life) save.next = life.chapNextLife(i);
   save.counted = false;
   save.fresh = false;
   life = null;
@@ -1345,7 +1354,8 @@ const DO = {
   },
   heir(el) { draft.heir = draft.heir === el.dataset.id ? null : el.dataset.id; sfx('tap'); renderStart(); },
   begin: beginLife,
-  heirLife() { sfx('tap'); afterEnd(true); },
+  heirLife(el) { sfx('tap'); afterEnd(true, Number(el.dataset.i || 0)); },
+  dreamsAgain() { draft.offered = [...draft.dreams, ...Life.chapOffer(save.next, Math.random, draft.dreams)]; sfx('flip'); renderStart(); },
   newFamily() { sfx('tap'); afterEnd(false); },
 };
 

@@ -35,7 +35,8 @@ export function install({ def, A, Life, clamp, hooks }) {
       const jobs = Object.keys(s.worked).filter((c) => CAREERS[c]).sort((x, y) => s.worked[y] - s.worked[x]);
       const kids = this.kids(), grand = this.grandkids().length;
       const spouse = s.people.find((p) => p.kind === 'spouse'), partner = s.people.find((p) => p.kind === 'partner');
-      out.push(`${s.name}, who came to Starling Bay at eighteen with one suitcase${s.gen > 1 ? ', as the family had before' : ''}, has died at ${s.age}.`);
+      // (An heir who grew up in the Bay did not come on the train: chapters.js says how such a life began.)
+      out.push((this.chapOpening && this.chapOpening()) || `${s.name}, who came to Starling Bay at eighteen with one suitcase${s.gen > 1 ? ', as the family had before' : ''}, has died at ${s.age}.`);
       if (jobs.length) {
         const c = jobs[0], title = lowJob(CAREERS[c].rungs[s.worked[c]].title);
         if (CAREERS[c].shady) out.push(`${He} was known to the police, and to Sal, in whose service ${he} rose to ${title}.`);
