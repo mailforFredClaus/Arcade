@@ -1999,6 +1999,10 @@ function monkey(seed) {
         if (!L.can('shares', x)) opts.push(['shares', x]);
         if (!L.can('sellShares', x)) opts.push(['sellShares', x]);
       }
+      // (A life plan of sorts, so that the big steps still get taken among so much else to do: a ring
+      // when there is somebody to give it to, and a home of your own when there is money for one.)
+      if (L.partner() && L.partner().kind === 'partner' && L.partner().bond >= 55 && !s.items.ring && !L.can('buy', 'ring')) for (let i = 0; i < 6; i++) opts.push(['buy', 'ring']);
+      if (!s.owned && s.cash + s.bank > 30000) for (const h of Object.keys(HOMES)) if (!L.can('buyHome', { id: h, trade: false })) for (let i = 0; i < 3; i++) opts.push(['buyHome', { id: h, trade: false }]);
       if (s.items.phone && !L.partner()) { for (let i = 0; i < L.prospects().length; i++) if (!L.can('match', i)) opts.push(['match', i]); if (!L.can('rematch')) opts.push(['rematch']); }
       if (s.job && !L.can('workPlay', 0.5)) opts.push(['workPlay', Math.round(L.rnd() * 100) / 100]);
       for (const [id, x] of [['deposit', 500], ['withdraw', 500], ['borrow', 1000], ['repay', 500], ['repayStudent', 200], ['slots', 50], ['hiloStart', 50], ['hiloGuess', 'hi'], ['hiloGuess', 'lo'], ['hiloCash'], ['drop'], ['insure', 'health'], ['insure', 'home'], ['food', Math.floor(L.rnd() * 3)],
@@ -2046,7 +2050,8 @@ console.log(`Random players: ${randomLives} lives`);
       if ((5000 + i) % 3) { ages.push(o.age); causes[o.cause] = (causes[o.cause] || 0) + 1; } else jailed += L.s.f.jailed ? 1 : 0;
       ribbons[o.ribbon.id] = (ribbons[o.ribbon.id] || 0) + 1;
       trophies += o.trophies;
-      wed += L.s.f.wed ? 1 : 0; kids += L.kids().length ? 1 : 0; biz += L.s.ach.shop ? 1 : 0; owned += L.s.ach.owner ? 1 : 0;
+      // (Random answers call more weddings off now that there are more cards on the way to one: an engagement counts as getting there.)
+      wed += L.s.f.wed || L.s.log.some((e) => e.t.startsWith('Got engaged')) ? 1 : 0; kids += L.kids().length ? 1 : 0; biz += L.s.ach.shop ? 1 : 0; owned += L.s.ach.owner ? 1 : 0;
       foes += L.s.n.seenOff || L.s.n.mended || L.enemies().length ? 1 : 0; crowd += L.followers() >= 100 ? 1 : 0; plots += Object.keys(L.s.grown).length ? 1 : 0; finds += Object.keys(L.s.curSeen).length ? 1 : 0;
       for (const id of Object.keys(L.s.seen)) seen.add(id);
       if (i === 0) {
@@ -2062,7 +2067,7 @@ console.log(`Random players: ${randomLives} lives`);
   ages.sort((a, b) => a - b);
   const random = EVENTS.filter((e) => e.w && !e.gaol);
   console.log(`  lived to between ${ages[0]} and ${ages[ages.length - 1]} (typically ${ages[Math.floor(ages.length / 2)]}); ${(trophies / randomLives).toFixed(1)} trophies a life; ${seen.size} of ${random.length} chance events seen`);
-  console.log(`  ${wed} married, ${kids} had children, ${biz} started a business, ${owned} bought property; of the wild third, ${jailed} went to prison`);
+  console.log(`  ${wed} married or engaged, ${kids} had children, ${biz} started a business, ${owned} bought property; of the wild third, ${jailed} went to prison`);
   console.log(`  ${foes} made an enemy, ${crowd} found a following, ${plots} grew something, ${finds} found a curio`);
   console.log(`  the honest ones died of: ${Object.entries(causes).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(', ')}`);
   console.log(`  ribbons: ${Object.entries(ribbons).map(([k, v]) => `${k} ${v}`).join(', ')}`);
