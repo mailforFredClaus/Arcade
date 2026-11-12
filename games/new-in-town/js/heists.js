@@ -387,8 +387,15 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       lag.kept = was && was.c === 'crew' && H.sal >= 45 && !this.salAway() ? { r: was.r, n: was.n, perf: was.perf } : null;
       // What was under the floorboards may not be there when you get back.
       if (H.hot > 0 && this.chance(0.3 + H.det.file / 150)) { this.note(`The police searched the house and found ${money(H.hot)} under the floorboards.`, 'bad'); H.hot = 0; }
-      // A job half planned does not wait for you.
-      if (H.plan && !H.plan.night) { H.plan = null; this.note('The job you were planning went cold while you were inside.'); }
+      // A job half planned does not wait for you: after a long stretch it is gone, and
+      // after a short one the crew have moved on and what you knew is out of date.
+      if (H.plan && !H.plan.night) {
+        if (q.left >= 8) { H.plan = null; this.note('The job you were planning went cold while you were inside.'); } else {
+          const p = H.plan;
+          for (const k of Object.keys(p.know)) p.know[k] = Math.max(0, p.know[k] - 1);
+          p.crew = {}; p.asked = {};
+        }
+      }
     },
     // Out (from release and breakOut in inside.js): remember how it went, and see who is at the gate.
     lagFree(q, how) {
@@ -517,7 +524,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       }
       if (stage === 'take' && n.hand != null) o += (n.hand - 0.5) * 0.3;
       if (s.wx === 'fog') o += 0.03;
-      o -= H.det.file / 300 + p.noticed / 300 + n.alarm / 250;
+      o -= H.det.file / 400 + p.noticed / 300 + n.alarm / 250;
       return clamp(o + this.luck(), 0.05, 0.92);
     },
     // About how likely you are to come home with it, as things stand.
@@ -853,7 +860,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     run(L, x) {
       const s = L.s, H = s.heists, p = H.plan, T = TARGETS[p.k], w = T.ways[p.way];
       // The noise there is before you start: how much you were noticed, how loud the way, the weather, and whether the detective is watching.
-      const alarm = Math.max(0, Math.round(p.noticed / 3 + (w.alarm || 0) + (H.det.file >= 70 && H.det.off <= s.t && H.det.bent == null ? 10 : 0) - (s.wx === 'fog' ? 10 : 0)));
+      const alarm = Math.max(0, Math.round(p.noticed / 3 + (w.alarm || 0) + (H.det.file >= 80 && H.det.off <= s.t && H.det.bent == null ? 10 : 0) - (s.wx === 'fog' ? 10 : 0)));
       p.night = { alarm, take: 1, slow: false, hand: typeof x === 'number' && p.crew.hands && p.crew.hands.kind === 'me' ? x : null, snag: null };
       L.queue('heistIn');
       return L.pick(['You sleep for an hour in the afternoon and dream about nothing.', 'You eat a proper dinner, because you do not know when the next one will be.', 'You check everything twice and then once more, and then it is dark.']);
@@ -1239,7 +1246,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
         { t: 'Offer to buy the tea', check: ['charm', 50], run(L, x, win) { const d = L.s.heists.det; d.visits++; d.bond = Math.min(100, d.bond + (win ? 8 : 2)); return win ? `You talk about the weather, the Rovers and ${L.lawHer()} terrible back. For half an hour neither of you is anything in particular.` : `${L.lawWho()} lets you pay, and watches you count the change.`; } },
         { t: 'Feed a story about somebody else', check: ['smarts', 50], run(L, x, win) { const d = L.s.heists.det; d.visits++; d.lies++; if (win) { d.off = L.s.t + 4; L.lawFile(-10); return `${L.lawWho()} writes it all down: a van, a man from Kettleby, a lock-up behind the station. ${L.lawShe() === 'she' ? 'She' : 'He'} will spend a year on it.`; } L.lawFile(10); d.bond = Math.max(0, d.bond - 5); return `"That is a very good story," says ${L.lawWho()}, "and I have heard it before, from you, about a different man."`; } },
         { t: 'Slip an envelope inside the newspaper', cost: (L) => 2500 * (L.s.heists.det.rank + 1), odds: (L) => clamp(0.12 + L.s.heists.det.bond / 300 - L.s.heists.det.lies * 0.03, 0.05, 0.5), run(L, x, win) { const d = L.s.heists.det; d.visits++; if (win) { d.bent = L.s.t; L.lawFile(-20); L.karma(-5); return `${L.lawWho()} reads the paper for a long time. Then ${L.lawShe()} folds it, envelope and all, and puts it in ${L.lawHer()} coat. "Mind how you go," ${L.lawShe()} says, and from now on it means something else.`; } L.lawFile(15); d.bond = Math.max(0, d.bond - 20); L.s.n.crimes++; L.queue('busted', { what: 'an envelope full of money, held up for the whole café to see', sev: 2 }); return `${L.lawWho()} takes the envelope out, counts it in front of the whole café, and reaches for ${L.lawHer()} handcuffs.`; } },
-        { t: 'Give them Nan Carne’s lot', show: (L) => L.s.heists.rival.stage >= 1 && !L.s.heists.rival.end, run(L) { const H = L.s.heists, r = H.rival; H.det.visits++; L.lawFile(-12); H.det.bond = Math.min(100, H.det.bond + 5); r.turf = Math.min(100, r.turf + 12); r.grass = L.s.t; return `Names, dates, the minicab office in Kettleby. ${L.lawWho()} writes it all down, and says nothing, and pays for the tea.`; } },
+        { t: 'Give them Nan Carne’s lot', show: (L) => L.s.heists.rival.stage >= 1 && !L.s.heists.rival.end, run(L) { const H = L.s.heists, r = H.rival; H.det.visits++; L.lawFile(-12); H.det.bond = Math.min(100, H.det.bond + 5); r.turf = Math.min(100, r.turf + 12); r.grass = L.s.t; r.heat += 10; return `Names, dates, the minicab office in Kettleby. ${L.lawWho()} writes it all down, and says nothing, and pays for the tea.`; } },
         { t: (L) => `😏 Make ${L.lawHim()} laugh`, show: trait('charmer'), run(L) { const d = L.s.heists.det; d.visits++; d.bond = Math.min(100, d.bond + 12); return `It takes three goes. On the third, ${L.lawWho()} laughs out loud, and then looks cross about it for the rest of the afternoon.`; } },
         { t: 'Say nothing at all', run(L) { L.s.heists.det.visits++; L.lawFile(1); return L.pick(['You sit in silence until one of you gives up. It is not you.', 'Not a word. It is the only thing they cannot write down.']); } },
       ],
@@ -1427,7 +1434,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       opts: [
         { t: 'Pay Kettleby a visit', show: (L) => rv(L).side !== 'nan', run(L) { const r = rv(L); r.heat += 20; r.turf = Math.min(100, r.turf + 15); L.salTrust(8); L.karma(-4); if (L.crime(0.2, 2, 'a can of petrol outside a bingo hall')) return 'The bingo hall’s caretaker was not asleep after all.'; return 'The Kettleby bingo hall has new windows now. The old ones are in the car park.'; } },
         { t: 'Talk Sal out of it', show: (L) => rv(L).side !== 'nan', check: ['charm', 55], run(L, x, win) { const r = rv(L); if (win) { r.peace++; r.heat = Math.max(0, r.heat - 10); return '"A war is bad for business," you tell him, and he listens, which surprises you both.'; } L.salTrust(-5); r.heat += 10; return 'He hears you out, and then does it anyway, without you.'; } },
-        { t: (L) => `Tell ${L.lawWho()} who did it`, show: (L) => rv(L).side !== 'nan' && L.s.heists.det.met != null, run(L) { const r = rv(L); r.turf = Math.min(100, r.turf + 10); r.grass = L.s.t; L.lawFile(-8); L.s.heists.det.bond = Math.min(100, L.s.heists.det.bond + 5); return `${L.lawWho()} raids the Kettleby bingo hall and finds a great deal of petrol. Nobody knows who told. Not yet.`; } },
+        { t: (L) => `Tell ${L.lawWho()} who did it`, show: (L) => rv(L).side !== 'nan' && L.s.heists.det.met != null, run(L) { const r = rv(L); r.turf = Math.min(100, r.turf + 10); r.grass = L.s.t; r.heat += 10; L.lawFile(-8); L.s.heists.det.bond = Math.min(100, L.s.heists.det.bond + 5); return `${L.lawWho()} raids the Kettleby bingo hall and finds a great deal of petrol. Nobody knows who told. Not yet.`; } },
         { t: 'Tell Nan where Sal keeps his money', show: (L) => rv(L).side === 'nan', run(L) { const r = rv(L); r.turf = Math.max(0, r.turf - 20); L.cash(5000); L.karma(-6); L.salTrust(-10); return 'Five thousand dollars, in a birthday card again. Sal’s safe is empty by the weekend, and he does not yet know why.'; } },
         { t: 'Warn Sal, and change sides', show: (L) => rv(L).side === 'nan', run(L) { const r = rv(L); r.side = 'sal'; r.heat += 20; L.salTrust(5); return 'You tell Sal everything. He listens with his eyes shut. "Better late," he says, at last.'; } },
       ],

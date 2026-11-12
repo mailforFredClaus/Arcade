@@ -47,7 +47,7 @@ export default function (kit) {
     }
 
     // Who.
-    body += '<h3>The crew</h3><p class="fine">Friends take a sixth of the take each (whoever is inside, a fifth); Sal’s lads a tenth, and Sal a fifth on top. The closer a friend, the less likely to lose their nerve, or to talk.</p>';
+    body += '<h3>The crew</h3><p class="fine">Each friend takes 15% of the haul (whoever is inside, 20%); each of Sal’s lads 10%, and Sal 20% on top. The closer a friend, the less likely to lose their nerve, or to talk.</p>';
     for (const r of L.heistRoles()) {
       const R = ROLES[r], c = p.crew[r];
       let who, picks = '';

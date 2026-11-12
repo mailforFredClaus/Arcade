@@ -93,7 +93,7 @@ export function install({ def, A, Life, clamp }) {
       }
       this.queue('inside', { n });
       if (owe) return `The desk sergeant has your photograph pinned up behind him. Back to Starling Gaol: ${n} season${n === 1 ? '' : 's'}, what you owed and more.`;
-      return kept >= 6 ? `The case against you runs to four box files. The magistrate reads all of it, and then looks up. "${n} seasons."` : `The magistrate does not look up. "${n} season${n === 1 ? '' : 's'}."`;
+      return kept >= 5 ? `The case against you runs to four box files. The magistrate reads all of it, and then looks up. "${n} seasons."` : `The magistrate does not look up. "${n} season${n === 1 ? '' : 's'}."`;
     },
     // (Heat is the law's eye just now; the detective's file in heists.js is the long memory.)
     lawWord() { const h = this.s.heat; return h >= 75 ? 'Hunting for you' : h >= 45 ? 'Wants a word' : h >= 15 ? 'Watching you' : this.s.heists && this.s.heists.det.file >= 15 ? 'Quiet, for now' : 'No interest in you'; },
