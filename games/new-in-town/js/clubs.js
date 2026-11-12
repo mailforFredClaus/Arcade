@@ -698,9 +698,12 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
       if (m.miss >= 6 || (m.miss >= 3 && m.st <= 0)) { lapse(L, id, false); continue; }
       // (A card the first time, a sterner one the second; a third time within six years, and they let you go.)
       if (m.warned && s.t - m.warnT >= 24) m.warned = 0;
-      if (m.miss === 3 && !jailed) {
+      // (Only one such letter a year from all your clubs together: a second club's waits its turn.)
+      // (And after eight in a life, the clubs know you well enough not to write: they just let you go.)
+      if (m.miss === 3 && !jailed && (s.clubs.missN || 0) >= 8) { lapse(L, id, false); continue; }
+      if (m.miss === 3 && !jailed && !(s.clubs.missT != null && s.t - s.clubs.missT < 4 && s.clubs.missC !== id)) {
         if ((m.warned || 0) >= 2) { lapse(L, id, false); continue; }
-        m.warned = (m.warned || 0) + 1; m.warnT = s.t;
+        m.warned = (m.warned || 0) + 1; m.warnT = s.t; s.clubs.missT = s.t; s.clubs.missC = id; s.clubs.missN = (s.clubs.missN || 0) + 1;
         L.queue('clubMissYou', id);
       }
       // Let your standing fall far enough and somebody else gets your place.

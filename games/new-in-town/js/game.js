@@ -1106,7 +1106,7 @@ function showMenu() {
 }
 
 // Shown once to a life that was begun before the town grew.
-const NEWS = 5;
+const NEWS = 6;
 function showNew() {
   const was = save.seenNew || 0;
   save.seenNew = NEWS;
@@ -1124,6 +1124,15 @@ function showNew() {
     <p><b>🕶️ The low road has a plot.</b> Plan a proper job with a crew, wash the money, and mind Detective Sergeant Kitto, who keeps a file. A rival crew wants Sal’s patch.</p>
     <p><b>🗳️ The town grows old with you.</b> Elections every four years, storms, a supermarket, a film crew, shops that come and go, and “Years in the Bay” to look back on.</p>
     <p><b>↻ Same again.</b> At the start of a season, one tap repeats last season’s routine.</p>`;
+  // (For those who saw the last card: what has come since.)
+  const since = `<p><b>🗺️ The years show on the map.</b> A storm-wrecked pier, a tidal barrier, a lido, a supermarket, a new estate: once they happen, you can see them.</p>
+    <p><b>⏳ The middle years.</b> People drift unless you give them your time, the same week again starts to tell after forty, and there is more to take on: a council seat, a year out, a trust in your name, a child’s first house.</p>
+    <p><b>🃏 Fewer repeats.</b> Cards seen many times come up less, an heir does not relive the family’s stories, and the townsfolk remember a family born here.</p>`;
+  if (was >= 5) {
+    ui.show(`<div class="ev-ico">🗺️</div><h2>New in Starling Bay</h2><div class="how">${since}</div>
+      <div class="actions"><button class="btn btn-primary" data-action="evDone">Show me</button></div>`);
+    return;
+  }
   if (was >= 4) {
     ui.show(`<div class="ev-ico">⛰️</div><h2>New in Starling Bay</h2><div class="how">${hill}</div>
       <div class="actions"><button class="btn btn-primary" data-action="evDone">Show me</button></div>`);
