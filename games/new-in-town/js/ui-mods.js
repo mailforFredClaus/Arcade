@@ -3,4 +3,6 @@
 // screen's kit and gives back what it adds: see "the newer parts of town" in
 // game.js.
 
-export const SCREENS = [];
+import coast from './coast-ui.js'; // Gorse Head, Smugglers’ Cove and the Merrow
+
+export const SCREENS = [coast];

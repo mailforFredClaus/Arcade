@@ -6,5 +6,6 @@
 // ui-mods.js.
 
 import { install as hill } from './hill.js';
+import { install as coast } from './coast.js'; // Gorse Head, Smugglers’ Cove and the Merrow
 
-export const RULES = [hill];
+export const RULES = [hill, coast];
