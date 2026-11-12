@@ -1295,8 +1295,10 @@ export class Life {
     if (a.per) s.use[id] = (s.use[id] || 0) + 1;
     const text = a.run(this, p, y) || '';
     for (const f of HOOKS.acted) f(this, id, p, y);
+    // (What the action itself did, before any reward from the to-do list is counted in with it.)
+    const changes = this.diff(before);
     this.after();
-    return { ok: true, text, changes: this.diff(before), news: this.takeNews(), out: this.out };
+    return { ok: true, text, changes, news: this.takeNews(), out: this.out };
   }
 
   snap() {
