@@ -190,9 +190,15 @@ button { font: inherit; color: inherit; -webkit-appearance: none; appearance: no
 .map-go b { font-weight: 900; }
 .map-go:active { transform: translateY(2px); }
 .map-again { left: auto; right: 2.5%; }
+/* A long list of people, folded after the first few. */
+details.more > summary { list-style: none; cursor: pointer; margin: 4px 0 10px; padding: 10px 14px; border-radius: 14px; text-align: center; font: 800 14px var(--font); color: var(--ink); background: rgba(255, 250, 240, .8); }
+details.more > summary::-webkit-details-marker { display: none; }
+details.more[open] > summary { display: none; }
 .map-again[hidden] { display: none; }
 .map-go.dot::after { content: ''; display: inline-block; width: 8px; height: 8px; margin-left: 6px; border-radius: 50%; background: var(--coral); vertical-align: 1px; }
 .town .goto { cursor: pointer; }
+.town .pool { fill: #5fd0e0; }
+.town .boarded text { text-anchor: middle; }
 .me.hop { animation: hop .32s; }
 @keyframes hop { 50% { transform: translateY(-9px) scale(1.06); } }
 
@@ -400,6 +406,8 @@ summary { font-size: 12.5px; font-weight: 900; color: var(--teal-d); cursor: poi
 .news { position: fixed; z-index: 70; left: 0; right: 0; top: calc(var(--top-h, var(--safe-top)) + 6px); display: grid; justify-items: center; gap: 6px; pointer-events: none; padding: 0 12px; }
 .news-item { display: flex; align-items: center; gap: 8px; max-width: 440px; padding: 9px 14px; border-radius: 16px; background: var(--ink); color: #fff; font-size: 14px; font-weight: 800; box-shadow: 0 8px 22px rgba(31, 42, 68, .35); animation: drop .3s cubic-bezier(.2, 1.4, .4, 1); transition: opacity .4s, transform .4s; }
 .news-item i { font-style: normal; font-size: 20px; }
+/* (With a card up, notices go to the foot of the screen, clear of the card.) */
+body:has(#overlay:not([hidden])) .news { top: auto; bottom: calc(var(--safe-bottom) + 16px); }
 .news-item.k-trophy, .news-item.k-dream { background: linear-gradient(180deg, #ffd65a, #ffb72e); color: #4d3500; }
 .news-item.k-promo, .news-item.k-quest, .news-item.k-good { background: linear-gradient(180deg, #2fb877, #1f9d62); }
 .news-item.k-bad { background: var(--bad); }
