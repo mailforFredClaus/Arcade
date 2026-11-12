@@ -206,6 +206,32 @@ const relOf = (p) => (p.kind === 'child' ? (p.sex === 'm' ? 'son' : 'daughter') 
 // What the heir called the one who died.
 const calledBy = (s, kind) => (kind === 'grandchild' ? (s.sex === 'f' ? 'Gran' : 'Grandad') : s.sex === 'f' ? 'Mum' : 'Dad');
 
+// ---- what the family remembers of the town (s.chap.fam) ----
+// Things that happen to a town once: the next of the family, growing up in the same town, does not
+// meet them again (the brown dog from the quay, the time capsule on the allotments, Betty's closing...).
+// (The town's own big events, the film crew and the railway, carry on in annals.js already.)
+export const FAM_ONCE = ['stray1', 'stray2', 'stray3', 'film', 'capsule', 'pierPlan', 'mktPath', 'cafe', 'drains1', 'drains2', 'drains3', 'aunt'];
+// And what else is remembered, so that cards which can come again are told in the heir's own words
+// (another car under Tom Windle's hay; a balloon over the Regatta, as Mum did before).
+const FAM_SEEN = [...FAM_ONCE, 'motorBarn', 'whale', 'bottle1'];
+// What they were to the heir, as a word: mother, grandfather, great-grandmother.
+export const famRel = (e) => `${(e.deg || 1) >= 3 ? 'great-grand' : (e.deg || 1) === 2 ? 'grand' : ''}${e.sex === 'f' ? 'mother' : 'father'}`;
+// Who in the family it was, as the heir would say it: deg 1 a parent, 2 a grandparent, and so on.
+const famWho = (deg, sex, called) => (called || (deg === 2 ? (sex === 'f' ? 'your grandmother' : 'your grandfather') : deg === 3 ? (sex === 'f' ? 'your great-grandmother' : 'your great-grandfather') : 'somebody in the family, long ago'));
+// The family's memory, carried to the next life: what came before, a step further back, and this life's own.
+// step: how far the heir is from this life (1 for a child, 2 for a grandchild).
+function famFor(L, called, step) {
+  const s = L.s, out = {};
+  for (const [k, e] of Object.entries((s.chap && s.chap.fam) || {})) { const deg = (e.deg || 1) + step; out[k] = { ...e, deg, who: famWho(deg, e.sex) }; }
+  const mine = (k, more = {}) => { out[k] = { deg: step, sex: s.sex, who: called, age: s.age, ...more }; };
+  for (const id of FAM_SEEN) if (s.seen[id]) mine(id);
+  if (s.f.stray) mine('stray1');
+  // (The partner's garden: seed catalogues in bed, once in the family.)
+  if (s.wants && Object.values(s.wants.p).some((r) => (r.am || []).some((a) => a.id === 'garden' && a.st >= 1))) mine('wantsGarden1');
+  if (s.chap && s.chap.old && s.chap.old.adv) mine(`adv:${s.chap.old.adv.said}`, { age: s.chap.old.adv.age });
+  return out;
+}
+
 // How likely somebody is to carry on, all else equal: close, and with some life ahead of them.
 function heirScore(p) {
   const young = p.age < 18 ? 0 : p.age < 45 ? 15 : p.age < 55 ? 5 : -15;
@@ -371,6 +397,12 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
         return e;
       };
       if (carry.how === 'train') { C.snap = snapNow(this); return; }
+      // What the family has already seen of the town (see chapFam): the things that happen to a town once
+      // do not happen again for the next of the family; others are told in the heir's own words.
+      C.fam = carry.fam && typeof carry.fam === 'object' ? JSON.parse(JSON.stringify(carry.fam)) : {};
+      for (const id of FAM_ONCE) if (C.fam[id]) s.seen[id] = s.seen[id] || 1;
+      // And the townsfolk know the family: born here, you know them, and they know you (folk.js).
+      if (s.folk && carry.folk && this.folkTakeOn) this.folkTakeOn(carry.folk, carry.how, carry.called);
       // What came in the will is in the bank.
       const inherited = Math.max(0, Math.round(carry.money || 0));
       s.cash = Math.max(0, s.cash - inherited);
@@ -452,8 +484,6 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       // Money left to the parent who is still living comes down in time.
       const par = s.people.find((p) => p.kind === 'parent');
       if (par && carry.parPurse > 0) C.par = { pid: par.id, purse: Math.round(carry.parPurse) };
-      // The town has known them all their life.
-      if (s.folk && carry.folk && this.folkWarm) for (const [id, f] of Object.entries(carry.folk)) if (s.folk.p[id] && id !== 'parg') this.folkWarm(id, f, false);
       for (const a of CROSS) if (age >= a) C.cross[a] = -1;
       relabel(`Took up the family’s story at ${age}, after ${carry.called}’s funeral.`);
       if (dreams && dreams.length) {
@@ -503,6 +533,10 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
   };
   // How the life began: 'train' (off the train at 18), 'back' (born here, home again at 18) or 'home' (lived here all along).
   Life.prototype.chapHow = function () { const st = this.s.chap && this.s.chap.start; return (st && st.how) || 'train'; };
+  // What the family remembers of something (a card's id, or adv:<what was done>): { who, deg, age } or null.
+  Life.prototype.chapFam = function (key) { const f = this.s.chap && this.s.chap.fam; return (f && f[key]) || null; };
+  // Who in the family it was, said mid-sentence: "your mum", "your grandad", "your grandmother".
+  Life.prototype.chapFamWho = function (key) { const e = this.chapFam(key); return e ? (/^(Mum|Dad|Gran|Grandad)$/.test(e.who) ? `your ${e.who.toLowerCase()}` : e.who) : null; };
   // How the end screen says where the life began.
   Life.prototype.chapOrigin = function () {
     const st = this.s.chap && this.s.chap.start;
@@ -550,11 +584,13 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     const wed = single ? null : R && R.wed != null
       ? { name: R.fiance || null, sex: NAMES_F.includes(R.fiance) ? 'f' : NAMES_M.includes(R.fiance) ? 'm' : null, ago: Math.max(0, s.t - R.wed) }
       : { name: null, sex: null, ago: 4 * clampN(eldest >= 0 ? eldest + 1 + (p.id % 3) : 2 + ((p.id * 5 + p.age) % Math.max(1, p.age - 23)), 1, Math.max(1, p.age - 20)) + (p.id % 4) };
+    // The townsfolk, as this life left them: friendship, how far each story had gone, what each likes, and
+    // whether Betty's café is still open (folkTakeOn in folk.js decides what the heir keeps of it).
     const folk = {};
-    if (how === 'home' && s.folk) for (const [id, f] of Object.entries(s.folk.p)) if (f.f >= 25) folk[id] = Math.min(30, Math.round(f.f * 0.4));
+    if (s.folk) for (const [id, f] of Object.entries(s.folk.p)) if (f.met != null) folk[id] = { f: Math.round(f.f), stage: f.stage || 0, known: { ...(f.known || {}) }, shut: f.shut ? 1 : 0, ...(id === 'marlow' ? { fm: s.f.marlow || 0 } : {}) };
     return {
       ...base, how, pid: p.id, rel: relOf(p), called, age: p.age + gap, gap, name: first(p), sex: p.sex, look: p.look, job: p.age >= 18 ? p.job : null,
-      single, wed, kids: own, sibs, parent, parPurse, purse: p.purse || 0, st, sibBond: fair, folk,
+      single, wed, kids: own, sibs, parent, parPurse, purse: p.purse || 0, st, sibBond: fair, folk, fam: famFor(L, called, p.kind === 'grandchild' ? 2 : 1),
       letter: s.chap.letter && s.chap.letter.to === p.id ? s.chap.letter.text : null,
     };
   }
@@ -768,7 +804,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       if (n > 0) { L.cash(n); L.note(`Your share of what your parent had been left, after duty: ${money(n)}.`, 'big'); L.say('📜', `The will: ${money(n)} comes to you`, 'good'); }
     }
     // The town's cards that give money to the children count as gifts made in life.
-    if (id === 'will' && i === 1 && L.kids().length) { const ks = L.kids(); for (const k of ks) settle(L, k, Math.floor(6000 / ks.length), false); }
+    // (Putting things in order now gives an amount in proportion to the money, and says so through chapGive itself.)
     if (id === 'deposit' && i === 0) { const k = L.person(x); if (k) settle(L, k, 5000, false); }
   });
 
@@ -776,7 +812,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
   hooks.epitaph.push((L, out) => {
     const s = L.s, C = s.chap, m = s.sex !== 'f', He2 = m ? 'He' : 'She', his2 = m ? 'his' : 'her';
     if (C.memo.done) out.push(C.memo.done.how === 'published' ? `${cap(his2)} memoirs, ${C.memo.done.title}, were published in the city and sold out at the Bay bookshop in a week.` : C.memo.done.how === 'archive' ? `${cap(his2)} memoirs, ${C.memo.done.title}, are in the town archive, where Miss Achterberg will let you read them if you are quiet.` : `${cap(his2)} memoirs, ${C.memo.done.title}, are on the family’s shelves.`);
-    if (C.old.adv) out.push(`At ${C.old.adv.age} ${m ? 'he' : 'she'} ${C.old.adv.said}, and talked of nothing else for a month.`);
+    if (C.old.adv) out.push(`At ${C.old.adv.age} ${m ? 'he' : 'she'} ${C.old.adv.said}${C.old.adv.fam ? `, as ${his2} ${famRel(C.old.adv.fam)} had at ${C.old.adv.fam.age}` : ''}, and talked of nothing else for a month.`);
     const D = C.dusk;
     // (And if something else came first, a fall, the sea, the Gazette says so.)
     if (D && s.dead && s.dead.cause !== D.cause && !natural(L, s.dead.cause)) out.push(`${He2} ${D.way === 'fight' ? 'was fighting' : 'had'} a last illness, and in the end it was ${s.dead.cause}, not the illness, that took ${m ? 'him' : 'her'}.`);
@@ -799,6 +835,9 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     C.n.settled = (C.n.settled || 0) + n;
     if (mine) C.yr[p.id] = s.age;
   }
+  // (For a card that gives the family something, such as Putting things in order in events.js: kept in
+  // their purse and counted for duty the same way, without using up this year's gift.)
+  Life.prototype.chapGive = function (p, n) { settle(this, p, Math.max(0, Math.round(n)), false); };
 
   function startDusk(L, cause) {
     const s = L.s, C = s.chap;
@@ -1050,7 +1089,10 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     },
     {
       id: 'chapHip', icon: '🦴', title: 'The hip', w: 3, once: true, when: (L) => L.s.age >= 66 && L.s.age <= 90 && !L.s.gaol && !L.s.chap.dusk && !L.s.chap.old.hip,
-      text: 'Your hip has been grumbling for a year, and now it shouts on the stairs. Mr Adeyemi, the consultant at St Wren’s, a cheerful man with cold hands, says it ought to be replaced.',
+      // (A doctor at St Wren's, or one who was, is not a stranger there: see medic.)
+      text: (L) => (medic(L)
+        ? `Your hip has been grumbling for a year, and now it shouts on the stairs. Mr Adeyemi, who ${L.s.job && L.s.job.c === 'medicine' ? 'works down the corridor from you' : 'was your registrar once'} at St Wren’s, looks at the X-ray, then at you, and says what you both already knew: it ought to be replaced.`
+        : 'Your hip has been grumbling for a year, and now it shouts on the stairs. Mr Adeyemi, the consultant at St Wren’s, a cheerful man with cold hands, says it ought to be replaced.'),
       opts: [
         {
           t: 'Have it done privately, now', cost: (L) => L.medCost(7000), odds: (L) => op(L, 0.62),
@@ -1062,7 +1104,8 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
             L.hp(-5, 'a hip operation'); L.sicken('stiff hip', 1); return 'It takes. It just takes a long time, and a physiotherapist called Bev who shows no mercy at all.';
           },
         },
-        { t: 'Go on the waiting list', run(L) { const O = L.s.chap.old; O.hip = 'wait'; O.hipAt = L.s.t + L.int(3, 6); L.joy(-2); return 'A letter with a number on it. The number is large. Until then, the hip has opinions about everything.'; } },
+        { t: 'Go on the waiting list', show: (L) => !medic(L), run(L) { const O = L.s.chap.old; O.hip = 'wait'; O.hipAt = L.s.t + L.int(3, 6); L.joy(-2); return 'A letter with a number on it. The number is large. Until then, the hip has opinions about everything.'; } },
+        { t: 'Wait your turn, like anybody else', show: (L) => medic(L), run(L) { const O = L.s.chap.old; O.hip = 'wait'; O.hipAt = L.s.t + L.int(2, 4); L.joy(-1); L.karma(2); return 'Mr Adeyemi offers to fit you in on Tuesday. You will not hear of it: you have seen what the list does to people, and you will take your place on it. The ward sister thinks better of you for it, and says so.'; } },
         { t: 'Manage with a stick', run(L) { L.s.chap.old.hip = 'stick'; return 'A stick, a cushion on every chair, and a firm view that it is not that bad. It is a bit that bad.'; } },
         { t: ic('sporty', 'Have it done, and do every exercise on the sheet'), show: tr('sporty'), cost: (L) => L.medCost(7000), run(L) { const O = L.s.chap.old; O.hip = 'new'; O.mend = L.s.t; L.joy(8); L.gain('fitness', 1); L.note('Had a new hip.', 'big'); return 'You do the exercises twice a day and then some. Bev the physiotherapist says you are the first patient who has ever frightened her.'; } },
       ],
@@ -1278,7 +1321,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     // ---- the everyday of later life (these come round again) ----
     {
       id: 'chapBench', icon: '🦆', title: 'The bench by the pond', w: 3, cd: 14, when: (L) => L.s.age >= 65 && !L.s.gaol && !L.s.chap.dusk,
-      text: (L) => `You are on ${L.s.gifts.bench ? `the bench with ${L.s.gifts.bench === L.s.name ? 'your own name' : `${L.s.gifts.bench}’s name`} on it` : 'the bench by the pond'}, with a paper bag of bread for the ducks. A young couple with a pushchair sit down at the other end, and the woman asks if you have lived here long.`,
+      text: (L) => `You are on ${L.s.gifts.bench ? `the bench with ${L.s.gifts.bench === L.s.name ? 'your own name' : `${L.s.gifts.bench}’s name`} on it` : 'the bench by the pond'}, with a paper bag of bread for the ducks. ${(L.s.seen.chapBench || 0) >= 2 ? ['A different young couple this time, with a pushchair and a very small dog, sit down at the other end. The man asks if you have lived here long.', 'The ducks know you by now. A young couple with a baby in a sling sit down at the other end, and the woman asks if you have lived here long.'][L.s.t % 2] : 'A young couple with a pushchair sit down at the other end, and the woman asks if you have lived here long.'}`,
       opts: [
         { t: 'Tell them how the Bay was when you first knew it', run(L) { L.gain('charm', 0.5); L.joy(4); const p = L.maybeMeet(0.25); return p ? `The Gull before the jukebox, the winter the harbour froze, the pier with its far end still open. They stay an hour, and ${p.name} asks if you will be here next week.` : 'The Gull before the jukebox, the winter the harbour froze, the pier with its far end still open. They stay an hour, and the baby sleeps through all of it.'; } },
         { t: 'Ask about them instead', run(L) { L.joy(3); L.karma(1); return 'Two years here, from the city, and a baby who will not sleep. You tell them the pond is the best place in the Bay for that, and it is: she is asleep before the bread runs out.'; } },
@@ -1318,14 +1361,18 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     const s = L.s;
     const pool = LATER.map((id) => CARD[id]).filter((e) => !(e.once && s.seen[e.id]) && !(s.cd[e.id] != null && s.t - s.cd[e.id] < (e.cd ?? 24)) && (!e.when || e.when(L)));
     if (!pool.length) return;
-    const e = L.pick(pool), x = e.ctx ? e.ctx(L) : null;
+    // (Those seen most often so far are the least likely to be picked again: see drawEvent in engine.js.)
+    const least = Math.min(...pool.map((q) => s.seen[q.id] || 0)), fresh = pool.filter((q) => (s.seen[q.id] || 0) <= least + 1);
+    const e = L.pick(fresh), x = e.ctx ? e.ctx(L) : null;
     if (e.ctx && x == null) return;
-    s.cd[e.id] = s.t; s.seen[e.id] = 1;
+    s.cd[e.id] = s.t; s.seen[e.id] = (s.seen[e.id] || 0) + 1;
     L.queue(e.id, x);
   }
 
   // ---- what the cards do ----
 
+  // A doctor at St Wren's, now or once (Junior Doctor and up).
+  function medic(L) { const s = L.s; return Math.max(s.job && s.job.c === 'medicine' ? s.job.r : -1, s.worked && s.worked.medicine != null ? s.worked.medicine : -1) >= 3; }
   function ic(id, t) { const icon = { bookish: '📚', loner: '🌫️', joker: '🃏', sporty: '🏃', churchgoer: '⛪', romantic: '🌹', daredevil: '🪂' }[id]; return `${icon} ${t}`; }
   function teach(L, x, k, said) {
     const g = L.person(x), C = L.s.chap;
@@ -1333,11 +1380,13 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     if (!g.taught && g.age >= TEACH_AGE) { g.taught = k; C.n.taught++; }
     return `${said} (${first(g)} is learning ${STAT_NAME[k]} from you.)`;
   }
+  // (If somebody in the family did the same before, it is said so: in the journal, the obituary and the album.)
   function adv(L, joy, said, text) {
-    L.s.chap.old.adv = { age: L.s.age, said };
-    L.joy(joy);
-    L.note(`One last adventure: ${said}, at ${L.s.age}.`, 'big');
-    return text;
+    const e = L.chapFam(`adv:${said}`), who = e ? L.chapFamWho(`adv:${said}`) : null;
+    L.s.chap.old.adv = { age: L.s.age, said, fam: e ? { age: e.age, deg: e.deg || 1, sex: e.sex } : null };
+    L.joy(joy + (e ? 2 : 0));
+    L.note(`One last adventure: ${said}, at ${L.s.age}${e ? `, as ${who} did at ${e.age}` : ''}.`, 'big');
+    return e ? `${text} You think of ${who}, who did the same at ${e.age}, and understand at last what all the fuss was about.` : text;
   }
   function done(L, x, how) {
     const C = L.s.chap;

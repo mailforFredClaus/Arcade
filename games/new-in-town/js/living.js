@@ -37,6 +37,18 @@ export function install({ def, A, Life, clamp }) {
       if (!p.look) p.look = this.randomLook(sex);
       return this.fillPerson(p);
     },
+    // What somebody new does for a living. Sal's crew is a small firm: a stranger is rarely on its books,
+    // somebody met at a club never, and a respectable life's friends almost never more than one of them.
+    // Those who keep low company meet more of it. (One throw of the dice, as before.)
+    someJob(p) {
+      const s = this.s, all = Object.keys(CAREERS), honest = all.filter((c) => !CAREERS[c].shady), shady = all.filter((c) => CAREERS[c].shady);
+      const close = s.people.filter((q) => q !== p && ['friend', 'partner', 'spouse'].includes(q.kind) && CAREERS[q.job] && CAREERS[q.job].shady).length;
+      const low = (s.n.crimes || 0) >= 3 || (!!s.job && !!CAREERS[s.job.c] && !!CAREERS[s.job.c].shady);
+      const ps = p.club || !shady.length ? 0 : low ? (close >= 2 ? 0.02 : 0.1) : close ? 0 : 0.015;
+      const r = this.rnd();
+      if (r < ps) return shady[Math.min(shady.length - 1, Math.floor((r / ps) * shady.length))];
+      return honest[Math.min(honest.length - 1, Math.floor(((r - ps) / (1 - ps)) * honest.length))];
+    },
     // The rest of a person: a job, what they love doing, whether they want children.
     fillPerson(p) {
       if (p.kind === 'child') {
@@ -44,7 +56,7 @@ export function install({ def, A, Life, clamp }) {
         if (p.age < 18) return p;
       }
       if (p.kind === 'grandchild' && p.age < 18) return p;
-      if (!p.job) p.job = this.pick(Object.keys(CAREERS));
+      if (!p.job) p.job = this.someJob(p);
       if (!p.likes) {
         const first = { bookish: 'talk', sporty: 'walk', witty: 'pub', arty: 'film', kind: 'coffee' }[p.trait];
         const a = this.chance(0.6) ? first : this.pick(Object.keys(OUTINGS));

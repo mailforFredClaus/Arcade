@@ -95,7 +95,7 @@ export const CLUBS = {
   book: {
     name: 'The Library Book Club', the: 'the book club', place: 'library', icon: '📖', sec: 'The Book Club',
     skill: 'Close reading', stat: 'smarts', also: 'charm', fee: 0, subs: 20, night: 0, time: 1,
-    blurb: 'First Tuesday of the month in the reading room, after hours, with tea, biscuits and Miss Achterberg’s eyebrows. One book a season, from the library’s list: read it first.',
+    blurb: 'First Tuesday of the month in the reading room, after hours, with tea, biscuits and Miss Achterberg’s eyebrows. One book every two seasons, from the library’s list: read it first, or half of it at least.',
     ranks: ['a newcomer', 'a regular', 'a voice at the table', 'the one who chooses the books', 'in the chair'],
     parts: [0, 1, 1, 2, 3],
     opens: ['', 'A place on the club’s team at the Lit Fest quiz.', 'People wait to hear what you think.', 'You choose the book of the season.', 'The chair, and an author evening to host each year.'],
@@ -261,8 +261,13 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
     },
     // The library book you have out, with its progress.
     bookNow() { const b = this.s.clubs.book; return b ? { ...BOOKS[b.id], id: b.id, p: b.p } : null; },
-    // What the book club is reading in season t (yours, if you chose it).
-    bookOfSeason(t = this.s.t) { const c = this.s.clubs; return c.pick && c.pick.t === t ? c.pick.id : CLUB_READS[(c.bco + t) % CLUB_READS.length]; },
+    // What the book club is reading in season t (yours, if you chose it). It meets on each book twice,
+    // over two seasons, so that a member reading two sittings a season can get through it in time.
+    bookOfSeason(t = this.s.t) { const c = this.s.clubs, w = Math.floor(t / 2); return c.pick && Math.floor(c.pick.t / 2) === w ? c.pick.id : CLUB_READS[(c.bco + w) % CLUB_READS.length]; },
+    // The season the club moves on to its next book.
+    bookNextAt(t = this.s.t) { return (Math.floor(t / 2) + 1) * 2; },
+    // How much of a book you have read: 1 if finished, else the share of it read so far.
+    bookPart(id) { const c = this.s.clubs; if (c.read[id]) return 1; const n = c.book && c.book.id === id ? c.book.p : c.prog[id] || 0; return Math.min(1, n / BOOKS[id].len); },
     booksRead() { return Object.keys(this.s.clubs.read).length; },
   });
 
@@ -293,9 +298,13 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
   // Leaving, or being let go: what you had is remembered, the standing is not.
   function lapse(L, id, left) {
     const s = L.s, m = mem(L, id), c = CLUBS[id], was = s.clubs.past[id] || {};
-    s.clubs.past[id] = { n: m.n, r: Math.max(m.r, was.r || 0) };
+    // (And the cards they sent: join again soon after and they remember, rather than starting the cards over.)
+    s.clubs.past[id] = { n: m.n, r: Math.max(m.r, was.r || 0), ...(m.warned ? { warned: m.warned, warnT: m.warnT } : {}) };
     delete s.clubs.m[id];
-    L.note(left ? `Left ${c.name}.` : `${c.name} stopped expecting you.`);
+    if (left) { L.note(`Left ${c.name}.`); return; }
+    // (Being let go is said plainly, in the journal and in the news, not left to be found on the Me tab.)
+    L.note(`Dropped from ${c.name}: you had stopped coming, and they have stopped expecting you.`, 'bad');
+    L.say(c.icon, `${c.name} has let you go`, 'bad');
   }
 
   // One round of the Rovers’ cup run. here: you played in it (a club night).
@@ -353,7 +362,7 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
       why: (L) => (id === 'sailing' && L.s.st.fitness < 20 ? 'Needs Fitness 20: you will be hanging off the side of a dinghy.' : null),
       run(L) {
         const s = L.s, was = s.clubs.past[id];
-        const m = { st: was ? 15 : 10, r: 0, n: was ? was.n : 0, since: s.t, last: s.t, miss: 0, occ: -1, lead: -99 };
+        const m = { st: was ? 15 : 10, r: 0, n: was ? was.n : 0, since: s.t, last: s.t, miss: 0, occ: -1, lead: -99, ...(was && was.warned && s.t - was.warnT < 24 ? { warned: was.warned, warnT: was.warnT } : {}) };
         if (id === 'rovers') {
           m.mode = s.age >= COACH_AGE ? 'coach' : s.age >= VETS_AGE ? 'vets' : 'play';
           // (Joining partway through a cup run: in the winter they are already through a round; in the spring it is over.)
@@ -377,7 +386,7 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
       title: (L) => (id === 'rovers' && L.clubMem(id) ? { play: 'Play for the Rovers', vets: 'Turn out for the Rovers’ veterans', coach: 'Coach the Rovers’ youngsters' }[L.clubMem(id).mode] : c.nightT),
       desc: (L) => {
         const m = L.clubMem(id);
-        if (id === 'book' && m) { const b = BOOKS[L.bookOfSeason()]; return `This season: ${b.t}, by ${b.by}.${L.s.clubs.read[L.bookOfSeason()] ? ' You have read it.' : ' Read it first, from the library.'}`; }
+        if (id === 'book' && m) { const k = L.bookOfSeason(), b = BOOKS[k], part = L.bookPart(k); return `${L.bookNextAt() - L.s.t > 1 ? 'This season and next' : 'This season'}: ${b.t}, by ${b.by}.${part >= 1 ? ' You have read it.' : part >= 0.5 ? ' You have read enough of it to hold your own.' : ' Read it first, from the library: half of it will do.'}`; }
         if (id === 'rovers' && m && m.mode === 'coach') return 'Drills, team talks and a great deal of standing in the cold. Builds your Footwork and your standing. Good for Charm.';
         return m && m.miss >= 2 ? `They have not seen you for ${m.miss} seasons. Your standing is slipping.` : c.nightD;
       },
@@ -393,8 +402,8 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
         learn(L, id, 1.5 + 3.5 * q);
         L.gain(c.stat, 0.8); L.joy(1 + 2 * q);
         if (q >= 0.65) stand(m, 1);
-        const said = q >= 0.9 ? 'You could not have done it better.' : q >= 0.65 ? 'A good session.' : q >= 0.35 ? 'Some of it went in.' : 'Not your night, but it all counts.';
-        return `${said} ${{ choir: 'The organist plays it once more, slowly, and nods.', players: 'Desmond reads every other part, with feeling.', rovers: 'The keeper is Gaz’s nephew, and he is getting better too.', book: 'Miss Achterberg sets the questions and marks them, in green.', sailing: 'Start after start, until the gun stops making you jump.', quiz: 'Rivers, kings, flags and birds, until closing time.' }[id]}${promote(L, id)}`;
+        const g = q >= 0.9 ? 3 : q >= 0.65 ? 2 : q >= 0.35 ? 1 : 0;
+        return `${L.pick(DRILL_SAID[g])} ${L.pick(DRILL[id])}${promote(L, id)}`;
       },
     });
     def(`clubOcc_${id}`, {
@@ -432,6 +441,23 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
     run(L) { const m = mem(L, 'rovers'); m.mode = L.s.age >= VETS_AGE ? 'vets' : 'play'; return 'The boots come down off the nail. They are stiffer than you remember, and so are you.'; },
   });
 
+  // How a practice went (by how well it was played) and what it was like (by club): a few of each, so
+  // that a club's practice does not read the same, word for word, every season.
+  const DRILL_SAID = [
+    ['Not your night, but it all counts.', 'A bad session. Everybody has them.', 'It goes wrong early and stays wrong. You will be the better for it, eventually.'],
+    ['Some of it went in.', 'Patchy, but better at the end than at the start.', 'Half of it went well, and you can tell which half.'],
+    ['A good session.', 'A good hour’s work.', 'It comes right more often than not.'],
+    ['You could not have done it better.', 'Everything goes right, and you stop thinking about it.', 'A practice you will remember on the big day.'],
+  ];
+  const DRILL = {
+    choir: ['The organist plays it once more, slowly, and nods.', 'The organist takes the hard bar apart, note by note, and puts it back together.', 'Scales, then the anthem, then scales again, while the organist eats a sandwich.', 'The organist tries a new hymn tune on you, and says it is in your range. It is in hers.'],
+    players: ['Desmond reads every other part, with feeling.', 'Desmond makes you say the speech walking, then running, then lying down.', 'Your lines, Desmond’s cues, and a long story about the West End in between.', 'Desmond hears it once, and gives you one note: slower. He is right.'],
+    rovers: ['The keeper is Gaz’s nephew, and he is getting better too.', 'Penalties in the rain, with Gaz holding an umbrella over the ball.', 'Gaz puts a pie on the crossbar as a target. Nobody hits it, and he eats it.', 'Spot kicks until the light goes, and the groundsman turns the floodlight off on you.'],
+    book: ['Miss Achterberg sets the questions and marks them, in green.', 'Miss Achterberg reads out first lines; you name the books, mostly.', 'Twenty questions on poets, and a tie-break on the Brontës.', 'Miss Achterberg quizzes you across the issue desk, and does not let you off the hard ones.'],
+    sailing: ['Start after start, until the gun stops making you jump.', 'Tacking drills round two buoys, until it is all one movement.', 'Capsize practice off the slipway. The water is the same temperature it always is.', 'Mark roundings, over and over, with the commodore shouting the count.'],
+    quiz: ['Rivers, kings, flags and birds, until closing time.', 'A practice round on flags, which nobody is good at, and capitals, which you are.', 'Old quiz sheets from the cupboard, ten years of them. The answers have not changed.', 'Rapid fire on the years things happened. You get the battles and miss the kings.'],
+  };
+
   const NIGHT = {
     choir: ['An hour on one bar of the Magnificat. By the end, it is the best bar in the county.', 'The Reverend Hollis conducts with a pencil, and drops it twice. You sing better every time.', 'You are told to breathe from your feet. Nobody knows what this means. Everybody tries.', 'Tea, shortbread, and the old argument about whether to do the Stanford again.', 'A new anthem, sung at sight. Somebody turns two pages at once, and so, loyally, does everybody else.'],
     players: ['A read-through that goes on until ten. Desmond does all the voices, including yours.', 'Two hours painting a door that will be on stage for four minutes. It is a very good door.', '“In the West End,” says Desmond, “we did this scene in one take.” You do it in eleven.', 'Blocking: who stands where. You stand in the wrong place with total conviction.', 'A costume fitting, a wig that smells of mothballs, and an argument about a ruff.'],
@@ -456,10 +482,26 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
     } else if (id === 'sailing') {
       if (!calm || L.season === 3) { learnt *= 0.6; text = L.season === 3 ? 'The boats are laid up for the winter, so it is splicing in the clubhouse and stories round the stove.' : 'No boats out in this. You learn three new knots in the clubhouse and forget two on the way home.'; } else text = L.pick(NIGHT.sailing);
     } else if (id === 'book') {
-      const b = L.bookOfSeason(), bk = BOOKS[b], read = !!s.clubs.read[b], mine = s.clubs.pick && s.clubs.pick.t === s.t;
-      if (read) { up += 4 + (mine ? 3 : 0); learnt += 2; joy += 2; text = L.pick([`You have read ${bk.t}, and it shows. You say something about the ending that silences the room, in a good way.`, `${bk.t}: you came with notes. Miss Achterberg looks at you as if you were a first edition.`]); if (mine) text += ' It was your choice, and it goes down well.'; }
-      else if (s.clubs.book && s.clubs.book.id === b) { up += 1; text = `You are partway through ${bk.t}, so you nod at the bits about the ending and hope for the best.`; }
-      else { up -= 4; learnt *= 0.6; text = L.pick([`You have not read ${bk.t}. Nobody can tell for twenty minutes, and then everybody can.`, `You have not read ${bk.t}. You eat a great many biscuits, thoughtfully.`]); }
+      // (Read to the end is best; half of it will do; and nobody gets the same telling-off every time.)
+      const b = L.bookOfSeason(), bk = BOOKS[b], part = L.bookPart(b), mine = s.clubs.pick && Math.floor(s.clubs.pick.t / 2) === Math.floor(s.t / 2), second = s.t % 2 === 1;
+      const nb = s.clubs.nb || (s.clubs.nb = { not: 0 });
+      if (part >= 1) {
+        nb.not = 0; up += 4 + (mine ? 3 : 0); learnt += 2; joy += 2;
+        text = L.pick([`You have read ${bk.t}, and it shows. You say something about the ending that silences the room, in a good way.`, `${bk.t}: you came with notes. Miss Achterberg looks at you as if you were a first edition.`, `You have read ${bk.t} to the end, and defend it against all comers. Two of them come round.`, `${bk.t}, finished. You are the only one who noticed what the title meant, and you say so, gently.`, `You and Miss Achterberg are the only two who liked the ending of ${bk.t}. She passes you the good biscuits.`]);
+        if (mine) text += ' It was your choice, and it goes down well.';
+      } else if (part >= 0.5) {
+        nb.not = 0; up += 2; learnt += 1;
+        text = L.pick([`You are more than halfway through ${bk.t}, which is further than most. You keep quiet about the ending, and make it sound like tact.`, `Half of ${bk.t} read, and you have opinions about all of it. Miss Achterberg asks you to save the rest for next time.`, `You have read enough of ${bk.t} to argue with the man from the bank, and you win.`]);
+      } else if (part > 0) {
+        nb.not = 0;
+        text = L.pick([`You are partway through ${bk.t}, so you nod at the bits about the ending and hope for the best.`, `You have started ${bk.t}, and say so. “Started,” says Miss Achterberg, as if writing it down.`, `A chapter or two of ${bk.t} in, you ask a question that turns out to be answered on page forty. Everybody is very kind about it.`]);
+      } else {
+        nb.not++; up -= 4; learnt *= 0.6;
+        text = L.pick(nb.not >= 3
+          ? [`You have not read ${bk.t} either. Miss Achterberg does not say anything. She does not need to.`, `${bk.t}, unread, like the last few. Miss Achterberg lends you her own copy, with a bookmark already in it at page one.`, `Another book you have not read. The others have started saving you the chair by the biscuits.`]
+          : second ? [`The second evening on ${bk.t}, and you have still not opened it. You are asked what you made of the middle. You make something up.`, `You still have not read ${bk.t}. You become very interested in the cover.`]
+            : [`You have not read ${bk.t}. Nobody can tell for twenty minutes, and then everybody can.`, `You have not read ${bk.t}. You eat a great many biscuits, thoughtfully.`, `You have not read ${bk.t}, so you talk about the film, which turns out not to exist.`, `You have not read ${bk.t}. You listen instead, and find you want to read it after all.`]);
+      }
     } else text = L.pick(NIGHT[id]);
     stand(m, up);
     learn(L, id, learnt);
@@ -606,8 +648,8 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
   });
   def('bookChoose', {
     time: 0,
-    why: (L, id) => { const m = L.clubMem('book'); return !m || m.r < 3 ? 'Only whoever chooses the book club’s books.' : !CLUB_READS.includes(id) ? 'The club reads novels, poems and history, not manuals.' : L.s.clubs.pick && L.s.clubs.pick.t === L.s.t + 1 ? 'You have chosen next season’s book already.' : null; },
-    run(L, id) { L.s.clubs.pick = { t: L.s.t + 1, id }; return `You pin it on the noticeboard: next season, the book club reads ${BOOKS[id].t}. Miss Achterberg orders six more copies.`; },
+    why: (L, id) => { const m = L.clubMem('book'); return !m || m.r < 3 ? 'Only whoever chooses the book club’s books.' : !CLUB_READS.includes(id) ? 'The club reads novels, poems and history, not manuals.' : L.s.clubs.pick && Math.floor(L.s.clubs.pick.t / 2) === Math.floor(L.bookNextAt() / 2) ? 'You have chosen the next book already.' : null; },
+    run(L, id) { L.s.clubs.pick = { t: L.bookNextAt(), id }; return `You pin it on the noticeboard: next, the book club reads ${BOOKS[id].t}. Miss Achterberg orders six more copies.`; },
   });
 
   function finishBook(L, id) {
@@ -654,14 +696,30 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
       const missedBig = L.clubOcc(id).open && L.clubPart(id) !== 0;
       stand(m, -(2 + 2 * m.miss + (missedBig ? 6 : 0)));
       if (m.miss >= 6 || (m.miss >= 3 && m.st <= 0)) { lapse(L, id, false); continue; }
-      if (m.miss === 3 && !jailed) L.queue('clubMissYou', id);
+      // (A card the first time, a sterner one the second; a third time within six years, and they let you go.)
+      if (m.warned && s.t - m.warnT >= 24) m.warned = 0;
+      if (m.miss === 3 && !jailed) {
+        if ((m.warned || 0) >= 2) { lapse(L, id, false); continue; }
+        m.warned = (m.warned || 0) + 1; m.warnT = s.t;
+        L.queue('clubMissYou', id);
+      }
       // Let your standing fall far enough and somebody else gets your place.
       const T = club.ranks.length === 5 ? NEED5 : NEED4;
       if (m.r > 0 && m.st < T.st[m.r] - 20) { m.r--; L.note(`${club.name}: gave your place to somebody who turns up. You are ${club.ranks[m.r]} again.`); }
     }
     if (c.f.sleep && !jailed) L.hp(0.4);
     const b = c.book;
-    if (b && !b.warned && s.t - b.since >= 4 && !jailed) { b.warned = 1; L.queue('clubOverdue'); }
+    // (A library book a year overdue brings a postcard; renewed twice already, it is fetched back instead,
+    // with your place kept in it, so that the same postcard does not come every year for ever.)
+    if (b && !b.warned && s.t - b.since >= 4 && !jailed) {
+      b.warned = 1;
+      if ((b.renew || 0) >= 2) {
+        if (b.p) c.prog[b.id] = b.p;
+        c.book = null;
+        L.note(`Miss Achterberg came for ${BOOKS[b.id].t} herself: renewed twice, and still not finished. She kept your place in it.`);
+        L.say('📮', `${BOOKS[b.id].t} has gone back to the library`, 'bad');
+      } else L.queue('clubOverdue');
+    }
   });
   // A year’s subs, on the anniversary of joining (the joining fee covers the first year).
   hooks.bills.push((L, out, jailed) => {
@@ -830,19 +888,22 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
     {
       id: 'clubMissYou', icon: '💌', title: 'We have missed you', w: 0,
       ok: (L, x) => !L.s.gaol && inClub(L, x),
-      text: (L, x) => `A card through the door from ${CLUBS[x].name}: “We have missed you. Is everything all right? Do come back.” It is signed by everybody, including somebody you do not remember.`,
+      title: (L, x) => (M(L, x).warned >= 2 ? 'Your place' : 'We have missed you'),
+      text: (L, x) => (M(L, x).warned >= 2
+        ? `Another card from ${CLUBS[x].name}, shorter than the last: “We have kept your place for as long as we can. If we do not see you soon, it will have to go to somebody who can come.” Nobody has drawn a smiling face on this one.`
+        : `A card through the door from ${CLUBS[x].name}: “We have missed you. Is everything all right? Do come back.” It is signed by everybody, including somebody you do not remember.`),
       opts: [
-        { t: 'Promise to go back', run(L, x) { const m = M(L, x); m.miss = Math.max(0, m.miss - 2); return 'You write back that you will. Now you will have to.'; } },
+        { t: (L, x) => (M(L, x).warned >= 2 ? 'Go back, and mean it this time' : 'Promise to go back'), run(L, x) { const m = M(L, x); m.miss = Math.max(0, m.miss - 2); return m.warned >= 2 ? 'You write back that you will be there. If you are not, this time, that will be that.' : 'You write back that you will. Now you will have to.'; } },
         { t: 'Let it go', run(L, x) { lapse(L, x, true); L.joy(-1); return 'You write a kind note back. It is the end of something, and you both know it.'; } },
       ],
     },
     {
       id: 'clubOverdue', icon: '📮', title: 'Overdue', w: 0,
       ok: (L) => !L.s.gaol && !!L.s.clubs.book,
-      text: (L) => `A postcard from the library, in green ink: ${BOOKS[L.s.clubs.book.id].t} is overdue. It does not say “very overdue”, but the handwriting does.`,
+      text: (L) => { const b = L.s.clubs.book, t = BOOKS[b.id].t; return b.renew ? `Another postcard about ${t}, in green ink and capital letters. Underneath, smaller: “It cannot be renewed again.”` : `A postcard from the library, in green ink: ${t} is overdue. It does not say “very overdue”, but the handwriting does.`; },
       opts: [
-        { t: 'Pay the fine', cost: 15, run(L) { const b = L.s.clubs.book; b.since = L.s.t; b.warned = 0; return 'Miss Achterberg takes your $15 as if it were evidence, and stamps the book for another year.'; } },
-        { t: 'Ask for longer', check: ['charm', 35], run(L, x, win) { const b = L.s.clubs.book; b.since = L.s.t; b.warned = 0; if (win) return 'She renews it, with a look that says she will be keeping an eye on you.'; L.cash(-15); return 'She renews it, and fines you anyway.'; } },
+        { t: 'Pay the fine', cost: 15, run(L) { const b = L.s.clubs.book; b.since = L.s.t; b.warned = 0; b.renew = (b.renew || 0) + 1; return b.renew >= 2 ? 'Miss Achterberg takes your $15 and stamps the book one last time, hard.' : 'Miss Achterberg takes your $15 as if it were evidence, and stamps the book for another year.'; } },
+        { t: 'Ask for longer', check: ['charm', 35], run(L, x, win) { const b = L.s.clubs.book; b.since = L.s.t; b.warned = 0; b.renew = (b.renew || 0) + 1; if (win) return b.renew >= 2 ? 'She renews it, once more and once only.' : 'She renews it, with a look that says she will be keeping an eye on you.'; L.cash(-15); return 'She renews it, and fines you anyway.'; } },
         { t: 'Take it back unfinished', run(L) { const c = L.s.clubs, b = c.book; if (b.p) c.prog[b.id] = b.p; c.book = null; return 'You hand it over. Miss Achterberg checks every page for damage, and finds a crumb.'; } },
       ],
     },

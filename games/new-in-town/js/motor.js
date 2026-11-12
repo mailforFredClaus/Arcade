@@ -786,7 +786,12 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
     },
     {
       id: 'motorTicket', icon: '🎫', title: 'Under the windscreen wiper', w: 2, when: (L) => L.motorUsable(),
-      text: 'A parking ticket. Mayor Pennington’s new wardens have been out on the High Street, and they have been thorough.',
+      // (Whoever holds the chain just now, in annals.js: it is not always Pennington, and it may be you.)
+      text: (L) => {
+        const m = L.annalsMayor ? L.annalsMayor() : null;
+        if (m && m.k === 'you') return 'A parking ticket. The council’s new wardens have been out on the High Street, and they have been thorough. They are, strictly speaking, your wardens. You can hardly complain.';
+        return `A parking ticket. ${m ? L.annalsMayorTitle(m) : 'Mayor Pennington'}’s new wardens have been out on the High Street, and they have been thorough.`;
+      },
       opts: [
         { t: 'Pay it', cost: 70, run() { return 'You pay it at the Town Hall. The clerk says that is the eleventh today, with some satisfaction.'; } },
         { t: 'Appeal', check: ['charm', 40], run(L, x, win) { if (win) return 'A strongly worded letter about the faded yellow lines. It is cancelled.'; L.cash(-140); return `Your appeal is turned down, and the fine has doubled to ${money(140)} while you were writing it.`; } },
@@ -796,7 +801,14 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
     {
       id: 'motorBarn', icon: '🌾', title: 'Something under the hay', w: 1.5, cd: 16, when: (L) => !L.s.motor.proj && L.s.cash + L.s.bank >= 4000 && (L.s.motor.lic != null || L.s.st.craft >= 30),
       ctx: (L) => L.pick(Object.keys(CLASSICS)),
-      text: (L, id) => `Tom Windle stops you by the farm gate. "There’s a car in my top barn," he says. "Been there since my father. Cows don’t like it." Under the hay and the hens is an old ${CLASSICS[id].make} ${CLASSICS[id].name}, a ${CLASSICS[id].body}. He wants ${money(CLASSICS[id].wreck)} for it, and it gone by Friday.`,
+      // (The second time, or for the next of a family that had one out of his barn before, Tom says so: see chapFam in chapters.js.)
+      text: (L, id) => {
+        const car = `an old ${CLASSICS[id].make} ${CLASSICS[id].name}, a ${CLASSICS[id].body}. He wants ${money(CLASSICS[id].wreck)} for it, and it gone by Friday.`;
+        const fam = L.chapFamWho ? L.chapFamWho('motorBarn') : null;
+        if ((L.s.seen.motorBarn || 0) >= 2) return `Tom Windle stops you by the farm gate again. "Found another," he says. "My father never threw anything away, and nor did his." Under the hay in the other barn is ${car}`;
+        if (fam) return `Tom Windle stops you by the farm gate. "${fam[0].toUpperCase()}${fam.slice(1)} had the last one out of my barn," he says. "There’s another. My father never threw anything away." Under the hay and the hens is ${car}`;
+        return `Tom Windle stops you by the farm gate. "There’s a car in my top barn," he says. "Been there since my father. Cows don’t like it." Under the hay and the hens is ${car}`;
+      },
       opts: [
         { t: 'Buy it, and have Jess tow it to the garage', cost: (L, id) => CLASSICS[id].wreck, why: (L) => (L.s.motor.proj ? 'Len’s bay only takes one at a time.' : null), run(L, id) { L.motorJess(2); return L.motorStart(id, CLASSICS[id].wreck); } },
         { t: 'Leave it to the hens', run() { return '"Suit yourself," says Tom, and goes back to talking to a cow called Margaret.'; } },

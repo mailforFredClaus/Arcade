@@ -82,13 +82,16 @@ export const BANDS = ['The Undertow', 'Low Tide Lights', 'Gull Patrol', 'The Bre
 export const INSTRUMENTS = ['the bass', 'the drums', 'the keyboards', 'the fiddle', 'lead guitar'];
 export const BOATS = ['Kittiwake', 'Second Wind', 'Merry Dancer', 'Curlew', 'Lark'];
 // A business of their own, after the sort of person they are.
+// (sign: the name in an old save; signs: the names one might choose, drawn in wants.js.)
 export const SHOPS = {
-  kind: { a: 'a bakery', sign: 'Crumbs', job: 'kitchen' },
-  bookish: { a: 'a secondhand bookshop', sign: 'Spine & Tide', job: 'retail' },
-  sporty: { a: 'a bike shop', sign: 'Freewheel', job: 'retail' },
-  arty: { a: 'a pottery with a little gallery', sign: 'Kiln Cottage', job: 'arts' },
-  witty: { a: 'a café with music on Fridays', sign: 'The Blue Kettle', job: 'kitchen' },
+  kind: { a: 'a bakery', sign: 'Crumbs', signs: ['Crumbs', 'The Daily Loaf', 'Rise & Shine', 'Flour Power', 'The Warm Oven'], job: 'kitchen' },
+  bookish: { a: 'a secondhand bookshop', sign: 'Spine & Tide', signs: ['Spine & Tide', 'Dog-Eared', 'The Turned Page', 'Marginalia', 'Second Chapter'], job: 'retail' },
+  sporty: { a: 'a bike shop', sign: 'Freewheel', signs: ['Freewheel', 'Spokes', 'Chain Reaction', 'The Bike Shed', 'Uphill Cycles'], job: 'retail' },
+  arty: { a: 'a pottery with a little gallery', sign: 'Kiln Cottage', signs: ['Kiln Cottage', 'Wet Clay', 'The Glaze Room', 'Throw & Fire', 'Slipware'], job: 'arts' },
+  witty: { a: 'a café with music on Fridays', sign: 'The Blue Kettle', signs: ['The Blue Kettle', 'The Tin Whistle', 'Spoons', 'The Crooked Cup', 'Steam & Strings'], job: 'kitchen' },
 };
+// Where a partner's business might open. (The first, in an old save.)
+export const PREMISES = ['the old chandlery on Harbour Row', 'the empty shop by the station', 'the old bank on Fore Street', 'what used to be the post office', 'the corner unit on Chapel Street', 'the old net loft on the quay'];
 // What a partner who goes back to study comes out as.
 export const DEGREE_JOB = { bookish: 'law', sporty: 'teaching', witty: 'politics', arty: 'teaching', kind: 'medicine' };
 

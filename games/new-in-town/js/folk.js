@@ -34,6 +34,8 @@ export { FOLK, GOODS, CORNERS, STORIES, FAVOURS, KEEPSAKES, BOONS, CHANCES };
 
 export const FOLK_IDS = Object.keys(FOLK);
 const KEEP_IN_TOUCH = 30;
+// A favour with no date on it: a reminder after two years, and after four it is let go, gently.
+export const FAV_NUDGE = 8, FAV_LAPSE = 16;
 // A friendship grows quickly at first and slowly once it is deep.
 const scale = (f) => Math.max(0.35, Math.min(1.05, 1.15 - f / 100));
 const WORDS = [[85, 'Like family'], [65, 'A good friend'], [45, 'A friend'], [25, 'Friendly'], [10, 'A nodding acquaintance'], [0, 'A stranger']];
@@ -163,11 +165,18 @@ export function install({ def, Life, clamp, val, hooks, addEvents }) {
       this.folkWarm(id, 1);
       return `${F.set} It goes on your list of favours${f.due != null ? `, to be done ${this.folkDue(f)}` : ''}.`;
     },
+    // (Each time you say no, they leave it longer before asking again: a year, then two, then three.)
     folkNo(id, said) {
       const s = this.s, p = this.folk(id);
-      p.off = s.t + 4;
+      p.no = (p.no || 0) + 1;
+      p.off = s.t + 4 * Math.min(3, p.no);
       this.folkWarm(id, -1);
       return said;
+    },
+    // When a favour was asked, said plainly: "asked last season", "asked three years ago".
+    folkAsked(f) {
+      const n = this.s.t - f.at, y = Math.floor(n / 4), w = ['', 'a year', 'two years', 'three years', 'four years', 'five years'];
+      return n <= 0 ? 'asked this season' : n === 1 ? 'asked last season' : n < 4 ? `asked ${n} seasons ago` : `asked ${w[y] || `${y} years`} ago`;
     },
     folkFav(id) { return this.s.folk.fav.find((f) => FAVOURS[f.id].who === id) || null; },
     folkFavOf(fid) { return this.s.folk.fav.find((f) => f.id === fid) || null; },
@@ -187,8 +196,22 @@ export function install({ def, Life, clamp, val, hooks, addEvents }) {
     folkFavours() {
       return this.s.folk.fav.map((f) => {
         const F = FAVOURS[f.id];
-        return { id: f.id, who: F.who, icon: F.icon, title: val(F.title, this), due: this.folkDue(f), prog: this.folkProg(f), where: folkAt(F.goal ? this.folkPlace(F.who) : F.at) };
+        return { id: f.id, who: F.who, icon: F.icon, title: val(F.title, this), due: this.folkDue(f), asked: this.folkAsked(f), prog: this.folkProg(f), where: folkAt(F.goal ? this.folkPlace(F.who) : F.at) };
       });
+    },
+    // A favour with no date on it, left for years, is let go gently (see the season hook): the one who asked
+    // finds another way, and the story goes on without it. Seasons before a reminder, and before it lapses.
+    folkFavNudgeAt() { return FAV_NUDGE; },
+    folkFavLapse(fid) {
+      const s = this.s, i = s.folk.fav.findIndex((f) => f.id === fid);
+      if (i < 0) return null;
+      const f = s.folk.fav[i], F = FAVOURS[f.id];
+      s.folk.fav.splice(i, 1);
+      s.folk.lapsed = (s.folk.lapsed || 0) + 1;
+      // (The chapter it belonged to closes, warmed by nothing: the next can come in its own time.)
+      this.folkStep(F.who, f.n, 0);
+      this.note(`${this.folkName(F.who)} found another way, in the end: ${val(F.title, this).replace(/^./, (c) => c.toLowerCase())}.`);
+      return f;
     },
     folkFavDone(fid, win) {
       const s = this.s, F = FAVOURS[fid], i = s.folk.fav.findIndex((f) => f.id === fid), f = s.folk.fav[i];
@@ -201,10 +224,39 @@ export function install({ def, Life, clamp, val, hooks, addEvents }) {
       return said;
     },
     // ---- what friendship is good for ----
+    // (What a story gave the last of the family personally, a pew or a field, was theirs: an heir keeps only
+    // what comes of friendship, and only while the friendship is kept up. p.inh: the stage the story was at.)
     folkHas(b) {
       const B = BOONS[b], p = this.folk(B.who);
-      if (p.stage < B.at || (B.keep && p.f < KEEP_IN_TOUCH) || (B.on && !B.on(this))) return false;
+      if (p.stage < B.at || (B.keep && p.f < KEEP_IN_TOUCH) || (B.on && !B.on(this)) || (!B.keep && p.inh != null && B.at <= p.inh)) return false;
       return !(B.who === 'pym' && this.pymShut());
+    },
+    // The heir takes the townsfolk on (from chapBegin in chapters.js). from: { id: { f, stage, known, shut, fm } }
+    // as the last life left them (or, from an older build, a number: a share of friendship already worked out).
+    // Born here and grown up here, you know every one of them, and they know you: a share of the family's
+    // friendship, what each likes, and their stories go on from where they had got to. Back at eighteen,
+    // only those who knew the family well remember you, and more faintly. The vicar buried your mother.
+    folkTakeOn(from, how, called) {
+      const s = this.s, home = how === 'home';
+      if (how !== 'home' && how !== 'back') return;
+      for (const id of FOLK_IDS) {
+        const p = s.folk.p[id], raw = from ? from[id] : null;
+        // (Mrs Pargeter's story belongs to the allotment and to her friendship as Edna: it starts afresh.)
+        if (id === 'parg') continue;
+        const o = raw == null ? null : typeof raw === 'number' ? { f: raw / 0.4, stage: 0 } : raw;
+        const was = o ? o.f || 0 : 0;
+        let f = home ? Math.max(10, Math.min(45, Math.round(was * 0.5))) : was >= 25 ? Math.min(25, Math.round(was * 0.3)) : 0;
+        if (id === 'hollis' && called) f = Math.max(f, home ? 20 : 12);
+        if (!f) continue;
+        Object.assign(p, { f, met: s.t, at: s.t, seen: s.t, off: 0 }, home ? { kin: 1 } : {});
+        // (What each of them likes, you find out for yourself: that is half the fun, and a trophy.)
+        if (o) {
+          if (o.shut) p.shut = 1;
+          if (o.stage > 0) { p.stage = Math.min(5, o.stage); p.inh = p.stage; }
+          if (id === 'marlow' && o.fm) s.f.marlow = Math.min(3, o.fm);
+        }
+      }
+      this.folkSync();
     },
     folkKeep(k) { if (this.s.folk.keep[k] == null) this.s.folk.keep[k] = this.s.t; },
     // Jess (or Len) sees you right for a car, if you have none. Returns whether they did.
@@ -423,12 +475,24 @@ export function install({ def, Life, clamp, val, hooks, addEvents }) {
       { t: 'Leave her to it', run: (L) => L.folkNo('parg', 'She has it back up by teatime, alone, and does not look your way.') },
     ],
   });
+  // A favour left for years, let go gently. x: { fid }.
+  const askedOf = (L, x) => { const F = FAVOURS[x.fid], k = FOLK[F.who]; return { F, who: F.who, name: L.folkName(F.who), he: k.sex === 'm' ? 'he' : 'she', his: k.sex === 'm' ? 'his' : 'her', title: val(F.title, L) }; };
+  cards.push({
+    id: 'fkLapse', w: 0, icon: '🍂', title: 'Never mind',
+    ok: (L, x) => !L.s.gaol && !!x && !!FAVOURS[x.fid] && !!L.folkFavOf(x.fid),
+    text: (L, x) => { const a = askedOf(L, x), f = L.folkFavOf(x.fid); return `${a.name} stops you ${folkAt(L.folkPlace(a.who))}. The favour has been on your list for ${L.folkAsked(f).replace(/^asked /, '').replace(/ ago$/, '')}: “${a.title}”. “Do not give it another thought,” ${a.he} says. “It got done in the end, one way or another.” ${a.he === 'he' ? 'He' : 'She'} does not seem cross. Not very.`; },
+    opts: [
+      { t: 'Say you are sorry', run(L, x) { const a = askedOf(L, x); L.folkFavLapse(x.fid); L.folkWarm(a.who, 1); return `“These things happen,” says ${a.name}, and changes the subject to something else ${a.he} has been meaning to tell you.`; } },
+      { t: 'Admit you had forgotten all about it', run(L, x) { const a = askedOf(L, x); L.folkFavLapse(x.fid); L.folkWarm(a.who, -2); L.karma(1); return `An honest answer. ${a.name} laughs, eventually, and says that is at least something.`; } },
+    ],
+  });
   addEvents([...cards, ...CHANCES]);
 
   // ---- trophies ----
   const corners = (L) => new Set(FOLK_IDS.filter((id) => L.s.folk.p[id].f >= 60).map((id) => FOLK[id].corner));
   Object.assign(TROPHIES, {
-    folkStory: { name: 'The whole story', icon: '📖', desc: 'Hear one of the townsfolk’s stories to the end.', test: (L) => !!L.s.folk && FOLK_IDS.some((id) => L.s.folk.p[id].stage >= 5) },
+    // (Not for a story the last of the family heard to the end: see folkTakeOn.)
+    folkStory: { name: 'The whole story', icon: '📖', desc: 'Hear one of the townsfolk’s stories to the end.', test: (L) => !!L.s.folk && FOLK_IDS.some((id) => L.s.folk.p[id].stage >= 5 && !(L.s.folk.p[id].inh >= 5)) },
     folkFavours: { name: 'Good neighbour', icon: '🤝', desc: 'Do ten favours for the townsfolk.', test: (L) => !!L.s.folk && L.s.folk.done >= 10 },
     folkCorners: { name: 'A friend in every corner', icon: '🗺️', desc: 'Have a good friend (three hearts) down by the water, in the Bay, in the old town and out on its edge.', test: (L) => !!L.s.folk && corners(L).size >= Object.keys(CORNERS).length },
     folkLoves: { name: 'Just what I wanted', icon: '🎁', desc: 'Find something that each of eight townsfolk loves.', test: (L) => !!L.s.folk && FOLK_IDS.filter((id) => Object.values(L.s.folk.p[id].known).includes('love')).length >= 8 },
@@ -484,7 +548,7 @@ export function install({ def, Life, clamp, val, hooks, addEvents }) {
     if (id === 'cafe' && (i === 2 || (i === 1 && win === false))) L.folk('betty').shut = 1;
   });
 
-  hooks.season.push((L) => {
+  hooks.season.push((L, lines, jailed) => {
     const s = L.s, fk = s.folk;
     if (L.season === 1 && L.folkHas('honey')) { fk.bag.honey = Math.min(6, fk.bag.honey + 2); L.note('Two jars of honey on the step, from the vicar’s bees.'); }
     if (fk.book > 0) { L.gain('smarts', 1.2); if (--fk.book === 0) L.note('Gave the Admiralty pilot of 1820 back to Miss Achterberg, read properly.'); }
@@ -496,7 +560,8 @@ export function install({ def, Life, clamp, val, hooks, addEvents }) {
       if (p.met == null) continue;
       if (p.seen == null) p.seen = p.met;
       const gap = s.t - p.seen;
-      if (gap >= 2) p.f = Math.max(p.f - (gap >= 8 ? 1.5 : 1), Math.min(p.f, p.stage * 6));
+      // (Nor, for one born and brought up in the Bay, below a nod in the street: p.kin, from folkTakeOn.)
+      if (gap >= 2) p.f = Math.max(p.f - (gap >= 8 ? 1.5 : 1), Math.min(p.f, Math.max(p.stage * 6, p.kin ? 10 : 0)));
     }
     L.folkEdna(true);
     // Favours left too long are let slip.
@@ -509,6 +574,20 @@ export function install({ def, Life, clamp, val, hooks, addEvents }) {
       L.folkWarm(F.who, -8);
       L.note(`Let ${L.folkName(F.who)} down: never got round to it (${val(F.title, L).replace(/^./, (c) => c.toLowerCase())}).`);
       L.say('😞', `You let ${L.folkName(F.who)} down`, 'bad');
+    }
+    // Favours with no date on them do not wait for ever: a reminder after two years, and after four
+    // the one who asked lets it go, on a card of its own, and their story moves on without it.
+    if (!jailed) {
+      for (const f of fk.fav.slice()) {
+        if (f.due != null) continue;
+        const F = FAVOURS[f.id], age = s.t - f.at;
+        if (age >= FAV_LAPSE) { if (!s.pend.some((q) => q.id === 'fkLapse' && q.x && q.x.fid === f.id)) L.queue('fkLapse', { fid: f.id }); }
+        else if (age >= FAV_NUDGE && !f.nudged) {
+          f.nudged = 1;
+          L.note(`${L.folkName(F.who)} asked after the favour still on your list, very gently: ${val(F.title, L).replace(/^./, (c) => c.toLowerCase())}.`);
+          L.say(FOLK[F.who].icon, `${L.folkName(F.who)} has not forgotten that favour`);
+        }
+      }
     }
   });
 

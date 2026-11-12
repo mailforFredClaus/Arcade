@@ -332,7 +332,7 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
       const st = this.s.annals && id === 'pier' ? ev(this, 'storm') : null;
       if (!st) return null;
       if (st.shut) return `The great storm of ${this.annalsWhen(st.t)} tore the middle out of it, and the Lucky Gull is boarded up until it is mended. Pay for the whole pier, and it is mended at once.`;
-      return 'Mended after the great storm, as far as the Lucky Gull. Beyond it the far end is still shut, as it has been since the storm of your grandparents’ day.';
+      return 'Mended after the great storm, as far as the Lucky Gull. Beyond it the far end is still shut, as it has been since a storm long before that one.';
     },
     annalsRace() { return this.s.annals.race; },
     // Nominations are open: the two seasons before polling day.
@@ -1051,7 +1051,11 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
     if (lived.length) out.push(`${He} lived through ${list(lived)}${n >= 3 ? `, and saw ${mayors}` : ''}.`);
     else if (n >= 3) out.push(`${He} saw ${mayors}.`);
     if (an.n.ribbon) out.push(`${He} cut the ribbon on ${an.n.ribbon}, and kept the scissors.`);
-    else if ((an.n.votes || 0) >= 8) out.push(`${He} never missed an election, and always said who ${s.sex === 'f' ? 'she' : 'he'} had voted for.`);
+    // (Never missed one only if that is true: an election every four years since this story began, give or take one.)
+    else if ((an.n.votes || 0) >= 8) {
+      const began = (s.chap && s.chap.start && s.chap.start.how === 'home' && s.chap.start.age) || 18, held = Math.floor((s.age - began) / 4);
+      out.push(an.n.votes >= held - 1 ? `${He} never missed an election, and always said who ${s.sex === 'f' ? 'she' : 'he'} had voted for.` : `${He} voted in ${an.n.votes} elections, and always said who ${s.sex === 'f' ? 'she' : 'he'} had voted for.`);
+    }
   });
 
   // ---- the Town Hall's "Stand for mayor" (engine.js), on the election calendar ----
@@ -1182,7 +1186,10 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
       id: 'anPoll', icon: '🗳️', title: 'Polling day', ok: raceOk,
       text(L) {
         const s = L.s, an = s.annals, r = an.race, n = (an.n.votes || 0) + 1, m = an.mayor;
-        const where = n === 1 ? 'Your first vote in Starling Bay. The polling station is the church hall, and the man at the desk crosses your name off with tremendous ceremony.'
+        // (The first vote of one who grew up here is not their first: see chapHow in chapters.js.)
+        const where = n === 1 && how(L) === 'home' ? `The church hall, as at every election since you were eighteen. The man at the desk has crossed your name off ${s.age >= 50 ? 'for thirty years' : 'for years'}, and does it as if for the first time.`
+          : n === 1 && how(L) === 'back' ? 'Your first vote, in the town you were born in. The polling station is the church hall, and the man at the desk crosses your name off with tremendous ceremony.'
+          : n === 1 ? 'Your first vote in Starling Bay. The polling station is the church hall, and the man at the desk crosses your name off with tremendous ceremony.'
           : s.age >= 70 ? `The church hall again, for the ${nth(n)} time. The pencil on its string is new. Nothing else is.`
             : L.pick(['The church hall again: three booths, a pencil on a string, and a smell of floor polish and squash.', 'Polling day. Somebody has chalked VOTE on the pavement outside the church hall, with an arrow, in case.',
               s.wx === 'wet' ? 'Rain on the church hall roof. Turnout will be low, says the man at the door, as he says every time.' : 'A queue at the church hall, and a man from the Gazette asking people on the way out, who mostly will not say.',
