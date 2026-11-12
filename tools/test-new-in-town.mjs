@@ -191,7 +191,7 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', sibs:
   check(L.can('apply', 'police') === 'Not with your record.', 'the police will not take you with a record');
   s.record = 0; s.age = 66; s.time = 6;
   L.act('apply', 'kitchen');
-  check(L.placeActions('townhall').some((a) => a.id === 'retire'), 'at 65 you can retire');
+  check(L.placeActions(CAREERS[L.s.job.c].place).some((a) => a.id === 'retire'), 'at 65 you can retire, at your own workplace');
   L.act('retire');
   check(!s.job && s.retired && s.pension > 0, 'retiring swaps the job for a pension');
   const pension = s.pension;

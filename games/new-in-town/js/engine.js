@@ -177,7 +177,8 @@ def('quit', {
   run(L) { const t = L.jobTitle(); L.s.job = null; L.note(`Quit as ${t}.`); return `You leave your job as ${t}. The leaving card has four signatures.`; },
 });
 def('retire', {
-  place: 'townhall', sec: 'Work', icon: '🌅', title: 'Retire', desc: (L) => `Stop work, on a pension of ${money(Math.max(L.pensionFor(), L.s.f.jobPension || 0))} a season.`, time: 0,
+  // (At your own workplace, where you would look for it.)
+  place: (L) => (L.s.job ? CAREERS[L.s.job.c].place : 'townhall'), sec: 'Work', icon: '🌅', title: 'Retire', desc: (L) => `Stop work, on a pension of ${money(Math.max(L.pensionFor(), L.s.f.jobPension || 0))} a season.`, time: 0,
   show: (L) => !!L.s.job && L.s.age >= 65 && !CAREERS[L.s.job.c].shady,
   run(L) {
     // (Only the best pension you have earned counts: retiring twice doesn't pay twice.)
