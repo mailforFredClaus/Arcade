@@ -3,4 +3,6 @@
 // screen's kit and gives back what it adds: see "the newer parts of town" in
 // game.js.
 
-export const SCREENS = [];
+import market from './market-ui.js'; // Windle Farm and Market Square
+
+export const SCREENS = [market];

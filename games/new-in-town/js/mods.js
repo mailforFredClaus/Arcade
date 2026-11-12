@@ -6,5 +6,6 @@
 // ui-mods.js.
 
 import { install as hill } from './hill.js';
+import { install as market } from './market.js'; // Windle Farm and Market Square
 
-export const RULES = [hill];
+export const RULES = [hill, market];
