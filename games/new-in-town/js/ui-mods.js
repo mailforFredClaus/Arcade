@@ -9,5 +9,6 @@ import motor from './motor-ui.js';
 import clubs from './clubs-ui.js';
 import market from './market-ui.js'; // Windle Farm and Market Square
 import folk from './folk-ui.js'; // the people of the town
+import heists from './heists-ui.js'; // planned jobs, the detective, and the Low road box
 
-export const SCREENS = [soul, coast, motor, clubs, market, folk];
+export const SCREENS = [soul, coast, motor, clubs, market, folk, heists];

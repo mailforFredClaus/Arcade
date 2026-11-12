@@ -802,8 +802,10 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', sibs:
   G.queue('busted', { what: 'a crate', sev: 2 });
   check(G.event().opts.length === 5 && G.event().opts[2].chance > 0, 'caught, you can go quietly, run, bribe, send for a lawyer, or blame Sal');
   G.s.cash = 12000;
+  // (A lawyer is a gamble now, a good one for a first offence: see new-in-town-tests/heists.mjs.)
+  check(G.event().opts[3].chance >= 0.85, 'a good lawyer is nearly sure of it, the first time');
   G.choose(3);
-  check(G.s.record === 1 && G.s.cash === 12000 - 8000 - 1500 && !G.event(), 'a good lawyer turns prison into a fine');
+  check(G.s.record === 1 && ((G.s.cash === 12000 - 8000 - 1500 && !G.event()) || (G.s.cash === 12000 - 8000 && G.event().id === 'inside')), 'a good lawyer turns prison into a fine, or tries to');
   // Sal's crew.
   check(L.can('joinCrew').includes('crimes') && !L.placeActions('townhall').some((a) => a.id === 'apply'), 'Sal takes nobody who has not proved themselves');
   s.n.crimes = 3; s.time = 6;
@@ -878,15 +880,14 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', sibs:
   Q.queue('caughtOut', wife.id);
   Q.choose(2);
   check(!Q.partner() && Q.s.f.divorced, 'and if she finds out and you shrug, that is that');
-  // The bank job.
+  // The bank job: planned over seasons now, with a crew (new-in-town-tests/heists.mjs has the rest).
   const H = fresh();
-  check(H.can('heist').includes('15 crimes'), 'Sal keeps the bank job for people he trusts');
-  H.s.n.crimes = 15; H.s.cash = 20000;
-  const hc = H.s.cash;
-  H.act('heist');
-  check((H.s.f.heist && H.s.cash >= hc - 10000 + 250000) || (H.event().id === 'busted' && H.s.pend[0].x.sev === 4), 'the bank job is a fortune or a hand on the collar');
-  check(H.can('heist').includes('jumpy') && H.s.heat >= 45, 'and not something to try twice in a hurry');
-  if (!H.s.f.heist) { H.choose(0); check(H.event().id === 'inside' && H.s.pend[0].x.n === 12, 'a dozen seasons, for the bank'); }
+  check(!ACTIONS.heist && H.heistWhy('bank').includes('15 crimes'), 'Sal keeps the bank job for people he trusts');
+  H.s.n.crimes = 15;
+  check(!H.heistWhy('bank') && H.act('heistsPick', 'bank').ok && H.heistReady(), 'and it is planned, not done in a tap');
+  H.s.record = 0;
+  H.sentence(4);
+  check(H.event().id === 'inside' && H.s.pend[0].x.n === 12, 'a dozen seasons, for the bank');
   // An accident with a candle.
   const A = fresh();
   A.s.cash = 500000; A.act('buyLet', 'garage');
@@ -974,7 +975,7 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', sibs:
   for (let i = 0; i < 3; i++) { P.endSeason(); P.s.pend = P.s.pend.filter((e) => e.id === 'parole'); }
   check(P.event() && P.event().id === 'parole' && P.event().opts[0].chance > 0.85, 'the board sits at half time, and a clean record is what it wants to see');
   let out = false;
-  for (let i = 0; i < 20 && !out; i++) { const Q = new Life(JSON.parse(JSON.stringify(P.s))); Q.s.rng = i * 77; Q.choose(0); out = !Q.s.gaol && Q.s.f.parole && Q.s.f.licence > Q.s.t && Q.event().id === 'gateOut'; }
+  for (let i = 0; i < 20 && !out; i++) { const Q = new Life(JSON.parse(JSON.stringify(P.s))); Q.s.rng = i * 77; Q.choose(0); out = !Q.s.gaol && Q.s.f.parole && Q.s.f.licence > Q.s.t && ['gateOut', 'lagGate'].includes(Q.event().id); }
   check(out, 'parole: out early, on licence, and somebody may be at the gate');
   const lic = fresh();
   lic.s.f.licence = 99; lic.s.record = 1;
@@ -987,7 +988,7 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', sibs:
   T.endSeason(); T.s.pend = [];
   check(T.s.gaol && T.s.gaol.left === 1, 'one season down');
   T.endSeason();
-  check(!T.s.gaol && T.s.home === 'hostel' && T.s.time === T.timeMax() && T.event().id === 'gateOut' && T.s.n.inside === 2, 'time served: out of the gate, the rented room long gone');
+  check(!T.s.gaol && T.s.home === 'hostel' && T.s.time === T.timeMax() && ['gateOut', 'lagGate'].includes(T.event().id) && T.s.n.inside === 2, 'time served: out of the gate, the rented room long gone');
   T.choose(0);
   check(!T.can('rest') && T.act('rest').ok, 'and life goes on');
   // A second sentence on top of the first.
@@ -1049,7 +1050,7 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', sibs:
     while ((ev = C.event())) { seen.add(ev.id); C.choose(ev.id === 'parole' ? 1 : ev.opts.findIndex((o) => !o.why)); }
   }
   const gaolCards = EVENTS.filter((e) => e.gaol && e.w).map((e) => e.id);
-  check([...seen].every((id) => EVENTS.find((e) => e.id === id).gaol || ['parole', 'gateOut', 'parentDies', 'birthday30', 'birthday50'].includes(id)), `only prison cards turn up inside (${[...seen].join(' ')})`);
+  check([...seen].every((id) => EVENTS.find((e) => e.id === id).gaol || ['parole', 'gateOut', 'lagGate', 'parentDies', 'birthday30', 'birthday50'].includes(id)), `only prison cards turn up inside (${[...seen].join(' ')})`);
   check(gaolCards.filter((id) => seen.has(id)).length >= gaolCards.length - 2, 'and nearly all of them do, in a long sentence');
   const home = fresh();
   home.s.age = 29; home.s.t = 43;

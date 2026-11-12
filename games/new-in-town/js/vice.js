@@ -44,7 +44,12 @@ export function install({ def, A, Life, clamp }) {
       if (s.run) base += 0.08;
       // (Fog is a villain's friend.)
       if (s.wx === 'fog') base -= 0.04;
-      return clamp(base + s.heat / 400 + Math.min(4, s.record) * 0.02 - s.st.smarts / 1000 - (this.perk('police') ? 0.04 : 0) - (this.perk('crew') ? 0.03 : 0) - (s.heir === 'rogue' ? 0.06 : 0) - crew, 0.03, 0.85);
+      // (The detective's file on you, in heists.js, counts too.)
+      const file = this.lawRisk ? this.lawRisk(base) : 0;
+      // (A record makes the police look harder at anything big; at Sal's smallest jobs, much
+      // less, or every shift for him would end in a cell sooner or later.)
+      const known = Math.min(4, s.record) * 0.02 * clamp(base / 0.12, 0.25, 1);
+      return clamp(base + s.heat / 400 + known - s.st.smarts / 1000 - (this.perk('police') ? 0.04 : 0) - (this.perk('crew') ? 0.03 : 0) - (s.heir === 'rogue' ? 0.06 : 0) - crew + file, 0.03, 0.85);
     },
     // Commits one: it is counted, your name suffers and the law takes an
     // interest. sev: 1 petty to 4 the bank. Returns true if you were caught
@@ -54,22 +59,31 @@ export function install({ def, A, Life, clamp }) {
       s.n.crimes++;
       this.karma(-(1 + sev));
       this.warm(heat);
-      if (!this.chance(risk)) return false;
+      const caught = this.chance(risk);
+      // (The detective in heists.js keeps a file: suspicion for every crime, evidence for an arrest.)
+      if (this.lawNoted) this.lawNoted(sev, caught, heat);
+      if (!caught) return false;
       this.queue('busted', { what, sev });
       return true;
     },
     // What the magistrate hands down. Small things are a fine; the rest is
-    // time, and more of it if you have been here before.
+    // time, and more of it if you have been here before, and more again the
+    // longer your record and the thicker the detective's file (heists.js).
     sentence(sev) {
       const s = this.s, again = s.record >= 1, k = clamp(sev, 0, 4);
       // An escaped prisoner is known on sight: whatever this was for, what was owed comes back with it.
       const owe = s.run ? s.run.owe : 0;
       if (sev <= 0 && !owe) return 'A stern talking-to, and you are let go. This time.';
       let n = [0, 0, 2, 5, 12][k] + (again ? [0, 1, 1, 2, 4][k] : 0);
+      // A habit of it: every second conviction on the record adds to anything serious.
+      n += Math.floor(Math.min(6, s.record) / 2) * [0, 0, 1, 1, 2][k];
       // Caught again while out on licence: the rest of the old sentence comes back too.
       if (n && s.t < (s.f.licence || 0)) { n += 2; s.f.licence = 0; }
       if (n > 1 && s.heir === 'lag') n--;
-      n += owe;
+      // A detective who has been building a case for years makes it a long stretch.
+      const kept = n && this.lawCase ? this.lawCase(k) : 0;
+      n += kept + owe;
+      if (this.lawConvicted) this.lawConvicted(k, n);
       if (!n) {
         const fine = this.perk('law') ? 800 : 1500;
         s.record++;
@@ -78,9 +92,11 @@ export function install({ def, A, Life, clamp }) {
         return `A ${money(fine)} fine and a criminal record.`;
       }
       this.queue('inside', { n });
-      return owe ? `The desk sergeant has your photograph pinned up behind him. Back to Starling Gaol: ${n} season${n === 1 ? '' : 's'}, what you owed and more.` : `The magistrate does not look up. "${n} season${n === 1 ? '' : 's'}."`;
+      if (owe) return `The desk sergeant has your photograph pinned up behind him. Back to Starling Gaol: ${n} season${n === 1 ? '' : 's'}, what you owed and more.`;
+      return kept >= 6 ? `The case against you runs to four box files. The magistrate reads all of it, and then looks up. "${n} seasons."` : `The magistrate does not look up. "${n} season${n === 1 ? '' : 's'}."`;
     },
-    lawWord() { const h = this.s.heat; return h >= 75 ? 'Hunting for you' : h >= 45 ? 'Wants a word' : h >= 15 ? 'Watching you' : 'No interest in you'; },
+    // (Heat is the law's eye just now; the detective's file in heists.js is the long memory.)
+    lawWord() { const h = this.s.heat; return h >= 75 ? 'Hunting for you' : h >= 45 ? 'Wants a word' : h >= 15 ? 'Watching you' : this.s.heists && this.s.heists.det.file >= 15 ? 'Quiet, for now' : 'No interest in you'; },
     hooked(k) { return (this.s.habit[k] || 0) >= 60; },
     // Mr Pym does not forget being sold a fake.
     pymShut() { return this.s.t < (this.s.f.pymOff || 0); },
@@ -221,20 +237,7 @@ export function install({ def, A, Life, clamp }) {
       return `A terrible accident. Everybody says so. The cheque is for ${money(value)}.`;
     },
   });
-  def('heist', {
-    place: 'sal', sec: 'Jobs', icon: '🏦', title: 'Rob Harbour Bank', time: 3, cost: 10000,
-    desc: (L) => `The big one. A quarter of a million or more, or a dozen seasons inside. Your chances: ${Math.round(L.heistOdds() * 100)}%.`,
-    why: (L) => (L.s.n.crimes < 15 ? `Sal will not trust you with this yet (${L.s.n.crimes} of 15 crimes).` : L.s.t - (L.s.f.heistAt ?? -99) < 20 ? 'The town is still jumpy from the last time.' : null),
-    run(L) {
-      const s = L.s;
-      s.f.heistAt = s.t; s.n.crimes++; L.karma(-8); L.warm(45);
-      if (!L.chance(L.heistOdds())) { L.queue('busted', { what: 'a holdall, a mask, and the alarm ringing', sev: 4 }); return 'The vault opens. So does the door behind you. "Armed police."'; }
-      const got = L.int(250, 600) * 1000;
-      L.cash(got); s.f.heist = 1; L.joy(12);
-      L.note(`Robbed Harbour Bank of ${money(got)}, and got away with it.`, 'big');
-      return `Nine minutes, in and out, exactly as drawn on the back of Sal’s beer mat. Your share is ${money(got)}. Try to look surprised when you read about it.`;
-    },
-  });
+  // (The bank job is not a single tap any more: it is planned over seasons, with a crew. See heists.js.)
   BOUTS.forEach(([name, dc, prize, hurt], i) => {
     def(`bout${i}`, {
       place: 'sal', sec: 'The ring', icon: '🥊', title: `Fight ${name}`, per: 1,
@@ -403,7 +406,6 @@ export function install({ def, A, Life, clamp }) {
   });
 
   Object.assign(Life.prototype, {
-    heistOdds() { const s = this.s; return clamp(0.2 + s.st.smarts / 250 + s.st.fitness / 400 + (s.job && s.job.c === 'crew' ? s.job.r * 0.05 : 0) - s.heat / 400 + this.luck(), 0.08, 0.75); },
     // The property you'd miss least: the most valuable one you don't live in.
     spare() { return this.s.estate.filter((e) => e.id !== this.s.homeAt).sort((a, b) => this.propValue(b) - this.propValue(a))[0] || null; },
   });

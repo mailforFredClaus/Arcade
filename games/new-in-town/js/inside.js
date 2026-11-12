@@ -19,7 +19,7 @@ export function install({ def, A, Life, clamp }) {
   Object.assign(Life.prototype, {
     // Sent down for n seasons (on top of anything still being served).
     jail(n) {
-      const s = this.s;
+      const s = this.s, was = s.job;
       s.f.jailed = 1; s.record++;
       if (s.job) { this.note(`Lost the job as ${this.jobTitle()}.`); s.job = null; }
       if (s.gaol) { s.gaol.left += n; s.gaol.total += n; return; }
@@ -28,6 +28,8 @@ export function install({ def, A, Life, clamp }) {
       if (s.hilo) { this.cash(s.hilo.pot); s.n.casino += s.hilo.pot - s.hilo.bet; s.hilo = null; }
       s.run = null;
       s.gaol = { left: n, total: n, served: 0, good: 50, rep: Math.min(40, (s.worked.crew ?? -1) * 8 + 8), dig: 0, study: 0, sol: false, inSol: false, appeal: false, board: null, tat: false };
+      // (heists.js remembers you between sentences: your standing, Mr Hobbs, your cellmate, Sal.)
+      if (this.lagJail) this.lagJail(s.gaol, was);
       s.time = Math.min(s.time, this.timeMax());
       this.note(`Sent to Starling Gaol for ${n} season${n > 1 ? 's' : ''}.`, 'big');
     },
@@ -67,13 +69,15 @@ export function install({ def, A, Life, clamp }) {
       s.cash += 46;
       s.time = this.timeMax();
       this.note(`Walked out of Starling Gaol after ${q.served} season${q.served === 1 ? '' : 's'}${early ? ', on parole' : ''}.`, 'big');
-      this.queue('gateOut', { early });
+      // (heists.js decides who is waiting at the gate, and has a card of its own for it.)
+      this.queue((this.lagFree && this.lagFree(q, early ? 'parole' : 'served')) || 'gateOut', { early });
     },
     // Over the wall: free, hunted, and with the rest of the sentence still owing.
     breakOut() {
       const s = this.s, q = s.gaol;
       s.run = { owe: q.left + 4 };
       s.gaol = null;
+      if (this.lagFree) this.lagFree(q, 'wall');
       s.heat = 100; s.f.escaped = 1;
       if (!s.owned && s.home !== 'hostel') this.downAndOut();
       s.time = Math.min(s.time, 2);

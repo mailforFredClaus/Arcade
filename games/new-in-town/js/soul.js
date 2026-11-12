@@ -68,7 +68,8 @@ export const DEEDS = {
   cook: { thrifty: 1.5, homebody: 2 }, deposit: { thrifty: 1 }, repay: { thrifty: 1 }, repayStudent: { thrifty: 1 }, haggle: { thrifty: 2 }, comb: { thrifty: 1 }, farmGate: { homebody: 1 },
   buy: { spender: 2 }, trip: { spender: 2 }, party: { spender: 1, charmer: 2, homebody: 1, nightowl: 1 }, restyle: { spender: 1 }, curioBuy: { spender: 1 },
   slots: { daredevil: 0.5 }, hiloStart: { daredevil: 0.5 }, bjStart: { daredevil: 0.5 }, raceBet: { daredevil: 0.5 }, lotto: { daredevil: 0.3 }, pitch: { daredevil: 4 }, mayor: { daredevil: 1, charmer: 1 },
-  heist: { daredevil: 5 }, burgle0: { daredevil: 2 }, burgle1: { daredevil: 2 }, burgle2: { daredevil: 3 }, twoc: { daredevil: 2 }, smuggle: { daredevil: 2, nightowl: 1 }, torch: { daredevil: 2 }, lift: { daredevil: 1 }, dip: { daredevil: 1 },
+  // (heistsGo: the night of a job planned in heists.js, which took the place of the one-tap bank job.)
+  heistsGo: { daredevil: 5 }, burgle0: { daredevil: 2 }, burgle1: { daredevil: 2 }, burgle2: { daredevil: 3 }, twoc: { daredevil: 2 }, smuggle: { daredevil: 2, nightowl: 1 }, torch: { daredevil: 2 }, lift: { daredevil: 1 }, dip: { daredevil: 1 },
   gBreak: { daredevil: 4 }, gDig: { daredevil: 1 }, sail: { daredevil: 1 },
   rest: { homebody: 1, idler: 1 }, practise: { homebody: 1 }, kid: { homebody: 2 }, tend: { homebody: 1 }, sow: { homebody: 1 }, reap: { homebody: 1 }, bench: { idler: 1 }, gCoast: { idler: 3 },
   work: { grafter: 2 }, workHard: { grafter: 4 }, workEasy: { idler: 4 }, workPlay: { grafter: 2 }, bizWork: { grafter: 3 }, crates: { grafter: 3, sporty: 1 }, sideline: { grafter: 2 },
