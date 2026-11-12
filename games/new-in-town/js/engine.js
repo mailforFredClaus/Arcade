@@ -931,7 +931,8 @@ export class Life {
     if (s.cash < 0) {
       const take = Math.min(s.bank, -s.cash);
       s.bank -= take; s.cash += take;
-      if (s.cash < 0) { s.debt += -s.cash; s.cash = 0; }
+      // (What goes on the overdraft this way is remembered, so that it can be cleared by itself.)
+      if (s.cash < 0) { s.debt += -s.cash; s.f.od = (s.f.od || 0) - s.cash; s.cash = 0; }
     }
   }
   // Skills grow more slowly the higher they are.
@@ -1417,6 +1418,13 @@ export class Life {
     const owed = s.debt;
     this.cash(-out);
     if (s.debt > owed) lines.push(['Short! Put on your overdraft', 0]);
+    // An overdraft run up paying the bills is cleared as soon as there is money spare for it (a loan
+    // you chose to take stays until you choose to pay it).
+    else if (s.f.od > 0) {
+      const od = Math.min(s.f.od, s.debt), pay = Math.min(od, Math.max(0, s.cash + s.bank - out));
+      if (pay > 0) { const fromBank = Math.min(s.bank, pay); s.bank -= fromBank; s.cash -= pay - fromBank; s.debt -= pay; lines.push(['Overdraft paid off', 0]); }
+      s.f.od = Math.min(s.debt, od - pay);
+    }
     if (s.debt > this.creditLimit() * 1.1 + 1000) this.bailiffs();
     // A lodger stays a year, unless the house goes first.
     if (s.lodger > 0 && (--s.lodger === 0 || !s.owned)) { s.lodger = 0; this.note('Your lodger moved on, and left you a pot plant.'); }
