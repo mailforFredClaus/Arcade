@@ -51,6 +51,8 @@ const lineShut = (L) => { const e = ev(L, 'line'); return !!e && e.shut != null 
 const marketOpen = (L) => { const e = ev(L, 'market'); return !!e && e.open != null; };
 const ratesCut = (L) => has(L, 'rates') && ago(L, L.s.annals.built.rates) < ELECT;
 const drives = (L) => !!(L.s.items.car || L.s.items.sportscar);
+// How the life began (chapters.js): off the train at eighteen, home again at eighteen, or here all along.
+const how = (L) => (L.chapHow ? L.chapHow() : 'train');
 const onHigh = (L) => { const b = L.s.biz; return !!b && BUSINESSES[b.type].place === 'highstreet'; };
 const inPolitics = (L) => !!L.s.job && L.s.job.c === 'politics';
 // A trait of yours (soul.js) can open a choice of its own on a card, marked with its icon there.
@@ -184,9 +186,12 @@ const BIG = {
   royal: { w: 2, q: [0, 1], ok: (L) => !ev(L, 'royal') },
   heat: { w: 2, q: [1], ok: (L) => { const e = ev(L, 'heat'); return !e || (e.n < 2 && ago(L, e.t) >= 60); } },
 };
+// The seasons an event keeps (moved along when the town is handed on to an heir).
+const EV_TIMES = ['t', 'due', 'end', 'open', 'air', 'aired', 'done', 'decide', 'shut', 'back'];
 // How the obituary speaks of them.
 const LIVED = {
-  storm: 'the great storm that took the pier', flood: 'the flood', market: 'the coming of the supermarket', film: 'the summer the film crew came', line: (L) => (ev(L, 'line').saved ? 'the fight to save the railway' : 'the closing of the railway'),
+  storm: (L) => (ev(L, 'storm').held ? 'the great storm that the pier rode out' : 'the great storm that took the pier'),
+  flood: (L) => (ev(L, 'flood').held ? 'the great flood tide that the barrier kept out' : 'the flood'), market: 'the coming of the supermarket', film: 'the summer the film crew came', line: (L) => (ev(L, 'line').saved ? 'the fight to save the railway' : 'the closing of the railway'),
   estate: 'the building of the new estate', royal: 'a royal visit', heat: 'the long hot summer', lido: 'the opening of the lido', bypass: 'the building of the bypass', barrier: 'the building of the tidal barrier',
 };
 
@@ -252,13 +257,16 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
       an.mayors.push(d.name);
       for (const p of an.plan) if (p.by === 'you') p.by = d.k;
       told(L, 6, '🏛️', `${s.name} gives up the chain`, `${d.name}, ${d.job}, is acting mayor until the next election.`);
-    } else if (an.mayor.k === 'penn' && (s.f.drains || 0) >= 2) {
-      // (The drains: he has resigned. The woman from the chemist's minds the shop.)
-      an.penn = 'out';
+    } else if (an.mayor.k !== 'you' && (s.f.drains || 0) >= 2 && !an.drained && an.mayor.k === (s.f.drainsM || 'penn')) {
+      // (The drains: whoever held the chain when you found the ledger has resigned (see events.js).
+      // The woman from the chemist's minds the shop.)
+      const was = an.mayor;
+      an.drained = { t: s.t, n: L.annalsMayorTitle(was), sex: was.sex };
+      if (was.k === 'penn') an.penn = 'out';
       const d = stander(L, { job: 'who runs the chemist’s', sex: 'f', name: 'Iris Penhallow', age: 52 });
       an.mayor = { ...d, since: s.t, terms: 0, acting: 1 };
       an.mayors.push(d.name);
-      told(L, 7, '🎩', 'Mayor resigns over the drains', `${d.name}, ${d.job}, is acting mayor until the next election, and has already asked where the drains are.`);
+      told(L, 7, '🎩', `${an.drained.n} resigns over the drains`, `${d.name}, ${d.job}, is acting mayor until the next election, and has already asked where the drains are.`);
     }
   }
 
@@ -307,9 +315,25 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
     annalsMayorTitle(c = this.annalsMayor()) { return c.k === 'you' ? 'You' : c.k === 'penn' ? full(this, c) : `${c.acting ? 'Acting Mayor' : 'Mayor'} ${c.name}`; },
     annalsAge(c) { return ageOf(this, c); },
     // (For folk.js: Mayor Pennington is plain Mr Pennington once he has lost the chain.)
-    annalsPennOut() { return !!this.s.annals && this.s.annals.penn === 'out'; },
+    // (Not while he still holds it: a mayor who will not stand again is mayor until the count.)
+    annalsPennOut() { const an = this.s.annals; return !!an && an.penn === 'out' && an.mayor.k !== 'penn'; },
+    // The pier is wrecked, and the Lucky Gull boarded up (heists.js asks, for the counting-room job and the pier's protection money).
+    annalsPierShut() { return !!this.s.annals && pierShut(this); },
     // "spring, year 12": when a season falls.
-    annalsWhen(t) { return `${SEASONS[t % 4].toLowerCase()}, year ${Math.floor(t / 4) + 1}`; },
+    // (Before this life began, as an heir's town remembers it: "autumn, 12 years ago".)
+    annalsWhen(t) {
+      const q = SEASONS[((t % 4) + 4) % 4].toLowerCase();
+      if (t >= 0) return `${q}, year ${Math.floor(t / 4) + 1}`;
+      const n = Math.max(1, Math.round((this.s.t - t) / 4));
+      return `${q}, ${n === 1 ? 'a year' : `${n} years`} ago`;
+    },
+    // What the mayor's appeal says of the pier, if the great storm has been (game.js shows it).
+    annalsGiftBlurb(id) {
+      const st = this.s.annals && id === 'pier' ? ev(this, 'storm') : null;
+      if (!st) return null;
+      if (st.shut) return `The great storm of ${this.annalsWhen(st.t)} tore the middle out of it, and the Lucky Gull is boarded up until it is mended. Pay for the whole pier, and it is mended at once.`;
+      return 'Mended after the great storm, as far as the Lucky Gull. Beyond it the far end is still shut, as it has been since the storm of your grandparents’ day.';
+    },
     annalsRace() { return this.s.annals.race; },
     // Nominations are open: the two seasons before polling day.
     annalsNoms() { const an = this.s.annals; return !!an.race && this.s.t < an.poll; },
@@ -350,7 +374,7 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
     annalsOn() {
       const s = this.s, an = s.annals, out = [];
       const st = ev(this, 'storm'), ln = ev(this, 'line'), mk = ev(this, 'market'), fm = ev(this, 'film'), es = ev(this, 'estate');
-      if (st && st.shut) out.push(['⛈️', `The pier has been shut since the storm. The Pier Trust has raised ${money(40000 + 9000 * ago(this, st.t) + 3 * st.trust)}${st.trust ? `, ${money(st.trust)} of it yours` : ''}.`]);
+      if (st && st.shut) out.push(['⛈️', `The pier has been shut since the storm. The Pier Trust has raised ${money(40000 + 9000 * ago(this, st.t) + 3 * st.trust)}${an.gave.pier ? `, ${money(an.gave.pier)} of it yours` : ''}.`]);
       if (ln && lineThreat(this)) out.push(['🚂', `The railway is to close unless the ministry changes its mind, which it will decide in ${this.annalsWhen(ln.decide)}.`]);
       if (lineShut(this)) out.push(['🚌', 'The railway is shut. The coach to the city costs $150 on top of any trip, and $80 more to visit family.']);
       if (mk && mk.open == null) out.push(['🛒', `A supermarket is coming to the ring road, in ${this.annalsWhen(mk.due)}.`]);
@@ -405,11 +429,71 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
     annalsAppeals() { return Object.keys(APPEALS).filter((to) => APPEALS[to].open(this)); },
     // Starts one of the big events now (for the checks in tools/new-in-town-tests/annals.mjs).
     annalsStart(id) { START[id](this); },
+    // The town as this life leaves it, for whoever carries on (chapters.js puts it in what is carried
+    // to the next life: c is that, with how they begin and their age). Every season in it is
+    // counted from the heir's first spring, so that what happened before it is in the past.
+    annalsHandOn(c) {
+      const s = this.s, an = s.annals;
+      if (!an || !c) return null;
+      const gap = c.how === 'back' ? (c.gap || 0) : 0, base = Math.ceil(s.t / 4) * 4 + gap * 4;
+      const T = JSON.parse(JSON.stringify(an)), sh = (t) => (typeof t === 'number' ? t - base : t);
+      T.mayor.at = sh(T.mayor.at); T.mayor.since = sh(T.mayor.since);
+      T.poll = sh(T.poll);
+      if (T.race) { T.race.at = sh(T.race.at); for (const x of T.race.c) x.at = sh(x.at); }
+      if (T.last) T.last.t = sh(T.last.t);
+      for (const w of T.plan) { w.at = sh(w.at); w.due = sh(w.due); w.drop = sh(w.drop); delete w.asked; }
+      for (const k of Object.keys(T.built)) T.built[k] = sh(T.built[k]);
+      for (const e of Object.values(T.ev)) for (const k of EV_TIMES) if (k in e) e[k] = sh(e[k]);
+      if (T.ev.film) T.ev.film.part = 0;
+      if (T.ev.flood) T.ev.flood.cost = 0;
+      if (T.ev.estate) delete T.ev.estate.want;
+      T.next = sh(T.next); T.shopNext = sh(T.shopNext); T.sour = sh(T.sour);
+      for (const k of Object.keys(T.dropped || {})) T.dropped[k] = sh(T.dropped[k]);
+      // (Only the town's own changes wait for later: the cards were this life's.)
+      T.later = T.later.filter((q) => q.id === 'anFloodShop' || q.id === 'anParlour').map((q) => ({ ...q, t: sh(q.t) }));
+      for (const x of T.shops) x.since = sh(x.since);
+      for (const g of T.gone) g.t = sh(g.t);
+      for (const r of T.bar) r.at = sh(r.at);
+      for (const h of T.hooks) h.t = sh(h.t);
+      // The album: for one who grew up here, the town's headlines of the years they were here for.
+      const lag = c.how === 'home' ? s.age - Math.round(c.age) : null;
+      T.yr = lag == null ? [] : T.yr.filter((y) => y.h && y.a - lag >= 10).map((y) => ({ a: y.a - lag, p: y.p, i: y.i, h: y.h, m: null }));
+      return T;
+    },
+    // The heir takes the town on (from chapBegin in chapters.js): how they began, and at what age.
+    annalsTakeOn(T, began, age) {
+      if (!T || !T.mayor) return;
+      const s = this.s, an = { ...s.annals, ...T };
+      // (Born here, they have lived through it all; off the train, or back at eighteen, it starts now.)
+      an.from = began === 'home' ? -age * 4 : 0;
+      // What this life has done in the town is its own: the votes, the gifts, the counts, the cards seen.
+      Object.assign(an, { mine: null, gave: {}, n: {}, seen: {}, era: 0, news: [], lead: null, myVote: null, budget: null, standDown: 0, drained: null });
+      delete an.wakeAt;
+      if (an.mkept === 'you') an.mkept = null;
+      if (an.mbroke === 'you') an.mbroke = null;
+      s.annals = an;
+      // The one who died held the chain: the deputy minds the shop until the next election.
+      if (an.mayor.k === 'you') {
+        const d = stander(this, { plat: 'steady' }, []);
+        an.mayor = { ...d, since: 0, terms: 0, acting: 1 };
+        for (const w of an.plan) if (w.by === 'you') { w.by = d.k; w.byName = d.name; }
+      }
+      if (an.race) {
+        const r = an.race;
+        r.c = r.c.filter((x) => x.k !== 'you');
+        Object.assign(r, { you: false, vote: null, bet: null, camp: {} });
+        // (An election missed altogether while they were away is a thing of the past; one whose
+        // polling day is the day they take up the story, they can still vote in.)
+        if (!r.c.length || an.poll < 0) an.race = null;
+        else if (an.poll === 0 && r.c.length > 1) this.queue('anPoll');
+      }
+      an.mayors = [this.annalsMayorName(an.mayor)];
+    },
     // The town's big moments you lived through, for the obituary and the album.
     annalsLived() {
       const an = this.s.annals, out = [];
       for (const id of ['storm', 'flood', 'line', 'market', 'film', 'estate', 'royal', 'heat']) if (an.ev[id] && an.ev[id].t >= an.from) out.push(typeof LIVED[id] === 'function' ? LIVED[id](this) : LIVED[id]);
-      for (const id of ['lido', 'bypass', 'barrier']) if (an.built[id] != null) out.push(LIVED[id]);
+      for (const id of ['lido', 'bypass', 'barrier']) if (an.built[id] != null && an.built[id] >= an.from) out.push(LIVED[id]);
       return out;
     },
   });
@@ -912,11 +996,16 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
   hooks.shut.push((L, a, x) => {
     const an = L.s.annals;
     if (!an) return null;
-    if ((a.place === 'casino' || PIER.has(a.id)) && pierShut(L)) return 'The Lucky Gull is shut until the pier is mended.';
+    // (Where it happens, worked out first: a business, a job or a heist takes place wherever it is.)
+    const place = typeof a.place === 'function' ? a.place(L) : a.place;
+    if ((place === 'casino' || PIER.has(a.id)) && pierShut(L)) return 'The Lucky Gull is shut until the pier is mended.';
     const fl = an.ev.flood;
-    if (fl && !fl.held && fl.t === L.s.t && (a.place === 'highstreet' || (a.id === 'buy' && ITEMS[x] && ITEMS[x].at === 'highstreet'))) return 'The High Street is pumping out after the flood.';
+    if (fl && !fl.held && fl.t === L.s.t && (place === 'highstreet' || (a.id === 'buy' && ITEMS[x] && ITEMS[x].at === 'highstreet'))) return 'The High Street is pumping out after the flood.';
     return null;
   });
+
+  // (The drains in the Gazette: the mayor resigns that day, not at the turn of the season.)
+  hooks.chose.push((L, id) => { if (id === 'drains2' && L.s.annals && (L.s.f.drains || 0) >= 2) syncMayor(L); });
 
   hooks.acted.push((L, id, x) => {
     const s = L.s, an = s.annals;
@@ -1380,9 +1469,9 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
       ],
     },
     {
-      id: 'anRemember', icon: '🍺', title: 'When you first came', when: (L) => L.s.age >= 52 && memory(L) != null && !L.s.gaol,
+      id: 'anRemember', icon: '🍺', title: (L) => (how(L) === 'home' ? 'When you were young' : 'When you first came'), when: (L) => L.s.age >= 52 && memory(L) != null && !L.s.gaol,
       ctx: (L) => memory(L),
-      text: (L, x) => `At the Gull, a young ${L.pick(['fisherman', 'nurse from St Wren’s', 'teacher', 'woman from Lighthouse Labs', 'lad who works on the boats'])} asks what the town was like when you first came. Before you know it you are telling them about ${x.h}, the year you were ${x.a}.`,
+      text: (L, x) => `At the Gull, a young ${L.pick(['fisherman', 'nurse from St Wren’s', 'teacher', 'woman from Lighthouse Labs', 'lad who works on the boats'])} asks what the town was like ${how(L) === 'home' ? 'when you were young' : 'when you first came'}. Before you know it you are telling them about ${x.h}, the year you were ${x.a}.`,
       opts: [
         { t: 'Tell it as it was', run(L) { L.joy(4); L.gain('charm', 0.5); return 'They listen to the end, and buy you a drink, and ask what happened next. It is a long time since anybody asked.'; } },
         { t: 'Tell it a bit bigger than it was', check: ['charm', 40], run(L, x, win) { L.joy(win ? 5 : 2); return win ? 'By the end there are six of them listening, and the story has a shark in it. It did not, at the time. It does now.' : 'Somebody at the bar who was there says it was not like that at all. You agree to differ, loudly.'; } },
@@ -1399,8 +1488,9 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
       ],
     },
     {
-      id: 'anFifty', icon: '🗞️', title: 'Fifty years in the Bay', when: (L) => L.s.annals.from === 0 && L.s.age >= 68 && !L.s.gaol,
-      text: 'The Gazette has noticed that you stepped off the train at Starling Bay fifty years ago this spring, with one suitcase. They would like to do a piece: "Fifty Years in the Bay". There will be a photographer, and they would like you to hold the suitcase, if you still have it.',
+      // (Fifty years since the train brought you, at eighteen: not for one who has lived here all along; see chapHow in chapters.js.)
+      id: 'anFifty', icon: '🗞️', title: 'Fifty years in the Bay', when: (L) => L.s.annals.from === 0 && how(L) !== 'home' && L.s.age >= 68 && !L.s.gaol,
+      text: (L) => `The Gazette has noticed that ${how(L) === 'back' ? 'you came home to Starling Bay, where you were born,' : 'you stepped off the train at Starling Bay'} fifty years ago this spring, with one suitcase. They would like to do a piece: "Fifty Years in the Bay". There will be a photographer, and they would like you to hold the suitcase, if you still have it.`,
       opts: [
         { t: 'Tell them everything', run(L) { L.fame(2); L.joy(5); return 'Two pages, and a photograph of you on the platform where you got off. People you have never met stop you on the High Street to say they read it.'; } },
         { t: 'Be modest about it', run(L) { L.karma(2); L.joy(3); return 'A short piece, mostly about the town. It is the right length.'; } },

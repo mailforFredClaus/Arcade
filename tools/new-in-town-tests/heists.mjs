@@ -613,6 +613,85 @@ export default function ({ check, fresh, Life, ACTIONS }) {
     for (const i of [0, 1, 2]) C.act(`heistsCase${i}`);
     check(C.s.time === 3 && [0, 1, 2].every((i) => C.can(`heistsCase${i}`) === 'Once a season.'), 'casing costs time, once a place a season');
   }
+
+  // ---- spending it loose, and who was there on the night ----
+  {
+    // (Makes every chance come off, or not.)
+    const rig = (X, yes) => { X.chance = () => yes; return X; };
+    // Spending the stash as it is: now and then somebody asks; splashed about, with a thick file, often.
+    const S = fresh();
+    S.s.heists.hot = 100000;
+    const asked = (flash, file) => { let n = 0; for (let i = 0; i < 80; i++) { const X = clone(S, i * 11 + 3); X.s.heists.flash = flash; X.s.heists.det.file = file; X.act('heistsSpend'); if (X.s.pend.some((e) => e.id === 'busted')) n++; } return n; };
+    const quiet = asked(0, 0), loud = asked(40000, 50);
+    check(quiet <= 12 && loud >= 30, `spending it loose: now and then a question (${quiet}/80); splashed about with a thick file, often (${loud}/80)`);
+    let caught = null, found = null;
+    for (let i = 0; i < 80 && !(caught && found); i++) {
+      const X = clone(S, i * 5 + 1), c0 = X.s.cash;
+      X.s.heists.flash = 40000; X.s.heists.det.file = 60;
+      X.act('heistsSpend');
+      if (X.s.pend.some((e) => e.id === 'busted')) { if (X.s.cash === c0) caught = X; if (!X.s.heists.hot) found = X; }
+    }
+    check(caught && found, 'and when somebody asks, the money never reaches your pocket, and sometimes the floorboards come up');
+    // A friend sent home on the night takes no share, no thanks, and no ride in the van.
+    const A = ready('villa', { way: 'quiet' });
+    const hp = A.s.heists.plan.crew.hands.p, hq = A.person(hp), b0 = hq.bond;
+    A.act('heistsGo'); A.s.pend = [];
+    A.s.heists.plan.crew.hands.out = true;
+    check(!A.heistCuts().some(([w]) => w.includes(hq.name)), 'a friend sent home takes no share');
+    const Wn = rig(clone(A, 1), true);
+    Wn.queue('heistOut'); Wn.choose(0);
+    const job = Wn.s.heists.jobs[Wn.s.heists.jobs.length - 1];
+    check(job && job.how !== 'bust' && !job.crew.length && !(Wn.s.heists.f.last || '').includes(hq.name) && Wn.person(hp).bond === b0, 'nor a place in the share-out, nor the thanks for it');
+    const Bu = rig(clone(A, 2), false);
+    Bu.queue('heistOut');
+    const r = Bu.choose(0);
+    check(r.ok && !r.text.includes(hq.name.split(' ')[0]) && Bu.s.heists.away[hp] == null && Bu.person(hp).bond === b0, 'and is not in the van with you when it goes wrong');
+    // The getaway is told the way it was made: by car, by boat, or on foot.
+    const said = {};
+    for (const ride of ['own', 'boat', 'foot']) {
+      const X = clone(A, 4);
+      X.s.heists.plan.ride = ride;
+      X.queue('heistOut');
+      const e = X.event(), t = [];
+      for (const i of [0, 1]) for (const yes of [true, false]) { const Y = rig(clone(X, 5), yes); t.push(Y.choose(i).text); }
+      said[ride] = `${e.opts[1].t} ${t.join(' ')}`;
+    }
+    check(/drive|hedge|coast road/.test(said.own) && !/drive|hedge|car\b|coast road|Put your foot down/.test(said.boat) && !/drive|hedge|car\b|coast road|Put your foot down/.test(said.foot), 'a getaway on foot or by boat is not told as a drive');
+    // Where the detective calls, and what there is to offer there.
+    const K = fresh();
+    K.s.heists.det.met = 0; K.s.heists.det.file = 30; K.s.cash = 20000;
+    const offers = new Set();
+    let door = false;
+    for (let v = 0; v < 5; v++) {
+      K.s.heists.det.visits = v; K.s.pend = [];
+      K.queue('kittoVisit');
+      const e = K.event(), t = e.opts.map((o) => o.t);
+      offers.add(`${t[0]}|${t[2]}`);
+      if (/knock at your door/.test(e.text)) door = !t.some((x) => /buy the tea|newspaper/.test(x));
+    }
+    check(offers.size === 5 && door, 'what you can offer the detective depends on where you are: nobody buys the tea on their own doorstep');
+    // Betty's Café, once it has closed: the church hall, where Betty does the teas now.
+    const B = ready('villa', { way: 'quiet' });
+    B.s.folk.p.betty.shut = 1; B.s.heists.det.met = 0; B.s.heists.rival.stage = 2;
+    B.s.heists.plan.crew.hands.g = true;
+    const where = [];
+    for (const [id, x] of [['carneSitdown', null], ['kittoMeet', null], ['heistGrass', { p: B.s.heists.plan.crew.hands.p }]]) { B.s.pend = []; B.queue(id, x); const e = B.event(); where.push(`${e.title} ${e.text}`); }
+    B.s.heists.det.visits = 4; B.s.pend = []; B.queue('kittoVisit'); where.push(B.event().text);
+    B.s.pend = []; B.s.heists.rival.end = 'truce'; B.queue('carneBreak');
+    where.push(rig(clone(B, 6), true).choose(1).text, rig(clone(B, 7), false).choose(1).text);
+    check(where.every((t) => !/Betty’s Café|at Betty’s|in Betty’s|to Betty’s/.test(t) && /church hall/.test(t)), 'once Betty’s has closed, nobody meets there: the church hall instead');
+    // Nan Carne's car is a pink Corvan, whatever she paints.
+    const N = fresh();
+    check(['', 'car'].every((k) => { if (k) N.s.items.car = 1; const e = EVENTS.find((q) => q.id === 'carneHit'); const t = e.text(N); return /Corvan/.test(t) && !/Rover/.test(t); }), 'Nan Carne’s pink is the pink of her Corvan');
+    // An old cellmate who is your friend outside now is not in the cell as well.
+    const M = fresh();
+    M.s.n.crimes = 30; M.s.record = 4; M.s.f.jailed = 1;
+    const lag = M.s.heists.lag;
+    for (const [id, name] of [['bernard', 'Bernard Ashe'], ['tiny', 'Tiny Doyle'], ['kev', 'Kev Rudd'], ['moss', 'Arthur Moss']]) lag.mates[id] = { met: 0, out: 0, bond: 80, n: 1, pid: M.meet({ name, sex: 'm', bond: 40, age: 40 }).id };
+    M.jail(6); M.s.pend = []; M.endSeason();
+    const mate = M.s.gaol.mate;
+    check(mate && !lag.mates[mate].pid && M.s.pend.some((e) => e.id === 'lagMate'), `an old cellmate who looked you up outside is not in the bunk below as well (${mate})`);
+  }
 }
 
 // For the random players: a criminal life plans jobs now and then, crews them, and goes.

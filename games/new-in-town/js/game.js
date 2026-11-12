@@ -578,7 +578,7 @@ const SHEET = {
     let body = '<p class="lead">The mayor keeps a list of things Starling Bay needs and cannot afford. Pay for one and your name goes on it, for good: if your family carries on here, it will still be standing, and most of them will still be doing your heirs good.</p>';
     for (const [id, g] of Object.entries(GIFTS)) {
       const by = s.gifts[id], why = life.can('fund', id);
-      body += `<div class="item${by ? ' mine' : ''}"><div class="item-top"><span class="act-ico">${g.icon}</span><div><b>${g.name}</b><small>${esc(by ? life.plaque(id) : g.blurb)}</small></div>${by ? '' : `<div class="quote"><b>${cashShort(g.cost)}</b></div>`}</div>
+      body += `<div class="item${by ? ' mine' : ''}"><div class="item-top"><span class="act-ico">${g.icon}</span><div><b>${g.name}</b><small>${esc(by ? life.plaque(id) : (life.annalsGiftBlurb && life.annalsGiftBlurb(id)) || g.blurb)}</small></div>${by ? '' : `<div class="quote"><b>${cashShort(g.cost)}</b></div>`}</div>
         <div class="facts"><span class="${by && !(g.own && !s.gave[id]) ? 'up' : ''}">${by && !(g.own && !s.gave[id]) ? '✓ ' : ''}${by && g.own && !s.gave[id] ? 'The seat on the pier company’s board went with the one who paid for it.' : g.perk}</span></div>
         ${by ? '' : `<div class="picks">${pick(`Pay for it · ${cashShort(g.cost)} ${chip('time', '⏱ 1')}`, 'fund', id, why)}${why ? `<span class="note">${esc(why)}</span>` : ''}</div>`}</div>`;
     }
@@ -982,7 +982,7 @@ function meHtml() {
     <p class="fine">Skills grow by doing things, more slowly the higher they get, and faster when you are happy.</p></div>
   <div class="box"><h3>Work</h3>${job ? `<div class="line"><span>${job.icon} ${life.jobTitle()}, ${job.shady ? 'Sal’s crew' : PLACES[job.place].name}</span><b>${money(life.shiftPay())} a shift</b></div>
       ${job.shady ? '' : `<div class="line"><span>How you stand</span><b>${life.standing()}</b></div>`}
-      ${life.playDue() ? `<p class="sub">👀 ${job.shady ? 'Sal' : 'The boss'} wants to watch your next shift: it has to be done by hand.</p>` : ''}
+      ${life.playDue() ? `<p class="sub">👀 ${life.watcher()} wants to watch your next shift: it has to be done by hand.</p>` : ''}
       ${next ? `<p class="sub">Next: <b>${next.title}</b> (${money(next.pay)} a shift)</p><div class="needs">${needChips(next.list)}</div>` : '<p class="sub">You are at the very top. 🏆</p>'}`
     : s.retired ? `<p class="sub">Retired, on a pension of ${money(s.pension)} a season.</p>` : s.biz ? '<p class="sub">No job: you work for yourself.</p>' : '<p class="sub">Between jobs. The Town Hall has a job board, and the harbour always wants crates unloading.</p>'}
     ${s.biz ? `<div class="line"><span>${BUSINESSES[s.biz.type].icon} Your ${life.bizName().toLowerCase()}, ${PLACES[BUSINESSES[s.biz.type].place].name}</span><b>${s.biz.mgr ? 'Has a manager' : 'Run by you'}</b></div>

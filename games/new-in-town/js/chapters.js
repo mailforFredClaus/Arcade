@@ -360,6 +360,8 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       };
       if (!carry) { C.start = { how: 'train', age: 18 }; C.snap = snapNow(this); return; }
       C.start = { how: carry.how, age: carry.how === 'home' ? carry.age : 18, rel: carry.rel, from: carry.from, called: carry.called, left: carry.how === 'back' ? 18 - (carry.gap || 0) : null, said: carry.said || '', letter: carry.letter || null };
+      // The town is the one the last life left (annals.js).
+      if (carry.town && this.annalsTakeOn) this.annalsTakeOn(carry.town, carry.how, carry.how === 'home' ? clampN(Math.round(carry.age), 18, 95) : 18);
       // Keepsakes come with whoever carries on.
       for (const id of carry.items || []) if (ITEMS[id]) s.items[id] = 1;
       const moveIn = (h) => {
@@ -499,6 +501,8 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     if (st.how === 'back') return `${s.name}, who was born in Starling Bay, left it as a child and came back at eighteen, has died at ${s.age}.`;
     return `${s.name}, who was born in Starling Bay and lived there all ${s.sex === 'f' ? 'her' : 'his'} life, has died at ${s.age}.`;
   };
+  // How the life began: 'train' (off the train at 18), 'back' (born here, home again at 18) or 'home' (lived here all along).
+  Life.prototype.chapHow = function () { const st = this.s.chap && this.s.chap.start; return (st && st.how) || 'train'; };
   // How the end screen says where the life began.
   Life.prototype.chapOrigin = function () {
     const st = this.s.chap && this.s.chap.start;
@@ -591,6 +595,8 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
   Life.prototype.chapNextLife = function (i = 0) {
     const o = this.obituary(), c = o.carry[Math.max(0, Math.min(o.carry.length - 1, i | 0))];
     const carry = { ...c, said: leftSaid(c) };
+    // (The town goes on as this life left it: its mayor, what was built, its shops and its regulars: annals.js.)
+    if (this.annalsHandOn) carry.town = this.annalsHandOn(c);
     return {
       sibs: carry.sibs, gifts: o.gifts, gen: this.s.gen + 1, inherit: carry.money, from: this.s.name,
       name: carry.name || '', look: carry.look || null, sex: carry.sex || null, st: carry.how === 'home' ? null : carry.st, parent: carry.parent, carry, age: carry.age,

@@ -583,7 +583,7 @@ for (const [id, e] of Object.entries(EFFORT)) {
     place: (L) => (L.s.job ? CAREERS[L.s.job.c].place : null), sec: 'Work', icon: e.icon, time: 2, title: e.title,
     desc: (L) => ((L.s.use.work || 0) >= 3 ? 'You are worn out: more shifts this season will cost your health.' : e.desc(L)),
     show: (L) => !!L.s.job,
-    why: (L) => (L.playDue() ? `${CAREERS[L.s.job.c].shady ? 'Sal wants' : 'The boss wants'} to watch you work today: do this shift by hand.` : null),
+    why: (L) => (L.playDue() ? `${L.watcher()} wants to watch you work today: do this shift by hand.` : null),
     run: (L) => L.work(e),
   });
 }
@@ -593,7 +593,7 @@ const PLAYED = [{ n: 0.6, perf: -4, pay: 0.75 }, { n: 1, perf: 1, pay: 1 }, { n:
 def('workPlay', {
   place: (L) => (L.s.job ? CAREERS[L.s.job.c].place : null), sec: 'Work', time: 2,
   icon: (L) => JOB_GAMES[L.s.job.c].icon, title: (L) => JOB_GAMES[L.s.job.c].title,
-  desc: (L) => (L.playDue() ? `${CAREERS[L.s.job.c].shady ? 'Sal' : 'The boss'} is watching today: make a mess of it and it will be remembered. Done well, it pays up to half as much again and counts for more.` : 'Play the shift. Done well, it pays up to half as much again and counts for more towards promotion; done badly, less.'),
+  desc: (L) => (L.playDue() ? `${L.watcher()} is watching today: make a mess of it and it will be remembered. Done well, it pays up to half as much again and counts for more.` : 'Play the shift. Done well, it pays up to half as much again and counts for more towards promotion; done badly, less.'),
   show: (L) => !!L.s.job,
   why: (L, x) => (x === undefined || (typeof x === 'number' && x >= 0 && x <= 1) ? null : 'Roll your sleeves up.'),
   run(L, x) {
@@ -1067,6 +1067,14 @@ export class Life {
 
   // The boss wants to see the next shift done by hand.
   playDue() { const j = this.s.job; return !!j && (j.auto || 0) >= PLAY_EVERY; }
+  // Who wants to see it: the boss, or in Sal's crew Sal himself, unless he is inside or in Spain
+  // (heists.js), when it is whoever has the chair now, or the crew, if the chair is yours.
+  watcher() {
+    const j = this.s.job;
+    if (!j || !CAREERS[j.c].shady) return 'The boss';
+    if (!this.salHere || this.salHere()) return 'Sal';
+    return this.salYours && this.salYours() ? 'The crew' : 'The boss';
+  }
   // What the screen needs to put this job's game on: which, how hard, and how much your skill helps.
   shiftGame() { const j = this.s.job, k = JOB_GAMES[j.c]; const stat = CAREERS[j.c].stats[0]; return { id: k.game, title: k.title, icon: k.icon, level: j.r, ease: this.s.st[stat] / 100, skill: STAT_NAME[stat] }; }
   jobTitle() { const j = this.s.job; return j ? CAREERS[j.c].rungs[j.r].title : ''; }
@@ -1166,7 +1174,7 @@ export class Life {
     // (Shifts left to look after themselves are counted; one done by hand starts the count again.)
     j.auto = e.played ? 0 : (j.auto || 0) + 1;
     if (s.use.work > 3) { this.hp(-3, 'overwork'); this.joy(-2); text += ' You are running on fumes.'; }
-    if (c.shady && this.crime(0.02, 2, 'one of Sal\u2019s little jobs', 2)) text += ' And then, round the corner, a constable.';
+    if (c.shady && this.crime(0.02, 2, this.salHere && !this.salHere() ? 'one of the crew\u2019s little jobs' : 'one of Sal\u2019s little jobs', 2)) text += ' And then, round the corner, a constable.';
     // Now and then somebody at work becomes a friend.
     if (!c.shady && this.friends().length < 20 && this.chance(0.06)) { const p = this.meet({ job: j.c }); text += ` You get talking to ${p.name} over the tea urn.`; }
     const up = this.nextRung();

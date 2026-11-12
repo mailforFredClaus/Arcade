@@ -171,15 +171,16 @@ export function install({ def, A, Life, clamp }) {
     },
   });
   def('lean', {
-    who: true, sec: 'Bad blood', icon: '🦊', title: 'Ask Sal to have a word', cost: 4000, time: 0,
-    desc: (L, p) => `Two of Sal’s lads call on ${him(p)}. You will not hear from ${him(p)} again.`,
+    // (Sal's lads, while Sal is about (heists.js); the crew's, if the crew is yours now.)
+    who: true, sec: 'Bad blood', icon: '🦊', title: (L) => (L.salYours && L.salYours() ? 'Send the lads round' : 'Ask Sal to have a word'), cost: 4000, time: 0,
+    desc: (L, p) => `Two of ${L.salYours && L.salYours() ? 'your' : 'Sal’s'} lads call on ${him(p)}. You will not hear from ${him(p)} again.`,
     show: (L, p) => p.kind === 'enemy' && (L.s.n.crimes >= 3 || (L.s.job && L.s.job.c === 'crew')),
-    why: (L) => (L.s.t < (L.s.f.salOff || 0) ? 'Sal is not speaking to you.' : null),
+    why: (L) => (L.salYours && L.salYours() ? null : L.salHere && !L.salHere() ? L.salGone() : L.s.t < (L.s.f.salOff || 0) ? 'Sal is not speaking to you.' : null),
     run(L, p) {
       L.karma(-6);
-      const text = L.seeOff(p);
-      if (L.crime(0.05, 2, 'a conversation Sal’s lads had on your behalf')) return `${p.name} goes straight to the police, on crutches.`;
-      return `Sal’s lads are very polite. ${text}`;
+      const text = L.seeOff(p), whose = L.salYours && L.salYours() ? 'Your' : 'Sal’s';
+      if (L.crime(0.05, 2, `a conversation ${whose.toLowerCase()} lads had on your behalf`)) return `${p.name} goes straight to the police, on crutches.`;
+      return `${whose} lads are very polite. ${text}`;
     },
   });
 }

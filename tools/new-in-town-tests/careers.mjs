@@ -74,7 +74,10 @@ export default function ({ check, fresh, Life, ACTIONS }) {
             if (rec && when && rec.dead == null) { const p = L.person(rec.id); if (p && p.name === rec.name) L.gone(p); rec.dead = s.t; }
           }
           if (st.n !== i) { problems.push(`${c} ${i}: the story is at ${st.n}`); break; }
-          if (!L.careerNext(true)) { problems.push(`${c} ${i}: never sent for`); break; }
+          // (A chapter tied to the town's calendar, like an election, waits for its moment: the seasons go by until it comes.)
+          let sent = L.careerNext(true);
+          for (let k = 0; !sent && ch.when && k < 20; k++) { const j = s.job; s.job = null; s.time = 0; L.endSeason(); s.pend = []; s.gaol = null; s.job = j; s.time = 6; sent = L.careerNext(true); }
+          if (!sent) { problems.push(`${c} ${i}: never sent for`); break; }
           const ev = L.event();
           if (!ev || ev.id !== `career_${c}${i}`) { problems.push(`${c} ${i}: ${ev && ev.id} came instead`); break; }
           shown++;
