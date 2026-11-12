@@ -947,7 +947,9 @@ export class Life {
     s.st[k] = clamp(v + base * m * (1 - v / 105) ** 1.6, 0, 100);
   }
   lose(k, d) { this.s.st[k] = clamp(this.s.st[k] - d, 0, 100); }
-  joy(d) { this.s.happy = clamp(this.s.happy + d, 0, 100); }
+  // (A good thing lifts you less the happier you already are: how life is going, not a run of
+  // nice afternoons, is what keeps a mood up.)
+  joy(d) { const h = this.s.happy; this.s.happy = clamp(h + (d > 0 ? d * clamp((100 - h) / 40, 0.2, 1) : d), 0, 100); }
   hp(d, cause) {
     const s = this.s;
     s.health = clamp(s.health + d, 0, this.healthCap());

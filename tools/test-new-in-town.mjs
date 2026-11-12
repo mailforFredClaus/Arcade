@@ -1381,7 +1381,7 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', sibs:
 
 {
   const B = fresh({ sex: 'm' });
-  B.s.cash = 1000;
+  B.s.cash = 1000; B.s.happy = 50; // (Below where a lift starts to count for less.)
   const style = B.s.look.style, happy = B.s.happy;
   check(B.can('restyle', { k: 'style', v: style }) === 'That is how it is now.' && B.can('restyle', { k: 'style', v: 99 }) === 'Change what?' && B.can('restyle') === 'Change what?', 'the barber wants to know what to change');
   B.act('restyle', { k: 'style', v: (style + 1) % 6 });

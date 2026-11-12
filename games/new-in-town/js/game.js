@@ -1137,7 +1137,7 @@ function renderStart() {
   $('start').innerHTML = `<div class="start-in">
     <div class="start-top"><a class="ico-btn" href="../../index.html" aria-label="Back to the arcade">${ICON.back}</a><button class="ico-btn" data-do="menu" aria-label="Menu">${ICON.gear}</button></div>
     <h1 class="logo"><span>New</span><span>in Town</span></h1>
-    <p class="tag">${nx ? `Generation ${nx.gen}. ${esc(nx.from)} left you ${money(nx.inherit)}${raised.length ? `, and brought you up with a head start in ${raised.join(' and ')}` : ''}.` : 'One suitcase. One town. One whole life.'}</p>
+    <p class="tag">${nx ? `Generation ${nx.gen}. ${esc(nx.from)} left you ${money(nx.inherit)}${raised.length ? `, and brought you up with a head start in ${raised.length > 1 ? `${raised.slice(0, -1).join(', ')} and ${raised[raised.length - 1]}` : raised[0]}` : ''}.` : 'One suitcase. One town. One whole life.'}</p>
 
     <div class="box"><h3>Who are you?</h3>
       <div class="namer"><span class="ava big">${face(d.look, 18, 70, d.sex)}</span>

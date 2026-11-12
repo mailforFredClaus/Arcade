@@ -92,7 +92,18 @@ export function install({ def, A, Life, clamp }) {
         // (Going without wears a habit down, but hurts while it lasts.)
         const was = s.habit[k];
         if (!s.use[k]) s.habit[k] = Math.max(0, was - 7);
-        if (was >= 60) { this.hp(-2, k === 'drink' ? 'the drink' : 'mermaid dust'); if (!s.use[k]) this.joy(-7); }
+        if (was >= 60) {
+          this.hp(was >= 85 ? -3 : -2, k === 'drink' ? 'the drink' : 'mermaid dust');
+          if (!s.use[k]) this.joy(-7);
+          // Years of it catch up with the body: an illness that the hospital can treat, if you go.
+          const heavy = s.f.heavy || (s.f.heavy = {}), n = (heavy[k] = (heavy[k] || 0) + 1);
+          if (n >= 12 && !s.ill && !s.gaol && this.chance(Math.min(0.1, n * 0.003))) {
+            const ill = k === 'drink' ? 'liver disease' : 'a failing heart';
+            this.sicken(ill, n >= 40 ? 3 : 2);
+            this.note(`The doctor says it is ${ill}, and that you know why.`, 'bad');
+            this.say('🩺', `Years of ${k === 'drink' ? 'drink' : 'dust'}: ${ill}`, 'bad');
+          }
+        }
         if (!s.habit[k]) delete s.habit[k];
       }
       if (s.shark > 0) {
