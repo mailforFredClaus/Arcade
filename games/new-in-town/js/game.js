@@ -262,7 +262,8 @@ const SHEET = {
     let sub = p.blurb, title = p.name;
     if (id === 'home') { title = HOMES[s.home].name; sub = `${s.owned ? 'Yours' : `Rent ${money(life.rentOf(s.home))} a season`}. ${HOMES[s.home].blurb}`; }
     const plaques = life.plaques(id).map((t) => `<p class="plaque">🪧 ${esc(t)}</p>`).join('');
-    return { icon: p.icon, title, sub, body: plaques + sections(life.placeActions(id)) };
+    const notes = MODS.map((m) => (m.place ? m.place(life, id) || '' : '')).join('');
+    return { icon: p.icon, title, sub, body: plaques + notes + sections(life.placeActions(id)) };
   },
 
   jobs() {
@@ -1357,6 +1358,7 @@ const DO = {
 //        it should finish with kit.doAct(actionId, what came of it)
 //   me(life), people(life): boxes of HTML for the Me and People tabs
 //   marks(life): [[place, emoji], ...] for badges on the map
+//   place(life, id): HTML to show at the top of a place's sheet (how it has changed, say)
 //   css: a stylesheet of its own
 const kit = {
   $, esc, pct, money, cashShort, many, an, chip, pick, needChips, actRow, sections, face,

@@ -12,6 +12,7 @@ import { install as motor } from './motor.js';
 import { install as clubs } from './clubs.js';
 import { install as market } from './market.js'; // Windle Farm and Market Square
 import { install as folk } from './folk.js'; // the people of the town
+import { install as annals } from './annals.js'; // the town growing old with you: elections, big events, Years in the Bay
 
 // (The plain things to do up the hill go last, so that each place's own sections come first.)
-export const RULES = [soul, coast, motor, clubs, market, folk, hill];
+export const RULES = [soul, coast, motor, clubs, market, folk, annals, hill];

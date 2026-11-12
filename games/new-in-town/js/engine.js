@@ -54,7 +54,9 @@ const SHADY_SECS = ['Light fingers', 'Vices', 'Under the counter', 'Under the pi
 //   luck(L)                    a little added to (or taken from) every chance the town offers
 //   epitaph(L, out)            push sentences to the Gazette's obituary (legacy.js)
 //   seize(L)                   the bailiffs are in: give up something of yours as [what, dollars] (or null)
-export const HOOKS = { load: [], season: [], late: [], year: [], mood: [], time: [], income: [], bills: [], worth: [], acted: [], chose: [], luck: [], epitaph: [], seize: [] };
+//   shut(L, a, x)              a reason the town has shut something for now (a storm, a flood), or null (annals.js)
+//   gazette(L, g)              add to this season's Gazette: g = { lead, items, quiet } (quiet: nothing bigger leads) (annals.js)
+export const HOOKS = { load: [], season: [], late: [], year: [], mood: [], time: [], income: [], bills: [], worth: [], acted: [], chose: [], luck: [], epitaph: [], seize: [], shut: [], gazette: [] };
 const hookSum = (list, ...args) => list.reduce((a, f) => a + (f(...args) || 0), 0);
 // Cards from elsewhere join the deck.
 export function addEvents(list) {
@@ -198,6 +200,7 @@ def('adopt', {
   why: (L) => (L.s.age > 55 ? 'The agency prefers younger parents.' : L.s.due ? 'There is already a little one on the way.' : L.s.record ? 'Your record counts against you.' : L.s.karma < 0 ? 'The agency has heard things about you.' : L.partner() && L.partner().live && !L.partner().wish ? `${L.partner().name} does not want children.` : L.roomForKid() ? null : 'You need a home with room for a child.'),
   run(L) { L.s.due = { t: L.s.t + 1, adopt: true }; return 'Forms, interviews, more forms. Then: a yes. A child will join you next season.'; },
 });
+// (annals.js puts standing for mayor on the town's four-yearly election calendar: see there.)
 def('mayor', {
   place: 'townhall', sec: 'Work', icon: '🗳️', title: 'Stand for mayor', desc: (L) => `Run a campaign. Your chances: ${Math.round(L.mayorOdds() * 100)}%.`, cost: 20000, time: 2,
   show: (L) => L.s.job && L.s.job.c === 'politics' && L.s.job.r === 3 && !L.s.f.elected,
@@ -1230,6 +1233,8 @@ export class Life {
     if (!!s.gaol !== !!a.gaol) return s.gaol ? 'Not from a cell in Starling Gaol.' : 'Not just now.';
     if (a.who && !p) return 'They are not around.';
     if (a.show && !a.show(this, p, y)) return 'Not just now.';
+    // (Something the town has shut for now: see HOOKS.)
+    for (const f of HOOKS.shut) { const w = f(this, a, y); if (w) return w; }
     if (a.per && (s.use[a.id] || 0) >= a.per) return a.per === 1 ? 'Once a season.' : 'That is enough for this season.';
     const w = a.why && a.why(this, p, y);
     if (w) return w;
