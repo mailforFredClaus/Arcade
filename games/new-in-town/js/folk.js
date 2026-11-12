@@ -50,7 +50,8 @@ export function install({ def, Life, clamp, val, hooks, addEvents }) {
     folk(id) { return this.s.folk.p[id]; },
     // The mayor stops being mayor, if he resigned over the drains, or you took the chain yourself,
     // or he lost an election or stood down at one (annals.js).
-    folkPennOut() { const s = this.s; return (s.f.drains || 0) >= 2 || !!s.f.wasMayor || (!!s.job && s.job.c === 'politics' && s.job.r >= 4) || (!!this.annalsPennOut && this.annalsPennOut()); },
+    // (With the town's annals, the drains take down whoever held the chain, not always him: annals.js knows.)
+    folkPennOut() { const s = this.s; return ((s.f.drains || 0) >= 2 && !this.annalsPennOut) || !!s.f.wasMayor || (!!s.job && s.job.c === 'politics' && s.job.r >= 4) || (!!this.annalsPennOut && this.annalsPennOut()); },
     folkName(id) { return id === 'penn' && this.folkPennOut() ? 'Mr Pennington' : FOLK[id].name; },
     folkCall(id, cap = false) { return id === 'penn' && this.folkPennOut() ? 'Mr Pennington' : cap ? FOLK[id].Call : FOLK[id].call; },
     folkBlurb(id) {

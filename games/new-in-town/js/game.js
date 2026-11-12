@@ -137,7 +137,7 @@ function renderPanel() {
   const inside = !!life.s.gaol;
   $('map').hidden = inside; $('gaol').hidden = !inside;
   if (tab === 'town') { if (inside) renderGaol(); else renderMap(); }
-  else if (tab === 'me') $('pMe').innerHTML = meHtml();
+  else if (tab === 'me') { $('pMe').innerHTML = meHtml(); jumpBar($('pMe')); }
   else if (tab === 'people') $('pPeople').innerHTML = peopleHtml();
   else $('pJournal').innerHTML = journalHtml();
 }
@@ -578,7 +578,7 @@ const SHEET = {
     let body = '<p class="lead">The mayor keeps a list of things Starling Bay needs and cannot afford. Pay for one and your name goes on it, for good: if your family carries on here, it will still be standing, and most of them will still be doing your heirs good.</p>';
     for (const [id, g] of Object.entries(GIFTS)) {
       const by = s.gifts[id], why = life.can('fund', id);
-      body += `<div class="item${by ? ' mine' : ''}"><div class="item-top"><span class="act-ico">${g.icon}</span><div><b>${g.name}</b><small>${esc(by ? life.plaque(id) : g.blurb)}</small></div>${by ? '' : `<div class="quote"><b>${cashShort(g.cost)}</b></div>`}</div>
+      body += `<div class="item${by ? ' mine' : ''}"><div class="item-top"><span class="act-ico">${g.icon}</span><div><b>${g.name}</b><small>${esc(by ? life.plaque(id) : (life.annalsGiftBlurb && life.annalsGiftBlurb(id)) || g.blurb)}</small></div>${by ? '' : `<div class="quote"><b>${cashShort(g.cost)}</b></div>`}</div>
         <div class="facts"><span class="${by && !(g.own && !s.gave[id]) ? 'up' : ''}">${by && !(g.own && !s.gave[id]) ? '✓ ' : ''}${by && g.own && !s.gave[id] ? 'The seat on the pier company’s board went with the one who paid for it.' : g.perk}</span></div>
         ${by ? '' : `<div class="picks">${pick(`Pay for it · ${cashShort(g.cost)} ${chip('time', '⏱ 1')}`, 'fund', id, why)}${why ? `<span class="note">${esc(why)}</span>` : ''}</div>`}</div>`;
     }
@@ -949,6 +949,22 @@ function showBirthday() {
 
 // ---- the Me, People and Journal tabs ----------------------------------------------------
 
+// A row of shortcuts at the top of a long tab, one to each box with a heading.
+function jumpBar(panel) {
+  const heads = [...panel.querySelectorAll(':scope > .box > h3:first-child')];
+  if (heads.length < 6) return;
+  const bar = document.createElement('nav');
+  bar.className = 'jump';
+  heads.forEach((h, i) => {
+    h.parentElement.id = `box${i}`;
+    const b = document.createElement('button');
+    b.textContent = h.textContent.trim().toLowerCase().replace(/^./, (c) => c.toUpperCase());
+    b.addEventListener('click', () => { sfx('tap'); h.parentElement.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+    bar.append(b);
+  });
+  panel.prepend(bar);
+}
+
 function meHtml() {
   const s = life.s, next = life.nextRung(), job = s.job && CAREERS[s.job.c];
   const rep = s.karma >= 60 ? 'A saint' : s.karma >= 20 ? 'Well thought of' : s.karma > -20 ? 'Nobody special' : s.karma > -50 ? 'A bit shifty' : 'Notorious';
@@ -966,7 +982,7 @@ function meHtml() {
     <p class="fine">Skills grow by doing things, more slowly the higher they get, and faster when you are happy.</p></div>
   <div class="box"><h3>Work</h3>${job ? `<div class="line"><span>${job.icon} ${life.jobTitle()}, ${job.shady ? 'Sal’s crew' : PLACES[job.place].name}</span><b>${money(life.shiftPay())} a shift</b></div>
       ${job.shady ? '' : `<div class="line"><span>How you stand</span><b>${life.standing()}</b></div>`}
-      ${life.playDue() ? `<p class="sub">👀 ${job.shady ? 'Sal' : 'The boss'} wants to watch your next shift: it has to be done by hand.</p>` : ''}
+      ${life.playDue() ? `<p class="sub">👀 ${life.watcher()} wants to watch your next shift: it has to be done by hand.</p>` : ''}
       ${next ? `<p class="sub">Next: <b>${next.title}</b> (${money(next.pay)} a shift)</p><div class="needs">${needChips(next.list)}</div>` : '<p class="sub">You are at the very top. 🏆</p>'}`
     : s.retired ? `<p class="sub">Retired, on a pension of ${money(s.pension)} a season.</p>` : s.biz ? '<p class="sub">No job: you work for yourself.</p>' : '<p class="sub">Between jobs. The Town Hall has a job board, and the harbour always wants crates unloading.</p>'}
     ${s.biz ? `<div class="line"><span>${BUSINESSES[s.biz.type].icon} Your ${life.bizName().toLowerCase()}, ${PLACES[BUSINESSES[s.biz.type].place].name}</span><b>${s.biz.mgr ? 'Has a manager' : 'Run by you'}</b></div>
@@ -1168,7 +1184,8 @@ function showStart() {
   const offered = Life.chapOffer(nx, Math.random);
   const sex = nx && nx.sex ? nx.sex : 'm';
   draft = {
-    name: nx && nx.name ? nx.name : '', sex, into: sex === 'm' ? 'f' : 'm',
+    // (An heir who is married already falls for whoever they married, to begin with.)
+    name: nx && nx.name ? nx.name : '', sex, into: (nx && nx.carry && nx.carry.wed && nx.carry.wed.sex) || (sex === 'm' ? 'f' : 'm'),
     look: nx && nx.look ? { ...nx.look, beard: false } : { skin: rand(LOOKS.skin.length), hair: rand(LOOKS.hair.length), top: rand(LOOKS.top.length), style: LOOKS[sex][rand(LOOKS[sex].length)], beard: false },
     bg: 'allrounder', dreams: [], offered, heir: null,
   };
@@ -1303,8 +1320,9 @@ function showEnd() {
 
 function afterEnd(keep, i = 0) {
   if (!keep) save.next = null;
-  // (Carrying on as somebody other than the one the will names: they come with what the will gave them.)
-  else if (i && life) save.next = life.chapNextLife(i);
+  // (Carrying on as somebody other than the one the will names: they come with what the will gave them.
+  // And a save left on this screen from before the will kept its details: the next life is made again.)
+  else if (life && (i || !save.next || !save.next.carry)) save.next = life.chapNextLife(i);
   save.counted = false;
   save.fresh = false;
   life = null;

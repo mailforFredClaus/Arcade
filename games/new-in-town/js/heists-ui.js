@@ -48,20 +48,22 @@ export default function (kit) {
     }
 
     // Who.
-    body += '<h3>The crew</h3><p class="fine">Each friend takes 15% of the haul (whoever is inside, 20%); each of Sal’s lads 10%, and Sal 20% on top. The closer a friend, the less likely to lose their nerve, or to talk.</p>';
+    // (Boss of the Bay: the lads are yours, and nobody takes a cut on top.)
+    const yours = L.salYours(), theLads = yours ? 'your lads' : 'Sal’s lads';
+    body += `<h3>The crew</h3><p class="fine">Each friend takes 15% of the haul (whoever is inside, 20%); each of ${theLads} 10%${yours ? '' : ', and Sal 20% on top'}. The closer a friend, the less likely to lose their nerve, or to talk.</p>`;
     for (const r of L.heistRoles()) {
       const R = ROLES[r], c = p.crew[r];
       let who, picks = '';
       if (c) {
         const q = c.kind === 'friend' ? L.person(c.p) : null, sk = L.heistSkill(r, c.kind === 'friend' ? c.p : c.kind);
-        who = c.kind === 'me' ? `You, yourself ${dots(sk)}` : c.kind === 'lad' ? `One of Sal’s lads ${dots(sk)}` : q ? `${esc(q.name)} ${dots(sk)}<small>${esc(L.jobOf(q) || '')}${L.jobOf(q) ? ', ' : ''}${bondWord(q.bond)}</small>` : 'Nobody';
+        who = c.kind === 'me' ? `You, yourself ${dots(sk)}` : c.kind === 'lad' ? `One of ${theLads} ${dots(sk)}` : q ? `${esc(q.name)} ${dots(sk)}<small>${esc(L.jobOf(q) || '')}${L.jobOf(q) ? ', ' : ''}${bondWord(q.bond)}</small>` : 'Nobody';
         picks = pick('Take them off', 'heistsOff', r, null, 'quiet');
       } else {
         who = '<span class="note">Nobody yet</span>';
         if (r !== 'inside') {
           const me = L.heistSkill(r, 'me'), selfWhy = L.can('heistsSelf', r), ladWhy = L.can('heistsLad', r);
           picks += pick(`Do it yourself ${dots(me)}`, 'heistsSelf', r, selfWhy);
-          picks += pick(`One of Sal’s lads ${dots(1.5)}`, 'heistsLad', r, ladWhy);
+          picks += pick(`One of ${theLads} ${dots(1.5)}`, 'heistsLad', r, ladWhy);
         }
         const asked = L.heistCandidates(r, 3);
         for (const q of asked) picks += pick(`Ask ${esc(q.name.split(' ')[0])} ${dots(L.heistSkill(r, q))}`, 'heistsAsk', { r, p: q.id }, L.can('heistsAsk', { r, p: q.id }));
@@ -82,7 +84,7 @@ export default function (kit) {
     // The night.
     const ready = L.heistReady(), go = L.look('heistsGo');
     const crew = L.heistCrew(), lads = crew.filter((c) => c.kind === 'lad').length;
-    const with_ = [...crew.filter((c) => c.kind === 'friend').map((c) => c.who.name.split(' ')[0]), lads ? `${['', 'one', 'two', 'three'][lads]} of Sal’s lads` : ''].filter(Boolean);
+    const with_ = [...crew.filter((c) => c.kind === 'friend').map((c) => c.who.name.split(' ')[0]), lads ? `${['', 'one', 'two', 'three'][lads]} of ${theLads}` : ''].filter(Boolean);
     const said = with_.length < 2 ? with_.join('') : `${with_.slice(0, -1).join(', ')} and ${with_[with_.length - 1]}`;
     body += `<div class="item hp-go">
       <p class="lead">${ready ? esc(ready) : `Everything is ready: ${esc(lowFirst(w.name))}, with ${esc(said || 'nobody but you')}, and away by ${esc(lowFirst(RIDES[p.ride].name))}.`}</p>
@@ -121,8 +123,8 @@ export default function (kit) {
       if (L.lawBondWord()) out += line('🫖 Between you', esc(L.lawBondWord()));
       out += `<p class="fine">${d.bent != null ? `On your payroll, at ${money(1500 * (d.rank + 1))} a season, for as long as nobody notices.` : 'The file grows with every crime and every arrest, and thins in quiet years. It makes every crime riskier and a lawyer less use, and a thick one means a long stretch.'}</p>`;
     }
-    if (s.n.crimes >= 3 || (s.job && s.job.c === 'crew')) out += line('🦊 Sal', L.salAway() ? 'Inside, for now' : esc(L.salWord()));
-    if (r.stage >= 1) out += line('🏴 Nan Carne’s lot', { truce: 'A truce', gone: 'Gone back to Kettleby', sal: 'Own the pier', yours: 'The pier is yours now' }[r.end] || (r.stage >= 3 ? 'At war with Sal' : r.side === 'nan' ? 'You are on their payroll' : 'Moving in on Sal’s patch'));
+    if (s.n.crimes >= 3 || (s.job && s.job.c === 'crew')) out += line('🦊 Sal', { inside: 'Inside, for now', spain: 'Retired to Spain' }[L.salWhere()] || esc(L.salWord()));
+    if (r.stage >= 1) out += line('🏴 Nan Carne’s lot', { truce: 'A truce', gone: 'Gone back to Kettleby', spain: 'Gone back to Kettleby', sal: 'Own the pier', yours: 'The pier is yours now' }[r.end] || (r.stage >= 3 ? 'At war with Sal' : r.side === 'nan' ? 'You are on their payroll' : 'Moving in on Sal’s patch'));
     if (H.hot > 0) out += line('💰 Hot money', money(H.hot), 'down') + `<p class="fine">Hidden ${esc(L.heistHotWord())}. It needs washing before it can be spent: through Sal, the Lucky Gull’s cage, a business of your own, property, or the bank a little at a time.</p>`;
     if (H.washed) out += line('🧼 Washed so far', money(H.washed));
     if (H.lag.n) {

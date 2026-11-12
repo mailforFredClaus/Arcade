@@ -248,10 +248,40 @@ function friendBeats(L, add) {
   if (f.bond >= 45 && !asked.night) ask('wantsNight', 'night', 0.8, { why: L.pick([`${f.sex === 'm' ? 'His' : 'Her'} other half has gone, and taken the dog.`, `${f.sex === 'm' ? 'His' : 'Her'} dad has died, very suddenly.`, `${f.sex === 'm' ? 'He' : 'She'} has lost ${f.sex === 'm' ? 'his' : 'her'} job, and has not told anybody.`, `There has been some news from the hospital.`]) });
 }
 
+// The Gazette's lines from the tales: all that was gone through with each partner in one sentence, said
+// once ("was married to Lily for fifty years and more, and stood behind her through a degree and a
+// record with The Undertow"), and then anything else.
+function talesSaid(L, tales, list) {
+  const s = L.s, by = new Map(), rest = [];
+  const of = (n) => { if (!by.has(n)) by.set(n, { wed: null, behind: [], sailed: false }); return by.get(n); };
+  for (const t of tales) {
+    let q;
+    if ((q = t.match(/^was married to (\S+) for (.+)$/))) of(q[1]).wed = q[2];
+    else if ((q = t.match(/^stood behind (\S+) through (.+)$/))) { const b = of(q[1]).behind; if (!b.includes(q[2])) b.push(q[2]); }
+    else if ((q = t.match(/^sailed round the world with (\S+)$/))) of(q[1]).sailed = true;
+    else rest.push(t);
+  }
+  const out = [];
+  for (const [n, g] of by) {
+    // (Him or her the second time, where it is known which.)
+    const p = s.people.find((q) => ['spouse', 'partner', 'ex'].includes(q.kind) && first(q) === n)
+      || ((s.soul && s.soul.graves) || []).find((q) => ['spouse', 'partner'].includes(q.kind) && q.name.split(' ')[0] === n);
+    const them = p ? (p.sex === 'm' ? 'him' : 'her') : n, parted = !!p && p.kind === 'ex';
+    const behind = g.sailed ? g.behind.filter((b) => b !== 'a voyage round the world') : g.behind, bits = [];
+    if (g.wed) bits.push(`was married to ${n} for ${g.wed}${parted ? ', until they went their separate ways' : ''}`);
+    if (g.sailed) bits.push(`sailed round the world with ${bits.length ? them : n}`);
+    if (behind.length) bits.push(`stood behind ${bits.length ? them : n} through ${list(behind)}`);
+    out.push(bits.length < 2 ? bits[0] : `${bits.slice(0, -1).join(', ')}, and ${bits[bits.length - 1]}`);
+  }
+  if (rest.length) out.push(list(rest));
+  return out;
+}
+
 // Grandchildren: Thursdays, if they are asked for.
 function grandBeats(L, add) {
   const s = L.s, W = s.wants;
-  if (W.mind || s.age < 45) return;
+  // (Not while chapters.js has you minding them on Tuesdays and Thursdays already: one arrangement at a time.)
+  if (W.mind || s.age < 45 || (s.chap && s.chap.old && s.chap.old.mind && s.chap.old.mind.on) || (s.chap && s.chap.dusk)) return;
   const g = L.grandkids().find((q) => q.age <= 1 && !W.minded[q.id] && L.person(q.of));
   if (g) add('wantsMinding', { p: g.id }, 1.5, false, () => { W.minded[g.id] = 1; });
 }
@@ -335,7 +365,8 @@ export function install({ A, Life, hooks, addEvents }) {
     for (const id of Object.keys(W.p)) if (!L.person(Number(id))) delete W.p[id];
     for (const ln of W.loans.filter((q) => !L.person(q.p))) L.note(`The ${money(ln.n)} lent to a friend who has gone will not be coming back.`);
     W.loans = W.loans.filter((q) => L.person(q.p));
-    if (W.mind && !(L.person(W.mind) && L.person(W.mind).age < 5)) W.mind = null;
+    // (Thursdays end when the little one starts school, or with a last illness: see chapters.js.)
+    if (W.mind && (!(L.person(W.mind) && L.person(W.mind).age < 5) || (s.chap && s.chap.dusk))) W.mind = null;
     const v = W.ven;
     if (v) {
       if (!L.person(v.p)) {
@@ -374,8 +405,9 @@ export function install({ A, Life, hooks, addEvents }) {
       }
       if (pt.kind === 'spouse' && r.wed != null) {
         const y = (t + 1 - r.wed) / 4;
-        if (y >= 25 && !W.f.silver) { W.f.silver = 1; tale(L, `was married to ${first(pt)} for more than twenty-five years`); }
-        if (y >= 50 && !W.f.golden) { W.f.golden = 1; W.tales = W.tales.filter((q) => !q.startsWith('was married to')); tale(L, `was married to ${first(pt)} for fifty years and more`); }
+        // (The trophies are for anniversaries reached in this life: an heir married long before it began has 2, and the tale.)
+        if (y >= 25 && !W.f.silver) { W.f.silver = r.wed + 100 >= 0 ? 1 : 2; tale(L, `was married to ${first(pt)} for more than twenty-five years`); }
+        if (y >= 50 && !W.f.golden) { W.f.golden = r.wed + 200 >= 0 ? 1 : 2; W.tales = W.tales.filter((q) => !q.startsWith('was married to')); tale(L, `was married to ${first(pt)} for fifty years and more`); }
       }
     }
     for (const q of s.people.filter((p) => p.kind === 'parent')) {
@@ -603,7 +635,7 @@ export function install({ A, Life, hooks, addEvents }) {
     if (!W) return;
     const m = s.sex !== 'f', He = m ? 'He' : 'She';
     const list = (l) => (l.length < 2 ? l.join('') : `${l.slice(0, -1).join(', ')} and ${l[l.length - 1]}`);
-    if (W.tales.length) out.push(`${He} ${list(W.tales.slice(-3))}.`);
+    for (const t of talesSaid(L, W.tales, list)) out.push(`${He} ${t}.`);
     const made = L.kids().filter((k) => k.age >= 18 && W.p[k.id] && W.p[k.id].dream);
     if (made.length) out.push(`${list(made.map(first))} grew up to do exactly what ${made.length > 1 ? 'they' : he(made[0])} said ${made.length > 1 ? 'they' : he(made[0])} would at six.`);
   });
@@ -621,8 +653,8 @@ export function install({ A, Life, hooks, addEvents }) {
 
   Object.assign(TROPHIES, {
     wantsBehind: { name: 'In their corner', icon: '🫶', desc: 'See the one you love make a dream of their own come true.', test: (L) => !!L.s.wants && L.s.wants.n.amb >= 1 },
-    wantsSilver: { name: 'Silver', icon: '🥈', desc: 'Reach your silver wedding anniversary.', test: (L) => !!L.s.wants && !!L.s.wants.f.silver },
-    wantsGolden: { name: 'Golden', icon: '🥇', desc: 'Be married to the same person for fifty years.', test: (L) => !!L.s.wants && !!L.s.wants.f.golden },
+    wantsSilver: { name: 'Silver', icon: '🥈', desc: 'Reach your silver wedding anniversary.', test: (L) => !!L.s.wants && L.s.wants.f.silver === 1 },
+    wantsGolden: { name: 'Golden', icon: '🥇', desc: 'Be married to the same person for fifty years.', test: (L) => !!L.s.wants && L.s.wants.f.golden === 1 },
     wantsProud: { name: 'Proud as Punch', icon: '🎓', desc: 'See a child of yours graduate, or qualify in a trade.', test: (L) => !!L.s.wants && L.s.wants.n.grad >= 1 },
     wantsPromise: { name: 'Just as they said', icon: '🌟', desc: 'A child grows up to be what they said they would be at six.', test: (L) => !!L.s.wants && L.s.wants.n.hopes >= 1 },
     wantsCared: { name: 'To the end', icon: '🫖', desc: 'Look after a parent yourself, at home, to the end.', test: (L) => !!L.s.wants && L.s.wants.n.cared >= 1 },

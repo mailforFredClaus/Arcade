@@ -24,6 +24,9 @@ export function tales({ perf, credit, bonus, busy, mentor, rival, sack, up, gaz,
   const scandal = (L, k) => (k.f.dirty ? 'folder' : L.s.record ? 'record' : L.s.n.crimes >= 3 ? 'past' : 'duck');
   // The partner who has read the Sunday papers, if there is one.
   const sweetheart = (L) => { const p = L.partner(); return p && (p.kind === 'partner' || p.kind === 'spouse') ? p : null; };
+  // Sal behind the ice house (salIn), or retired to Spain for good (salSpain): see salWhere in heists.js.
+  const salIn = (L) => !L.salWhere || L.salWhere() === 'here';
+  const salSpain = (L) => !!L.salWhere && L.salWhere() === 'spain';
 
   return {
     // ---- music: a borrowed tune, a deal for one, the Sunday papers, and the old band ----
@@ -404,7 +407,8 @@ export function tales({ perf, credit, bonus, busy, mentor, rival, sack, up, gaz,
           ],
         },
         {
-          r: 3, icon: '📁', title: 'The folder',
+          // (The party chooses its candidate while nominations are open: see the election calendar in annals.js.)
+          r: 3, icon: '📁', title: 'The folder', pace: 1, when: (L) => !L.annalsNoms || L.annalsNoms(),
           text: (L, k) => `The party must choose who stands for mayor: you or ${k.R.name}. ${k.R.first} has a folder about you, everybody says. Somebody has left a folder about ${k.R.him} in your pigeonhole.`,
           opts: [
             { t: 'Burn it', run(L, k) { L.karma(4); k.f.clean = 1; return 'In the grate at home, page by page, without reading it. Whatever happens now, it happens without that.'; } },
@@ -413,7 +417,9 @@ export function tales({ perf, credit, bonus, busy, mentor, rival, sack, up, gaz,
           ],
         },
         {
-          r: 3, icon: '🗳️', title: 'Four days to go',
+          // (In the polling-day season of an election, or once won and not yet sworn in.)
+          r: 3, icon: '🗳️', title: 'Four days to go', pace: 1,
+          when: (L) => !L.annalsRace || (!!L.annalsRace() && L.s.t === L.s.annals.poll) || (!!L.s.f.elected && !!L.s.job && L.s.job.r < 4),
           text: (L, k) => `${L.s.f.elected ? 'You have won the election, and are not yet in office' : 'Four days before polling'}, and the Gazette has a front page about ${SCANDAL[scandal(L, k)][0]}.`,
           opts: [
             { t: 'Come clean, in full', run(L, k) { L.karma(6); L.fame(2); perf(L, -2); return `${SCANDAL[scandal(L, k)][1]} The town likes honesty, mostly.`; } },
@@ -426,7 +432,7 @@ export function tales({ perf, credit, bonus, busy, mentor, rival, sack, up, gaz,
           r: 4, icon: '🏛️', title: 'The sea wall',
           text: () => 'Your first winter in the chain of office, and the sea wall below the front is failing. Mending it means a rise in everybody’s rates. A developer will mend it for nothing, if he can build a marina with flats on it.',
           opts: [
-            { t: 'Mend the wall, and raise the rates', run(L, k) { L.karma(5); L.fame(2); perf(L, -4); gaz(L, k, '{He} served as mayor, and mended the sea wall when nobody wanted to pay for it, and everybody was glad of it in the end.'); return 'The rates go up, and so does the wall. The Gazette is furious for a month. The next gale breaks on it and goes home.'; } },
+            { t: 'Mend the wall, and raise the rates', run(L, k) { L.karma(5); L.fame(2); perf(L, -4); gaz(L, k, '{He} mended the sea wall when nobody wanted to pay for it, and everybody was glad of it in the end.'); return 'The rates go up, and so does the wall. The Gazette is furious for a month. The next gale breaks on it and goes home.'; } },
             { t: 'Let him build the marina', run(L, k) { perf(L, 6); L.karma(-4); return 'The wall is mended, the marina is full of boats from the city, and the flats are empty most of the year. The view is not what it was.'; } },
             { t: 'Ask the town', check: ['charm', 60], run(L, k, win) { if (win) { L.karma(4); L.fame(3); perf(L, 2); return 'A town meeting, a vote, and a jumble sale. They choose the wall, and a fifth of the money comes from the jumble sale. It is the best night of your time in office.'; } perf(L, -6); return 'The meeting goes on until two in the morning and decides to have another meeting.'; } },
           ],
@@ -435,12 +441,14 @@ export function tales({ perf, credit, bonus, busy, mentor, rival, sack, up, gaz,
     },
 
     // ---- Sal's crew: a dropped bag, a grass, a baker, Sal's turn, a way out, and the chair by the stove ----
+    // (Sal is in every chapter but the last, in person: while he is inside, they wait; once he has
+    // gone to Spain, they are passed over. See salWhere in heists.js.)
     crew: {
       party: 'The back room of the ice house, with a crate of something on the table and Sal’s best glasses.',
       gift: 'a gold lighter with somebody else’s initials on it',
       ch: [
         {
-          r: 0, icon: '👜', title: 'The bag',
+          r: 0, icon: '👜', title: 'The bag', when: salIn, skip: salSpain,
           text: (L, k) => `${k.M.name} has done every kind of job in the Bay, and two stretches for them, and is the one Sal listens to. ${k.R.name}, Sal’s ${k.R.sex === 'm' ? 'nephew' : 'niece'}, thinks the crew will be ${k.R.sex === 'm' ? 'his' : 'hers'} one day. Tonight ${k.R.first} has dropped the bag behind the chandlery, and a torch is coming down the lane.`,
           opts: [
             { t: 'Grab the bag and run', check: ['fitness', 40], run(L, k, win) { if (win) { rival(L, k, 15); perf(L, 4); return `Over the wall, round the ice house, the bag under your arm. ${k.R.first} owes you, and knows it.`; } const caught = L.crime(0.5, 2, 'a bag of somebody else’s silver'); rival(L, k, 10); return caught ? 'You trip over a lobster pot, and the torch finds you on your back with the bag on your chest.' : 'You drop it twice, and get away by the skin of your teeth. Sal hears about the dropping.'; } },
@@ -449,7 +457,7 @@ export function tales({ perf, credit, bonus, busy, mentor, rival, sack, up, gaz,
           ],
         },
         {
-          r: 1, icon: '🐀', title: 'Somebody’s talking',
+          r: 1, icon: '🐀', title: 'Somebody’s talking', when: salIn, skip: salSpain,
           text: (L, k) => `Somebody has been talking to the police. Sal wants a name by the weekend, and ${k.R.name} has given him one: yours.`,
           opts: [
             { t: 'Find the real one', check: ['smarts', 50], run(L, k, win) { if (win) { perf(L, 8); rival(L, k, -15); return `It is the man on the whelk stall, who has a cousin in the force. Sal deals with it. You do not ask how. ${k.R.first} keeps out of your way.`; } L.rough(12, 'Sal’s lads'); perf(L, -6); return 'You cannot prove anything, and Sal is not a patient man. Two of his lads explain this to you behind the ice house.'; } },
@@ -459,7 +467,7 @@ export function tales({ perf, credit, bonus, busy, mentor, rival, sack, up, gaz,
           ],
         },
         {
-          r: 2, icon: '🥖', title: 'The baker',
+          r: 2, icon: '🥖', title: 'The baker', when: salIn, skip: salSpain,
           text: () => 'Sal wants a debt collected: two thousand dollars, from a baker on Fore Street with a bad back, a bad year and three children.',
           opts: [
             { t: 'Collect it, the hard way', run(L, k) { perf(L, 8); L.karma(-8); const caught = L.crime(0.1, 2, 'two thousand dollars and a baker’s black eye'); return caught ? 'He pays. His neighbour rings the police.' : 'He pays. You do not look at the children on the stairs.'; } },
@@ -468,7 +476,7 @@ export function tales({ perf, credit, bonus, busy, mentor, rival, sack, up, gaz,
           ],
         },
         {
-          r: 3, icon: '🏥', title: 'Sal’s turn',
+          r: 3, icon: '🏥', title: 'Sal’s turn', when: salIn, skip: salSpain,
           text: (L, k) => `Sal has had a turn: a long week in St Wren’s, under another name. While he is in there, somebody has to run things, and ${k.R.name} thinks it should be ${k.R.him}.`,
           opts: [
             { t: 'Take the reins', run(L, k) { perf(L, 10); rival(L, k, -30); credit(L, 4); return 'A month of it. Nothing goes missing and nobody gets hurt, which Sal says is a first.'; } },
@@ -477,7 +485,7 @@ export function tales({ perf, credit, bonus, busy, mentor, rival, sack, up, gaz,
           ],
         },
         {
-          r: 3, icon: '🚪', title: 'The way out',
+          r: 3, icon: '🚪', title: 'The way out', when: salIn, skip: salSpain,
           text: (L, k) => (k.M.dead
             ? `${k.M.name} always said there was a way out, if you wanted one: you go to Sal, you say it to his face, and you never come back to the ice house. ${k.M.He} never took it ${k.M.him}self. You could.`
             : `${k.M.name} is getting out: a caravan up the coast, ${k.M.his} grandchildren, and a name nobody up there knows. ${k.M.He} says you could get out too. Nobody hands in their notice to Sal, but ${k.M.first} thinks there is a way, if you go together.`),
@@ -497,17 +505,17 @@ export function tales({ perf, credit, bonus, busy, mentor, rival, sack, up, gaz,
           ],
         },
         {
-          r: 4, icon: '🪑', title: (L, k) => (k.top ? 'Men from the city' : 'The chair by the stove'),
+          r: 4, icon: '🪑', title: (L, k) => (k.top ? 'Men from the city' : 'The chair by the stove'), when: (L, k) => k.top || salIn(L),
           text: (L, k) => (k.top
             ? `A crew from the city wants the harbour. ${k.R.name} says fight. Sal, by postcard from Spain, says nothing at all, which is like him.`
             : `Sal is retiring to a villa in Spain with a pool shaped like a fish. The chair by the stove in the ice house goes to you or to ${k.R.name}, and Sal wants it settled without anybody bleeding on his floor.`),
           opts: [
-            { t: 'Make your case to Sal', check: ['charm', 60], show: (L, k) => !k.top, run(L, k, win) { if (!win) { rival(L, k, -10); return `${k.R.first} gets the chair. You work for ${k.R.him} now, and ${k.R.he} enjoys it.`; } rival(L, k, -10); const rose = up(L, k); return `${rose ? `The chair is yours. You are ${L.jobTitle()}.` : 'Sal likes what he hears, and says to wait.'} ${k.R.first} shakes your hand, and counts ${k.R.his} fingers afterwards.`; } },
-            { t: (L, k) => `Settle it with ${k.R.first}, outside`, check: ['fitness', 60], show: (L, k) => !k.top && !k.R.dead, run(L, k, win) { if (!win) { L.rough(20, 'a fight behind the ice house'); rival(L, k, -10); return `${k.R.first} has been waiting for this for years, and it shows.`; } rival(L, k, -30); const rose = up(L, k); return `It is short, and nobody bleeds on Sal’s floor. ${rose ? `The chair is yours: ${L.jobTitle()}.` : 'Sal says he will think about it.'}`; } },
+            { t: 'Make your case to Sal', check: ['charm', 60], show: (L, k) => !k.top, run(L, k, win) { if (!win) { rival(L, k, -10); k.f.chair = 'rival'; return `${k.R.first} gets the chair. You work for ${k.R.him} now, and ${k.R.he} enjoys it.`; } rival(L, k, -10); const rose = up(L, k); if (rose) k.f.chair = 'you'; return `${rose ? `The chair is yours. You are ${L.jobTitle()}.` : 'Sal likes what he hears, and says to wait.'} ${k.R.first} shakes your hand, and counts ${k.R.his} fingers afterwards.`; } },
+            { t: (L, k) => `Settle it with ${k.R.first}, outside`, check: ['fitness', 60], show: (L, k) => !k.top && !k.R.dead, run(L, k, win) { if (!win) { L.rough(20, 'a fight behind the ice house'); rival(L, k, -10); return `${k.R.first} has been waiting for this for years, and it shows.`; } rival(L, k, -30); const rose = up(L, k); if (rose) k.f.chair = 'you'; return `It is short, and nobody bleeds on Sal’s floor. ${rose ? `The chair is yours: ${L.jobTitle()}.` : 'Sal says he will think about it.'}`; } },
             {
               t: 'Hand the whole crew to the police, and walk away',
               run(L, k) {
-                L.s.record = 0; L.warm(-100); L.karma(10);
+                L.s.record = 0; L.warm(-100); L.karma(10); k.f.chair = 'police';
                 L.s.f.salOff = Math.max(L.s.f.salOff || 0, L.s.t + 80);
                 gaz(L, k, '{He} brought Sal’s crew down from the inside, and lived quietly ever after, mostly.');
                 leave(L, k, 'Handed Sal’s crew to the police, and walked away.', 'You handed the crew to the police', EVER);

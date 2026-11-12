@@ -31,7 +31,8 @@ export default function (kit) {
       let html = '<div class="box cr-me"><h3>A working life</h3>';
       for (const c of mine) {
         const st = all[c], car = CAREERS[c], n = life.careerChapters(c);
-        const pips = Array.from({ length: n }, (_, i) => `<i class="${i < st.n ? 'on' : ''}"></i>`).join('');
+        // (Chapters passed over, for a story taken up partway, are shown fainter.)
+        const pips = Array.from({ length: n }, (_, i) => `<i class="${i < (st.from || 0) ? 'past' : i < st.n ? 'on' : ''}"></i>`).join('');
         html += `<div class="cr-car${c === now ? ' now' : ''}"><div class="cr-head"><span>${car.icon} ${esc(car.name)}</span><span class="cr-pips" title="${st.n} of ${n} chapters">${pips}</span></div>`;
         html += who(life.careerView(c, 'm'), MENTOR, 'Taught you') + who(life.careerView(c, 'r'), RIVAL, 'Wanted your job');
         if (st.gift) html += `<p class="fine">🎁 When you left: ${esc(st.gift)}.</p>`;
@@ -49,6 +50,7 @@ export default function (kit) {
 .cr-pips { display: flex; gap: 4px; flex: none; }
 .cr-pips i { width: 14px; height: 8px; border-radius: 4px; background: #efe6d3; }
 .cr-pips i.on { background: var(--teal); }
+.cr-pips i.past { background: #c9e2dd; }
 .cr-line { display: grid; grid-template-columns: minmax(0, max-content) minmax(0, 1fr); column-gap: 10px; align-items: center; margin-top: 6px; }
 .cr-line small { grid-column: 1 / -1; font-size: 11.5px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
 .cr-who { font: inherit; font-size: 14px; font-weight: 800; text-align: left; padding: 0; background: none; border: 0; color: inherit; }

@@ -7,6 +7,7 @@
 import { PLATS } from '../../games/new-in-town/js/annals.js';
 import { TROPHIES, GIFTS } from '../../games/new-in-town/js/data.js';
 import { EVENTS } from '../../games/new-in-town/js/events.js';
+import UI from '../../games/new-in-town/js/annals-ui.js';
 
 const CARDS = ['anPoll', 'anCount', 'anManifesto', 'anIncumbent', 'anCause', 'anBudget', 'anStorm', 'anPierFund', 'anPierOpen', 'anMarket', 'anShopLocal', 'anCutbacks', 'anFilm', 'anFilmAir',
   'anEstate', 'anChair', 'anLine', 'anLineEnd', 'anLineBack', 'anFlood', 'anRoyal', 'anHeat', 'anLidoFund', 'anLidoOpen', 'anWake', 'anMeeting', 'anRemember', 'anSchool', 'anFifty', 'anPlay'];
@@ -339,4 +340,40 @@ export function moves(L) {
   const to = L.annalsAppeals()[0];
   if (to && L.s.t % 5 === 0) out.push(['anGive', { to, n: 100 }]);
   return out;
+
+  // ---- the words for it ----
+  {
+    // A storm the pier rode out, and a flood the barrier kept out, are not remembered as the ones that did the damage.
+    const H = fresh();
+    H.s.gifts.pier = 'Gran';
+    H.annalsStart('storm'); H.s.pend = [];
+    H.s.annals.built.barrier = 0;
+    H.annalsStart('flood'); H.s.pend = [];
+    H.die('old age');
+    const ep = H.epitaph().join(' ');
+    check(/rode out/.test(ep) && /kept out/.test(ep) && !/took the pier/.test(ep), `the obituary remembers the storm and the flood as they were (${H.annalsLived().join('; ')})`);
+    // Pennington is Mayor Pennington until the count, even once he has said he will not stand again.
+    const P = fresh();
+    P.s.annals.mayor.age = 75;
+    till(P, P.s.annals.poll - 1);
+    check(P.s.annals.race && P.s.annals.penn === 'out' && P.s.annals.mayor.k === 'penn' && !P.annalsPennOut() && P.folkName('penn') === 'Mayor Pennington', 'Mayor Pennington, standing down, is still the mayor while the race is on');
+    till(P, P.s.annals.poll + 2);
+    check(P.s.annals.mayor.k !== 'penn' && P.folkName('penn') === 'Mr Pennington', 'and plain Mr Pennington after the count');
+    // Seasons before this life began are told as so long ago.
+    check(!/undefined|year -|year 0/.test(P.annalsWhen(-5)) && /ago/.test(P.annalsWhen(-5)), `the seasons before this life began (${P.annalsWhen(-5)})`);
+    // Years in the Bay: the year in progress is not counted twice, and the story begins where the life did.
+    const kit = { esc: (t) => String(t), money: (n) => `$${n}`, chip: () => '', pick: () => '', actRow: () => '', face: () => '', life: null };
+    const ui = UI(kit);
+    const Y = fresh();
+    till(Y, 30);
+    kit.life = Y;
+    const sh = ui.sheets.annalsYears(), so = Number((sh.body.match(/(\d+) years? so far/) || [])[1]), heads = Number(sh.sub.split(' ')[0]);
+    check(heads === Y.s.annals.yr.filter((y) => y.h).length && heads <= so, `Years in the Bay counts the years gone by, not the one in progress (${sh.sub}; ${so} so far)`);
+    check(/came to Starling Bay at eighteen/.test(sh.body), 'and a life off the train came to the Bay at eighteen');
+    Y.s.chap.start = { how: 'home', age: 40 };
+    check(/born in Starling Bay, and has lived here all/.test(ui.sheets.annalsYears().body) && !/at eighteen with one suitcase/.test(ui.sheets.annalsYears().body), 'one who grew up here was born here');
+    Y.s.chap.start = { how: 'back', age: 18 };
+    check(/came home at eighteen/.test(ui.sheets.annalsYears().body), 'and one who came home, came home');
+  }
+
 }

@@ -10,7 +10,8 @@
 // and careers-tales2.js; this is how they are told.
 //
 // Everything is kept in s.careers:
-//   st[career]: { n: chapters told, q: seasons worked in it, at: when the last
+//   st[career]: { n: chapters told (or passed over, from: the chapter a story taken
+//                 up partway began at), q: seasons worked in it, at: when the last
 //                 chapter came, f: what was decided (each story's own notes),
 //                 mn: the mentor, rv: the rival ({ id, name, sex, age, t, v }:
 //                 id among your people while they are about, age at season t,
@@ -220,9 +221,10 @@ function chapterCard(c, i, ch) {
         const k = ctx(L, x), st = k.st;
         st.n = i + 1;
         const said = o.run(L, k, win) || '';
-        // (The first chapter is where you meet them: the mentor is in your life from now on.)
-        if (i === 0 && st.mn && st.mn.id == null) mentor(L, k, 0, true);
-        if (st.n >= STORIES[c].ch.length && !st.f.done) { st.f.done = 1; L.s.careers.n.arcs++; }
+        // (The first chapter told is where you meet them: the mentor is in your life from now on.)
+        if (i === (st.from || 0) && st.mn && st.mn.id == null) mentor(L, k, 0, true);
+        // (The whole story, for the trophy, is one heard from its first chapter.)
+        if (st.n >= STORIES[c].ch.length && !st.f.done) { st.f.done = 1; if (!st.from) L.s.careers.n.arcs++; }
         if (L.s.job) L.s.careers.job = { c: L.s.job.c, r: L.s.job.r };
         return said;
       },
@@ -258,6 +260,29 @@ function sent(L, x, joy, text) {
   return text;
 }
 
+// A story taken up partway: the chapters below the rung you start at have happened, or never
+// will (somebody let in as a junior doctor was never a porter), so it starts at the first chapter
+// for your rung, counting the years behind you, or as good as, so that it is not long in coming.
+// The mentor is somebody who taught you when you started: older, and retired by now, or gone, if
+// that was long ago; the rival is somebody your own age who has been after the same jobs.
+function join(L, c, r, yrs) {
+  const s = L.s, tale = STORIES[c];
+  if (!tale || r <= 0) return;
+  const st = stOf(L, c);
+  if (st.n > 0 || st.mn) return;
+  let n = tale.ch.findIndex((ch) => (ch.r || 0) >= r);
+  if (n < 0) n = tale.ch.length - 1;
+  st.n = n; st.from = n;
+  st.q = Math.max(st.q, yrs * 4, (tale.ch[n].y ?? Y[n]) - 2);
+  const sex = L.chance(0.5) ? 'm' : 'f', age = yrs > 0 ? s.age + L.int(18, 26) : clampN(s.age + L.int(22, 30), 45, 62);
+  st.mn = person(L, sex, age);
+  st.mn.v = yrs > 0 ? 25 + L.int(0, 20) : 25; st.mn.trait = L.pick(['kind', 'bookish', 'witty']);
+  // (Past ninety, the one who taught you has died, and the story knows it: see k.M.dead.)
+  if (age >= 90) st.mn.dead = s.t;
+  st.rv = person(L, L.chance(0.5) ? 'm' : 'f', clampN(s.age + L.int(-3, 3), 18, 70));
+  st.rv.v = yrs > 0 ? L.int(-10, 10) : 0;
+}
+
 // ---- install ------------------------------------------------------------------------------
 
 export function install({ A, Life, hooks, addEvents }) {
@@ -273,6 +298,9 @@ export function install({ A, Life, hooks, addEvents }) {
       const yrs = Math.ceil((b.until - this.s.t) / 4);
       return b.until - this.s.t >= EVER / 2 ? `${b.why}, for good.` : `${b.why}: not for another ${yrs === 1 ? 'year' : `${yrs} years`}.`;
     },
+    // A career taken up partway, at rung r with yrs years already behind you (an heir, or one let in high by a
+    // qualification): its story starts at the chapters that fit, with a mentor who taught you long ago.
+    careerJoin(c, r, yrs = 0) { join(this, c, r, yrs); },
   });
 
   // (A career that struck you off, or sacked you in disgrace, will not take you back for a
@@ -307,11 +335,16 @@ export function install({ A, Life, hooks, addEvents }) {
   Life.prototype.careerNext = function (now = false) {
     const L = this, s = L.s, j = s.job;
     if (s.gaol || s.dead || !j || s.pend.length || !STORIES[j.c]) return false;
-    const st = stOf(L, j.c), tale = STORIES[j.c], ch = tale.ch[st.n];
+    const st = stOf(L, j.c), tale = STORIES[j.c];
+    // (A chapter that can no longer happen, as things have turned out, is passed over: Sal's
+    // crew without Sal, once he has gone to Spain.)
+    while (tale.ch[st.n] && tale.ch[st.n].skip && tale.ch[st.n].skip(L)) st.n++;
+    const ch = tale.ch[st.n];
     if (!ch || j.r < (ch.r || 0)) return false;
     if (!now && (st.q < (ch.y ?? Y[st.n]) || s.t - st.at < (ch.gap ?? GAP))) return false;
     if (ch.when && !ch.when(L, ctx(L, { c: j.c, n: st.n }))) return false;
-    if (!now && !L.chance(PACE)) return false;
+    // (A chapter tied to the calendar, like an election, comes as soon as its moment does.)
+    if (!now && !L.chance(ch.pace ?? PACE)) return false;
     // The people in it, the first time.
     if (!st.mn) {
       const sex = L.chance(0.5) ? 'm' : 'f';
@@ -328,13 +361,16 @@ export function install({ A, Life, hooks, addEvents }) {
   hooks.late.push((L, jailed) => { if (!jailed) L.careerNext(); });
 
   // A retirement: the send-off, the first time, from a career you rose in.
+  function retired(L, was) {
+    const s = L.s, st = stOf(L, was.c);
+    st.retired = s.t;
+    if (!st.sent && (s.worked[was.c] || 0) >= 2) { st.sent = 1; L.queue('careerSendoff', { c: was.c, title: CAREERS[was.c].rungs[was.r].title }); }
+  }
   hooks.acted.push((L, id) => {
     const s = L.s, was = s.careers.job;
-    if (id === 'retire' && was && !s.job && STORIES[was.c]) {
-      const st = stOf(L, was.c);
-      st.retired = s.t;
-      if (!st.sent && (s.worked[was.c] || 0) >= 2) { st.sent = 1; L.queue('careerSendoff', { c: was.c, title: CAREERS[was.c].rungs[was.r].title }); }
-    }
+    if (id === 'retire' && was && !s.job && STORIES[was.c]) retired(L, was);
+    // (Let in above the bottom rung, by a qualification: the story starts where you do.)
+    if ((id === 'apply' || id === 'joinCrew') && s.job && s.job.r > 0 && (!was || was.c !== s.job.c)) join(L, s.job.c, s.job.r, 0);
     s.careers.job = s.job ? { c: s.job.c, r: s.job.r } : null;
   });
   hooks.chose.push((L, id, x) => {
@@ -343,6 +379,9 @@ export function install({ A, Life, hooks, addEvents }) {
     if (id === 'soulFriendGone' && typeof x === 'number') {
       for (const st of Object.values(s.careers.st)) for (const rec of [st.mn, st.rv]) if (rec && rec.id === x) rec.dead = s.t;
     }
+    // (Sport retires you itself, at 38, by the town's card: the send-off is for that, as for any other.)
+    const was = s.careers.job;
+    if (id === 'sportsRetire' && was && was.c === 'sports' && !s.job && STORIES.sports) retired(L, was);
     s.careers.job = s.job ? { c: s.job.c, r: s.job.r } : null;
   });
 
@@ -352,7 +391,8 @@ export function install({ A, Life, hooks, addEvents }) {
     const best = Object.keys(s.careers.st).filter((c) => s.careers.st[c].gaz).sort((a, b) => (s.worked[b] || 0) - (s.worked[a] || 0))[0];
     if (!best) return;
     const fill = { He: m ? 'He' : 'She', he: m ? 'he' : 'she', his: m ? 'his' : 'her', him: m ? 'him' : 'her' };
-    out.push(s.careers.st[best].gaz.replace(/\{(He|he|his|him)\}/g, (_, w) => fill[w]));
+    // (A line kept by a save from before: legacy.js says "served as mayor" itself.)
+    out.push(s.careers.st[best].gaz.replace(/^\{He\} served as mayor, and mended/, '{He} mended').replace(/\{(He|he|his|him)\}/g, (_, w) => fill[w]));
   });
 
   addEvents([...Object.entries(STORIES).flatMap(([c, tale]) => tale.ch.map((ch, i) => chapterCard(c, i, ch))), sendOffCard()]);

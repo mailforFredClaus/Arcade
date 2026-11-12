@@ -46,6 +46,7 @@ export default function (kit) {
     const who = heir ? `<b>${esc(first(heir))}</b> (your ${relOf(heir)}, ${heir.age}) would carry on` : 'a distant cousin would carry on, stepping off the train at eighteen,';
     return `<div class="box chap-box"><h3>What you would leave</h3>
       <p class="sub">If it all ended today, ${who}, with ${leaves(life, est)}.</p>
+      ${est.toSpouse ? (() => { const sp = life.chapSpouse(), mum = est.via ? life.person(est.via.p) : null; return `<p class="fine">The money goes to ${esc(first(sp))}, free of duty${mum ? `; ${esc(first(mum))}’s part of it, ${money(est.via.n)}, comes down to ${esc(first(heir))} in the end` : ', and comes down to the children in the end'}.</p>`; })() : ''}
       <div class="line"><span>Everything you own</span><b>${money(est.worth)}</b></div>
       ${est.duty ? `<div class="line down"><span>Death duty</span><b>${money(-est.duty)}</b></div>` : ''}
       ${est.town && est.town.ok ? `<div class="line"><span>${GIFTS[est.town.id].icon} To the town</span><b>${money(est.town.cost)}</b></div>` : ''}
@@ -99,11 +100,14 @@ export default function (kit) {
             <div class="picks chap-picks">${choice(`To ${hn}, free of duty`, 'chapWill', { k: 'biz', v: 'heir' }, w.biz === 'heir')}${choice('Sell it, and share the money', 'chapWill', { k: 'biz', v: 'sell' }, w.biz === 'sell')}</div></div>`;
         }
         // The money.
-        const sp = life.chapSpouse(), kids = life.kids();
+        const sp = life.chapSpouse(), kids = life.kids(), can = life.chapSpouseCan(heir);
         if (heir && (kids.length > 1 || sp || heir.kind === 'grandchild')) {
-          body += `<h3>The money</h3><div class="item"><div class="picks chap-picks">${choice('Shared fairly among the children', 'chapWill', { k: 'split', v: 'fair' }, w.split === 'fair' || (w.split === 'spouse' && !sp))}${kids.length > 1 || heir.kind === 'grandchild' ? choice(`Half to ${hn}, the rest shared`, 'chapWill', { k: 'split', v: 'heir' }, w.split === 'heir') : ''}${sp ? choice(`All to ${esc(first(sp))}, and the children after`, 'chapWill', { k: 'split', v: 'spouse' }, w.split === 'spouse') : ''}</div>
-            ${sp ? `<p class="fine">Money left to ${esc(first(sp))} pays no duty now. It comes down to the children when ${sp.sex === 'm' ? 'he' : 'she'} dies, in the next life, after duty then.</p>` : ''}</div>`;
-        }
+          const sn = sp ? esc(first(sp)) : '', she = sp && sp.sex === 'm' ? 'he' : 'she', mum = heir.kind === 'grandchild' ? life.person(heir.of) : null;
+          body += `<h3>The money</h3><div class="item"><div class="picks chap-picks">${choice('Shared fairly among the children', 'chapWill', { k: 'split', v: 'fair' }, w.split === 'fair' || (w.split === 'spouse' && !can))}${kids.length > 1 || heir.kind === 'grandchild' ? choice(`Half to ${hn}, the rest shared`, 'chapWill', { k: 'split', v: 'heir' }, w.split === 'heir') : ''}${can ? choice(`All to ${sn}, and the children after`, 'chapWill', { k: 'split', v: 'spouse' }, w.split === 'spouse') : ''}</div>
+            ${!sp ? '' : !can ? `<p class="fine">Money left to ${sn} would never reach ${hn}, so it is not one of the choices.</p>`
+              : heir.kind === 'child' ? `<p class="fine">Money left to ${sn} pays no duty now. ${sn} is ${hn}’s ${sp.sex === 'm' ? 'father' : 'mother'} in the next life, and it comes down to the children when ${she} dies, after duty then.</p>`
+              : `<p class="fine">Money left to ${sn} pays no duty now. When ${she} dies it is shared among the children: ${esc(first(mum))}’s part${est.via ? ` (${money(est.via.n)} today)` : ''} comes down to ${hn} in the next life, when ${esc(first(mum))} dies, after duty then.</p>`}</div>`;
+        } else if (sp && !heir) body += `<h3>The money</h3><p class="fine">With nobody of your own to carry on, money left to ${esc(first(sp))} would never come down to the cousin who does: whatever is left goes to the cousin, after duty.</p>`;
         // The town.
         const open = Object.keys(GIFTS).filter((id) => !s.gifts[id]);
         if (open.length) {

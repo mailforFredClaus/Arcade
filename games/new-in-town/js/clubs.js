@@ -743,7 +743,7 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
       ok: (L) => inClub(L, 'rovers'),
       text: 'Away at Penhallow Moor. It has rained since Tuesday, the pitch is a pond with goalposts in it, and Gaz is two players short and on his second pie.',
       opts: [
-        { t: 'Play the full ninety minutes', check: ['fitness', 40], run(L, x, win) { const m = M(L, 'rovers'); if (win) { stand(m, 8); L.gain('fitness', 1.5); L.joy(4); return 'A 1–0 win, the goal going in off your knee. Gaz hugs you. You both smell of mud.'; } stand(m, 3); L.sicken('a heavy cold', 1); return 'You lose 4–0, and bring home a cold that lasts until spring.'; } },
+        { t: 'Play the full ninety minutes', check: ['fitness', 40], run(L, x, win) { const m = M(L, 'rovers'); if (win) { stand(m, 8); L.gain('fitness', 1.5); L.joy(4); return 'A 1–0 win, the goal going in off your knee. Gaz hugs you. You both smell of mud.'; } stand(m, 3); L.sicken('heavy cold', 1); return 'You lose 4–0, and bring home a cold that lasts until spring.'; } },
         { t: 'Go in goal', run(L) { stand(M(L, 'rovers'), 6); L.joy(1); return 'Nobody ever wants to go in goal. You let in five, and are made man of the match for bravery.'; } },
         { t: 'Cry off with a sniffle', run(L) { stand(M(L, 'rovers'), -5); L.hp(1); return 'Gaz says “no bother” in a voice that means the opposite.'; } },
       ],
@@ -777,7 +777,7 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
       ok: (L) => inClub(L, 'rovers'),
       text: 'Gaz Kowalski, smelling faintly of pie, wants you to play on Sunday with your ankle strapped up. “It’s Gullhaven,” he says. “We can’t lose to Gullhaven. Not again. Not this year.”',
       opts: [
-        { t: 'Play through it', check: ['fitness', 45], run(L, x, win) { const m = M(L, 'rovers'); if (win) { stand(m, 8); L.joy(5); return 'You hobble through ninety minutes and the Rovers win 2–1. Gaz buys everyone a pie, which is how he says thank you.'; } L.hp(-6, 'a bad ankle'); L.sicken('a twisted ankle', 1); stand(m, 3); return 'Twenty minutes in, the ankle goes. You watch the rest from the bench with a bag of frozen peas.'; } },
+        { t: 'Play through it', check: ['fitness', 45], run(L, x, win) { const m = M(L, 'rovers'); if (win) { stand(m, 8); L.joy(5); return 'You hobble through ninety minutes and the Rovers win 2–1. Gaz buys everyone a pie, which is how he says thank you.'; } L.hp(-6, 'a bad ankle'); L.sicken('twisted ankle', 1); stand(m, 3); return 'Twenty minutes in, the ankle goes. You watch the rest from the bench with a bag of frozen peas.'; } },
         { t: 'Sit it out', run(L) { stand(M(L, 'rovers'), -2); return 'Rovers lose 3–0 to Gullhaven. Gaz does not blame you, out loud.'; } },
         { t: 'Run the line instead', run(L) { stand(M(L, 'rovers'), 3); L.joy(1); return 'You run the line with a flag on a stick, and are shouted at by both sides, which is how you know you are doing it right.'; } },
       ],

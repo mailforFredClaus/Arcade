@@ -11,7 +11,8 @@
 // write; the big house, to keep or to sell; grandchildren to mind; the old
 // crowd to have lunch with (soul.js has the funerals, when they go); one
 // last adventure; the solicitor. The body slows, and it says so. When a
-// natural death is due (the old-age dice, or health run out after 65) it is
+// natural death is due (the old-age dice, or health run out after 65 from age
+// or an illness: a fall or the sea still end a life at once) it is
 // held off and becomes a last illness instead: the doctor's news, met with
 // grace or fought, a few seasons of goodbyes (a party, a last summer, a
 // letter to whoever carries on), and a last morning. The end is seen coming.
@@ -33,7 +34,7 @@
 //
 // Everything is kept in s.chap.
 
-import { DREAMS, TROPHIES, HOMES, ITEMS, CAREERS, PLACES, COURSES, GIFTS, BUSINESSES, STATS, STAT_NAME, BACKGROUNDS, QUESTS, SHIFTS_FOR_RUNG, money, low, an, lowJob } from './data.js';
+import { DREAMS, TROPHIES, HOMES, ITEMS, CAREERS, PLACES, COURSES, GIFTS, BUSINESSES, STATS, STAT_NAME, BACKGROUNDS, QUESTS, SHIFTS_FOR_RUNG, NAMES_M, NAMES_F, money, low, an, lowJob } from './data.js';
 
 // ---- the plain numbers ------------------------------------------------------------------
 
@@ -42,6 +43,7 @@ export const DUTY = { free: 250000, mid: 2000000, low: 0.5, high: 0.8 };
 export const SETTLE = [5000, 25000]; // what can be given each year, to each of the family
 export const GIFT_YEARS = 5; // a gift is free of duty once you have lived this long after it
 export const MEMO = 8; // sittings to write your memoirs
+export const TEACH_AGE = 3; // a grandchild old enough to be taught something (and to count for "Pass it on")
 // What passes to the heir with the house: things a family keeps.
 export const KEEPSAKES = ['watch', 'ring', 'piano', 'guitar', 'easel', 'books', 'rod', 'boat', 'surfboard', 'weights'];
 const AGE_WORD = { 30: 'thirty', 45: 'forty-five', 60: 'sixty' };
@@ -57,6 +59,19 @@ const his = (p) => (p.sex === 'm' ? 'his' : 'her');
 const He = (p) => cap(he(p));
 const clampN = (v, a, b) => (v < a ? a : v > b ? b : v);
 export const homeSaid = (kind) => (kind === 'manor' ? 'Starling Manor' : `the ${low(HOMES[kind].name)}`);
+
+// The causes of a natural death, which a last illness can stand in for. (Anything else, a fall, the sea,
+// a beating, ends a life at once, as it always did.) An illness serious enough to kill counts too.
+const NATURAL = new Set(['old age', 'ill health', 'poor health', 'exhaustion', 'overwork', 'heart trouble', 'a failing heart', 'heart failure', 'liver disease', 'flu', 'heavy cold', 'a heavy cold', 'a chill', 'the drink', 'mermaid dust']);
+const natural = (L, cause) => !cause || NATURAL.has(cause) || (!!L.s.ill && L.s.ill.name === cause && L.s.ill.sev >= 3);
+// What the last illness turns out to be, where it is not simply what was wrong already.
+const DUSK_AS = { flu: 'pneumonia', 'heavy cold': 'pneumonia', 'a heavy cold': 'pneumonia', 'a chill': 'pneumonia', 'the drink': 'liver disease', 'mermaid dust': 'a failing heart' };
+// The doctor's words for it: "It is your liver."
+const illIs = (c) => ({ 'liver disease': 'your liver', pneumonia: 'your chest' }[c] || c);
+// A number from a few words, always the same for the same words (where a choice must not be down to the dice).
+const hashOf = (t) => { let h = 2166136261; for (let i = 0; i < t.length; i++) h = Math.imul(h ^ t.charCodeAt(i), 16777619) >>> 0; return h; };
+// One child's share of what was left to the husband or wife, "and the children after".
+const spouseShare = (left, kids) => Math.floor(left / Math.max(1, kids));
 
 // What the town takes of money left behind.
 export function dutyOn(n) {
@@ -234,6 +249,11 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       return top.sort((a, b) => a.t - b.t || a.a - b.a).map((m) => ({ a: m.a, t: m.x }));
     },
     chapFar(id) { return far(this, id); },
+    // How the last marriage ended, by the moments kept: { how: 'widowed' or 'divorced', t: the season }, or null.
+    chapWedEnd() {
+      const m = this.s.chap.marks.filter((q) => /^Divorced |^Lost .+, your (husband|wife)\.$/.test(q.x)).sort((a, b) => a.t - b.t).pop();
+      return m ? { how: /^Divorced /.test(m.x) ? 'divorced' : 'widowed', t: m.t } : null;
+    },
 
     // ---- the will ----
     // Who could carry on: children and grandchildren.
@@ -251,6 +271,15 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       return gk || kid || best(c);
     },
     chapSpouse() { return this.s.people.find((p) => p.kind === 'spouse') || null; },
+    // Whether money left to the husband or wife would ever reach whoever carries on: through them,
+    // as the heir's own mother or father, or through the grandchild's mother or father, as one of
+    // "the children after". (With nobody to carry on, a cousin from the train would never see it.)
+    chapSpouseCan(heir = this.chapHeir()) {
+      if (!this.chapSpouse() || !heir) return false;
+      if (heir.kind === 'child') return true;
+      const mum = heir.kind === 'grandchild' ? this.person(heir.of) : null;
+      return !!mum && mum.kind === 'child';
+    },
     // What the will would do if it were read today.
     chapEstate() {
       const s = this.s, C = s.chap, w = C.will, heir = this.chapHeir(), spouse = this.chapSpouse();
@@ -269,13 +298,19 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       }
       money = Math.max(0, money);
       const recent = C.gifts.filter((g) => s.t - g.t < GIFT_YEARS * 4).reduce((a, g) => a + g.n, 0);
-      const toSpouse = w.split === 'spouse' && !!spouse;
+      // (Left to the husband or wife only where it can come down to whoever carries on: else shared as if fairly.)
+      const toSpouse = w.split === 'spouse' && this.chapSpouseCan(heir);
       const duty = toSpouse ? 0 : Math.min(money, Math.round(dutyOn(money + recent) - dutyOn(recent)));
       const left = money - duty;
       // Who gets what of the money.
       const shares = [];
       const kids = this.kids();
-      if (toSpouse) shares.push({ p: spouse.id, n: left });
+      // via: what of the husband's or wife's money comes down, in the end, through a grandchild's mother or father.
+      let via = null;
+      if (toSpouse) {
+        shares.push({ p: spouse.id, n: left });
+        if (heir.kind === 'grandchild') via = { p: heir.of, n: spouseShare(left, kids.length) };
+      }
       else if (!heir) shares.push({ p: null, n: left });
       else {
         const all = kids.slice();
@@ -288,7 +323,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       }
       const keep = heir || !kids.length ? KEEPSAKES.filter((id) => s.items[id]) : [];
       const mine = shares.find((q) => q.p === (heir ? heir.id : null));
-      return { worth, heir: heir ? heir.id : null, home, biz, town, money, recent, duty, left, shares, keep, toSpouse, heirMoney: mine ? mine.n : 0 };
+      return { worth, heir: heir ? heir.id : null, home, biz, town, money, recent, duty, left, shares, keep, toSpouse, via, heirMoney: mine ? mine.n : 0 };
     },
     // A one-line summing-up of what someone would be left: "the cottage, your guitar and $84,000".
     chapLeaves(est, pid, mine = true) {
@@ -325,6 +360,8 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       };
       if (!carry) { C.start = { how: 'train', age: 18 }; C.snap = snapNow(this); return; }
       C.start = { how: carry.how, age: carry.how === 'home' ? carry.age : 18, rel: carry.rel, from: carry.from, called: carry.called, left: carry.how === 'back' ? 18 - (carry.gap || 0) : null, said: carry.said || '', letter: carry.letter || null };
+      // The town is the one the last life left (annals.js).
+      if (carry.town && this.annalsTakeOn) this.annalsTakeOn(carry.town, carry.how, carry.how === 'home' ? clampN(Math.round(carry.age), 18, 95) : 18);
       // Keepsakes come with whoever carries on.
       for (const id of carry.items || []) if (ITEMS[id]) s.items[id] = 1;
       const moveIn = (h) => {
@@ -373,17 +410,28 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
         else if (age >= 66) { s.retired = true; s.pension = Math.round(car.rungs[r].pay * 1.2 / 10) * 10 + (age >= 67 ? 1500 : 0); s.f.jobPension = s.pension - (age >= 67 ? 1500 : 0); }
         else s.job = { c: carry.job, r, n: Math.floor((SHIFTS_FOR_RUNG[r + 1] || 0) * 0.4), perf: 55, raise: 0 };
       } else if (age >= 67) { s.retired = true; s.pension = 1500; }
-      // Their own family.
-      const pt = !carry.single && age >= 22 ? this.makePerson({ kind: 'spouse', sex: s.into === 'b' ? (this.chance(0.5) ? 'm' : 'f') : s.into, age: clampN(age + this.int(-4, 4), 20, 95), bond: 64, single: false }) : null;
-      if (pt) { s.people.push(pt); s.f.wed = 1; }
+      // (Years into the job: its story picks up where they are in it, not at the first chapter. See careers.js.)
+      if (s.job && this.careerJoin) this.careerJoin(s.job.c, s.job.r, age - 18);
+      // Their own family: the husband or wife they married in the last life, years ago.
+      const wed = carry.wed || {};
+      const ago = wed.ago != null ? wed.ago : 4 * clampN((carry.kids || []).reduce((a, k) => Math.max(a, k.age + 1), 2), 1, Math.max(1, age - 20)) + 1;
+      const pt = !carry.single && age >= 22 ? this.makePerson({ kind: 'spouse', sex: wed.sex || (s.into === 'b' ? (this.chance(0.5) ? 'm' : 'f') : s.into), age: clampN(age + this.int(-4, 4), Math.max(20, 18 + Math.ceil(ago / 4)), 95), bond: 64, single: false }) : null;
+      if (pt) {
+        if (wed.name) pt.name = [wed.name, ...pt.name.split(' ').slice(1)].join(' ');
+        s.people.push(pt); s.f.wed = 1;
+        // (The wedding, and the courting before it, for wants.js: anniversaries and the years together count from them.)
+        if (s.wants) s.wants.p[pt.id] = { been: [], wed: s.t - ago, since: s.t - ago - 4 - (pt.id % 8) };
+      }
       for (const k of carry.kids || []) {
         const p = this.makePerson({ name: k.name, sex: k.sex, kind: 'child', bond: 58, age: k.age, look: k.look, single: k.age >= 18 && this.chance(0.5), ...(k.age >= 18 && k.job ? { job: k.job } : {}), ...(k.trait ? { trait: k.trait } : {}) });
         if (k.age >= 18) p.st = p.st || Object.fromEntries(STATS.map((q) => [q, 30]));
         s.people.push(p);
-        // (Grown children of their own may have made them a grandparent already.)
+        // (Grown children of their own may have made them a grandparent already: how many, and how old, is
+        // settled by who the child is, not by the dice, so that the start screen knows it too: see chapOffer.)
         if (k.age >= 27) {
-          p.gk = this.int(0, Math.min(2, Math.floor((k.age - 23) / 4)));
-          for (let i = 0; i < p.gk; i++) { const g = this.grandchild(p); g.age = this.int(0, k.age - 26); g.bond = 45; if (g.age >= 18) { g.single = true; this.fillPerson(g); } }
+          const h = hashOf(`${k.name}|${k.sex}|${k.age}`);
+          p.gk = h % (Math.min(2, Math.floor((k.age - 23) / 4)) + 1);
+          for (let i = 0; i < p.gk; i++) { const g = this.grandchild(p); g.age = (h >>> (8 + i * 6)) % (k.age - 25); g.bond = 45; if (g.age >= 18) { g.single = true; this.fillPerson(g); } }
         }
       }
       // Two old friends from school, still about.
@@ -453,6 +501,8 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     if (st.how === 'back') return `${s.name}, who was born in Starling Bay, left it as a child and came back at eighteen, has died at ${s.age}.`;
     return `${s.name}, who was born in Starling Bay and lived there all ${s.sex === 'f' ? 'her' : 'his'} life, has died at ${s.age}.`;
   };
+  // How the life began: 'train' (off the train at 18), 'back' (born here, home again at 18) or 'home' (lived here all along).
+  Life.prototype.chapHow = function () { const st = this.s.chap && this.s.chap.start; return (st && st.how) || 'train'; };
   // How the end screen says where the life began.
   Life.prototype.chapOrigin = function () {
     const st = this.s.chap && this.s.chap.start;
@@ -466,7 +516,9 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
   function carryFor(L, est, p) {
     const s = L.s, w = s.chap.will, mineIs = (q) => q && q.id === est.heir;
     const kids = L.kids(), named = mineIs(p);
-    const sh = est.shares.find((q) => q.p === (p ? p.id : null));
+    // (A will read before the money could only go where it would come down: left to a husband or wife with
+    // nobody to carry on, it is not lost on the cousin who does.)
+    const sh = est.shares.find((q) => q.p === (p ? p.id : null)) || (!p && est.toSpouse && est.heir == null ? { n: est.left } : null);
     const moneyIn = sh ? sh.n : 0;
     const base = { from: s.name, fromSex: s.sex, gen: s.gen + 1, items: named || !p ? est.keep.slice() : [], money: moneyIn, home: named && est.home ? { kind: est.home.kind, ups: est.home.ups } : null, biz: named && est.biz ? { type: est.biz.type, lvl: est.biz.lvl, rep: est.biz.rep, mgr: est.biz.mgr, age: est.biz.age } : null };
     if (!p) return { ...base, how: 'train', rel: 'cousin', called: 'your cousin', age: 18, purse: 0, sibs: null, parent: null, st: null };
@@ -483,17 +535,26 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     if (p.kind === 'grandchild') {
       const mum = L.person(p.of);
       if (mum) { parent = { name: mum.name, age: mum.age + gap, look: mum.look, sex: mum.sex }; const m = est.shares.find((q) => q.p === mum.id); parPurse = (m ? m.n : 0) + (mum.purse || 0); }
+      // (Everything left to the husband or wife goes to the children after them: this one's share comes down through them.)
+      if (mum && mum.kind === 'child' && est.toSpouse) parPurse += spouseShare(est.left, kids.length);
     }
     const fair = !est.toSpouse && w.split === 'heir' && sibs.length ? (named ? 22 : 40) : 50;
     const st = how === 'home' ? grownStats(p) : (p.st ? Object.fromEntries(STATS.map((k) => [k, Math.min(100, p.st[k] + gap * 1.4)])) : Object.fromEntries(STATS.map((k) => [k, 20 + (p.taught === k ? 14 : 0)])));
     const own = how === 'home' ? L.grandkids().filter((g) => g.of === p.id).map((g) => ({ name: first(g), sex: g.sex, age: g.age, look: g.look, job: g.job, trait: g.trait })) : [];
-    // (Nobody in the last life knew whether a grown child had married: those with children had, and some others.)
-    const single = how !== 'home' || p.age < 24 ? true : own.length ? false : (p.id * 7 + p.age) % 3 === 0;
+    // Whether they are married, and to whom: as the wedding went in the last life (wants.js), where there
+    // was one; else those with children had married, and, in a life from before wants.js, some others.
+    const R = s.wants && s.wants.p[p.id];
+    const single = how !== 'home' ? true : R && R.wed != null ? false : own.length ? false : R || p.age < 24 ? true : (p.id * 7 + p.age) % 3 === 0;
+    // (How long ago, in seasons: by the wedding, or by the eldest child; never before they were twenty.)
+    const eldest = own.reduce((a, g) => Math.max(a, g.age), -1);
+    const wed = single ? null : R && R.wed != null
+      ? { name: R.fiance || null, sex: NAMES_F.includes(R.fiance) ? 'f' : NAMES_M.includes(R.fiance) ? 'm' : null, ago: Math.max(0, s.t - R.wed) }
+      : { name: null, sex: null, ago: 4 * clampN(eldest >= 0 ? eldest + 1 + (p.id % 3) : 2 + ((p.id * 5 + p.age) % Math.max(1, p.age - 23)), 1, Math.max(1, p.age - 20)) + (p.id % 4) };
     const folk = {};
     if (how === 'home' && s.folk) for (const [id, f] of Object.entries(s.folk.p)) if (f.f >= 25) folk[id] = Math.min(30, Math.round(f.f * 0.4));
     return {
       ...base, how, pid: p.id, rel: relOf(p), called, age: p.age + gap, gap, name: first(p), sex: p.sex, look: p.look, job: p.age >= 18 ? p.job : null,
-      single, kids: own, sibs, parent, parPurse, purse: p.purse || 0, st, sibBond: fair, folk,
+      single, wed, kids: own, sibs, parent, parPurse, purse: p.purse || 0, st, sibBond: fair, folk,
       letter: s.chap.letter && s.chap.letter.to === p.id ? s.chap.letter.text : null,
     };
   }
@@ -509,7 +570,13 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     const and = carry.purse > 0 ? ` The ${money(carry.purse)} ${who === 'Your cousin' ? 'given you' : `${who} gave you`} over the years is in the bank too.` : '';
     // (A list in which anything with an "and" of its own is closed off before the last "and".)
     const said = things.length < 2 ? things.join('') : `${things.slice(0, -1).join(', ')}${things.slice(0, -1).some((x) => x.includes(' and ')) ? ',' : ''} and ${things[things.length - 1]}`;
-    return things.length ? `${who} left you ${said}.${and}` : `${who} left you nothing much but a good name.${and}`;
+    return `${things.length ? `${who} left you ${said}.` : `${who} left you nothing much but a good name.`}${and}${parSaid(carry, ' ')}`;
+  }
+  // What is put by with the heir's mother or father, to come down in time (see C.par).
+  function parSaid(c, pre) {
+    if (!(c.parPurse > 0) || !c.parent) return '';
+    const who = c.parent.sex === 'f' ? 'Mum' : 'Dad';
+    return pre === ' ' ? ` ${who} has ${money(c.parPurse)} put by, and it will come down in time.` : `${pre}${c.parent.name.split(' ')[0]} has ${money(c.parPurse)} put by, to come down in time`;
   }
   // How carrying on as someone would begin, in a line for the end screen.
   Life.prototype.chapStartSaid = function (c) {
@@ -519,14 +586,17 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     if (c.items && c.items.length) things.push(c.items.length === 1 ? `the ${low(ITEMS[c.items[0]].name)}` : 'the keepsakes');
     if (c.money > 0) things.push(money(c.money));
     const w = things.length ? `with ${list(things)}` : 'with nothing much from the will';
-    if (c.how === 'home') return `Starts at ${c.age}, at home in the Bay, ${w}${c.kids && c.kids.length ? `, and ${c.kids.length === 1 ? 'a child' : `${num(c.kids.length)} children`} of ${c.sex === 'm' ? 'his' : 'her'} own` : ''}`;
-    if (c.how === 'back') return `Comes back to the Bay at eighteen, ${w}`;
+    const later = parSaid(c, '; ');
+    if (c.how === 'home') return `Starts at ${c.age}, at home in the Bay, ${w}${c.kids && c.kids.length ? `, and ${c.kids.length === 1 ? 'a child' : `${num(c.kids.length)} children`} of ${c.sex === 'm' ? 'his' : 'her'} own` : ''}${later}`;
+    if (c.how === 'back') return `Comes back to the Bay at eighteen, ${w}${later}`;
     return `Steps off the train at eighteen, ${w}`;
   };
   // The next life, as person i of the obituary's list (0: the one the will names).
   Life.prototype.chapNextLife = function (i = 0) {
     const o = this.obituary(), c = o.carry[Math.max(0, Math.min(o.carry.length - 1, i | 0))];
     const carry = { ...c, said: leftSaid(c) };
+    // (The town goes on as this life left it: its mayor, what was built, its shops and its regulars: annals.js.)
+    if (this.annalsHandOn) carry.town = this.annalsHandOn(c);
     return {
       sibs: carry.sibs, gifts: o.gifts, gen: this.s.gen + 1, inherit: carry.money, from: this.s.name,
       name: carry.name || '', look: carry.look || null, sex: carry.sex || null, st: carry.how === 'home' ? null : carry.st, parent: carry.parent, carry, age: carry.age,
@@ -567,11 +637,12 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
   hooks.noted.push((L, e) => { if (L.s.chap && (e.k === 'big' || e.k === 'love')) mark(L.s.chap, e, L.s.t); });
 
   // A natural death that is due is held off, and becomes a last illness: the end is seen coming.
+  // (Only a natural one: old age, ill health, an illness. A fall, the sea or a beating ends a life as it always did.)
   hooks.reprieve.push((L, cause) => {
     const s = L.s, C = s.chap;
     if (!C || s.dead) return false;
     if (C.dusk) return s.health > 0; // (its own time is kept, but health run out ends it)
-    if (s.age < 65) return false;
+    if (s.age < 65 || !natural(L, cause)) return false;
     startDusk(L, cause);
     return true;
   });
@@ -707,7 +778,9 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     if (C.memo.done) out.push(C.memo.done.how === 'published' ? `${cap(his2)} memoirs, ${C.memo.done.title}, were published in the city and sold out at the Bay bookshop in a week.` : C.memo.done.how === 'archive' ? `${cap(his2)} memoirs, ${C.memo.done.title}, are in the town archive, where Miss Achterberg will let you read them if you are quiet.` : `${cap(his2)} memoirs, ${C.memo.done.title}, are on the family’s shelves.`);
     if (C.old.adv) out.push(`At ${C.old.adv.age} ${m ? 'he' : 'she'} ${C.old.adv.said}, and talked of nothing else for a month.`);
     const D = C.dusk;
-    if (D && s.dead) out.push(D.way === 'grace' ? `${He2} met ${his2} last illness with grace, and a pot of tea, and saw everybody ${m ? 'he' : 'she'} wanted to see.` : D.way === 'fight' ? `${He2} fought ${his2} last illness to the end, and the nurses at St Wren’s say ${m ? 'he' : 'she'} was the best company on the ward.` : `${He2} kept ${his2} last illness to ${m ? 'himself' : 'herself'} for as long as ${m ? 'he' : 'she'} could.`);
+    // (And if something else came first, a fall, the sea, the Gazette says so.)
+    if (D && s.dead && s.dead.cause !== D.cause && !natural(L, s.dead.cause)) out.push(`${He2} ${D.way === 'fight' ? 'was fighting' : 'had'} a last illness, and in the end it was ${s.dead.cause}, not the illness, that took ${m ? 'him' : 'her'}.`);
+    else if (D && s.dead) out.push(D.way === 'grace' ? `${He2} met ${his2} last illness with grace, and a pot of tea, and saw everybody ${m ? 'he' : 'she'} wanted to see.` : D.way === 'fight' ? `${He2} fought ${his2} last illness to the end, and the nurses at St Wren’s say ${m ? 'he' : 'she'} was the best company on the ward.` : `${He2} kept ${his2} last illness to ${m ? 'himself' : 'herself'} for as long as ${m ? 'he' : 'she'} could.`);
     const est = C.out;
     if (est && est.heir != null) {
       const h = L.person(est.heir);
@@ -729,7 +802,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
 
   function startDusk(L, cause) {
     const s = L.s, C = s.chap;
-    const why = !cause || /^(poor health|ill health|exhaustion|overwork)$/.test(cause) ? 'old age' : cause;
+    const why = !cause || /^(poor health|ill health|exhaustion|overwork)$/.test(cause) ? 'old age' : DUSK_AS[cause] || cause;
     C.dusk = { at: s.t, cause: why, left: L.int(3, 6), way: null, treat: null, done: {} };
     if (C.old.mind && C.old.mind.on) C.old.mind.on = false;
     if (s.health < 14) s.health = Math.min(L.healthCap(), 14 + L.int(0, 8));
@@ -881,7 +954,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       if (!x || typeof x !== 'object') return 'Change what?';
       if (x.k === 'heir') { const p = L.person(x.v); return p && KIN_KIND(p) ? null : 'Only a child or a grandchild can carry on the family.'; }
       if (x.k === 'home' || x.k === 'biz') return ['heir', 'sell'].includes(x.v) ? null : 'Leave it how?';
-      if (x.k === 'split') return x.v === 'fair' || x.v === 'heir' || (x.v === 'spouse' && sp) ? null : 'Not like that.';
+      if (x.k === 'split') return x.v === 'fair' || x.v === 'heir' || (x.v === 'spouse' && sp && L.chapSpouseCan()) ? null : x.v === 'spouse' && sp ? `Left to ${first(sp)}, it would never reach whoever carries on.` : 'Not like that.';
       if (x.k === 'town') return x.v == null || (GIFTS[x.v] && !s.gifts[x.v]) ? null : 'The town has that already.';
       return 'Change what?';
     },
@@ -986,7 +1059,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
             O.hip = 'new'; O.mend = L.s.t + 1;
             L.note('Had a new hip.', 'big');
             if (win) { L.joy(6); L.hp(4); return 'Six weeks on crutches, and then one morning you take the stairs two at a time without thinking. You stop halfway up, astonished.'; }
-            L.hp(-5, 'a hip operation'); L.sicken('a slow recovery', 1); return 'It takes. It just takes a long time, and a physiotherapist called Bev who shows no mercy at all.';
+            L.hp(-5, 'a hip operation'); L.sicken('stiff hip', 1); return 'It takes. It just takes a long time, and a physiotherapist called Bev who shows no mercy at all.';
           },
         },
         { t: 'Go on the waiting list', run(L) { const O = L.s.chap.old; O.hip = 'wait'; O.hipAt = L.s.t + L.int(3, 6); L.joy(-2); return 'A letter with a number on it. The number is large. Until then, the hip has opinions about everything.'; } },
@@ -1056,9 +1129,10 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     },
     {
       id: 'chapMind', icon: '🧸', title: 'Could you have them?', w: 4, cd: 40,
-      when: (L) => L.s.age >= 55 && !L.s.gaol && !L.s.chap.dusk && !(L.s.chap.old.mind && L.s.chap.old.mind.on) && L.chapMindKids().some((g) => L.person(g.of)),
+      // (Not while wants.js has you minding one of them on Thursdays already: one arrangement at a time.)
+      when: (L) => L.s.age >= 55 && !L.s.gaol && !L.s.chap.dusk && !(L.s.chap.old.mind && L.s.chap.old.mind.on) && !(L.s.wants && L.s.wants.mind) && L.chapMindKids().some((g) => L.person(g.of)),
       ctx: (L) => { const g = L.chapMindKids().find((q) => L.person(q.of)); return g ? g.of : null; },
-      ok: (L, x) => !!L.person(x) && L.chapMindKids().length > 0,
+      ok: (L, x) => !!L.person(x) && L.chapMindKids().length > 0 && !(L.s.wants && L.s.wants.mind),
       text: (L, x) => { const k = L.person(x); return `${first(k)} rings. The childminder has given notice, and ${he(k)} wonders, very carefully, whether you might possibly have ${list(pick3(L))} on Tuesdays and Thursdays.`; },
       opts: [
         { t: 'Tuesdays and Thursdays it is', run(L, x) { const k = L.person(x); L.s.chap.old.mind = { on: true, light: false, t: L.s.t, kid: x }; L.bond(k, 8); for (const g of L.chapMindKids()) L.bond(g, 6); L.joy(4); return `${first(k)} cries a little on the phone. On Tuesday the house fills up with small shoes, raisins and questions.`; } },
@@ -1068,9 +1142,10 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     },
     {
       id: 'chapMindDay', icon: '🪣', title: 'A day with the little ones', w: 4, cd: 6,
-      when: (L) => !!L.s.chap.old.mind && L.s.chap.old.mind.on && L.chapMindKids().length > 0 && !L.s.gaol,
-      ctx: (L) => L.pick(L.chapMindKids()).id,
-      ok: (L, x) => !!L.person(x),
+      // (With one old enough to be taught something, and to ask about the moon.)
+      when: (L) => !!L.s.chap.old.mind && L.s.chap.old.mind.on && L.chapMindKids().some((g) => g.age >= TEACH_AGE) && !L.s.gaol,
+      ctx: (L) => L.pick(L.chapMindKids().filter((g) => g.age >= TEACH_AGE)).id,
+      ok: (L, x) => !!L.person(x) && L.person(x).age >= TEACH_AGE,
       text: (L, x) => { const g = L.person(x); return `It is your day with ${first(g)}, who is ${g.age} and has already asked eleven questions about the moon. What shall the two of you do?`; },
       opts: [
         { t: 'Rock pools at the cove, and a bucket', run(L, x) { return teach(L, x, 'fitness', 'Crabs, a blenny, and a starfish that you put back very gently. You come home wet to the knees and sandy everywhere else.'); } },
@@ -1145,8 +1220,8 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     // ---- the end ----
     {
       id: 'chapDusk', icon: '🩺', title: 'What the doctor said',
-      text: (L, x) => `Dr Shah at St Wren’s sits down, which is how you know. ${/heart/.test(x.cause) ? 'Your heart is tired, she says, and there is nothing left to mend in it.' : x.cause === 'old age' ? 'Nothing is wrong, exactly: everything is wearing out at once, the way it does.' : `It is the ${x.cause}, she says, and it is not going to get better now.`} She thinks you have a year, perhaps a little more. She says it very kindly, and then she says it again, because nobody hears it the first time.`,
-      inText: (L, x) => `The prison doctor sits down on the end of your bunk, which is how you know. ${/heart/.test(x.cause) ? 'It is your heart.' : x.cause === 'old age' ? 'Everything is wearing out at once.' : `It is the ${x.cause}.`} A year, perhaps. Mr Hobbs brings you a cup of tea afterwards and does not say anything, which is kind of him.`,
+      text: (L, x) => `Dr Shah at St Wren’s sits down, which is how you know. ${/heart/.test(x.cause) ? 'Your heart is tired, she says, and there is nothing left to mend in it.' : x.cause === 'old age' ? 'Nothing is wrong, exactly: everything is wearing out at once, the way it does.' : `It is ${illIs(x.cause)}, she says, and it is not going to get better now.`} She thinks you have a year, perhaps a little more. She says it very kindly, and then she says it again, because nobody hears it the first time.`,
+      inText: (L, x) => `The prison doctor sits down on the end of your bunk, which is how you know. ${/heart/.test(x.cause) ? 'It is your heart.' : x.cause === 'old age' ? 'Everything is wearing out at once.' : `It is ${illIs(x.cause)}.`} A year, perhaps. Mr Hobbs brings you a cup of tea afterwards and does not say anything, which is kind of him.`,
       opts: [
         { t: 'Meet it with grace', run(L) { dusk(L, 'grace'); L.joy(4); return 'You walk home the long way, along the front, and buy an ice cream, because why ever not.'; } },
         {
@@ -1255,7 +1330,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
   function teach(L, x, k, said) {
     const g = L.person(x), C = L.s.chap;
     L.bond(g, 5); L.joy(4); L.hp(1);
-    if (!g.taught) { g.taught = k; C.n.taught++; }
+    if (!g.taught && g.age >= TEACH_AGE) { g.taught = k; C.n.taught++; }
     return `${said} (${first(g)} is learning ${STAT_NAME[k]} from you.)`;
   }
   function adv(L, joy, said, text) {

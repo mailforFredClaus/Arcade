@@ -85,9 +85,13 @@ export default function (kit) {
   // ---- Years in the Bay ----
   function years() {
     const life = L(), s = life.s, an = s.annals, all = life.annalsYears();
-    const town = all.filter((y) => y.h).length, mayors = new Set(an.mayors).size;
+    // (The year in progress is not counted until it is over.)
+    const town = all.filter((y) => y.h && !y.now).length, mayors = new Set(an.mayors).size;
+    // How the life began (chapters.js): off the train, home again at eighteen, or here all along.
+    const how = life.chapHow ? life.chapHow() : 'train', her = s.sex === 'f' ? 'her' : 'his';
+    const began = how === 'home' ? `was born in Starling Bay, and has lived here all ${her} life` : how === 'back' ? 'was born in Starling Bay, left it as a child, and came home at eighteen with one suitcase' : 'came to Starling Bay at eighteen with one suitcase';
     let body = `<div class="paper an-album"><p class="mast">Years in the Bay</p><p class="dateline">From the files of the Starling Bay Gazette · ${all.length - 1} year${all.length === 2 ? '' : 's'} so far</p>
-      <p class="story">${esc(s.name)} came to Starling Bay at eighteen with one suitcase${an.from ? '' : ', and the town has been keeping count ever since'}. ${cap(list([mayors > 1 ? `${many(mayors, 'mayor', 'mayors')} in the Town Hall` : '', an.hooks.length ? `${many(an.hooks.length, 'tankard', 'tankards')} on the hooks at the Gull` : '', `${many(an.n.shops || 0, 'shop', 'shops')} come and gone on the High Street`].filter(Boolean)))}.</p>
+      <p class="story">${esc(s.name)} ${began}${an.from > 0 ? '' : ', and the town has been keeping count ever since'}. ${cap(list([mayors > 1 ? `${many(mayors, 'mayor', 'mayors')} in the Town Hall` : '', an.hooks.length ? `${many(an.hooks.length, 'tankard', 'tankards')} on the hooks at the Gull` : '', `${many(an.n.shops || 0, 'shop', 'shops')} come and gone on the High Street`].filter(Boolean)))}.</p>
       ${an.from > 0 ? `<p class="fine">The Gazette’s files go back to ${life.annalsWhen(an.from)}. Before that, your own journal remembers what it can.</p>` : ''}`;
     // By decade of your life, the latest open.
     const by = {};

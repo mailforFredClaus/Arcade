@@ -58,4 +58,23 @@ export default function ({ check, fresh, Life }) {
     const R = new Life(JSON.parse(JSON.stringify(O.s)));
     check(R.s.flutter && R.s.flutter.h === 0, 'a life saved before the flutter starts without a habit');
   }
+
+  // Chasing it with Sal's man's money: a win puts the season right, and Sal's limit is Sal's limit.
+  {
+    const rig = (X, yes, f) => { const was = X.chance; X.chance = () => yes; try { return f(); } finally { X.chance = was; } };
+    const L = fresh(); L.s.cash = 5000; L.s.bank = 20000; L.s.flutter.h = 70;
+    L.queue('flChase', 8000);
+    const w0 = L.netWorth(), X = new Life(JSON.parse(JSON.stringify(L.s)));
+    const r = rig(X, true, () => X.choose(0));
+    check(r.ok && X.netWorth() >= w0 + 8000 && X.s.shark === 9600 && X.s.cash >= X.s.shark, `a win wins it back, with enough to clear Sal’s man (${X.netWorth() - w0}, owing ${X.s.shark})`);
+    const Z = fresh(); Z.s.cash = 100; Z.s.flutter.h = 90;
+    for (let i = 0; i < 4; i++) { Z.s.pend = []; Z.queue('flChase', 25000); rig(Z, false, () => Z.choose(0)); }
+    Z.s.pend = []; Z.queue('flChase', 5000);
+    check(Z.s.shark <= 30000 && /limits/.test(Z.event().opts[0].why || ''), `and never past what Sal lets anybody owe him (${Z.s.shark})`);
+    const A = fresh(); A.s.cash = 100; A.s.flutter.h = 90;
+    A.s.heists.rival.end = 'sal'; A.s.heists.rival.back = A.s.t + 10;
+    A.queue('flChase', 5000);
+    check(!A.event().opts.some((o) => /Sal’s man/.test(o.t)), 'with Sal inside, there is no Sal’s man to borrow from');
+  }
+
 }

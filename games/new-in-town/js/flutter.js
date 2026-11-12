@@ -16,6 +16,9 @@ const BETS = ['slots', 'hiloStart', 'bjStart', 'raceBet', 'lotto'];
 // The pier's games, which a bar keeps you from (the lotto is sold at the newsagent's, and is not).
 const PIER = ['slots', 'hiloStart', 'bjStart', 'raceBet'];
 const HOOKED = 60;
+// What Sal's man will lend to chase a loss of x: the loss, up to $20,000, and never past what Sal
+// lets anybody owe him (vice.js), with his fifth on top.
+const chaseLoan = (L, x) => Math.max(0, Math.min(20000, Math.round(x / 100) * 100, Math.floor((L.sharkRoom ? L.sharkRoom() : 30000) / 1.2 / 100) * 100));
 
 export function install({ def, A, Life, clamp, hooks, addEvents }) {
   const F = (L) => L.s.flutter;
@@ -105,13 +108,15 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
       id: 'flChase', icon: '🎲', title: 'One more night', w: 0, ok: (L) => L.flHooked() && !L.s.gaol,
       text: (L, x) => `You are ${money(x)} down this season. One good night would put it right: you can feel it. It is just a matter of going back while your luck is due.`,
       opts: [
-        { t: 'Borrow from Sal’s man, and go back', show: (L) => !L.flBarred(), odds: () => 0.35,
+        // (Sal's man lends what you lost, up to what Sal will let anybody owe him, at a fifth on top.
+        // A win pays the stake back twice and a little over: enough to clear him, and the season with it.)
+        { t: 'Borrow from Sal’s man, and go back', show: (L) => !L.flBarred() && (!L.salHere || L.salHere()), why: (L, x) => (chaseLoan(L, x) < 100 ? 'Even Sal has limits.' : null), odds: () => 0.35,
           run(L, x, win) {
-            const n = Math.min(20000, Math.round(x / 100) * 100);
-            L.s.shark = (L.s.shark || 0) + Math.round(n * 1.2);
-            if (win) { L.cash(n); L.s.n.casino = (L.s.n.casino || 0) + n; L.joy(4); F(L).h = Math.min(100, F(L).h + 4); return `You win it back, and a bit over, and walk out at dawn feeling like a genius. Sal’s man will want ${money(Math.round(n * 1.2))} all the same.`; }
+            const n = chaseLoan(L, x), owe = Math.round(n * 1.2);
+            L.s.shark = (L.s.shark || 0) + owe;
+            if (win) { const got = Math.round(n * 2.2); L.cash(got); L.s.n.casino = (L.s.n.casino || 0) + got - n; L.joy(4); F(L).h = Math.min(100, F(L).h + 4); return `You win it back, and a bit over: ${money(got)}, and you walk out at dawn feeling like a genius. Sal’s man will want his ${money(owe)}, and once he has it the season is square.`; }
             L.s.n.casino = (L.s.n.casino || 0) - n; L.joy(-8); F(L).h = Math.min(100, F(L).h + 6);
-            return `It goes the way it was always going to go. Now you owe Sal’s man ${money(Math.round(n * 1.2))} as well.`;
+            return `It goes the way it was always going to go. Now you owe Sal’s man ${money(owe)} as well.`;
           } },
         { t: 'Take it out of your savings, and go back', show: (L) => !L.flBarred(), why: (L, x) => (L.s.bank < x ? 'There is not that much in the bank.' : null), odds: () => 0.4,
           run(L, x, win) {
