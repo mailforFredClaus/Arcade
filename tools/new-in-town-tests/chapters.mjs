@@ -1,6 +1,6 @@
 // The chapters of a life, old age, and what you leave behind (chapters.js).
 import { CROSS, DUTY, SETTLE, LATE_DREAMS, KEEPSAKES, dutyOn } from '../../games/new-in-town/js/chapters.js';
-import { DREAMS, TROPHIES, HOMES, GIFTS, QUESTS, CAREERS } from '../../games/new-in-town/js/data.js';
+import { DREAMS, TROPHIES, HOMES, GIFTS, QUESTS, CAREERS, RIBBONS } from '../../games/new-in-town/js/data.js';
 import { EVENTS } from '../../games/new-in-town/js/events.js';
 
 const EV = Object.fromEntries(EVENTS.map((e) => [e.id, e]));
@@ -315,6 +315,44 @@ export default function ({ check, fresh, Life, ACTIONS }) {
     // The offer of dreams for him leaves out what he already has, and what is beyond him.
     const off = Life.chapOffer(nx, () => 0.37);
     check(off.length === 6 && !off.includes('ownhome') && !off.includes('doctor') && !off.includes('family') && off.every((id) => DREAMS[id]), `dreams on offer fit an heir of fifty-two (${off.join(', ')})`);
+    // At a great age, with a child past sixty, a grown grandchild who is close carries on.
+    const Old = fresh(); Old.s.age = 94;
+    const sixty = kid(Old, { name: 'Viv', sex: 'f', age: 66, bond: 85, job: 'law' });
+    const gg = Old.grandchild(sixty); gg.age = 35; gg.bond = 50; Old.fillPerson(gg);
+    check(Old.chapHeir() === gg, 'with a child past sixty, a grown grandchild carries on');
+    sixty.age = 50;
+    check(Old.chapHeir() === sixty, 'otherwise the child does');
+    // An heir of fifty-eight may be a grandparent already.
+    let grands = 0;
+    for (let i = 0; i < 12; i++) {
+      const O = Life.create({ seed: 50 + i, name: 'Old', sex: 'f', gen: 2, sibs: [] });
+      O.chapBegin({ ...nx.carry, age: 58, kids: [{ name: 'Zed', sex: 'm', age: 34 }, { name: 'Amy', sex: 'f', age: 31 }], home: null }, []);
+      const gk = O.grandkids();
+      if (gk.length) grands++;
+      if (gk.some((g) => !O.person(g.of) || g.age < 0 || g.age > 8)) grands = -99;
+    }
+    check(grands >= 4 && grands < 12, `an heir with grown children is sometimes a grandparent already (${grands}/12)`);
+    // Every heirloom still comes along with a grown heir, and does what it did.
+    let kept = 0;
+    for (const r of RIBBONS) {
+      const X = Life.create({ seed: 30, name: nx.name, sex: nx.sex, gen: nx.gen, inherit: nx.inherit, parent: nx.parent, sibs: nx.sibs, gifts: nx.gifts, heir: r.id });
+      X.chapBegin(nx.carry, []);
+      const xs = X.s;
+      const ok = xs.heir === r.id && (r.id !== 'tycoon' || xs.cash >= 6000) && (r.id !== 'star' || xs.items.guitar) && (r.id !== 'artist' || xs.items.easel) && (r.id !== 'salt' || xs.items.rod)
+        && (r.id !== 'kingpin' || xs.n.crimes === 5) && (r.id !== 'benefactor' || xs.karma >= 25) && (r.id !== 'sensation' || (xs.items.phone && xs.chirp)) && (r.id !== 'young' || xs.health > h.health - 3);
+      if (ok) kept++; else console.log('heirloom', r.id);
+    }
+    check(kept === RIBBONS.length, `every heirloom still works for an heir who starts at home (${kept}/${RIBBONS.length})`);
+    // A business left to him is his to run.
+    const Bz = fresh(); Bz.s.age = 80; Bz.s.cash = 50000;
+    Bz.s.biz = { type: 'food', lvl: 2, rep: 70, mgr: true, age: 30, at: 0 };
+    kid(Bz, { name: 'Dee', sex: 'f', age: 45, bond: 70, job: 'kitchen' });
+    const bzWorth = Bz.bizWorth();
+    Bz.die('old age');
+    const bnx = Bz.chapNextLife(0);
+    const Dee = Life.create({ seed: 31, name: 'Dee', sex: 'f', gen: 2, inherit: bnx.inherit, parent: bnx.parent, sibs: bnx.sibs, gifts: bnx.gifts });
+    Dee.chapBegin(bnx.carry, []);
+    check(bnx.carry.biz && Dee.s.biz && Dee.s.biz.lvl === 2 && Dee.s.biz.type === 'food' && Bz.s.chap.out.money === Bz.netWorth() - bzWorth, 'a business handed on is hers to run, and paid no duty');
     // A grandchild, named in the will instead.
     const G = fresh({ sex: 'f' });
     G.s.age = 88; G.s.cash = 100000;

@@ -243,8 +243,11 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       if (named && KIN_KIND(named)) return named;
       const c = this.chapCands();
       if (!c.length) return null;
-      const kids = c.filter((p) => p.kind === 'child');
-      return (kids.length ? kids : c).slice().sort((a, b) => heirScore(b) - heirScore(a) || a.id - b.id)[0];
+      const best = (l) => l.slice().sort((a, b) => heirScore(b) - heirScore(a) || a.id - b.id)[0];
+      const kid = best(c.filter((p) => p.kind === 'child'));
+      // (A child of sixty or more would have little life left to play: a grown grandchild who is close carries on instead.)
+      const gk = kid && kid.age >= 60 ? best(c.filter((p) => p.kind === 'grandchild' && p.age >= 18 && p.bond >= 30)) : null;
+      return gk || kid || best(c);
     },
     chapSpouse() { return this.s.people.find((p) => p.kind === 'spouse') || null; },
     // What the will would do if it were read today.
@@ -376,6 +379,11 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
         const p = this.makePerson({ name: k.name, sex: k.sex, kind: 'child', bond: 58, age: k.age, look: k.look, single: k.age >= 18 && this.chance(0.5), ...(k.age >= 18 && k.job ? { job: k.job } : {}), ...(k.trait ? { trait: k.trait } : {}) });
         if (k.age >= 18) p.st = p.st || Object.fromEntries(STATS.map((q) => [q, 30]));
         s.people.push(p);
+        // (Grown children of their own may have made them a grandparent already.)
+        if (k.age >= 27) {
+          p.gk = this.int(0, Math.min(2, Math.floor((k.age - 23) / 4)));
+          for (let i = 0; i < p.gk; i++) { const g = this.grandchild(p); g.age = this.int(0, k.age - 26); g.bond = 45; if (g.age >= 18) { g.single = true; this.fillPerson(g); } }
+        }
       }
       // Two old friends from school, still about.
       for (let i = 0; i < 2; i++) s.people.push(this.makePerson({ kind: 'friend', bond: 40 + this.int(0, 12), age: clampN(age + this.int(-3, 3), 18, 95) }));
@@ -610,7 +618,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     // The waiting list comes good, in the end.
     if (O.hip === 'wait' && O.hipAt != null && s.t >= O.hipAt) { O.hipAt = null; L.queue('chapHipDone'); }
     // A stick on a frosty step.
-    if (O.hip === 'stick' && s.age >= 74 && L.season === 3 && L.chance(0.15)) L.queue('fall');
+    if (O.hip === 'stick' && s.age >= 74 && L.season === 3 && L.chance(0.08)) L.queue('fall');
   });
 
   hooks.late.push((L, jailed) => {
@@ -638,7 +646,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       if (D.left <= -3) L.die(D.cause);
     }
     // Later life has things of its own to bring.
-    if (s.age >= 65 && !jailed && !D && !s.dead && !s.pend.length && L.chance(0.25)) laterCard(L);
+    if (s.age >= 65 && !jailed && !D && !s.dead && !s.pend.length && L.chance(0.2)) laterCard(L);
   });
 
   hooks.time.push((L) => {
@@ -733,7 +741,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     else if (firstOne) out.push(`${Y} of your life in the Bay, at the last count.`);
     else out.push(`${Y} since you last took stock, at ${AGE_WORD[C.past[C.past.length - 1].a] || C.past[C.past.length - 1].age}.`);
     // Work.
-    const j = s.job, now = j ? CAREERS[j.c].rungs[j.r].title : null, where = j ? (CAREERS[j.c].shady ? ' in Sal’s crew' : ` at ${PLACES[CAREERS[j.c].place].name}`) : '';
+    const j = s.job, now = j ? CAREERS[j.c].rungs[j.r].title : null, where = j ? (CAREERS[j.c].shady ? ' in Sal’s crew' : ` at ${PLACES[CAREERS[j.c].place].name.replace(/^The /, 'the ')}`) : '';
     if (j && sn.job && sn.job.c === j.c && j.r > sn.job.r) out.push(`You went from ${lowJob(sn.job.title)} to ${lowJob(now)}${where}.`);
     else if (j && sn.job && sn.job.c === j.c) out.push(`You are ${an(lowJob(now))}${where} still, ${Math.max(0, s.n.shifts - sn.shifts)} shifts on.`);
     else if (j && sn.job) out.push(`You left ${lowJob(sn.job.title)} behind, and you are ${an(lowJob(now))} now.`);
@@ -972,7 +980,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
             O.hip = 'new'; O.mend = L.s.t + 1;
             L.note('Had a new hip.', 'big');
             if (win) { L.joy(6); L.hp(4); return 'Six weeks on crutches, and then one morning you take the stairs two at a time without thinking. You stop halfway up, astonished.'; }
-            L.hp(-8, 'a hip operation'); L.sicken('a slow recovery', 1); return 'It takes. It just takes a long time, and a physiotherapist called Bev who shows no mercy at all.';
+            L.hp(-5, 'a hip operation'); L.sicken('a slow recovery', 1); return 'It takes. It just takes a long time, and a physiotherapist called Bev who shows no mercy at all.';
           },
         },
         { t: 'Go on the waiting list', run(L) { const O = L.s.chap.old; O.hip = 'wait'; O.hipAt = L.s.t + L.int(3, 6); L.joy(-2); return 'A letter with a number on it. The number is large. Until then, the hip has opinions about everything.'; } },
@@ -993,15 +1001,15 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       text: 'After the tests, the cardiologist at St Wren’s draws you a heart on the back of an envelope, then a valve, then a cross through the valve. “It is tired,” she says. “A new one would give you years. The operation is not a small one.”',
       opts: [
         {
-          t: 'Have the operation', cost: (L) => L.medCost(9000), odds: (L) => op(L, 0.48),
+          t: 'Have the operation', cost: (L) => L.medCost(9000), odds: (L) => op(L, 0.52),
           run(L, x, win) {
             const O = L.s.chap.old;
             if (win) { O.heart = 'mended'; O.mend = L.s.t + 1; if (L.s.ill && /heart/.test(L.s.ill.name)) L.s.ill = null; L.hp(14); L.joy(8); L.note('Had a new heart valve, and years with it.', 'big'); return 'You wake up with a zip down your chest and a heart that ticks like a good clock. The cardiologist shakes your hand as though you had done the work.'; }
-            O.heart = 'pills'; L.hp(-22, 'heart trouble'); L.joy(-6); return 'It does not go as it should. They bring you home on tablets, and you understand without being told that the valve has had its say.';
+            O.heart = 'pills'; L.hp(-12, 'heart trouble'); L.joy(-6); return 'It does not go as it should. They bring you home on tablets, and you understand without being told that the valve has had its say.';
           },
         },
         { t: 'Tablets, and a quieter life', run(L) { L.s.chap.old.heart = 'pills'; L.joy(-1); return 'A tablet in the morning, another at night, and no more running for buses. You were never much good at catching them anyway.'; } },
-        { t: ic('churchgoer', 'Ask the Reverend Hollis to pray for the surgeon’s hands, and have it done'), show: tr('churchgoer'), cost: (L) => L.medCost(9000), odds: (L) => op(L, 0.56), run(L, x, win) { const O = L.s.chap.old; if (win) { O.heart = 'mended'; O.mend = L.s.t + 1; L.hp(14); L.joy(9); L.note('Had a new heart valve, and years with it.', 'big'); return 'The Reverend Hollis is in the waiting room the whole six hours, knitting something that turns out to be for you.'; } O.heart = 'pills'; L.hp(-22, 'heart trouble'); return 'It does not go as it should. The Reverend Hollis drives you home very slowly, and stays for supper.'; } },
+        { t: ic('churchgoer', 'Ask the Reverend Hollis to pray for the surgeon’s hands, and have it done'), show: tr('churchgoer'), cost: (L) => L.medCost(9000), odds: (L) => op(L, 0.56), run(L, x, win) { const O = L.s.chap.old; if (win) { O.heart = 'mended'; O.mend = L.s.t + 1; L.hp(14); L.joy(9); L.note('Had a new heart valve, and years with it.', 'big'); return 'The Reverend Hollis is in the waiting room the whole six hours, knitting something that turns out to be for you.'; } O.heart = 'pills'; L.hp(-12, 'heart trouble'); return 'It does not go as it should. The Reverend Hollis drives you home very slowly, and stays for supper.'; } },
       ],
     },
 
@@ -1088,11 +1096,11 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       when: (L) => L.s.age >= 68 && L.s.age <= 88 && L.s.health >= 35 && !L.s.gaol && !L.s.chap.dusk && L.s.cash + L.s.bank >= 1000,
       text: 'You wake up one morning with a feeling you have not had for years. There is one more thing you always meant to do, and if not now, when?',
       opts: [
-        { t: 'Sail round to the islands, on your own', show: (L) => !!L.s.items.boat, odds: (L) => clamp(0.55 + L.s.st.fitness / 300 + L.s.st.craft / 400, 0.3, 0.92), run(L, x, win) { if (win) return adv(L, 16, 'sailed alone to the islands and back', 'Three days of wind and sea and nobody, and puffins, and the lighthouse winking you home. You come in on the evening tide and the harbour is lined with people.'); L.hp(-6, 'a cold night at sea'); L.joy(4); return 'The wind drops, then turns. Captain Quinn and the lifeboat bring you home, and she says nothing at all, which is worse than anything.'; } },
+        { t: 'Sail round to the islands, on your own', show: (L) => !!L.s.items.boat, odds: (L) => clamp(0.55 + L.s.st.fitness / 300 + L.s.st.craft / 400, 0.3, 0.92), run(L, x, win) { if (win) return adv(L, 16, 'sailed alone to the islands and back', 'Three days of wind and sea and nobody, and puffins, and the lighthouse winking you home. You come in on the evening tide and the harbour is lined with people.'); L.hp(-4, 'a cold night at sea'); L.joy(4); return 'The wind drops, then turns. Captain Quinn and the lifeboat bring you home, and she says nothing at all, which is worse than anything.'; } },
         { t: 'See the Northern Lights', cost: 6000, run(L) { L.hp(-2); return adv(L, 14, 'went north to see the Northern Lights', 'A week of cold, and a night when the whole sky moves, green and silent. You stand in the snow until your feet go, and do not care.'); } },
         { t: 'Go up in a balloon at the Regatta', cost: 900, run(L) { return adv(L, 12, 'went up in a hot-air balloon over the Regatta', 'Up and up, and the whole Bay laid out below like a map of your life. You can see the Gull, the church, your own roof. You wave. Somebody waves back.'); } },
-        { t: 'Swim across the bay for the lifeboat', check: ['fitness', 40], run(L, x, win) { if (win) { L.karma(3); L.fame(1); return adv(L, 14, 'swam across the bay for the lifeboat', 'Two hours, a jellyfish, and the whole town on the far beach with towels. You raise $3,000 for the lifeboat and a cheer you will remember for ever.'); } L.hp(-8, 'a cold swim'); L.joy(4); return 'You swim half of it, and are towed the rest by a very kind man in a canoe. They still give you a medal.'; } },
-        { t: ic('daredevil', 'Jump out of an aeroplane'), show: tr('daredevil'), cost: 1200, odds: () => 0.9, run(L, x, win) { if (win) { L.fame(1); return adv(L, 18, 'jumped out of an aeroplane', 'The door opens, and the sky comes in, and you go. For a whole minute you are a bird. The Gazette puts you on the front page.'); } L.hp(-10, 'a hard landing'); return 'The landing is not what they promised. The view was, though.'; } },
+        { t: 'Swim across the bay for the lifeboat', check: ['fitness', 32], run(L, x, win) { if (win) { L.karma(3); L.fame(1); return adv(L, 14, 'swam across the bay for the lifeboat', 'Two hours, a jellyfish, and the whole town on the far beach with towels. You raise $3,000 for the lifeboat and a cheer you will remember for ever.'); } L.hp(-5, 'a cold swim'); L.joy(4); return 'You swim half of it, and are towed the rest by a very kind man in a canoe. They still give you a medal.'; } },
+        { t: ic('daredevil', 'Jump out of an aeroplane'), show: tr('daredevil'), cost: 1200, odds: () => 0.9, run(L, x, win) { if (win) { L.fame(1); return adv(L, 18, 'jumped out of an aeroplane', 'The door opens, and the sky comes in, and you go. For a whole minute you are a bird. The Gazette puts you on the front page.'); } L.hp(-6, 'a hard landing'); return 'The landing is not what they promised. The view was, though.'; } },
         { t: 'Perhaps next year', run() { return 'You make a list. The list goes in a drawer. The drawer is full of lists.'; } },
       ],
     },

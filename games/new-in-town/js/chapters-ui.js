@@ -23,7 +23,8 @@ export default function (kit) {
   // "the cottage, your guitar and $84,000"
   function leaves(life, est) {
     const out = life.chapLeaves(est, est.heir);
-    return out.length ? kit.esc(out.length < 2 ? out.join('') : `${out.slice(0, -1).join(', ')} and ${out[out.length - 1]}`) : 'nothing much but a good name';
+    // (Anything with an "and" of its own is closed off with a comma before the last "and".)
+    return out.length ? kit.esc(out.length < 2 ? out.join('') : `${out.slice(0, -1).join(', ')}${out.slice(0, -1).some((t) => t.includes(' and ')) ? ',' : ''} and ${out[out.length - 1]}`) : 'nothing much but a good name';
   }
   const choice = (label, id, x, on, why) => pick(`${on ? '✓ ' : ''}${label}`, id, x, why, on ? 'on' : 'quiet');
 
@@ -55,12 +56,12 @@ export default function (kit) {
   function later(life) {
     const s = life.s, C = s.chap, O = C.old, D = C.dusk, rows = [];
     if (s.age < 60 && !D) return '';
-    if (D) rows.push(['🕯️', 'Your last chapter', `${life.chapDuskWord()}.${D.way === 'grace' ? ' You are meeting it with grace.' : D.way === 'fight' ? ' You are fighting it.' : D.way === 'quiet' ? ' You have told nobody.' : ''}`]);
+    if (D) rows.push(['🕯️', 'Your last chapter', `${life.chapDuskWord().replace(/^./, (c) => c.toUpperCase())}.${D.way === 'grace' ? ' You are meeting it with grace.' : D.way === 'fight' ? ' You are fighting it.' : D.way === 'quiet' ? ' You have told nobody.' : ''}`]);
     if (s.age >= 75) rows.push(['🦯', 'Slower than you were', `One block of time less each season${s.age >= 85 ? ', two now you are past eighty-five' : ' (two at eighty-five)'}.`]);
     if (O.hip) rows.push(['🦴', 'Your hip', { new: 'A new one, and it works.', wait: 'On the waiting list. It costs you a block of time a season, and some cheer.', stick: 'Managing with a stick. Mind the frost.' }[O.hip]]);
     if (O.heart) rows.push(['🫀', 'Your heart', O.heart === 'mended' ? 'A new valve, ticking like a good clock.' : 'Tablets, and a quieter life.']);
     if (O.mend != null && O.mend >= s.t) rows.push(['🩹', 'Getting over an operation', 'A block of time less this season.']);
-    if (C.memo.done) rows.push(['📜', 'Your memoirs', `${C.memo.done.title}, finished at ${C.memo.done.age}.`]);
+    if (C.memo.done) rows.push(['📜', 'Your memoirs', `${esc(C.memo.done.title)}, finished at ${C.memo.done.age}.`]);
     else if (C.memo.p) rows.push(['📜', 'Your memoirs', `${C.memo.p} of ${MEMO} sittings written, at home.`]);
     else if (s.age >= 60) rows.push(['📜', 'Your memoirs', 'Not begun. They are written at home, a sitting a season.']);
     if (O.mind && O.mind.on) rows.push(['🧸', 'Minding the grandchildren', O.mind.light ? 'Fridays, and some of the holidays.' : 'Tuesdays and Thursdays: a block of time a season, and worth every minute.']);
