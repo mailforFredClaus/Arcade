@@ -29,7 +29,8 @@ export function cashShort(n) {
 }
 
 // The right one of a and an in front of a word, and a job title said mid-sentence (an IT helpdesk).
-export const an = (w) => `${/^[aeiou]/i.test(w) ? 'an' : 'a'} ${w}`;
+// (Numbers too: an 8-year-old, an 11-year-old, an 18-year-old.)
+export const an = (w) => `${/^([aeiou]|8|1[18](?!\d))/i.test(w) ? 'an' : 'a'} ${w}`;
 export const lowJob = (t) => t.toLowerCase().replace(/\bit\b/g, 'IT');
 
 // A crowd, counted: 950, 12.4k, 1.2M.

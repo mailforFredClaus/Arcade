@@ -282,9 +282,11 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
     place: 'garage', sec: 'Learning to drive', icon: '📝', title: 'Sit the theory test', cost: 40, per: 1,
     desc: 'Ten questions on the rules of the road, in the room above the garage. Eight right is a pass.',
     show: (L) => L.s.motor.lic == null && !L.s.motor.th,
-    why: (L, x) => (x === undefined || (typeof x === 'number' && x >= 0 && x <= 1) ? null : 'Pencils down.'),
+    why: (L, x) => (x === undefined || x === -1 || (typeof x === 'number' && x >= 0 && x <= 1) ? null : 'Pencils down.'),
     run(L, x) {
       const s = L.s, m = s.motor;
+      // (-1: walked out before the end.)
+      if (x === -1) { L.joy(-2); return 'You put your pencil down, push your chair back and walk out, with three questions you could not face still on the paper. Jess says you can book again next season.'; }
       if (x === undefined) x = L.chance(L.checkOdds('smarts', 22)) ? 0.65 + L.rnd() * 0.35 : L.rnd() * 0.6;
       const right = x >= 0.65 ? 8 + Math.round((x - 0.65) / 0.175) : Math.min(7, Math.floor(x / 0.6 * 8));
       L.gain('smarts', 0.8);
@@ -298,9 +300,10 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
     place: 'garage', sec: 'Learning to drive', icon: '🚗', title: 'Take your driving test', cost: 120, per: 1,
     desc: (L) => (L.motorReady() ? 'Twenty minutes round town with an examiner and a clipboard. Jess thinks you are ready.' : 'Twenty minutes round town with an examiner and a clipboard. Jess would like a few more lessons first.'),
     show: (L) => L.s.motor.lic == null,
-    why: (L, x) => (!L.s.motor.th ? 'Pass the theory test first.' : L.s.motor.les < 2 ? 'Jess will not put you in for it without a lesson or two.' : x === undefined || (typeof x === 'number' && x >= 0 && x <= 1) ? null : 'Mirror, signal.'),
+    why: (L, x) => (!L.s.motor.th ? 'Pass the theory test first.' : L.s.motor.les < 2 ? 'Jess will not put you in for it without a lesson or two.' : x === undefined || x === -1 || (typeof x === 'number' && x >= 0 && x <= 1) ? null : 'Mirror, signal.'),
     run(L, x) {
       const s = L.s, m = s.motor;
+      if (x === -1) { m.tries++; L.joy(-3); return 'You pull over, turn the engine off and tell the examiner you would like to stop. She writes something down, not unkindly, and walks back to the test centre. You can book again next season.'; }
       if (x === undefined) x = L.chance(clamp(0.1 + m.drv / 110 + L.luck(), 0.1, 0.92)) ? 0.65 + L.rnd() * 0.35 : L.rnd() * 0.62;
       m.tries++;
       m.drv = clamp(m.drv + 2, 0, 100);
@@ -606,7 +609,8 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
   hooks.bills.push((L, out, jailed) => {
     const m = L.s.motor, c = m.car;
     if (c && c.age >= 3 && L.season === c.mot && !jailed) out.push([`MOT test for the ${MODELS[c.m].name}`, MOT_FEE]);
-    if (c && !L.motorUsable()) out.push([`Tax and insurance on the ${MODELS[c.m].name}, off the road`, 90]);
+    // (A car left at home while you are inside costs only its tax and insurance.)
+    if (c && (!L.motorUsable() || jailed)) out.push([`Tax and insurance on the ${MODELS[c.m].name}, off the road`, 90]);
     if (m.proj) out.push([`Len’s back bay, for the ${CLASSICS[m.proj.m].name}`, 120]);
   });
   hooks.season.push((L, lines, jailed) => {
@@ -801,7 +805,7 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
     {
       id: 'motorTip', icon: '☎️', title: 'Jess rings', w: 2, cd: 12, when: (L) => L.motorJessAll() >= 55 && L.s.motor.lic != null && !L.motorBanned(),
       ctx: (L) => { const c = L.motorUsedCar('bargain'); c.price = r50(carValue(c) * 0.8); c.held = true; return c; },
-      text: (L, c) => `"A part-exchange came in this morning," says Jess. "${an(`${c.age}-year-old ${c.col} ${carName(c)}`)}, one owner, a retired vet. I’m keeping it back for you, if you want it." She means ${money(c.price)}, which is less than it is worth.`,
+      text: (L, c) => `"A part-exchange came in this morning," says Jess. "${an(`${c.age}-year-old ${c.col} ${carName(c)}`).replace(/^a/, 'A')}, one owner, a retired vet. I’m keeping it back for you, if you want it." She means ${money(c.price)}, which is less than it is worth.`,
       opts: [
         { t: 'Ask her to put it on the forecourt for you', run(L, c) { const y = L.motorYard(); if (!y.cars.some((q) => q.id === c.id)) y.cars.unshift({ ...c }); L.motorJess(1); return 'It is at the front of the forecourt with a SOLD sign on it that is not quite true. It will be there this season.'; } },
         { t: 'Thank her, but no', run(L) { L.motorJess(0.5); return '"Your loss," says Jess, cheerfully.'; } },

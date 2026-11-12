@@ -51,7 +51,7 @@ export default function (kit) {
       const k = MODELS[c.m];
       body += `<div class="item mine"><div class="item-top"><span class="act-ico">${k.icon}</span><div><b>${MODELS[c.m].make} ${k.name}</b><small>${carLine(c)}, ${an(k.body)}. ${relWord(k.rel)}.${k.sport ? ' Heads turn.' : ''}</small></div></div>
         ${condBar(c.cond)}
-        <div class="facts"><span>${c.off ? `⛔ ${offWord[c.off]}` : life.motorBanned() ? '⛔ You are banned' : '✅ On the road'}</span><span>Worth ${cashShort(carValue(c))}; Jess would give ${cashShort(life.motorTrade())}</span><span>${motWhen(life, c)}</span><span>Running it: ${money(k.sport ? 1200 : 300)} a season</span></div>
+        <div class="facts"><span>${c.off ? `⛔ ${offWord[c.off]}` : life.motorBanned() ? '⛔ You are banned' : m.lic == null ? '⛔ No licence yet' : '✅ On the road'}</span><span>Worth ${cashShort(carValue(c))}; Jess would give ${cashShort(life.motorTrade())}</span><span>${motWhen(life, c)}</span><span>${life.motorUsable() ? `Running it: ${money(k.sport ? 1200 : 300)} a season` : `Off the road: ${money(90)} a season for tax and insurance`}</span></div>
         <p class="fine">A car goes down a little every season, and faster as it ages; a car its age can be brought back to ${Math.round(life.motorCap())}. The lower it gets, the likelier it lets you down, and the likelier it fails its MOT.</p>
         <div class="picks">${c.off ? `${c.fix ? pick(`Have Jess fix it${cost(c.fix)}`, 'motorFix', undefined, can(life, 'motorFix')) : '<span class="note">The insurers are mending it: back next season</span>'}${c.fix ? pick(`Fix it yourself${cost(Math.round(c.fix * 0.035) * 10)}${T(2)}`, 'motorDiy', undefined, can(life, 'motorDiy'), 'quiet') : ''}` : pick(`Have it serviced${cost(life.motorServiceCost())}${T(1)}`, 'motorService', undefined, can(life, 'motorService'))}${pick(`Sell it to Jess · ${cashShort(life.motorTrade())}`, 'motorSell', undefined, can(life, 'motorSell'), 'quiet')}</div></div>`;
     } else body += `<p class="sub motor-pad">${m.lic == null ? 'No car yet. You will need a licence before Jess lets you drive one off the forecourt.' : 'No car yet. The forecourt has a few, and Jess can order a new one.'}</p>`;
@@ -118,7 +118,8 @@ export default function (kit) {
     const o = id === 'motorTheory'
       ? { id: game, title: 'The theory test', icon: '📝', level: 0, ease: life.s.st.smarts / 100, skill: 'Smarts' }
       : { id: game, title: 'Your driving test', icon: '🚗', level: 0, ease: life.s.motor.drv / 100, skill: 'practice' };
-    playMini(o, (score) => { if (score != null && kit.life) doAct(id, score); });
+    // (A test walked out of is reported as such: -1.)
+    playMini(o, (score, gaveUp) => { if (score != null && kit.life) doAct(id, gaveUp ? -1 : score); });
   };
 
   return {

@@ -1024,8 +1024,8 @@ export class Life {
     if (priv) out.push(['School fees', 2500 * priv]);
     if (s.pet) out.push([`${s.pet.name}'s food and vet`, 200]);
     if (s.plot) out.push(['Allotment rent', PLOT_RENT]);
-    if (s.items.sportscar) out.push(['Running the sports car', 1200]);
-    else if (s.items.car) out.push(['Running the car', 300]);
+    if (s.items.sportscar && !jailed) out.push(['Running the sports car', 1200]);
+    else if (s.items.car && !jailed) out.push(['Running the car', 300]);
     for (const id of Object.keys(INSURANCE)) if (s.ins[id]) out.push([INSURANCE[id].name, INSURANCE[id].cost]);
     for (const f of HOOKS.bills) f(this, out, jailed);
     if (s.debt > 0) out.push(['Loan interest', Math.round(s.debt * LOAN_RATE)]);

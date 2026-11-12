@@ -288,7 +288,8 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
       if (out.length >= 3) rep += 1;
       for (const g of out) {
         const lvl = this.mktLevel(g), q = this.mktQ(g);
-        const n = Math.min(this.mktHave(g), Math.round(this.mktWant(g, lvl) * (0.8 + this.rnd() * 0.4)));
+        // (How well the queue was served decides how many go home with something, as well as for how much.)
+        const n = Math.min(this.mktHave(g), Math.round(this.mktWant(g, lvl) * (0.6 + 0.6 * score) * (0.85 + this.rnd() * 0.3)));
         if (lvl === 0) rep += 0.4;
         if (lvl === 2 && q < 0.45) rep -= 1.5;
         if (n <= 0) continue;
@@ -843,7 +844,7 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
       ok: (L, g) => L.mktHave(g) >= 1,
       text: (L, g) => `A man in a very long scarf, whom you last saw on television shouting at a soufflé, is tasting your ${GOODS[g].name.toLowerCase()} with his eyes shut. A small crowd has gathered to see what he will say.`,
       opts: [
-        { t: 'Sell him every jar you have', run(L, g) { const n = L.mktHave(g), sum = Math.round(n * L.mktEach(g, 2) * 1.5); take(L, g, n); L.cash(sum); L.s.n.earned += sum; m_(L).n.take += sum; L.fame(2); m_(L).stall.rep = clamp(m_(L).stall.rep + 8, 0, 100); L.note(`A chef off the television bought all your ${GOODS[g].name.toLowerCase()}.`); return `He buys the lot, for ${money(sum)}, and on Tuesday he holds a jar up to the camera and says your stall’s name. People come up the hill for weeks.`; } },
+        { t: 'Sell him all you have', run(L, g) { const n = L.mktHave(g), sum = Math.round(n * L.mktEach(g, 2) * 1.5); take(L, g, n); L.cash(sum); L.s.n.earned += sum; m_(L).n.take += sum; L.fame(2); m_(L).stall.rep = clamp(m_(L).stall.rep + 8, 0, 100); L.note(`A chef off the television bought all your ${GOODS[g].name.toLowerCase()}.`); return `He buys the lot, for ${money(sum)}, and on Tuesday he holds a jar up to the camera and says your stall’s name. People come up the hill for weeks.`; } },
         { t: 'Give him one, and ask for a mention', run(L, g) { take(L, g, 1); L.fame(3); L.karma(1); m_(L).stall.rep = clamp(m_(L).stall.rep + 12, 0, 100); L.note('A chef off the television mentioned your stall.'); return '“Generous,” he says, which is not a word he uses on television. On Tuesday he says your stall’s name twice, the second time correctly.'; } },
       ],
     },
