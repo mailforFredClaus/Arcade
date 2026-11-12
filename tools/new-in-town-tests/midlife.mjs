@@ -218,16 +218,14 @@ export default function ({ check, fresh, Life }) {
 
   // ---- a choice with hardly any chance says so ----
   {
-    const L = fresh(); L.s.st.charm = 1;
-    L.queue('midNest', { p: -1, n: 1 }); L.s.pend = [];
-    L.s.age = 50; L.s.mid.seat = { since: 0, until: 99, miss: 0, att: 0, ward: 0, votes: [], terms: 0 };
-    L.s.t = 10; L.queue('midTerm');
-    const ev = L.event();
-    const o = ev && ev.opts.find((q) => q.chance != null);
-    L.s.st.charm = 100; L.s.karma = 100; L.s.fame = 100;
-    const hi = L.event().opts.find((q) => q.chance != null);
-    check(L.hopeWord(0.05) === ' (hardly any chance)' && L.hopeWord(0.15) === ' (a long shot)' && L.hopeWord(0.5) === '' && L.hopeWord(null) === '', 'odds in words when they are poor');
-    check(o && hi && (o.chance > 0.2 || /chance|long shot/.test(o.t)) && !/chance|long shot/.test(hi.t), 'a near-hopeless choice says so on the card; a good one does not');
+    check(fresh().hopeWord(0.05) === ' (hardly any chance)' && fresh().hopeWord(0.15) === ' (a long shot)' && fresh().hopeWord(0.5) === '' && fresh().hopeWord(null) === '', 'odds in words when they are poor');
+    const L = fresh();
+    L.s.mid.plan = { id: 'band', n: 4, at: 0 };
+    L.s.st.craft = 0; L.queue('midGig');
+    const low = L.event().opts;
+    L.s.st.craft = 100;
+    const high = L.event().opts;
+    check(low.every((o) => o.chance <= 0.1 && /\(hardly any chance\)$/.test(o.t)) && high.every((o) => o.chance >= 0.9 && !/chance|long shot/.test(o.t)), 'a near-hopeless choice says so on the card; a good one does not');
   }
 
   // ---- random lives: nothing in it falls over ----

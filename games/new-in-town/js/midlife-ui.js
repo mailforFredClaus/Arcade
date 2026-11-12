@@ -45,7 +45,7 @@ export default function (kit) {
     if (m.trust) {
       const t = m.trust, k = CAUSES[t.cause];
       body += `<div class="item mine"><div class="item-top"><span class="act-ico">${k.icon}</span><div><b>${esc(t.name)}</b><small>For ${esc(k.name)}, ${t.n ? `for ${t.n} year${t.n === 1 ? '' : 's'}` : 'from the spring'}. ${money(t.fund)} left in the fund, of ${money(t.start)}.</small></div></div>
-        ${bar('🪙', 'The fund', t.fund, Math.max(t.fund, t.start), money(t.fund))}
+        ${bar('🪙', 'Fund', t.fund, Math.max(t.fund, t.start), kit.cashShort(t.fund))}
         <p class="fine">Each year it spends a little of its fund on what it is for. Chair the trustees now and then: a trust nobody watches is a temptation to its treasurer.</p></div>${actRow(life.look('midChair'))}${actRow(life.look('midTopUp'))}`;
     } else {
       const cost = life.midTrustCost();
@@ -61,7 +61,7 @@ export default function (kit) {
       if (!m || (s.age < 38 && !busyWith(life)) || (s.age >= 70 && !busyWith(life))) return '';
       const rut = life.midRut();
       let out = `<div class="box mid-me"><h3>The middle years</h3>`;
-      if (s.age >= 40 && s.age < 66) out += bar('🔁', 'The same again', rut, 8, life.midRutWord()) + `<p class="fine">${rut >= 3 ? 'A year with nothing new in it wears at you, a little more each year. Something new helps, big enough to go in the journal.' : 'A year with nothing new in it wears at you. So far, life keeps changing.'}</p>`;
+      if (s.age >= 40 && s.age < 66) out += `<div class="line"><span>🔁 The same week again</span><b>${esc(life.midRutWord())}</b></div><span class="bar mid-bar"><span style="width:${Math.round((rut / 8) * 100)}%"></span></span><p class="fine">${rut >= 3 ? 'A year with nothing new in it wears at you, a little more each year. Something new helps, big enough to go in the journal.' : 'A year with nothing new in it wears at you. So far, life keeps changing.'}</p>`;
       // Who is close, and who is drifting for want of your time.
       const close = life.midClose(), drift = s.people.filter((p) => life.midDrifting(p)).sort((a, b) => b.bond - a.bond).slice(0, 6);
       out += `<div class="line"><span>🫂 People who really know you</span><b>${close.length}</b></div>`;
@@ -84,6 +84,7 @@ export default function (kit) {
 .mid-me { min-width: 0; }
 .mid-who { font: inherit; font-weight: 800; color: var(--teal-d); background: none; border: 0; padding: 0; min-height: 32px; text-decoration: underline; text-underline-offset: 3px; }
 .mid-last { margin: 6px 0 0; }
+.mid-bar { display: block; margin: 2px 0 4px; }
 `,
   };
 }

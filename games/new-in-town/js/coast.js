@@ -204,7 +204,7 @@ export const CARGO = [
 // Where a clue may come from, and in what order the clue board lists them.
 // hint: what the board says while it is still to be followed.
 export const LEADS = {
-  marlow: { icon: '🍺', name: 'Old Marlow’s story', hint: 'Old Marlow knows more than he says. He tells the old stories in winter, by the fire at the Gull & Anchor.' },
+  marlow: { icon: '🍺', name: 'Old Marlow’s story', hint: 'Old Marlow knows more than he says. He tells the old stories in autumn and winter, by the fire at the Gull & Anchor.' },
   paper: { icon: '📰', name: 'The old Gazettes', hint: 'Miss Achterberg keeps the town’s archives at the library, for readers she knows. The bound Gazettes are in there.' },
   archive: { icon: '🗄️', name: 'The inquest', hint: 'The coroner’s papers are in the archives too, somewhere at the bottom.' },
   register: { icon: '📜', name: 'The burial register', hint: 'St Brigid’s has buried the town’s dead for three hundred years. You would need a name and a date.' },
