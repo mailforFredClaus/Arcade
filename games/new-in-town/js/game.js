@@ -599,6 +599,7 @@ const SHEET = {
     const perk = p.job && !['parent', 'ex', 'enemy'].includes(p.kind) && p.age >= 18 ? `<p class="fine">${life.perk(p.job) && p.bond >= 60 ? '✓ ' : ''}Someone close in ${CAREERS[p.job].name.toLowerCase()} (60 bond) gets you ${PERKS[p.job]}.</p>` : '';
     const body = `<div class="bondbar big${foe ? ' grudge' : ''}"><span style="width:${foe ? p.grudge : p.bond}%"></span></div><p class="lead">${bondWord(p)} · ${foe ? `grudge ${Math.round(p.grudge)}. It cools with time, faster if the town thinks well of you; while it lasts, ${p.sex === 'm' ? 'he' : 'she'} will do you small harms.` : `bond ${Math.round(p.bond)}`}${p.kind === 'child' && p.age >= 18 ? ` · ${He} takes after what you taught ${p.sex === 'm' ? 'him' : 'her'}` : ''}</p>
       <div class="facts">${facts.join('')}</div>${perk}${p.kind === 'child' && p.age < 18 ? `<p class="fine">What ${first} learns now, ${p.sex === 'm' ? 'he' : 'she'} keeps: a child who carries on the family starts with some of it.</p>` : ''}
+      ${MODS.map((m) => (m.person ? m.person(life, p) || '' : '')).join('')}
       ${sections(life.personActions(p))}`;
     return { icon: face(p.look, p.age, foe ? 12 : 40 + p.bond * 0.6, p.sex), title: p.name, sub: `${p.sex === 'm' ? '♂' : '♀'} ${relation(p)}, ${p.age}`, body };
   },
@@ -1310,6 +1311,7 @@ const DO = {
 //   act: { actionId() }, run instead when that action is tapped (to play something first, say);
 //        it should finish with kit.doAct(actionId, what came of it)
 //   me(life), people(life): boxes of HTML for the Me and People tabs
+//   person(life, p): HTML for someone's own sheet, under what is known about them
 //   marks(life): [[place, emoji], ...] for badges on the map
 //   css: a stylesheet of its own
 const kit = {
