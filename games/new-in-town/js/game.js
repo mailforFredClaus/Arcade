@@ -48,6 +48,42 @@ let tab = 'town';
 let here = 'station'; // where you are standing on the map
 let area = 'bay'; // which map is showing: the bay, or the old town up the hill
 let MODS = []; // the screens for the newer parts of town (ui-mods.js), once they are set up
+
+// ---- the same again -----------------------------------------------------------------------
+
+// What was done this season, in order, to offer as next season's routine: [action, x]. Things
+// that were played by hand are kept without their score (done again they come out middling),
+// a shift by hand is kept as a plain shift (the boss still wants to watch now and then), and
+// one-off dealings (buying, selling, applying, moving, betting) are not kept at all.
+const ONE_OFF = new Set(['apply', 'enrol', 'rentHome', 'buyHome', 'buyLet', 'moveIn', 'letProp', 'sellEstate', 'pet', 'bizStart', 'shares', 'sellShares',
+  'deposit', 'withdraw', 'borrow', 'repay', 'repayStudent', 'buy', 'pawn', 'quit', 'retire', 'trip', 'slots', 'raceBet', 'curioBuy', 'curioSell', 'fund']);
+let doneNow = [];
+function keep(id, x, played) {
+  const a = life.look(id, x);
+  if (!a || !(a.time > 0) || ONE_OFF.has(id) || /^(bj|hilo)/.test(id)) return;
+  doneNow.push(id === 'workPlay' ? ['work'] : played ? [id] : x === undefined ? [id] : [id, x]);
+}
+// Plays last season's routine for as long as there is time, stopping for any card that comes up.
+function sameAgain() {
+  if (!life || busy || spinning || ui.isOpen() || life.s.gaol || life.s.dead) return;
+  const plan = save.plan || [], news = [];
+  let did = 0, skip = 0;
+  for (const [id, x] of plan) {
+    if (life.s.time <= 0 || life.event() || life.s.dead) break;
+    if (life.can(id, x)) { skip++; continue; }
+    const r = life.act(id, x);
+    if (!r.ok) { skip++; continue; }
+    did++;
+    keep(id, x, false);
+    news.push(...(r.news || []));
+  }
+  persist();
+  render();
+  sfx(did ? 'fill' : 'nope');
+  toast(did ? `The same again: ${did} thing${did > 1 ? 's' : ''} done${skip ? `, ${skip} not possible this season` : ''}.` : 'None of it can be done this season.', 3200);
+  showNews(news);
+  pump();
+}
 let sheets = []; // the sheets open, one on top of another: { kind, id }
 let result = null; // what the last action said, shown at the top of the sheet
 let busy = false;
@@ -141,6 +177,8 @@ function renderMap() {
     $('mapGo').classList.toggle('dot', Object.keys(marks).some((id) => (PLACES[id].area || 'bay') !== area));
   }
   $('me').innerHTML = face(s.look, s.age, s.happy, s.sex);
+  // (Only at the start of a season, before anything else has been done.)
+  $('mapAgain').hidden = !(save.plan && save.plan.length && s.time >= life.timeMax() && !s.gaol && !doneNow.length);
   placeMe();
   fitMap();
 }
@@ -154,6 +192,9 @@ function placeMe() {
 
 // The map keeps its shape and fits the space between the bars.
 function fitMap() {
+  // (Notices drop in just below the header, wherever that ends: see .news in style.css.)
+  const top = document.querySelector('header.top');
+  if (top && top.offsetHeight) document.documentElement.style.setProperty('--top-h', `${top.getBoundingClientRect().bottom}px`);
   const box = $('pTown');
   const w = box.clientWidth, h = box.clientHeight;
   if (!w || !h) return;
@@ -669,8 +710,9 @@ function doAct(id, x) {
   // The newer parts of town may want to play something first, too.
   const mod = x === undefined && MODS.find((m) => m.act && m.act[id]);
   if (mod) return mod.act[id]();
-  const r = life.act(id, x);
+  const t0 = life.s.time, r = life.act(id, x);
   if (!r.ok) { sfx('nope'); toast(r.why); return; }
+  if (life.s.time < t0) keep(id, x, id === 'workPlay' || id === 'fish' || id === 'fishBoat' || MODS.some((m) => m.act && m.act[id]));
   haptic();
   if (id === 'slots') return spin(r);
   if (id === 'raceBet') return race(r);
@@ -869,6 +911,8 @@ function nextSeason() {
   if (life.s.time >= 3 && !save.restTip && !life.s.gaol) { save.restTip = true; toast('Time you do not use is rest: good for health and mood.', 4200); }
   const r = life.endSeason();
   bjShow = null; raceShow = null;
+  if (doneNow.length) save.plan = doneNow;
+  doneNow = [];
   persist();
   tab = 'town';
   render();
@@ -1175,7 +1219,7 @@ function beginLife() {
   save.counted = false;
   save.yearWorth = life.netWorth();
   save.seenNew = NEWS;
-  tab = 'town'; here = 'station'; area = 'bay'; mapKey = ''; slotShow = null; hiloShow = null; bjShow = null; raceShow = null;
+  tab = 'town'; here = 'station'; area = 'bay'; mapKey = ''; doneNow = []; save.plan = null; slotShow = null; hiloShow = null; bjShow = null; raceShow = null;
   persist();
   $('start').hidden = true;
   $('app').hidden = false;
@@ -1261,6 +1305,7 @@ const DO = {
     if (el.dataset.why) { sfx('nope'); toast(el.dataset.why); return; }
     doAct(el.dataset.id, el.dataset.x === undefined ? undefined : JSON.parse(el.dataset.x));
   },
+  routine() { sameAgain(); },
   area(el) {
     if (busy || !life || life.s.dead || life.s.gaol) return;
     area = el.dataset.area || (area === 'bay' ? 'hill' : 'bay');

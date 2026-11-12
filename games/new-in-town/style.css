@@ -100,7 +100,7 @@ button { font: inherit; color: inherit; -webkit-appearance: none; appearance: no
 .panel { position: absolute; inset: 0; }
 .panel.scroll { overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 12px 12px 18px; display: grid; gap: 10px; align-content: start; }
 #pTown { display: grid; place-items: center; overflow: hidden; background: linear-gradient(180deg, var(--sky1) 0 12%, var(--grass) 12% 84%, var(--sea) 84%); }
-#pTown.hill { background: linear-gradient(90deg, var(--grass) 0 88%, var(--sea) 88%); }
+#pTown.hill { background: linear-gradient(180deg, var(--sky1) 0 8%, transparent 8%), linear-gradient(90deg, var(--grass) 0 93%, var(--sea) 93%); }
 
 .tabs {
   flex: none; z-index: 3; display: flex; gap: 4px; align-items: stretch;
@@ -189,6 +189,8 @@ button { font: inherit; color: inherit; -webkit-appearance: none; appearance: no
 }
 .map-go b { font-weight: 900; }
 .map-go:active { transform: translateY(2px); }
+.map-again { left: auto; right: 2.5%; }
+.map-again[hidden] { display: none; }
 .map-go.dot::after { content: ''; display: inline-block; width: 8px; height: 8px; margin-left: 6px; border-radius: 50%; background: var(--coral); vertical-align: 1px; }
 .town .goto { cursor: pointer; }
 .me.hop { animation: hop .32s; }
@@ -389,7 +391,8 @@ summary { font-size: 12.5px; font-weight: 900; color: var(--teal-d); cursor: poi
 .end-in .stats div { background: var(--paper); }
 
 /* ---- notices ---- */
-.news { position: fixed; z-index: 70; left: 0; right: 0; top: calc(var(--safe-top) + 6px); display: grid; justify-items: center; gap: 6px; pointer-events: none; padding: 0 12px; }
+/* (Below the header, so that a notice never hides the name, the money or the date.) */
+.news { position: fixed; z-index: 70; left: 0; right: 0; top: calc(var(--top-h, var(--safe-top)) + 6px); display: grid; justify-items: center; gap: 6px; pointer-events: none; padding: 0 12px; }
 .news-item { display: flex; align-items: center; gap: 8px; max-width: 440px; padding: 9px 14px; border-radius: 16px; background: var(--ink); color: #fff; font-size: 14px; font-weight: 800; box-shadow: 0 8px 22px rgba(31, 42, 68, .35); animation: drop .3s cubic-bezier(.2, 1.4, .4, 1); transition: opacity .4s, transform .4s; }
 .news-item i { font-style: normal; font-size: 20px; }
 .news-item.k-trophy, .news-item.k-dream { background: linear-gradient(180deg, #ffd65a, #ffb72e); color: #4d3500; }
