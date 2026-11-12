@@ -364,12 +364,12 @@ export const LOAN_RATE = 0.02;
 // your holding is worth. Every one of them tends upwards over the years:
 // the steady ones almost surely, the wild ones probably.
 export const STOCKS = {
-  BAY: { name: 'Bay 50 Index Fund', icon: '🧺', start: 100, drift: 0.011, swing: 0, div: 0.004, fund: true, blurb: 'A little of every company in town. The safe way to own shares.' },
-  GULL: { name: 'Gull & Co. Fisheries', icon: '🐟', start: 40, drift: 0.009, swing: 0.04, div: 0.008, blurb: 'Steady as the tide, and pays well.' },
-  BRCK: { name: 'Bay Brick & Timber', icon: '🧱', start: 60, drift: 0.011, swing: 0.07, div: 0.005, blurb: 'Grows when the town does.' },
-  SNCK: { name: 'Snack Shack Holdings', icon: '🍩', start: 25, drift: 0.012, swing: 0.1, div: 0.003, blurb: 'Doughnuts are a volatile business.' },
-  LITE: { name: 'Lighthouse Labs', icon: '💡', start: 80, drift: 0.015, swing: 0.13, div: 0, blurb: 'The future. Probably.' },
-  MOON: { name: 'Moonshot Mining', icon: '🚀', start: 10, drift: 0.008, swing: 0.22, div: 0, blurb: 'A fortune or a lesson. Usually both, in turn.' },
+  BAY: { name: 'Bay 50 Index Fund', icon: '🧺', start: 100, drift: 0.0075, swing: 0, div: 0.004, fund: true, blurb: 'A little of every company in town. The safe way to own shares.' },
+  GULL: { name: 'Gull & Co. Fisheries', icon: '🐟', start: 40, drift: 0.005, swing: 0.04, div: 0.008, blurb: 'Steady as the tide, and pays well.' },
+  BRCK: { name: 'Bay Brick & Timber', icon: '🧱', start: 60, drift: 0.006, swing: 0.07, div: 0.005, blurb: 'Grows when the town does.' },
+  SNCK: { name: 'Snack Shack Holdings', icon: '🍩', start: 25, drift: 0.0065, swing: 0.1, div: 0.003, blurb: 'Doughnuts are a volatile business.' },
+  LITE: { name: 'Lighthouse Labs', icon: '💡', start: 80, drift: 0.008, swing: 0.13, div: 0, blurb: 'The future. Probably.' },
+  MOON: { name: 'Moonshot Mining', icon: '🚀', start: 10, drift: 0.003, swing: 0.22, div: 0, blurb: 'A fortune or a lesson. Usually both, in turn.' },
 };
 // What the papers say when one company has a very good or very bad season.
 export const HEADLINES = {

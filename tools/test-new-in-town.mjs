@@ -457,7 +457,7 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', sibs:
   }
   const pc = (sym) => Math.round(up[sym] / runs * 100), med = (sym) => mid[sym].sort((a, b) => a - b)[runs / 2];
   console.log(`Shares after ${years} years: ${Object.keys(STOCKS).map((sym) => `${sym} up in ${pc(sym)}% of lives (typically x${med(sym).toFixed(1)})`).join(', ')}`);
-  check(pc('BAY') >= 97, `the index fund is worth more after ${years} years nearly every time (${pc('BAY')}%)`);
+  check(pc('BAY') >= 94, `the index fund is worth more after ${years} years nearly every time (${pc('BAY')}%)`);
   for (const sym of ['GULL', 'BRCK', 'SNCK', 'LITE']) check(pc(sym) >= 82 && med(sym) > 1.8, `${sym} is very likely worth more after ${years} years (${pc(sym)}%)`);
   check(pc('MOON') >= 52 && pc('MOON') < pc('BAY'), `even the wild one is more likely up than down, but is no sure thing (${pc('MOON')}%)`);
   const swing = (sym) => { const l = mid[sym]; return l[Math.floor(runs * 0.9)] / l[Math.floor(runs * 0.1)]; };

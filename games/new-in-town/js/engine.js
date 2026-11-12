@@ -17,7 +17,7 @@
 import {
   SEASONS, STATS, STAT_NAME, PLACES, CAREERS, SHIFTS_FOR_RUNG, COURSES, GRADES, STUDENT_RATE, HOMES, UPGRADES, FOOD, INSURANCE, ITEMS, TRIPS,
   SAVINGS_RATE, LOAN_RATE, STOCKS, HEADLINES, PLOT_RENT, FESTS, JOB_GAMES, PLAY_EVERY, NAMES_M, NAMES_F, PET_NAMES, PETS, BACKGROUNDS, LOOKS,
-  DREAMS, QUESTS, TROPHIES, RIBBONS, money, cashShort, an, lowJob,
+  DREAMS, QUESTS, TROPHIES, RIBBONS, money, cashShort, an, lowJob, many,
 } from './data.js';
 import { EVENTS } from './events.js';
 import { install } from './living.js';
@@ -176,7 +176,8 @@ def('retire', {
     s.pension += p - had; s.f.jobPension = p; s.job = null;
     if (!s.retired) L.joy(8);
     s.retired = true;
-    L.note(`Retired as ${t} on a pension of ${money(p)} a season.`, 'big');
+    // (Coming back to work and retiring again is not a new chapter of a life.)
+    L.note(`Retired as ${t} on a pension of ${money(p)} a season.`, p > had ? 'big' : '');
     return `They give you a clock and a cake. After all those years as ${t}, your time is your own.`;
   },
 });
@@ -514,7 +515,8 @@ def('slots', {
     s.n.casino += win - bet;
     L.out = { reels: reels.map((k) => REEL[k]), win };
     if (win) { L.cash(win); L.joy(mult >= 15 ? 6 : 0.5); } else L.joy(-0.3);
-    if (reels[0] === 5 && mult) { s.f.jackpot = 1; L.note(`Hit the jackpot on the slots: ${money(win)}.`, 'big'); return `JACKPOT! Three diamonds! ${money(win)}!`; }
+    // (Only three diamonds is the jackpot: a diamond and two cherries is just the cherries.)
+    if (reels[0] === 5 && reels[1] === 5 && reels[2] === 5) { s.f.jackpot = 1; L.note(`Hit the jackpot on the slots: ${money(win)}.`, 'big'); return `JACKPOT! Three diamonds! ${money(win)}!`; }
     return win ? `A win! ${money(win)}.` : L.pick(['Nothing.', 'So close.', 'Not this time.', 'The machine plays a sad little tune.']);
   },
 });
@@ -1030,7 +1032,9 @@ export class Life {
   // What comes in each season without lifting a finger: [what, how much].
   income() {
     const s = this.s, out = [];
-    if (s.pension) out.push(['Pension', s.pension]);
+    // (A pension from a job is not paid while you are back at work; the state's is.)
+    const pen = s.pension - (s.job ? s.f.jobPension || 0 : 0);
+    if (pen > 0) out.push(['Pension', pen]);
     const rents = this.letIncome(), divs = this.dividends(), biz = this.bizIdle(), roy = this.royalties();
     if (rents) out.push(['Rent from your properties', rents]);
     if (divs) out.push(['Dividends', divs]);
@@ -1564,15 +1568,32 @@ export class Life {
     if (r < 0.02) { m = -0.22; this.note('The stock market crashed.'); this.say('📉', 'The stock market has crashed', 'bad'); k.news.unshift({ t: s.t, up: false, text: 'Panic on the exchange: everything is down' }); }
     else if (r < 0.04) { m = 0.18; this.note('The stock market boomed.'); this.say('📈', 'The stock market is booming', 'good'); k.news.unshift({ t: s.t, up: true, text: 'Boom! Everything is up' }); }
     const hot = this.chance(0.16) ? this.pick(Object.keys(STOCKS).filter((sym) => !STOCKS[sym].fund)) : null;
+    // Each company has what it is really worth (f), which grows slowly and now and then
+    // jumps; its price wanders about that, and is pulled back towards it, so that a
+    // lucky run does not go on for ever. (A life saved before this starts from its prices.)
+    const fair = k.f || (k.f = {});
     for (const [sym, st] of Object.entries(STOCKS)) {
-      let p = k.p[sym] * Math.exp(st.drift + m + st.swing * this.gauss());
+      const f0 = fair[sym] ?? k.p[sym];
+      let f = f0 * Math.exp(st.drift + m);
+      // (A miner strikes it rich, or the seam runs dry: that is what it is worth from now on.)
+      if (sym === 'MOON') { const j = this.rnd(); if (j < 0.009) f *= 2; else if (j < 0.018) f *= 0.5; }
+      let p = f * Math.exp(Math.log(k.p[sym] / f0) * 0.8 + st.swing * this.gauss());
       // (What somebody whispered on Thursday is in the paper on Friday.)
       if (k.tip && k.tip.sym === sym) { p *= 1.28; k.news.unshift({ t: s.t, sym, up: true, text: `${st.name} announces what a few people seemed to know already` }); k.tip = null; }
-      if (sym === 'MOON') { const j = this.rnd(); if (j < 0.03) p *= 2.5; else if (j < 0.06) p *= 0.4; }
       if (sym === hot) {
         const up = this.chance(0.5), by = 0.1 + this.rnd() * 0.18;
         p *= up ? 1 + by : 1 - by;
         k.news.unshift({ t: s.t, sym, up, text: `${st.name} ${this.pick(HEADLINES[up ? 'up' : 'down'])}` });
+      }
+      fair[sym] = f;
+      // A company worth a fraction of what it started at goes under, and its shares with it.
+      // (It is floated again at its first price, under new owners.)
+      if (!st.fund && f < st.start * 0.15) {
+        const had = k.own[sym] || 0;
+        if (had) { this.note(`${st.name} went bust, and ${many(had)} shares in it went with it.`, 'bad'); this.say('💥', `${st.name} has gone bust`, 'bad'); }
+        delete k.own[sym]; delete k.paid[sym];
+        k.news.unshift({ t: s.t, sym, up: false, text: `${st.name} goes into administration; new owners float it again` });
+        fair[sym] = f = st.start; p = st.start;
       }
       k.p[sym] = Math.max(0.5, Math.round(p * 100) / 100);
       k.h[sym].push(k.p[sym]);

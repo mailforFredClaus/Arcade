@@ -64,8 +64,9 @@ function renderTop() {
   const s = life.s;
   $('app').className = `app s${life.season}`;
   $('ava').innerHTML = face(s.look, s.age, s.happy, s.sex);
-  $('whoName').textContent = s.name;
-  $('whoSub').textContent = `Age ${s.age} · ${s.gaol ? 'Starling Gaol' : life.jobTitle() || (s.retired ? 'Retired' : 'Between jobs')}`;
+  // (The age goes with the name, so that the job has the line beneath to itself.)
+  $('whoName').textContent = `${s.name}, ${s.age}`;
+  $('whoSub').textContent = s.gaol ? 'Starling Gaol' : life.jobTitle() || (s.retired ? 'Retired' : s.biz ? `Runs ${an(lowJob(life.bizName()))}` : 'Between jobs');
   $('cash').textContent = cashShort(s.cash);
   $('date').textContent = `${SEASON_ICON[life.season]} ${SEASONS[life.season]}, year ${life.year}${s.wx !== 'fair' ? ` ${life.weather().icon}` : ''}`;
   meter('mHealth', s.health, life.healthCap());
@@ -273,7 +274,7 @@ const SHEET = {
       const how = (p) => (p.loan ? `${cashShort(Math.max(0, p.cash))} down, ${cashShort(p.loan)} borrowed` : p.cash > 0 ? `${cashShort(p.cash)} outright` : `${cashShort(-p.cash)} back in your pocket`);
       body += `<div class="item${here ? ' mine' : ''}">
         <div class="item-top"><span class="act-ico">${h.icon}</span><div><b>${h.name}</b><small>${esc(h.blurb)}</small></div></div>
-        <div class="facts"><span>Comfort ${'★'.repeat(Math.max(1, Math.round(h.comfort / 4.4)))}</span><span>${h.kids ? `Room for ${h.kids} ${h.kids > 1 ? 'children' : 'child'}` : id === 'hostel' ? 'Just you' : 'Room for two'}</span>${plan ? `<span>Sells for ${cashShort(plan.price)}</span>` : ''}</div>
+        <div class="facts"><span>Comfort ${h.comfort > 0 ? '★'.repeat(Math.max(1, Math.round(h.comfort / 4.4))) : 'none to speak of'}</span><span>${h.kids ? `Room for ${h.kids} ${h.kids > 1 ? 'children' : 'child'}` : id === 'hostel' ? 'Just you' : 'Room for two'}</span>${plan ? `<span>Sells for ${cashShort(plan.price)}</span>` : ''}</div>
         <div class="picks">
           ${here ? `<span class="note ok">You live here${s.owned ? ', and own it' : ''}</span>` : ''}
           ${h.rent != null && !(here && !s.owned) ? pick(`Rent · ${money(life.rentOf(id))} a season ${chip('time', '⏱ 1')}`, 'rentHome', id, life.can('rentHome', id)) : ''}
@@ -356,7 +357,7 @@ const SHEET = {
       body += `<div class="item${st.fund ? ' fund' : ''}">
         <div class="item-top"><span class="act-ico">${st.icon}</span><div><b>${st.name}</b><small>${sym} · ${esc(st.blurb)}</small></div>
           <div class="quote"><b>$${p.toFixed(2)}</b><small class="${move >= 0 ? 'up' : 'down'}">${move >= 0 ? '▲' : '▼'} ${Math.abs(move * 100).toFixed(1)}%</small></div></div>
-        ${spark(h, 300, 34)}
+        ${h.length > 1 ? spark(h, 300, 34) : ''}
         <div class="facts">${long != null ? `<span class="${long >= 0 ? 'up' : 'down'}">${long >= 0 ? 'Up' : 'Down'} ${Math.abs(long * 100).toFixed(0)}% in ${h.length - 1 >= 40 ? 'ten years' : `${h.length - 1} seasons`}</span>` : ''}<span>${st.div ? `Pays ${(st.div * 100).toFixed(1)}% a season` : 'No dividend'}</span>
           ${own ? `<span>You hold ${own.toLocaleString()}, worth ${cashShort(worth)}</span><span class="${gain >= 0 ? 'up' : 'down'}">${gain >= 0 ? 'Up' : 'Down'} ${cashShort(Math.abs(gain))} on what you paid</span>` : ''}</div>
         <div class="picks">${buy(1000)}${buy(10000)}${buy(100000)}${maxQ >= 1 && have > 1000 ? pick('Buy all I can', 'shares', { sym, n: maxQ }) : ''}
