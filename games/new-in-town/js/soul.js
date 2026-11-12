@@ -506,9 +506,11 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     run(L) {
       const S = L.s.soul, g = S.graves[S.graves.length - 1];
       L.joy(2); parish(L, 1);
+      // (She is one of the townsfolk as well: tea counts towards knowing her. See folk.js.)
+      if (L.folkIntro && L.s.folk) L.folkIntro('hollis');
       if (S.mind.spell) return S.mind.spell.k === 'low' ? 'You do not mean to tell her, and then you do. She listens, says very little, and gives you a jar of honey and the number of a counsellor at St Wren’s. "And come back next week," she says. "I mean it."' : '"You look like somebody who has not sat down since Easter," she says, and makes you sit down. You talk about everything except work. It helps more than you expected.';
       if (S.grief >= 2 && g) { S.grief = Math.max(0, S.grief - 1); return `You talk about ${g.name}. She remembers the funeral, and what was said. It helps to hear it back.`; }
-      return L.pick(['She shows you the hives. The bees, she says, have opinions about the new hymn book.', 'She lends you a romantic novel by somebody called R. A. Berg. "I have my suspicions about who that is," she says, looking towards the library.', 'The tea is stewed and the biscuits are soft, and you stay two hours.', 'She tells you about the roof. Then she tells you about the roof again, in more detail.']);
+      return L.pick(['She shows you the hives. The bees, she says, have opinions about the new hymn book.', 'She lends you a romantic novel by somebody called Clementine Vane. "I have my suspicions about who that is," she says, looking towards the library.', 'The tea is stewed and the biscuits are soft, and you stay two hours.', 'She tells you about the roof. Then she tells you about the roof again, in more detail.']);
     },
   });
 
@@ -550,9 +552,14 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     show: (L) => !L.soulRoofDone(),
     run(L) {
       L.karma(1); L.joy(2); parish(L, 1);
+      L.s.n.given = (L.s.n.given || 0) + 500;
       return `The Reverend Hollis writes your name in the book, and moves the thermometer up by hand, with great ceremony.${raiseRoof(L, 500)}`;
     },
   });
+  // (There is one roof, and one fund for it: the vicar's story in folk-tales.js, the choir and
+  // the Merrow's treasure in coast.js all add to it through L.soulRoofAdd(n).)
+  Life.prototype.soulRoofAdd = function (n) { return raiseRoof(this, n); };
+  Life.prototype.soulRoofLeft = function () { return this.s.soul.f.roof ? 0 : Math.max(0, ROOF - this.s.soul.roof); };
   function raiseRoof(L, n) {
     const s = L.s, S = s.soul;
     if (S.f.roof) return '';
@@ -770,7 +777,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       id: 'soulDrip', icon: '🪣', title: 'The bucket in the north aisle', w: 3, cd: 16, when: (L) => L.s.age >= 20 && !L.soulRoofDone(),
       text: 'The Reverend Hollis is up a stepladder in St Brigid’s, emptying a bucket into another bucket. "Another tile gone," she says. "The fund thermometer has not moved since Easter."',
       opts: [
-        { t: 'Put $100 in the tin', cost: 100, run(L) { L.karma(1); L.joy(1); parish(L, 1); return `"Bless you," she says, and means it.${raiseRoof(L, 100)}`; } },
+        { t: 'Put $100 in the tin', cost: 100, run(L) { L.karma(1); L.joy(1); parish(L, 1); L.s.n.given = (L.s.n.given || 0) + 100; return `"Bless you," she says, and means it.${raiseRoof(L, 100)}`; } },
         { t: 'Hold the ladder', run(L) { L.joy(2); parish(L, 2); return 'She hands you the bucket, then the hammer, then her glasses, then the bucket again.'; } },
         { t: ic('daredevil', 'Go up on the roof yourself'), show: tr('daredevil'), odds: () => 0.75, run(L, x, win) { if (win) { parish(L, 5); L.karma(2); L.joy(4); return `You fix three tiles and wave at the whole town from the ridge. That saves the fund a roofer’s fee.${raiseRoof(L, 600)}`; } L.hp(-6, 'a fall from the church roof'); L.joy(-2); return 'A slate slides, and so do you, the last six feet. The Reverend Hollis drives you to St Wren’s, praying aloud at every junction.'; } },
         { t: ic('thrifty', 'Organise a sponsored silence'), show: tr('thrifty'), run(L) { parish(L, 3); L.joy(2); return `Forty people, an afternoon, not a word. It is the quietest the church hall has ever been, and the cheapest fundraiser ever held.${raiseRoof(L, 400)}`; } },

@@ -411,6 +411,8 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
       const pay = round10(k.worth * 0.4);
       this.cash(pay); this.karma(18); this.fame(8); this.joy(12);
       s.n.given = (s.n.given || 0) + k.worth - pay;
+      // (The roof it buys is St Brigid’s one roof: see soul.js.)
+      if (this.soulRoofAdd) this.soulRoofAdd(1e9);
       this.note('Shared the treasure of the Merrow with the town.', 'big');
       this.coastNews(k.icon, 'Merrow treasure shared out', `${s.name}, who found the Merrow’s ${k.short} after two hundred years, has sold it and given most of it away: St Brigid’s has its new roof, the lifeboat station new gear, and the library a new wing. The Reverend Hollis was seen crying in the street.`, true);
       return `You keep ${money(pay)}, and the rest goes where the town needs it: a new roof for St Brigid’s, new gear for the lifeboat, and a wing for the library. The Reverend Hollis cries in the street, and is not embarrassed about it.`;

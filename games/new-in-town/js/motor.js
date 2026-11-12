@@ -93,8 +93,15 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
     // A used car on the forecourt, or a new one, less what Jess gives for yours.
     motorNet(price) { return price - (this.s.motor.car ? tradeIn(this.s.motor.car) : 0); },
     // What Jess thinks of you, in a word.
-    motorJessWord() { const j = this.s.motor.jess; return j >= 75 ? 'practically a Dobbs' : j >= 50 ? 'a friend of the family' : j >= 25 ? 'a regular' : 'a customer'; },
-    motorJess(d) { const m = this.s.motor; m.jess = clamp(m.jess + d, 0, 100); },
+    motorJessWord() { const j = this.motorJessAll(); return j >= 75 ? 'practically a Dobbs' : j >= 50 ? 'a friend of the family' : j >= 25 ? 'a regular' : 'a customer'; },
+    motorJess(d) {
+      const m = this.s.motor;
+      m.jess = clamp(m.jess + d, 0, 100);
+      // (Jess is one of the townsfolk too: what she thinks of you there and here is one thing. See folk.js.)
+      if (this.folkWarm && this.s.folk && this.s.folk.p.jess && this.s.folk.p.jess.met != null) this.folkWarm('jess', d / 2, false);
+    },
+    // What Jess thinks of you, all told: the garage's dealings or her friendship, whichever is warmer.
+    motorJessAll() { const f = this.s.folk && this.s.folk.p.jess; return Math.max(this.s.motor.jess, f && f.met != null ? f.f : 0); },
     // Whether Jess thinks you are ready for your test.
     motorReady() { return this.s.motor.drv >= 55; },
     // The classic in the back bay: what it would fetch now, done or not.
@@ -134,7 +141,7 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
     motorHint(c) {
       if (c.tag === 'bargain') return 'A part-exchange. Jess wants the space, and it shows in the price.';
       if (c.tag !== 'lemon') return null;
-      if (this.s.motor.jess >= 40) return 'Jess catches your eye and shakes her head, very slightly.';
+      if (this.motorJessAll() >= 40) return 'Jess catches your eye and shakes her head, very slightly.';
       if (this.s.st.craft >= 55) return 'You do not like the sound of the engine, or the fresh paint on the sills.';
       return null;
     },
@@ -429,7 +436,7 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
       if (!p.got) { p.spent += L.motorStageCost(); p.got = true; }
       const said = g.says[Math.min(p.p, g.says.length - 1)];
       p.p++; p.n++;
-      p.q += clamp(s.st.craft + 8 + L.gauss() * 10 + (m.jess >= 50 ? 5 : 0), 5, 100);
+      p.q += clamp(s.st.craft + 8 + L.gauss() * 10 + (L.motorJessAll() >= 50 ? 5 : 0), 5, 100);
       L.gain('craft', 1.7); L.joy(2); L.motorJess(1);
       if (p.p < g.n) return said;
       p.st++; p.p = 0; p.got = false;
@@ -792,7 +799,7 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
       ],
     },
     {
-      id: 'motorTip', icon: '☎️', title: 'Jess rings', w: 2, cd: 12, when: (L) => L.s.motor.jess >= 55 && L.s.motor.lic != null && !L.motorBanned(),
+      id: 'motorTip', icon: '☎️', title: 'Jess rings', w: 2, cd: 12, when: (L) => L.motorJessAll() >= 55 && L.s.motor.lic != null && !L.motorBanned(),
       ctx: (L) => { const c = L.motorUsedCar('bargain'); c.price = r50(carValue(c) * 0.8); c.held = true; return c; },
       text: (L, c) => `"A part-exchange came in this morning," says Jess. "${an(`${c.age}-year-old ${c.col} ${carName(c)}`)}, one owner, a retired vet. I’m keeping it back for you, if you want it." She means ${money(c.price)}, which is less than it is worth.`,
       opts: [

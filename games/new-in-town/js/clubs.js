@@ -773,11 +773,12 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
     },
     {
       id: 'clubRoof', icon: '⛪', title: 'Twelve hours for the roof', w: 3, cd: 20,
-      when: (L) => inClub(L, 'choir'),
+      // (Not once the roof is mended: see soul.js.)
+      when: (L) => inClub(L, 'choir') && !(L.soulRoofDone && L.soulRoofDone()),
       ok: (L) => inClub(L, 'choir'),
       text: 'The Reverend Alice Hollis wants the choir to sing for twelve hours without stopping, to raise money for the roof. She has made a rota. Your name is down for four in the morning.',
       opts: [
-        { t: 'Sing the four o’clock shift', check: ['fitness', 30], run(L, x, win) { const m = M(L, 'choir'); if (win) { L.karma(4); stand(m, 6); L.joy(3); return 'Four in the morning, a cold church and three other voices. It is, unexpectedly, one of the loveliest hours of your life. The roof gets $2,000.'; } L.karma(2); stand(m, 2); return 'You fall asleep during the Nunc Dimittis, upright, and are allowed to.'; } },
+        { t: 'Sing the four o’clock shift', check: ['fitness', 30], run(L, x, win) { const m = M(L, 'choir'); if (win) { L.karma(4); stand(m, 6); L.joy(3); if (L.soulRoofAdd) L.soulRoofAdd(1200); return 'Four in the morning, a cold church and three other voices. It is, unexpectedly, one of the loveliest hours of your life. The roof gets $2,000.'; } L.karma(2); stand(m, 2); return 'You fall asleep during the Nunc Dimittis, upright, and are allowed to.'; } },
         { t: 'Sponsor the others', cost: 100, run(L) { L.karma(3); return 'You pledge a dollar a hymn. There turn out to be a hundred of them.'; } },
         { t: 'Make the tea all night', run(L) { L.karma(2); stand(M(L, 'choir'), 3); busy(L, 1); return 'Forty cups of tea and a plate of biscuits on the hour. The singing gets stronger every time you go round.'; } },
       ],

@@ -21,15 +21,19 @@ const on = (who, n, gain, t, fn, extra = {}) => ({ t, ...extra, run(L, x, win) {
 export const STORIES = {
   hollis: [
     { need: 10, title: 'The thermometer', said: 'You rattled a tin for the church roof.', card: {
-      icon: '🌡️', text: 'Outside St Brigid’s stands a board painted like a thermometer. The red has crept up to $12,000; the top says $40,000. "It is the roof," says the vicar. "It is always the roof. Would you rattle a tin for us on the High Street? People are kinder to a face they don’t know."',
+      icon: '🌡️', text: (L) => (L.soulRoofLeft && !L.soulRoofLeft()
+        ? 'The roof is mended, and now it is the spire. "It is always something," says the vicar. "Would you rattle a tin for us on the High Street? People are kinder to a face they don’t know."'
+        : `Outside St Brigid’s stands a board painted like a thermometer, the red some way short of the top: ${L.soulRoofLeft ? `${money(L.soulRoofLeft())} to go` : 'a long way to go'}. "It is the roof," says the vicar. "It is always the roof. Would you rattle a tin for us on the High Street? People are kinder to a face they don’t know."`),
       opts: [yes('hollis', 1, 'tin', 'Of course'), no('hollis', 'Not just now', 'She says she quite understands, and gives you a parish magazine for the road.')] } },
     { need: 25, title: 'A swarm', said: 'You fetched her bees out of the Town Hall porch. There is honey on your step every summer’s end.', card: {
       icon: '🐝', text: 'The vicar arrives at a run, in a veil. "My bees have swarmed," she says, "into the porch of the Town Hall. The mayor has locked himself in his office. If somebody does not fetch them out soon, he is going to call a man with a can."',
       opts: [yes('hollis', 2, 'swarm', 'Fetch them'), no('hollis', 'You are not a bee person', 'She goes herself, with a cardboard box and a prayer. You hear about it for weeks.')] } },
     { need: 45, title: 'Not another winter', said: 'You helped save the roof of St Brigid’s, and met Miss Achterberg over it.', card: {
-      icon: '🏚️', text: 'The man from the diocese has been up the tower and come down shaking his head. The roof will not see another winter, and the fund is $6,000 short. The vicar is being brave about it, which is worse than if she cried.',
+      icon: '🏚️', text: (L) => (L.soulRoofLeft && !L.soulRoofLeft()
+        ? 'The man from the diocese has been up the tower and come down shaking his head. The roof is sound, but the beams that hang the bells will not see another winter, and there is no money left. The vicar is being brave about it, which is worse than if she cried.'
+        : 'The man from the diocese has been up the tower and come down shaking his head. The roof will not see another winter, and the fund will not reach in time. The vicar is being brave about it, which is worse than if she cried.'),
       opts: [
-        on('hollis', 3, 8, 'Put $1,500 towards it', (L) => { L.karma(4); L.s.n.given = (L.s.n.given || 0) + 1500; L.folkIntro('achterberg'); return 'She hugs you, which surprises you both. With your cheque and a jumble sale the roofers are up the tower by the end of the month. At the jumble sale she introduces you to the librarian, Miss Achterberg, who is buying a hat she will never wear.'; }, { cost: 1500 }),
+        on('hollis', 3, 8, 'Put $1,500 towards it', (L) => { L.karma(4); L.s.n.given = (L.s.n.given || 0) + 1500; L.folkIntro('achterberg'); if (L.soulRoofAdd) L.soulRoofAdd(1e9); return 'She hugs you, which surprises you both. With your cheque and a jumble sale the roofers are up the tower by the end of the month. At the jumble sale she introduces you to the librarian, Miss Achterberg, who is buying a hat she will never wear.'; }, { cost: 1500 }),
         yes('hollis', 3, 'swim', 'Do a sponsored swim from the cove'),
         no('hollis', 'There is nothing you can do', 'She says of course there isn’t, and the Lord will provide. He seems to be taking His time.'),
       ] } },
@@ -70,7 +74,7 @@ export const STORIES = {
       icon: '📮', text: 'A publisher in London has asked to see the whole of her novel. It has been on her desk in brown paper and string for a fortnight. "I cannot post it," she says. "Every time I get to the box my hand will not let go. Would you?"',
       opts: [yes('achterberg', 4, 'post', 'Take it to the station'), no('achterberg', 'It should be her who posts it', '"Yes," she says. "It should." It stays on the desk.')] } },
     { need: 85, title: 'Published', said: 'Her novel came out under her own name, dedicated to you. She reads your drafts now.', card: {
-      icon: '📕', text: 'A launch, in the library, with sherry, because the vicar insisted. Tempest at Tidewater Hall, by Ruth Achterberg: her own name on the cover after all. She signs your copy first. The dedication reads: For the reader in the reading room, who did not laugh.',
+      icon: '📕', text: 'A launch, in the library, with sherry, because the vicar insisted. Tempest at Tidewater Hall, by Ruth Achterberg: her own name on the cover at last, after twenty years of being Clementine Vane. She signs your copy first. The dedication reads: For the reader in the reading room, who did not laugh.',
       opts: [
         on('achterberg', 5, 6, 'Make a little speech', (L, win) => {
           L.folkKeep('signed');
@@ -254,7 +258,9 @@ export const STORIES = {
 
   gaz: [
     { need: 10, title: 'A man short', said: 'You turned out for the Rovers when they were a man short. Desmond did the announcements.', card: {
-      icon: '⚽', text: 'Gaz grabs your arm on the touchline. "Lenny’s done his hamstring getting off the bus. You’ve got legs. Have you got boots? Never mind. You’ve got legs."',
+      icon: '⚽', text: (L) => (L.clubMem && L.clubMem('rovers')
+        ? 'Gaz grabs your arm on the touchline. "Lenny’s done his hamstring getting off the bus. You turn out for the Sunday lot, don’t you? First team’s a man short. Get changed."'
+        : 'Gaz grabs your arm on the touchline. "Lenny’s done his hamstring getting off the bus. You’ve got legs. Have you got boots? Never mind. You’ve got legs."'),
       opts: [
         on('gaz', 1, 7, 'Get changed', (L, win) => { L.folkIntro('desmond'); if (win) { L.fame(0.5); L.joy(8); return 'Eighty-ninth minute, a corner, and a header that is mostly your face. It goes in. Gaz runs the length of the pitch and lies down in the centre circle. Desmond Achebe, who does the announcements, calls you "a revelation", and introduces himself afterwards.'; } L.joy(4); return 'You touch the ball twice, both times by accident, and the Rovers lose four–nil. Gaz says you were the best player on the pitch, and he believes it. The announcer, Desmond Achebe, introduces himself afterwards and says you have stage presence, which is no help on a football pitch.'; }, { check: ['fitness', 35] }),
         on('gaz', 1, 3, 'Make your excuses', (L) => { L.folkIntro('desmond'); return 'Gaz plays himself. He is forty-four and has a knee. They draw one–all, and he scores, and cannot walk for a week. In the clubhouse afterwards he introduces you to Desmond Achebe, who does the announcements.'; }),
@@ -272,7 +278,7 @@ export const STORIES = {
         on('gaz', 4, 6, 'Ask him to stay', () => 'He stays. "Somebody has to believe," he says, and eats a pie as though it were a promise.'),
       ] } },
     { need: 85, title: 'The County Cup', said: 'You gave the team talk at the County Cup final. Your name is on the honours board.', card: {
-      icon: '🏆', text: 'The Rovers are in the final of the County Cup for the first time since 1987. Gaz asks you to give the team talk. "I’ll only cry," he says, "and they’ve seen that."',
+      icon: '🏆', text: 'The Rovers’ first team are in the final of the County Cup for the first time since 1987. Gaz asks you to give the team talk. "I’ll only cry," he says, "and they’ve seen that."',
       opts: [
         on('gaz', 5, 6, 'Give the team talk', (L, win) => {
           L.folkKeep('ball');
@@ -437,14 +443,14 @@ const vegNow = (L) => L.folkVeg();
 export const FAVOURS = {
   tin: { who: 'hollis', icon: '🥫', title: 'Rattle the roof tin on the High Street', at: 'highstreet', time: 1, gain: 6, check: ['charm', 35],
     set: 'She gives you a tin with a slot in the lid and a label that says ROOF, underlined twice.',
-    done(L, win) { L.karma(2); return win ? 'Three hours outside the bank with the tin. A little girl gives you her pocket money, a man in a suit gives you a twenty, and Mr Pym gives you a lecture on roofs and a dollar. $412 for St Brigid’s.' : 'Three hours outside the bank. People cross the road to avoid you, which on the High Street is a feat. $38 and a button for St Brigid’s. The vicar is thrilled anyway.'; } },
+    done(L, win) { L.karma(2); if (L.soulRoofAdd) L.soulRoofAdd(win ? 900 : 300); return win ? 'Three hours outside the bank with the tin. A little girl gives you her pocket money, a man in a suit gives you a twenty, and Mr Pym gives you a lecture on roofs and a dollar. $412 for St Brigid’s.' : 'Three hours outside the bank. People cross the road to avoid you, which on the High Street is a feat. $38 and a button for St Brigid’s. The vicar is thrilled anyway.'; } },
   swarm: { who: 'hollis', icon: '🐝', title: 'Fetch the vicar’s swarm out of the Town Hall porch', at: 'townhall', time: 1, by: 2, gain: 6, check: ['craft', 30],
     set: '"A cardboard box," she says, "a sheet, and no sudden movements. And do not let the mayor help."',
     done(L, win) { L.folkBag().honey++; if (!win) L.hp(-2, 'bees'); return `${win ? 'A box, a sheet and no sudden movements. The swarm walks into the box like a queue onto a bus, and the mayor comes out of his office to shake your hand from a safe distance.' : 'You get most of them. Some of them get you. The vicar dabs your neck with vinegar and calls you very brave.'} She gives you a jar of last year’s honey, and promises more every summer’s end.`; } },
   swim: { who: 'hollis', icon: '🏊', title: 'Do the sponsored swim from Smugglers’ Cove', at: 'cove', time: 2, by: 3, gain: 8, check: ['fitness', 35],
     why: (L) => (L.s.wx === 'storm' ? 'Not in a gale. Even the vicar says so.' : null),
     set: 'She has the sponsorship forms printed by the end of the day. Half the town has signed them by the end of the week.',
-    done(L, win) { L.karma(4); L.folkIntro('achterberg'); return `${win ? 'Out to the buoy and back, twice, with half the town on the sand cheering and the vicar ringing a handbell. The forms come to $4,600.' : 'You get as far as the buoy, and hang on to it, and are towed back by Captain Quinn in the inshore boat. The sponsors pay up anyway, laughing: $2,100.'} The roofers are up the tower by the end of the month. At the party for it the vicar introduces you to the librarian, Miss Achterberg, who is holding a sherry as though it were evidence.`; } },
+    done(L, win) { L.karma(4); L.folkIntro('achterberg'); if (L.soulRoofAdd) L.soulRoofAdd(1e9); return `${win ? 'Out to the buoy and back, twice, with half the town on the sand cheering and the vicar ringing a handbell. The forms come to $4,600.' : 'You get as far as the buoy, and hang on to it, and are towed back by Captain Quinn in the inshore boat. The sponsors pay up anyway, laughing: $2,100.'} The roofers are up the tower by the end of the month. At the party for it the vicar introduces you to the librarian, Miss Achterberg, who is holding a sherry as though it were evidence.`; } },
 
   stacks: { who: 'achterberg', icon: '📖', title: 'Show Miss Achterberg your library ticket', gain: 6,
     goal: (L, f) => ({ have: Math.min(3, L.s.folk.read - f.base), want: 3, text: `Read in the reading room three times (${Math.min(3, L.s.folk.read - f.base)} of 3)` }),

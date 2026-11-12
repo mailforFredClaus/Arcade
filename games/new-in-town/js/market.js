@@ -868,7 +868,8 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
     },
     {
       id: 'mktPath', icon: '🥾', title: 'The footpath', w: 3, once: true,
-      when: (L) => m_(L).days >= 4,
+      // (Not once Tom has made the bottom field over to you: see folk.js.)
+      when: (L) => m_(L).days >= 4 && !(L.folkHas && L.folkHas('field')),
       text: 'Tom Windle is at the farm gate with a petition and a face like thunder. The council mean to open a footpath across his bottom field, Mayor Pennington has said so in the Gazette, and the walkers are delighted.',
       opts: [
         { t: 'Sign Tom’s petition', run(L) { m_(L).tom = 1; L.karma(-1); return 'Tom grunts, which is thank you. From now on he pays you a little more, and talks to you a little more, mostly about the council.'; } },

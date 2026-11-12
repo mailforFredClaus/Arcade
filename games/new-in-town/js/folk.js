@@ -52,7 +52,11 @@ export function install({ def, Life, clamp, val, hooks, addEvents }) {
     folkPennOut() { const s = this.s; return (s.f.drains || 0) >= 2 || !!s.f.wasMayor || (!!s.job && s.job.c === 'politics' && s.job.r >= 4); },
     folkName(id) { return id === 'penn' && this.folkPennOut() ? 'Mr Pennington' : FOLK[id].name; },
     folkCall(id, cap = false) { return id === 'penn' && this.folkPennOut() ? 'Mr Pennington' : cap ? FOLK[id].Call : FOLK[id].call; },
-    folkBlurb(id) { return id === 'penn' && this.folkPennOut() ? 'Mayor of Starling Bay until lately, like his father and his grandfather before him.' : FOLK[id].blurb; },
+    folkBlurb(id) {
+      if (id === 'penn' && this.folkPennOut()) return 'Mayor of Starling Bay until lately, like his father and his grandfather before him.';
+      if (id === 'betty' && this.folk('betty').shut) return 'Betty Shaw, who ran Betty’s Café on the High Street for forty years and now does the teas in the church hall. Calls everybody love.';
+      return FOLK[id].blurb;
+    },
     // Betty does the teas in the church hall if her café closed.
     folkPlace(id) { return id === 'betty' && this.folk('betty').shut ? 'church' : FOLK[id].place; },
     // Why somebody will not talk to you just now.
@@ -301,7 +305,8 @@ export function install({ def, Life, clamp, val, hooks, addEvents }) {
 
   // ---- at their places ----
   for (const id of FOLK_IDS) {
-    const k = FOLK[id], place = (L) => L.folkPlace(id), sec = k.sec || ((L) => L.folkName(id));
+    // (Betty, once her café has gone, is found in the church hall, under her own name.)
+    const k = FOLK[id], place = (L) => L.folkPlace(id), sec = id === 'betty' ? (L) => (L.folk('betty').shut ? 'Betty' : k.sec) : k.sec || ((L) => L.folkName(id));
     def(`fkSee_${id}`, {
       place, sec, icon: k.icon, time: 0, open: `folk_${id}`,
       title: (L) => L.folkName(id), desc: (L) => `${L.folkHearts(id)} ${L.folkUp(id)}`,
@@ -389,9 +394,10 @@ export function install({ def, Life, clamp, val, hooks, addEvents }) {
       return L.s.wx === 'storm' ? 'Exercise in a real gale. You come back soaked to the bone and lit up like a lamp.' : L.pick(['Launch, man overboard drill, recover, again. Quinn times you on a stopwatch and says nothing, which is good.', 'Rowing the inshore boat round the point and back. Your arms are no longer your own.', 'You practise with the line-throwing gun and hit a buoy, a gull, and, on the third try, the target.']);
     },
   });
+  // (A member of the Pavilion Players goes to club night instead: see clubs.js.)
   def('fkRehearse', {
     place: 'theatre', sec: 'Desmond Achebe', icon: '🎭', title: 'Rehearse with the Players', desc: 'Tuesdays at the Pavilion. Good for Charm. Once a season.', per: 1,
-    show: (L) => L.folkHas('players'),
+    show: (L) => L.folkHas('players') && !(L.clubMem && L.clubMem('players')),
     run(L) {
       L.gain('charm', 2.4); L.joy(3); L.fame(0.1);
       return L.pick(['Voice exercises with Desmond: you say "red lorry, yellow lorry" until the words lose all meaning.', 'You play a butler, a fishwife and a tree, all in one evening.', 'Desmond stops the rehearsal to tell you that you have "found something". Neither of you knows what.']);
@@ -457,7 +463,8 @@ export function install({ def, Life, clamp, val, hooks, addEvents }) {
     const got = Object.keys(s.grown).filter((c) => (s.grown[c] || 0) > (fk.grown[c] || 0));
     if (got.length) {
       fk.bag.veg = { c: got[0], n: got.length, t: s.t };
-      if (L.folkHas('stall')) { const extra = got.reduce((a, c) => a + round10(CROPS[c].pay * 0.25), 0); L.cash(extra); s.n.earned += extra; L.say('🧀', `Priya sold the best of it on her stall: ${money(extra)} more`, 'good'); }
+      // (Not when the whole crop has gone to your own stall on Market Square instead: see market.js.)
+      if (L.folkHas('stall') && !(s.mkt && s.mkt.veg && s.mkt.stall)) { const extra = got.reduce((a, c) => a + round10(CROPS[c].pay * 0.25), 0); L.cash(extra); s.n.earned += extra; L.say('🧀', `Priya sold the best of it on her stall: ${money(extra)} more`, 'good'); }
       fk.grown = { ...s.grown };
     }
     if (id === 'readingRoom') fk.read++;
