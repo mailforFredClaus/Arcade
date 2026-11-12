@@ -6,5 +6,6 @@
 import soul from './soul-ui.js';
 import coast from './coast-ui.js'; // Gorse Head, Smugglers’ Cove and the Merrow
 import motor from './motor-ui.js';
+import clubs from './clubs-ui.js';
 
-export const SCREENS = [soul, coast, motor];
+export const SCREENS = [soul, coast, motor, clubs];
