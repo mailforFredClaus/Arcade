@@ -1300,7 +1300,8 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'drains3', icon: '🗳️', title: 'A vacancy', w: 8, once: true, when: (L) => L.s.f.drains === 2 && (!L.s.annals || !!L.s.annals.drained),
+    // (Whoever resigned over it, as annals.js recorded; a life saved before then, Pennington.)
+    id: 'drains3', icon: '🗳️', title: 'A vacancy', w: 8, once: true, when: (L) => L.s.f.drains === 2,
     text: (L) => { const d = (L.s.annals && L.s.annals.drained) || { n: 'Mayor Pennington', sex: 'm' }; return `${d.n} has resigned "to spend more time with ${his(d)} family", who are not said to be pleased. People keep stopping you in the street to say that somebody honest ought to stand for the council.`; },
     opts: [
       { t: 'Stand', check: ['charm', 50], run(L, x, win) { L.s.f.drains = 3; if (win) { L.fame(5); L.karma(3); L.joy(8); if (inJob(L, 'politics')) { L.s.job.perf = 100; L.s.job.n += 6; } L.note('Elected to the council on the strength of the drains.', 'big'); return 'You win by a street. Your first act is to ask where the drains are. They are found, in the end, on a drawing.'; } L.joy(-3); return 'You lose to a man who promises a second ice cream van. That is democracy.'; } },

@@ -443,7 +443,7 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
       if (T.last) T.last.t = sh(T.last.t);
       for (const w of T.plan) { w.at = sh(w.at); w.due = sh(w.due); w.drop = sh(w.drop); delete w.asked; }
       for (const k of Object.keys(T.built)) T.built[k] = sh(T.built[k]);
-      for (const e of Object.values(T.ev)) for (const k of EV_TIMES) e[k] = sh(e[k]);
+      for (const e of Object.values(T.ev)) for (const k of EV_TIMES) if (k in e) e[k] = sh(e[k]);
       if (T.ev.film) T.ev.film.part = 0;
       if (T.ev.flood) T.ev.flood.cost = 0;
       if (T.ev.estate) delete T.ev.estate.want;
