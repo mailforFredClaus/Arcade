@@ -58,9 +58,10 @@ let MODS = []; // the screens for the newer parts of town (ui-mods.js), once the
 const ONE_OFF = new Set(['apply', 'enrol', 'rentHome', 'buyHome', 'buyLet', 'moveIn', 'letProp', 'sellEstate', 'pet', 'bizStart', 'shares', 'sellShares',
   'deposit', 'withdraw', 'borrow', 'repay', 'repayStudent', 'buy', 'pawn', 'quit', 'retire', 'trip', 'slots', 'raceBet', 'curioBuy', 'curioSell', 'fund']);
 let doneNow = [];
+// (Only called once the thing has taken time: nothing is asked of the action itself, which may
+// no longer describe itself once done, like a book just finished.)
 function keep(id, x, played) {
-  const a = life.look(id, x);
-  if (!a || !(a.time > 0) || ONE_OFF.has(id) || /^(bj|hilo)/.test(id)) return;
+  if (ONE_OFF.has(id) || /^(bj|hilo)/.test(id)) return;
   doneNow.push(id === 'workPlay' ? ['work'] : played ? [id] : x === undefined ? [id] : [id, x]);
 }
 // Plays last season's routine for as long as there is time, stopping for any card that comes up.
@@ -71,10 +72,10 @@ function sameAgain() {
   for (const [id, x] of plan) {
     if (life.s.time <= 0 || life.event() || life.s.dead) break;
     if (life.can(id, x)) { skip++; continue; }
-    const r = life.act(id, x);
+    const t0 = life.s.time, r = life.act(id, x);
     if (!r.ok) { skip++; continue; }
     did++;
-    keep(id, x, false);
+    if (life.s.time < t0) keep(id, x, false);
     news.push(...(r.news || []));
   }
   persist();

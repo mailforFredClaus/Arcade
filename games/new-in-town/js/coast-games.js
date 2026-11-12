@@ -56,7 +56,7 @@ Object.assign(GAMES, {
   coastCaves: {
     how: 'Feel your way into the cave: tap the square next to you to step into it. Pick up whatever glints, then get back to the mouth and out before the tide comes in. The lantern will not last for ever.',
     time: 50,
-    words: ['Cut off by the tide', 'Out, empty-handed', 'Out, with full pockets', 'Out, with everything'],
+    words: ['A close thing', 'Out, with a little', 'Out, with full pockets', 'Out, with everything'],
     play(api) {
       const cv = makeCave(api.rnd, api.level), { W, H, cells, mouth } = cv;
       const finds = new Set(cv.finds), total = finds.size, seen = new Set(), lit = new Set();
@@ -138,7 +138,7 @@ Object.assign(GAMES, {
         hold = null;
         if (!crack && p >= lo && p <= hi) { up[i] = 1; sfx('pop'); show(i); tally('Firm and square.'); if (standing() === 6) end(); return; }
         up[i] = -1; falls++; sfx('nope'); haptic(); show(i);
-        tally(crack ? 'Packed too hard: it cracks.' : 'Not enough sand: it slumps.');
+        tally(crack || p > hi ? 'Packed too hard: it cracks.' : 'Not enough sand: it slumps.');
       };
       buttons.forEach((b, i) => {
         b.addEventListener('pointerdown', (e) => {

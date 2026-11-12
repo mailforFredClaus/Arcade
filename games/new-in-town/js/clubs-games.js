@@ -494,8 +494,10 @@ Object.assign(GAMES, {
         word.textContent = me.turn > 0 ? 'Tacking…' : good ? 'Lifted' : 'Headed';
         sea.classList.toggle('headed', !good);
         btn.classList.toggle('off', me.turn > 0);
-        tally.textContent = `${['1st', '2nd', '3rd'][ahead()]} · ${Math.round(clamp(me.y, 0, 100))}% of the way`;
-        if (me.y >= 100) { place = 1 + rivals.filter((r) => r.y >= 100).length; finish(); }
+        if (me.y >= 100 && !place) place = 1 + rivals.filter((r) => r.y >= 100).length;
+        // (Once you are over the line, your place is where you finished, not where the boats stopped.)
+        tally.textContent = `${['1st', '2nd', '3rd'][place ? place - 1 : ahead()]} · ${Math.round(clamp(me.y, 0, 100))}% of the way`;
+        if (place) finish();
       });
       return { score, auto: () => { me.y = 100; for (const r of rivals) r.y = Math.min(r.y, 90); place = 1; finish(); } };
     },

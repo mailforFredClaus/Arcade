@@ -74,7 +74,7 @@ export const CLUBS = {
     occ: { season: 1, name: 'the summer play', where: 'at the Pavilion', prize: 'the Bay Drama Award', icon: '🎭', game: 'clubLines', gameIcon: '📜',
       titles: ['Sing in the chorus of the summer play', 'Take your part in the summer play', 'Play the lead in the summer play', 'Top the bill in the summer play'] },
     drill: { title: 'Run your lines with Desmond', icon: '📜', game: 'clubLines', desc: 'Played by hand. Builds your Stagecraft.' },
-    lead: { title: 'Direct a one-act play', icon: '🎬', desc: 'Once a year, for the spring festival in Aldermouth.' },
+    lead: { title: 'Direct a one-act play', icon: '🎬', desc: 'Once a year, for the drama festival in Aldermouth.' },
   },
   rovers: {
     name: 'Starling Rovers Sunday XI', the: 'the Rovers', place: 'ground', icon: '⚽', sec: 'Starling Rovers',
@@ -470,6 +470,15 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
     return text + promote(L, id);
   }
 
+  // A big day lost although you played your part well.
+  const NOT_YOU = {
+    choir: 'You sing it as well as you have ever sung anything. It is not enough: the sopranos lose their nerve in the last verse, and St Brigid’s come fourth.',
+    players: 'You are word-perfect, and you know it, and so does the front row. The scenery is not: the door sticks in the second act, and the play never quite recovers.',
+    rovers: 'You have the game of your life and lose 3–1 all the same: the other ten have one of theirs, of a different sort.',
+    book: 'You answer every question put to you. Your team confuse two Brontës and a Henry between them, and the cup goes to Aldermouth.',
+    sailing: 'You sail the cleanest race of your life, and a squall that misses everyone else catches your crew with the jib half up.',
+    quiz: 'You get every one of yours. The picture round does for the rest of the team, and the Shield goes to Aldermouth by a point.',
+  };
   const OCC_SAID = {
     choir: {
       help: (won) => `Too new to sing at the contest, you hand out programmes in the cathedral porch and shush a man with a cough. ${won ? 'St Brigid’s take the Rose Bowl, and you cheer louder than anyone.' : 'St Brigid’s come third of five. The cake on the coach home is excellent.'}`,
@@ -534,7 +543,9 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
       return 'You win by two points. Then the other team’s captain stands up and says something about a phone in the gents. The Shield goes to Aldermouth, and nobody at the Gull mentions it again.';
     }
     const first = id === 'rovers' && !s.clubs.cab.some((e) => e.c === 'rovers');
-    return settle(L, id, res, part, said[res](part, L, first) + extra);
+    // (Lost on a night you did your part well: it was not you.)
+    const line = res === 0 && q >= 0.65 ? NOT_YOU[id] : said[res](part, L, first);
+    return settle(L, id, res, part, line + extra);
   }
 
   // Once a year, for whoever is at the top.
@@ -543,7 +554,7 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
     m.lead = s.t; turnUp(L, m);
     stand(m, 5); learn(L, id, 2); fellows(L, id, 3); L.gain('charm', 1.5);
     if (id === 'players') {
-      if (L.chance(L.checkOdds('craft', 45 - L.clubSkill(id) / 5))) { L.fame(1); L.joy(8); return 'Your one-act play wins the spring festival in Aldermouth. Desmond is extremely gracious about it, for nearly a whole evening.'; }
+      if (L.chance(L.checkOdds('craft', 45 - L.clubSkill(id) / 5))) { L.fame(1); L.joy(8); return 'Your one-act play wins the drama festival in Aldermouth. Desmond is extremely gracious about it, for nearly a whole evening.'; }
       L.joy(2); L.fame(0.2);
       return 'Your one-act play is called “brave”, “unusual” and “certainly forty minutes long”. You learn a great deal.';
     }
@@ -581,7 +592,7 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
   });
   def('bookRead', {
     place: 'home', sec: 'Your library book', icon: '📖', time: 1, per: 2,
-    title: (L) => { const b = L.bookNow(); return `Read ${b.t} (${b.p} of ${b.len})`; },
+    title: (L) => { const b = L.bookNow(); return b ? `Read ${b.t} (${b.p} of ${b.len})` : 'Read your library book'; },
     desc: 'A sitting with your library book. Good for the mood; finish it for whatever it has to teach.',
     show: (L) => !!L.s.clubs.book,
     run(L) {
@@ -837,7 +848,8 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
     },
     {
       id: 'clubVane', icon: '🖋️', title: 'Green ink', w: 0, once: true,
-      ok: (L) => !L.s.gaol,
+      // (No secret to keep once her own story has her published under her own name: see folk-tales.js.)
+      ok: (L) => !L.s.gaol && !(L.s.folk && L.s.folk.p.achterberg && L.s.folk.p.achterberg.stage >= 5),
       text: 'Taking back the last of Clementine Vane’s novels, you notice that the library’s copy has notes in the margins: small corrections to the author’s own words, in green ink, in a hand you know very well. Miss Achterberg, behind the desk, has gone quite still.',
       opts: [
         { t: 'Say nothing, and keep her secret', run(L) { const c = L.s.clubs; c.f.secret = 1; L.karma(3); L.joy(2); if (c.book) c.book.since = L.s.t; return 'You hand the book over without a word. She stamps your card, and then, after a moment, adds a second date a month later. You will never mention it, and she knows you never will.'; } },

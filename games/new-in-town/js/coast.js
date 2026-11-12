@@ -38,7 +38,7 @@ export const BIRDS = {
   peregrine: { name: 'Peregrine falcon', icon: '🦅', where: 'head', w: 3, rare: 1 },
   puffin: { name: 'Puffin', icon: '🐧', where: 'head', when: [1], w: 4, rare: 1 },
   chough: { name: 'Chough', icon: '🐦', where: 'head', w: 1.5, rare: 2 },
-  shearwater: { name: 'Manx shearwater', icon: '🐦', where: 'head', when: [1, 2], wx: ['fog', 'storm'], w: 1.5, rare: 2 },
+  shearwater: { name: 'Manx shearwater', low: 'Manx shearwater', icon: '🐦', where: 'head', when: [1, 2], wx: ['fog', 'storm'], w: 1.5, rare: 2 },
   petrel: { name: 'Leach’s petrel', low: 'Leach’s petrel', icon: '🪶', where: 'head', when: [2], wx: ['storm'], only: true, w: 2, rare: 2 },
   hoopoe: { name: 'Hoopoe', icon: '🐦', where: 'head', when: [0], wx: ['fair', 'hot'], only: true, w: 0.4, rare: 3 },
   albatross: { name: 'Black-browed albatross', icon: '🕊️', where: 'head', when: [2, 3], wx: ['storm'], only: true, w: 0.35, rare: 3 },
@@ -284,7 +284,14 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
     // ---- the lifeboat ----
     coastCrew() { const lb = this.s.coast.lb; return !!lb && lb.rank >= 1 && lb.left == null && lb.done == null; },
     coastOnBooks() { const lb = this.s.coast.lb; return !!lb && lb.left == null && lb.done == null; },
-    coastStand(d) { const lb = this.s.coast.lb; if (lb) lb.stand = clamp(lb.stand + d, 0, 100); },
+    coastStand(d) {
+      const lb = this.s.coast.lb;
+      if (lb) lb.stand = clamp(lb.stand + d, 0, 100);
+      // (Captain Quinn is one of the townsfolk too: how the crew rate you and how she does are one thing. See folk.js.)
+      if (d > 0 && this.folkWarm && this.s.folk && this.s.folk.p.quinn && this.s.folk.p.quinn.met != null) this.folkWarm('quinn', d / 3, false);
+    },
+    // Whether her own story has already made you one of hers (folk.js): her grandfather's medal.
+    coastQuinnsOwn() { const k = this.s.folk && this.s.folk.keep; return !!(k && k.crew != null); },
     coastStandWord() {
       const v = this.s.coast.lb ? this.s.coast.lb.stand : 0;
       return v >= 85 ? 'She would trust you with her boat' : v >= 60 ? 'She lets you take the helm' : v >= 40 ? 'She says your name' : v >= 20 ? 'She nods at you' : 'She has not noticed you';
@@ -326,7 +333,7 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
     },
     coastTrusted() {
       const s = this.s, lb = s.coast.lb;
-      return (!!lb && lb.rank >= 1 && lb.stand >= 50) || (!!s.job && s.job.c === 'sea' && s.job.r >= 3);
+      return (!!lb && lb.rank >= 1 && lb.stand >= 50) || (!!s.job && s.job.c === 'sea' && s.job.r >= 3) || this.coastQuinnsOwn();
     },
 
     // ---- the caves ----
@@ -382,7 +389,7 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
     // (Every hole dug for nothing makes the council warier: the next permit costs more, and is longer coming.)
     coastMisses() { const m = this.s.coast.m; return m ? Object.keys(m.dug).filter((k) => k !== m.ans).length : 0; },
     coastDigWait() { const m = this.s.coast.m; return m && m.digAt != null ? Math.max(0, m.digAt + 4 * this.coastMisses() - this.s.t) : 0; },
-    coastDigCost(id) { const how = this.coastDigHow(id), base = how === 'dive' ? (this.s.items.boat ? 1200 : 3000) : how === 'tide' ? 600 : how === 'grave' ? 2500 : 900; return round10(base * (1 + 0.5 * this.coastMisses())); },
+    coastDigCost(id) { const how = this.coastDigHow(id), base = how === 'dive' ? (this.s.items.boat ? 1200 : 3000) : how === 'tide' ? 600 : how === 'grave' ? 2500 : 900; const m = this.s.coast.m, worth = m ? CARGO[m.cargo].worth : 0; return round10(base * (1 + 0.5 * this.coastMisses()) + 0.02 * worth * this.coastMisses()); },
     // A place the man from the podcast might dig: never the right one.
     coastRivalSite() {
       const m = this.s.coast.m;
@@ -548,7 +555,7 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
         const r = L.rnd();
         if (r < 0.16) got.push(L.gotCurio(L.anyCurio(['sea', 'coin'])).a);
         else if (r < 0.7) cash += L.int(2, 12) * 10;
-        else got.push(L.pick(['a clay pipe', 'a brass button with an anchor on it', 'a bottle with something still in it', 'a lead musket ball', 'a tin whistle', 'a small and very old shoe']));
+        else { const odd = ['a clay pipe', 'a brass button with an anchor on it', 'a bottle with something still in it', 'a lead musket ball', 'a tin whistle', 'a small and very old shoe'].filter((t) => !got.includes(t)); got.push(L.pick(odd)); }
       }
       if (cash) { L.cash(cash); s.n.earned += cash; got.unshift(`${money(cash)} in old coins`); }
       L.joy(2 + n);
@@ -591,7 +598,10 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
       const pool = Object.entries(STRAND).filter(([, k]) => (!k.when || k.when.includes(q)) && (!k.only || storm)).map(([id, k]) => [id, k.w * (storm && k.wx ? 4 : 1)]);
       let cash = 0, bottle = false;
       for (let i = 0; i < (storm ? 2 : 1); i++) {
-        const id = weighed(L, pool), k = STRAND[id];
+        // (Two different things, not the same shell twice.)
+        const left = pool.filter(([p]) => !got.includes(p));
+        if (!left.length) break;
+        const id = weighed(L, left), k = STRAND[id];
         if (!c.strand[id]) L.say(k.icon, `New in your coast book: ${k.name}`, 'good');
         c.strand[id] = (c.strand[id] || 0) + 1;
         if (k.pay) cash += round10(L.int(k.pay[0], k.pay[1]));
@@ -692,7 +702,7 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
       const s = L.s, c = s.coast, back = !!c.lb;
       c.cove++;
       if (back) { c.lb.left = null; c.lb.act = s.t; L.coastStand(-10); return '“Back, are you,” says Quinn. It is not a question, and it is not quite a welcome.'; }
-      c.lb = { at: s.t, train: 0, rank: 0, stand: 15, calls: 0, saved: 0, medal: 0, bigs: 0, miss: 0, log: [], act: s.t, left: null, done: null };
+      c.lb = { at: s.t, train: 0, rank: 0, stand: L.coastQuinnsOwn() ? 45 : 15, calls: 0, saved: 0, medal: 0, bigs: 0, miss: 0, log: [], act: s.t, left: null, done: null };
       L.note('Volunteered for the Starling Bay lifeboat.');
       return 'Captain Quinn looks you up and down for a long moment. “Tuesday,” she says. “Seven. Bring a towel.”';
     },
@@ -744,7 +754,7 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
     place: 'library', sec: 'The Merrow', icon: '🗄️', title: 'Search the town archives', time: 2, per: 1,
     desc: (L) => `Boxes of the town’s papers, in no order at all. ${L.s.coast.m.arch} of 8 gone through.`,
     show: (L) => L.coastOn() && (L.s.coast.m.clues.paper == null || L.s.coast.m.clues.archive == null),
-    why: (L) => (L.s.coast.reads < 3 && L.s.st.smarts < 50 ? 'Miss Achterberg keeps the archives for readers she knows. Read in the reading room a few times first.' : null),
+    why: (L) => (L.s.coast.reads < 3 && L.s.st.smarts < 50 && !(L.clubMem && L.clubMem('book')) && !(L.s.folk && L.s.folk.p.achterberg && L.s.folk.p.achterberg.f >= 25) ? 'Miss Achterberg keeps the archives for readers she knows. Read in the reading room a few times first.' : null),
     run(L) {
       const m = L.s.coast.m;
       m.arch = Math.min(8, m.arch + 1 + (L.chance(L.checkOdds('smarts', 60) - 0.3) ? 1 : 0));
@@ -811,7 +821,9 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
       if (m.found != null) return 'The Merrow has given up her secret.';
       if (m.dug[x] != null) return 'You have dug there already. Nothing.';
       if (m.rival === x) return 'Darren Pike dug it over for his podcast. Nothing there.';
-      if (L.coastClues() < 3) return 'Nobody will give you leave to dig on a story. Follow up three leads first.';
+      if (L.coastClues() < 4) return 'Nobody will give you leave to dig on a story. Follow up four leads first.';
+      // (Not on paper alone: somebody who knows this coast has to have told you something.)
+      if (!['marlow', 'chart', 'quinn', 'marks'].some((k) => m.clues[k] != null)) return 'Everything you have came out of a book. Old Marlow, Captain Quinn, an old chart or the caves should tell you something first.';
       const n = L.coastDigWait();
       if (n) return `The council will not give you another permit for ${n} more season${n > 1 ? 's' : ''}.`;
       if (k.water === 'tide' && L.season % 2) return 'Only the great ebbs of spring and autumn uncover it.';

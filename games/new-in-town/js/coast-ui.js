@@ -57,7 +57,7 @@ export default function (kit) {
         return `<div class="cb-lead"><i>${v.icon}</i><div><b>${esc(v.name)}</b><small>${esc(v.hint + prog)}</small></div></div>`;
       }).join('');
     }
-    body += `<h3>Where it might be</h3><p class="fine">Tap to rule a place out as you go. Nobody gives you leave to dig until you have followed up three leads; a wrong guess costs money, and the council makes you wait a year for the next permit, and longer each time after that.${L.coastMisses() ? ` Holes dug for nothing so far: ${L.coastMisses()}.` : ''}</p>`;
+    body += `<h3>Where it might be</h3><p class="fine">Tap to rule a place out as you go. Nobody gives you leave to dig until you have followed up four leads, one of them from somebody who knows this coast; a wrong guess costs money, and the council makes you wait a year for the next permit, and longer each time after that.${L.coastMisses() ? ` Holes dug for nothing so far: ${L.coastMisses()}.` : ''}</p>`;
     for (const [id, p] of Object.entries(SITES)) {
       const how = L.coastDigHow(id), gone = m.dug[id] != null || m.rival === id, out = gone || !!m.x[id] || (m.found != null && id !== m.ans);
       const chips = Object.keys(ATTRS).map((a) => { const [ic, label] = ATTRS[a].vals[p[a]]; return `<span>${ic} ${label}</span>`; }).join('');
@@ -81,7 +81,7 @@ export default function (kit) {
     if (!lb) return { icon: '🚤', title: 'The lifeboat station', sub: 'Volunteers wanted', body: body + actRow(L.look('coastJoin')) };
     const word = lb.done != null ? 'Stood down, with thanks' : lb.left != null ? 'Not on the crew just now' : LB_RANKS[lb.rank];
     body += `<div class="item mine"><div class="item-top"><span class="act-ico">🛟</span><div><b>${esc(word)}</b><small>${lb.calls ? `${lb.calls} shout${lb.calls > 1 ? 's' : ''}, ${lb.saved} people brought home` : lb.rank ? 'No shouts yet. Keep the pager on you.' : `${lb.train} of 4 training sessions done`}${lb.medal ? ` · ${lb.medal > 1 ? 'silver' : 'bronze'} medal for gallantry` : ''}</small></div></div>
-      <div class="skill"><i>⚓</i><span>Quinn</span><span class="bar"><span style="width:${lb.stand}%"></span></span><b>${Math.round(lb.stand)}</b></div>
+      <div class="skill"><i>⚓</i><span>With the crew</span><span class="bar"><span style="width:${lb.stand}%"></span></span><b>${Math.round(lb.stand)}</b></div>
       <p class="fine">${esc(L.coastStandWord())}. Training and good shouts raise it; missing a shout, or a season out of her sight, lowers it.</p></div>`;
     const ladder = [['Four training sessions', lb.train >= 4], ['Standing 60, and six shouts', lb.rank >= 2], ['Standing 85, and fifteen shouts', lb.rank >= 3]];
     body += `<details><summary>The crew, from the bottom up</summary>${LB_RANKS.map((r, i) => `<div class="rung${lb.rank === i && lb.left == null && lb.done == null ? ' now' : ''}"><b>${i + 1}. ${r}</b><div>${i ? `<i class="need${ladder[i - 1][1] ? ' ok' : ''}">${ladder[i - 1][1] ? '✓' : '○'} ${ladder[i - 1][0]}</i>` : '<i class="need ok">Anyone with Fitness 25</i>'}</div></div>`).join('')}
@@ -106,7 +106,7 @@ export default function (kit) {
       out += line('🛟 The lifeboat', lb.done != null ? 'Stood down' : lb.left != null ? 'Not on the crew' : LB_RANKS[lb.rank]);
       if (lb.calls) out += line('🌊 Shouts', `${lb.calls}, and ${lb.saved} brought home`);
       if (lb.medal) out += line('🎖️ Medal for gallantry', lb.medal > 1 ? 'Silver' : 'Bronze');
-      if (L.coastOnBooks()) out += `<div class="skill"><i>⚓</i><span>Quinn</span><span class="bar"><span style="width:${lb.stand}%"></span></span><b>${Math.round(lb.stand)}</b></div>`;
+      if (L.coastOnBooks()) out += `<div class="skill"><i>⚓</i><span>With the crew</span><span class="bar"><span style="width:${lb.stand}%"></span></span><b>${Math.round(lb.stand)}</b></div>`;
     }
     if (m && m.on != null) out += line('⚓ The Merrow', m.end ? { keep: 'Found, and sold', museum: 'Found, and in the museum', town: 'Found, and shared' }[m.end] : m.found != null ? 'Found!' : `${L.coastClues()} of ${Object.keys(LEADS).length} leads followed`);
     const btn = (kind, label) => `<button class="btn btn-soft" data-do="open" data-kind="${kind}">${label}</button>`;
@@ -128,7 +128,8 @@ export default function (kit) {
   const play = (id, mini) => {
     const L = kit.life, why = L.can(id, 0.5);
     if (why) { kit.sfx('nope'); kit.toast(why); return; }
-    kit.playMini(mini(L), (score) => { if (score != null && kit.life) kit.doAct(id, score); });
+    // (Giving up in the caves is walking back out with what you hold, not being cut off by the tide.)
+    kit.playMini(mini(L), (score, gaveUp) => { if (score != null && kit.life) kit.doAct(id, gaveUp && id === 'coastCave' ? Math.max(0.2, score) : score); });
   };
 
   return {
