@@ -7,5 +7,6 @@ import soul from './soul-ui.js';
 import coast from './coast-ui.js'; // Gorse Head, Smugglers’ Cove and the Merrow
 import motor from './motor-ui.js';
 import clubs from './clubs-ui.js';
+import market from './market-ui.js'; // Windle Farm and Market Square
 
-export const SCREENS = [soul, coast, motor, clubs];
+export const SCREENS = [soul, coast, motor, clubs, market];

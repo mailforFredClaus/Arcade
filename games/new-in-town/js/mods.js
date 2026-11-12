@@ -10,5 +10,6 @@ import { install as soul } from './soul.js';
 import { install as coast } from './coast.js'; // Gorse Head, Smugglers’ Cove and the Merrow
 import { install as motor } from './motor.js';
 import { install as clubs } from './clubs.js';
+import { install as market } from './market.js'; // Windle Farm and Market Square
 
-export const RULES = [hill, soul, coast, motor, clubs];
+export const RULES = [hill, soul, coast, motor, clubs, market];
