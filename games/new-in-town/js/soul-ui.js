@@ -118,7 +118,7 @@ export default function (kit) {
   };
 
   function character(life) {
-    const S = life.s.soul, held = life.soulTraits(), shaping = life.soulShaping(held.length >= 3 ? 1 : 2);
+    const held = life.soulTraits(), shaping = life.soulShaping(held.length >= 3 ? 1 : 2);
     let h = '<div class="box soul-char"><h3>Character</h3>';
     if (held.length) {
       h += held.map((id) => {
