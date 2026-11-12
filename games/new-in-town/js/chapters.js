@@ -587,7 +587,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     // The townsfolk, as this life left them: friendship, how far each story had gone, what each likes, and
     // whether Betty's café is still open (folkTakeOn in folk.js decides what the heir keeps of it).
     const folk = {};
-    if (s.folk) for (const [id, f] of Object.entries(s.folk.p)) if (f.met != null) folk[id] = { f: Math.round(f.f), stage: f.stage || 0, known: { ...(f.known || {}) }, shut: f.shut ? 1 : 0, ...(id === 'marlow' ? { fm: s.f.marlow || 0 } : {}) };
+    if (s.folk) for (const [id, f] of Object.entries(s.folk.p)) if (f.met != null) folk[id] = { f: Math.round(f.f), stage: f.stage || 0, known: { ...(f.known || {}) }, shut: f.shut ? 1 : 0, ...(f.skip ? { skip: { ...f.skip } } : {}), ...(id === 'marlow' ? { fm: s.f.marlow || 0 } : {}) };
     return {
       ...base, how, pid: p.id, rel: relOf(p), called, age: p.age + gap, gap, name: first(p), sex: p.sex, look: p.look, job: p.age >= 18 ? p.job : null,
       single, wed, kids: own, sibs, parent, parPurse, purse: p.purse || 0, st, sibBond: fair, folk, fam: famFor(L, called, p.kind === 'grandchild' ? 2 : 1),

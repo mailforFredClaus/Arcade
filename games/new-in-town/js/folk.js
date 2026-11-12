@@ -150,9 +150,9 @@ export function install({ def, Life, clamp, val, hooks, addEvents }) {
     folkStep(id, n, gain) {
       const s = this.s, p = this.folk(id);
       if (n <= p.stage) return;
-      p.stage = n; p.at = s.t; p.seen = s.t;
+      p.stage = n; p.at = s.t; p.seen = s.t; p.no = 0;
       this.folkWarm(id, gain);
-      if (n === 5) {
+      if (n === 5 && !(p.skip && p.skip[5])) {
         this.note(`Heard the whole of ${this.folkName(id)}’s story: ${STORIES[id][4].title.toLowerCase()}.`, 'big');
         this.say(FOLK[id].icon, `${this.folkName(id)}: the whole story`, 'dream');
       }
@@ -166,11 +166,22 @@ export function install({ def, Life, clamp, val, hooks, addEvents }) {
       return `${F.set} It goes on your list of favours${f.due != null ? `, to be done ${this.folkDue(f)}` : ''}.`;
     },
     // (Each time you say no, they leave it longer before asking again: a year, then two, then three.)
+    // (And the third no to the same chapter, they find somebody else, and the story moves on without you:
+    // it never waits for ever. Not Mrs Pargeter's or Marlow's, whose stories go their own way, nor the last chapter.)
     folkNo(id, said) {
       const s = this.s, p = this.folk(id);
       p.no = (p.no || 0) + 1;
       p.off = s.t + 4 * Math.min(3, p.no);
       this.folkWarm(id, -1);
+      const st = STORIES[id] && STORIES[id][p.stage];
+      if (p.no >= 3 && id !== 'parg' && id !== 'marlow' && p.stage < 4 && st && !st.flag) {
+        const n = p.stage + 1;
+        p.skip = { ...(p.skip || {}), [n]: 1 };
+        this.folkStep(id, n, 0);
+        p.off = s.t + 4;
+        this.note(`${this.folkName(id)} found somebody else, in the end: ${st.title.replace(/^./, (c) => c.toLowerCase())}.`);
+        return `${said} It is the last time ${FOLK[id].sex === 'm' ? 'he' : 'she'} will ask about it.`;
+      }
       return said;
     },
     // When a favour was asked, said plainly: "asked last season", "asked three years ago".
@@ -208,7 +219,10 @@ export function install({ def, Life, clamp, val, hooks, addEvents }) {
       const f = s.folk.fav[i], F = FAVOURS[f.id];
       s.folk.fav.splice(i, 1);
       s.folk.lapsed = (s.folk.lapsed || 0) + 1;
-      // (The chapter it belonged to closes, warmed by nothing: the next can come in its own time.)
+      // (The chapter it belonged to closes, warmed by nothing: the next can come in its own time. It is
+      // remembered as skipped: what it would have given, and the story's own words for it, were not yours.)
+      const p = this.folk(F.who);
+      p.skip = { ...(p.skip || {}), [f.n]: 1 };
       this.folkStep(F.who, f.n, 0);
       this.note(`${this.folkName(F.who)} found another way, in the end: ${val(F.title, this).replace(/^./, (c) => c.toLowerCase())}.`);
       return f;
@@ -228,7 +242,7 @@ export function install({ def, Life, clamp, val, hooks, addEvents }) {
     // what comes of friendship, and only while the friendship is kept up. p.inh: the stage the story was at.)
     folkHas(b) {
       const B = BOONS[b], p = this.folk(B.who);
-      if (p.stage < B.at || (B.keep && p.f < KEEP_IN_TOUCH) || (B.on && !B.on(this)) || (!B.keep && p.inh != null && B.at <= p.inh)) return false;
+      if (p.stage < B.at || (B.keep && p.f < KEEP_IN_TOUCH) || (B.on && !B.on(this)) || (!B.keep && p.inh != null && B.at <= p.inh) || (p.skip && p.skip[B.at])) return false;
       return !(B.who === 'pym' && this.pymShut());
     },
     // The heir takes the townsfolk on (from chapBegin in chapters.js). from: { id: { f, stage, known, shut, fm } }
@@ -252,7 +266,7 @@ export function install({ def, Life, clamp, val, hooks, addEvents }) {
         // (What each of them likes, you find out for yourself: that is half the fun, and a trophy.)
         if (o) {
           if (o.shut) p.shut = 1;
-          if (o.stage > 0) { p.stage = Math.min(5, o.stage); p.inh = p.stage; }
+          if (o.stage > 0) { p.stage = Math.min(5, o.stage); p.inh = p.stage; if (o.skip) p.skip = { ...o.skip }; }
           if (id === 'marlow' && o.fm) s.f.marlow = Math.min(3, o.fm);
         }
       }
@@ -331,7 +345,7 @@ export function install({ def, Life, clamp, val, hooks, addEvents }) {
     // Their story, as far as it has gone: [{ n, title, said, done }].
     folkStory(id) {
       const p = this.folk(id);
-      return STORIES[id].map((st, i) => ({ n: i + 1, title: st.title, said: st.said, done: p.stage > i, need: st.need || 0 }));
+      return STORIES[id].map((st, i) => ({ n: i + 1, title: st.title, said: p.skip && p.skip[i + 1] ? 'Somebody else saw to it, in the end.' : st.said, done: p.stage > i, need: st.need || 0 }));
     },
     // What they have given you that lasts.
     folkBoons(id) { return Object.entries(BOONS).filter(([, B]) => B.who === id && this.folk(id).stage >= B.at).map(([b, B]) => ({ id: b, ...B, on: this.folkHas(b) })); },
@@ -492,7 +506,7 @@ export function install({ def, Life, clamp, val, hooks, addEvents }) {
   const corners = (L) => new Set(FOLK_IDS.filter((id) => L.s.folk.p[id].f >= 60).map((id) => FOLK[id].corner));
   Object.assign(TROPHIES, {
     // (Not for a story the last of the family heard to the end: see folkTakeOn.)
-    folkStory: { name: 'The whole story', icon: '📖', desc: 'Hear one of the townsfolk’s stories to the end.', test: (L) => !!L.s.folk && FOLK_IDS.some((id) => L.s.folk.p[id].stage >= 5 && !(L.s.folk.p[id].inh >= 5)) },
+    folkStory: { name: 'The whole story', icon: '📖', desc: 'Hear one of the townsfolk’s stories to the end.', test: (L) => !!L.s.folk && FOLK_IDS.some((id) => L.s.folk.p[id].stage >= 5 && !(L.s.folk.p[id].inh >= 5) && !(L.s.folk.p[id].skip && L.s.folk.p[id].skip[5])) },
     folkFavours: { name: 'Good neighbour', icon: '🤝', desc: 'Do ten favours for the townsfolk.', test: (L) => !!L.s.folk && L.s.folk.done >= 10 },
     folkCorners: { name: 'A friend in every corner', icon: '🗺️', desc: 'Have a good friend (three hearts) down by the water, in the Bay, in the old town and out on its edge.', test: (L) => !!L.s.folk && corners(L).size >= Object.keys(CORNERS).length },
     folkLoves: { name: 'Just what I wanted', icon: '🎁', desc: 'Find something that each of eight townsfolk loves.', test: (L) => !!L.s.folk && FOLK_IDS.filter((id) => Object.values(L.s.folk.p[id].known).includes('love')).length >= 8 },

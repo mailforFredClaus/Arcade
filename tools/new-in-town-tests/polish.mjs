@@ -174,8 +174,15 @@ export default function ({ check, fresh, Life }) {
     const N = fresh({ seed: 17 });
     N.folkChat('hollis');
     N.folkNo('hollis', ''); const one = N.s.folk.p.hollis.off - N.s.t;
-    N.folkNo('hollis', ''); N.folkNo('hollis', ''); const three = N.s.folk.p.hollis.off - N.s.t;
-    check(one === 4 && three === 12, 'and each no puts the next asking further off');
+    N.folkNo('hollis', ''); const two = N.s.folk.p.hollis.off - N.s.t;
+    check(one === 4 && two === 8, 'and each no puts the next asking further off');
+    check(L.folkStory('hollis')[0].said === 'Somebody else saw to it, in the end.', 'a chapter let go is not told as if you had done it');
+    // Three times no to the same chapter, and she finds somebody else; what it would have brought is not yours.
+    const R = fresh({ seed: 17 }), rp = R.s.folk.p.hollis;
+    R.folkChat('hollis'); Object.assign(rp, { stage: 1, f: 80 });
+    R.folkNo('hollis', ''); R.folkNo('hollis', '');
+    const third = R.folkNo('hollis', 'She goes herself.');
+    check(rp.stage === 2 && rp.skip[2] && /last time she will ask/.test(third) && !R.folkHas('honey') && R.s.log.some((e) => /found somebody else/.test(e.t)), 'say no three times and the story moves on without you, and without the honey');
   }
 
   // ---- traits from long commitments ----

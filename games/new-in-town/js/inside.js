@@ -101,15 +101,15 @@ export function install({ def, A, Life, clamp }) {
   // -- the day
   def('gWork', inside({
     sec: 'The day', icon: '🧺', title: 'Work in the laundry', desc: 'Forty dollars and all the steam you can breathe. The governor notices.',
-    run(L) { L.cash(40); L.behave(3); L.gain('craft', 0.8); return L.pick(['Four hundred sheets. You fold the last one into a swan.', 'The mangle has a name. The name is Doris.', 'Somebody’s socks come back pink. Nobody saw anything.']); },
+    run(L) { L.cash(40); L.behave(3); L.gain('craft', 0.8); return L.pick(['Four hundred sheets. You fold the last one into a swan.', 'The mangle has a name. The name is Doris.', 'Somebody’s socks come back pink. Nobody saw anything.', 'The governor’s shirts, twelve of them, starched until they could stand up on their own and leave.', 'Doris the mangle breaks down, and you mend her with a hairgrip. You are a hero until teatime.', 'Pillowcases all morning. You find a betting slip, a love letter and half a biscuit, and keep quiet about all three.']); },
   }));
   def('gYard', inside({
     sec: 'The day', icon: '🏋️', title: 'Hit the yard', desc: 'Fitness. There is very little else to lift in here but weights.',
-    run(L) { L.gain('fitness', 2.6); L.respect(1); L.hp(1); return L.pick(['Press-ups until the whistle.', 'Forty laps of a yard the size of a tennis court.', 'A man called Tiny spots for you. Tiny is not tiny.']); },
+    run(L) { L.gain('fitness', 2.6); L.respect(1); L.hp(1); return L.pick(['Press-ups until the whistle.', 'Forty laps of a yard the size of a tennis court.', 'A man called Tiny spots for you. Tiny is not tiny.', 'Rain in the yard, and only you and two others out in it. You run until you cannot feel it.', 'Five-a-side against C wing, with a ball made of socks. A draw, which suits everybody.', 'Pull-ups on the bar by the gate, and a gull on the wire, counting.']); },
   }));
   def('gLib', inside({
     sol: true, sec: 'The day', icon: '📚', title: 'Read what is on the trolley', desc: 'Smarts. Mostly westerns, and one book on tax law.',
-    run(L) { L.gain('smarts', 2.4); L.behave(1); L.joy(1); return L.pick(['You read the book on tax law. It is surprisingly gripping.', 'The last page of the western is missing. You write your own.', 'A dictionary, from A as far as M.']); },
+    run(L) { L.gain('smarts', 2.4); L.behave(1); L.joy(1); return L.pick(['You read the book on tax law. It is surprisingly gripping.', 'The last page of the western is missing. You write your own.', 'A dictionary, from A as far as M.', 'A new box on the trolley: forty paperbacks from St Brigid’s jumble, with the vicar’s bookmarks still in them.', 'A book about lighthouses, read twice. You could build one now, given the bricks.', 'The dictionary again, from M to the end. Zymurgy is the last word, and it is about beer.']); },
   }));
   def('gStudy', inside({
     sec: 'The day', icon: '🎓',
