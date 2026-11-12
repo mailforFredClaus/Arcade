@@ -212,6 +212,9 @@ export const LEADS = {
   quinn: { icon: '📘', name: 'The old tide tables', hint: 'Captain Quinn keeps the harbour’s old tide tables, for her own lifeboat crew and for skippers she knows.' },
   marks: { icon: '🕯️', name: 'Marks in the caves', hint: 'The survivors sheltered in the caves under Gorse Head. People say they left their marks.' },
 };
+// Captain Quinn's tide tables: a skipper she knows has landed this many fish from a boat of
+// their own; a friend of hers has this much of her friendship (folk.js).
+const SKIPPER_FISH = 25, QUINN_FRIEND = 50;
 const OLD_FIRST = ['Josiah', 'Tobias', 'Elias', 'Silas', 'Amos', 'Ezra', 'Jem', 'Nathaniel', 'Reuben', 'Abel', 'Caleb', 'Zebedee', 'Obadiah', 'Jabez'];
 const OLD_LAST = ['Penhallow', 'Tregenza', 'Thackeray', 'Quayle', 'Larkin', 'Whitlock', 'Fairweather', 'Pascoe', 'Rowe', 'Trevaskis', 'Polglaze', 'Hocking', 'Jago', 'Nance'];
 const PORTS = ['Falmouth', 'Cork', 'Lisbon', 'Bristol', 'Plymouth', 'Bordeaux', 'Swansea', 'Corunna'];
@@ -331,9 +334,57 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
       else if (lb.rank === 2 && lb.stand >= 85 && lb.calls >= 15) { lb.rank = 3; text += ' “Second cox,” says Quinn, and walks off before you can answer.'; this.note('Made second coxswain of the Starling Bay lifeboat.', 'big'); this.say('🛟', 'Made second coxswain of the lifeboat', 'promo'); }
       return text;
     },
+    // Captain Quinn shows her old tide tables to her own crew, to skippers she knows (a career at
+    // sea, or a boat of your own and a good many fish landed from it), and to her friends.
     coastTrusted() {
       const s = this.s, lb = s.coast.lb;
-      return (!!lb && lb.rank >= 1 && lb.stand >= 50) || (!!s.job && s.job.c === 'sea' && s.job.r >= 3) || this.coastQuinnsOwn();
+      return (!!lb && lb.rank >= 1 && lb.stand >= 50) || (!!s.job && s.job.c === 'sea' && s.job.r >= 3) || this.coastQuinnsOwn() || this.coastSkipper() || this.coastQuinnF() >= QUINN_FRIEND;
+    },
+    coastSkipper() { return !!this.s.items.boat && (this.s.n.fish || 0) >= SKIPPER_FISH; },
+    coastQuinnF() { const q = this.s.folk && this.s.folk.p.quinn; return q ? q.f || 0 : 0; },
+    // Miss Achterberg lets you at the archives once she knows you as a reader.
+    coastReader() { const s = this.s; return s.coast.reads >= 3 || s.st.smarts >= 50 || !!(this.clubMem && this.clubMem('book')) || !!(s.folk && s.folk.p.achterberg && s.folk.p.achterberg.f >= 25); },
+    // The chart, while it is in Mr Pym's window (it stays there until the end of the season after it appears).
+    coastChartUp() { const m = this.s.coast.m; return !!m && !!m.chart && this.s.t - m.chart.t <= 1 && m.clues.chart == null; },
+    // What each lead on the Merrow needs, plainly, and how close you are: { steps: [{ t, ok }],
+    // any (any one of the steps will do), next: what to do about it now, or null if nothing can be done yet }.
+    coastLeadNeeds(key) {
+      const s = this.s, m = s.coast.m, c = s.coast, q = this.season, autumn = q === 2 || q === 3;
+      if (!m) return { steps: [], next: null };
+      const got = m.clues[key] != null;
+      if (key === 'marlow') {
+        const known = (s.f.marlow || 0) >= 1;
+        return { steps: [{ t: 'Old Marlow knows you: chat with him at the harbour, and help with his nets', ok: known }, { t: `Three evenings by the fire at the Gull & Anchor, in autumn or winter (${Math.min(3, m.pints)} of 3)`, ok: got }],
+          next: got ? null : !known ? 'Chat with old Marlow at the harbour.' : !autumn ? 'Wait for the autumn: he tells the old stories by the fire.' : s.use.coastPint ? 'Another evening, next season.' : 'Buy him a pint at the Gull & Anchor this season.' };
+      }
+      if (key === 'paper' || key === 'archive') {
+        const reader = this.coastReader(), want = key === 'paper' ? 3 : 8;
+        return { steps: [{ t: `Miss Achterberg knows you as a reader: three sittings in the library’s reading room (${Math.min(3, c.reads)} of 3), or Smarts 50, or the book club`, ok: reader }, { t: `Go through the archive boxes at the library (${Math.min(want, m.arch)} of ${want})`, ok: got }],
+          next: got ? null : !reader ? 'Read in the library’s reading room up the hill.' : s.use.coastArchive ? 'More boxes next season.' : 'Search the town archives at the library this season.' };
+      }
+      if (key === 'register') {
+        return { steps: [{ t: 'A name and a date to start from: the old Gazettes, in the archives', ok: m.clues.paper != null }, { t: 'The burial register at St Brigid’s, for a donation to the roof', ok: got }],
+          next: got ? null : m.clues.paper == null ? null : 'Ask the Reverend Hollis for the burial register at St Brigid’s.' };
+      }
+      if (key === 'chart') {
+        const up = this.coastChartUp();
+        return { steps: [{ t: up ? `An old chart in Mr Pym’s window on the High Street: ${money(m.chart.ask)}, until the end of ${m.chart.t === s.t ? 'next season' : 'this season'}` : 'An old chart of this coast in Mr Pym’s window: one turns up every year or two', ok: got || up }],
+          next: got ? null : up ? 'Buy the chart at Mr Pym’s on the High Street.' : null };
+      }
+      if (key === 'quinn') {
+        const lb = c.lb, fish = s.n.fish || 0;
+        const ways = [
+          { t: lb && lb.rank >= 1 ? `On the lifeboat crew, and well thought of by Quinn (standing ${Math.floor(lb.stand)} of 50)` : 'On the lifeboat crew at the cove, and well thought of by Quinn (standing 50)', ok: !!lb && lb.rank >= 1 && lb.stand >= 50 },
+          { t: s.items.boat ? `A skipper she knows: your own boat, and ${SKIPPER_FISH} fish landed (${Math.min(SKIPPER_FISH, fish)} so far)` : `A skipper she knows: a boat of your own, and ${SKIPPER_FISH} fish landed`, ok: this.coastSkipper() || (!!s.job && s.job.c === 'sea' && s.job.r >= 3) },
+          { t: `A friend of hers: Captain Quinn’s friendship (${Math.floor(this.coastQuinnF())} of ${QUINN_FRIEND})`, ok: this.coastQuinnF() >= QUINN_FRIEND || this.coastQuinnsOwn() },
+        ];
+        return { steps: ways, any: true, next: got ? null : this.coastTrusted() ? 'Ask Captain Quinn about the old tides, at the harbour.' : !lb ? 'Join the lifeboat crew at the cove, or keep a boat and fish from it.' : 'Train and go out on shouts with the lifeboat crew.' };
+      }
+      if (key === 'marks') {
+        const p = Math.round((0.15 + 0.5 * 0.75) * 100);
+        return { steps: [{ t: `Into the caves under Gorse Head by lantern: the further in you get, the likelier you are to find them (about ${p}% on a good trip)`, ok: got }], next: got ? null : 'Go into the caves at Gorse Head, while the tide is out.' };
+      }
+      return { steps: [], next: null };
     },
 
     // ---- the caves ----
@@ -488,9 +539,9 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
     }
     if (m && m.on != null && m.found == null && !out) {
       // The chart turns up in Mr Pym’s window now and then.
-      if (m.clues.chart == null && s.t - m.on >= 2 && L.chance(0.12)) { m.chart = { t: s.t, ask: 10 * L.int(45, 140) }; L.say('🗺️', 'Mr Pym has an old chart of Gorse Head in his window', 'good'); }
+      if (m.clues.chart == null && s.t - m.on >= 2 && !L.coastChartUp() && L.chance(0.15)) { m.chart = { t: s.t, ask: 10 * L.int(45, 140) }; L.say('🗺️', 'Mr Pym has an old chart of Gorse Head in his window, until the end of next season', 'good'); }
       if (m.clues.quinn == null && !m.told && L.coastTrusted()) { m.told = 1; L.say('📘', 'Captain Quinn wants a word, down at the harbour', 'good'); }
-      if (m.clues.marlow == null && L.season === 3 && (s.f.marlow || 0) >= 1) L.say('🍺', 'Old Marlow is by the fire at the Gull & Anchor most nights now', '');
+      if (m.clues.marlow == null && L.season === 2 && (s.f.marlow || 0) >= 1) L.say('🍺', 'Old Marlow is by the fire at the Gull & Anchor most nights now', '');
     }
     if (m && m.end === 'keep' && !m.claimed && m.claimAt != null && s.t >= m.claimAt && !out && !s.pend.some((p) => p.id === 'coastClaim')) L.queue('coastClaim');
   });
@@ -740,7 +791,7 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
     place: 'pub', sec: 'The Merrow', icon: '🍺', title: 'Buy old Marlow a pint', time: 1, cost: 8, per: 1,
     desc: (L) => (L.s.coast.m.pints ? `He is telling you the story of the Merrow, an evening at a time (${L.s.coast.m.pints} of 3).` : 'He is by the fire, and he knows about the Merrow.'),
     show: (L) => L.coastOn() && L.s.coast.m.clues.marlow == null,
-    why: (L) => ((L.s.f.marlow || 0) < 1 ? 'Marlow does not talk about the Merrow to strangers. Get to know him at the harbour first.' : L.season !== 3 ? 'Marlow tells the old stories in winter, by the fire. The rest of the year he talks about the weather.' : null),
+    why: (L) => ((L.s.f.marlow || 0) < 1 ? 'Marlow does not talk about the Merrow to strangers. Get to know him at the harbour first.' : L.season < 2 ? 'Marlow tells the old stories in autumn and winter, by the fire. The rest of the year he talks about the weather.' : null),
     run(L) {
       const m = L.s.coast.m, k = CARGO[m.cargo];
       m.pints++; L.joy(2); L.gain('charm', 0.5);
@@ -754,7 +805,7 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
     place: 'library', sec: 'The Merrow', icon: '🗄️', title: 'Search the town archives', time: 2, per: 1,
     desc: (L) => `Boxes of the town’s papers, in no order at all. ${L.s.coast.m.arch} of 8 gone through.`,
     show: (L) => L.coastOn() && (L.s.coast.m.clues.paper == null || L.s.coast.m.clues.archive == null),
-    why: (L) => (L.s.coast.reads < 3 && L.s.st.smarts < 50 && !(L.clubMem && L.clubMem('book')) && !(L.s.folk && L.s.folk.p.achterberg && L.s.folk.p.achterberg.f >= 25) ? 'Miss Achterberg keeps the archives for readers she knows. Read in the reading room a few times first.' : null),
+    why: (L) => (!L.coastReader() ? `Miss Achterberg keeps the archives for readers she knows. Read in the reading room a few times first (${Math.min(3, L.s.coast.reads)} of 3).` : null),
     run(L) {
       const m = L.s.coast.m;
       m.arch = Math.min(8, m.arch + 1 + (L.chance(L.checkOdds('smarts', 60) - 0.3) ? 1 : 0));
@@ -779,8 +830,8 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
   def('coastChart', {
     place: 'highstreet', sec: 'Pym’s Curios', icon: '🗺️', title: 'The old chart in Mr Pym’s window', time: 0,
     cost: (L) => (L.s.coast.m && L.s.coast.m.chart ? L.s.coast.m.chart.ask : 0),
-    desc: 'A sea chart of Gorse Head, much folded. It will not be in the window for long.',
-    show: (L) => L.coastHunting() && !!L.s.coast.m.chart && L.s.coast.m.chart.t === L.s.t && L.s.coast.m.clues.chart == null,
+    desc: (L) => `A sea chart of Gorse Head, much folded. It will be in the window until the end of ${L.s.coast.m && L.s.coast.m.chart && L.s.coast.m.chart.t === L.s.t ? 'next season' : 'this season'}.`,
+    show: (L) => L.coastHunting() && L.coastChartUp(),
     why: (L) => (L.pymShut() ? 'Mr Pym is not at home to you.' : null),
     run(L) {
       L.coastGot('chart');
@@ -791,7 +842,7 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
     place: 'harbour', sec: 'The Merrow', icon: '📘', title: 'Ask Captain Quinn about the old tides', time: 0, per: 1,
     desc: 'She keeps the harbour’s old tide tables in a cupboard nobody else may open.',
     show: (L) => L.coastHunting() && L.s.coast.m.clues.quinn == null,
-    why: (L) => (L.coastTrusted() ? null : L.s.coast.lb && L.coastCrew() ? 'Quinn has not made up her mind about you yet.' : 'Captain Quinn keeps the old tide tables for her own crew, and for skippers she knows. You are neither.'),
+    why: (L) => (L.coastTrusted() ? null : L.s.coast.lb && L.coastCrew() ? `Quinn has not made up her mind about you yet (standing ${Math.floor(L.s.coast.lb.stand)} of 50).` : 'Captain Quinn keeps the old tide tables for her own crew, for skippers she knows and for her friends. You are none of these yet.'),
     run(L) {
       const m = L.s.coast.m;
       L.coastGot('quinn');
