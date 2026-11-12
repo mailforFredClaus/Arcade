@@ -1162,7 +1162,8 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'cafe', icon: '☕', title: 'Betty’s is closing', w: 6, once: true, when: (L) => L.s.eco <= -1,
+    // (Not once Betty’s is yours: see her story in folk-tales.js.)
+    id: 'cafe', icon: '☕', title: 'Betty’s is closing', w: 6, once: true, when: (L) => L.s.eco <= -1 && !(L.s.folk && L.s.folk.p.betty && L.s.folk.p.betty.stage >= 5),
     text: 'There is a notice in the window of Betty’s Café: forty years, and the slump has done what the war could not. Unless somebody finds $2,500 by Friday.',
     opts: [
       { t: 'Find it', cost: 2500, run(L) { L.karma(6); L.s.f.cafe = 1; L.joy(5); L.s.n.given = (L.s.n.given || 0) + 2500; return 'Betty cries on your shoulder and gets flour on your coat. There will be a cup of tea and a teacake for you there every day of your life, and no bill.'; } },

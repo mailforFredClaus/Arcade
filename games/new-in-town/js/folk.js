@@ -202,12 +202,20 @@ export function install({ def, Life, clamp, val, hooks, addEvents }) {
     },
     folkKeep(k) { if (this.s.folk.keep[k] == null) this.s.folk.keep[k] = this.s.t; },
     // Jess (or Len) sees you right for a car, if you have none. Returns whether they did.
-    folkCar() {
+    // Whether you have a car at all, even one that will not go just now (see motor.js).
+    folkHasCar() { const s = this.s; return !!(s.items.car || s.items.sportscar || (s.motor && s.motor.car)); },
+    // (What to add when a car is handed over to somebody who cannot yet drive it.)
+    folkCarWait() { return this.motorLicensed && !this.motorLicensed() ? ' It will wait on the forecourt until you have passed your test.' : ''; },
+    folkCar(old = false) {
       const s = this.s;
-      if (s.items.car || s.items.sportscar || (s.motor && s.motor.car)) return false;
+      if (this.folkHasCar()) return false;
       // (Through the garage's own books, so that it is a real car with a condition and an MOT:
       // see motor.js. Without a licence it waits for you on the forecourt.)
-      if (this.motorTake) { this.motorTake({ m: 'pip', age: 6, cond: 88, col: 'sky-blue' }); this.motorSync(true); return true; }
+      if (this.motorTake) {
+        this.motorTake(old ? { m: 'seabird', age: 26, cond: 82, col: 'bottle-green' } : { m: 'pip', age: 6, cond: 88, col: 'sky-blue' });
+        this.motorSync(true);
+        return true;
+      }
       const was = this.timeMaxWithout('car');
       s.items.car = 1;
       s.time += this.timeMax() - was;
@@ -374,7 +382,8 @@ export function install({ def, Life, clamp, val, hooks, addEvents }) {
   });
   def('fkDrill', {
     place: 'cove', sec: 'Captain Quinn', icon: '🛟', title: 'Go out on lifeboat exercise', desc: 'With the crew, in all weathers. Good for Fitness, and for the town. Once a season.', per: 1,
-    show: (L) => L.folkHas('drill'),
+    // (Crew on the lifeboat's books train with coast.js's station instead.)
+    show: (L) => L.folkHas('drill') && !(L.coastOnBooks && L.coastOnBooks()),
     run(L) {
       L.gain('fitness', 2.8); L.karma(0.5); L.joy(2); L.hp(1);
       return L.s.wx === 'storm' ? 'Exercise in a real gale. You come back soaked to the bone and lit up like a lamp.' : L.pick(['Launch, man overboard drill, recover, again. Quinn times you on a stopwatch and says nothing, which is good.', 'Rowing the inshore boat round the point and back. Your arms are no longer your own.', 'You practise with the line-throwing gun and hit a buoy, a gull, and, on the third try, the target.']);

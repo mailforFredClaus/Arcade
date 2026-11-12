@@ -375,7 +375,9 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
   hooks.year.push((L) => {
     const s = L.s;
     if (s.pend.some((q) => q.id === 'soulFriendGone')) return;
-    for (const p of L.friends()) if (p.age >= 74 && L.chance((p.age - 72) ** 2 / 2600)) { L.queue('soulFriendGone', p.id); break; }
+    // (A friend who is also one of the townsfolk has a story of their own to finish: see folk.js.)
+    const town = s.folk && s.folk.p && s.folk.p.parg ? s.folk.p.parg.pid : null;
+    for (const p of L.friends()) if (p.id !== town && p.age >= 74 && L.chance((p.age - 72) ** 2 / 2600)) { L.queue('soulFriendGone', p.id); break; }
   });
 
   hooks.mood.push((L) => {

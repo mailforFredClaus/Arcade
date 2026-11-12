@@ -72,7 +72,7 @@ export const FOLK = {
     lines: [
       ['He is talking to a cow called Margaret. He stops when he sees you, and then, after a while, carries on.', '"You’ll be from the council," he says. You are not. He goes on looking at you as though you might be.', 'He nods. You nod. A cow says something. Neither of you can top it.'],
       ['He introduces you to every cow by name: Margaret, Little Margaret, Mrs Hennessy and Gladys, who bites.', 'He tells you what the council has done this time. It involves a letter, a stile and the word "alleged".', 'You lean on the gate with him and say nothing for twenty minutes. It is, apparently, a very good conversation.'],
-      ['He gives you a lift in the Land Rover and lets you work the gears, which he has never let anybody do.', 'He tells you about his wife, Mary, nine years gone. Then he goes and does something to a fence for a while.', '"You’ll do," he says, which from Tom Windle is a speech.'],
+      ['He gives you a lift in the old pick-up and lets you work the gears, which he has never let anybody do.', 'He tells you about his wife, Mary, nine years gone. Then he goes and does something to a fence for a while.', '"You’ll do," he says, which from Tom Windle is a speech.'],
     ],
     seasons: ['Lambs everywhere, all of them trying to die in new and ingenious ways. He has not slept since March.', 'The hay is in, or it is not, and either way it is the weather’s fault.', 'The council has written again. He reads you the letter, and then his reply, which is better.', 'Mud to the knee and a north wind. He says it is mild for the time of year.'],
     life: [
@@ -100,7 +100,7 @@ export const FOLK = {
     ],
     seasons: ['The MOTs are due and everybody in Starling Bay has left it to the last week.', 'Tourists with flat tyres and faces to match. Jess charges a little extra for the faces.', 'Leaves in every gutter and a queue of cars with their lights out.', 'Flat batteries all down the High Street. Jess goes out with the jump leads at seven and comes back at dark.'],
     life: [
-      (L) => (!L.s.items.car && !L.s.items.sportscar ? '"Still on foot?" says Jess. "I could find you something. Something with most of its wheels."' : null),
+      (L) => (!L.folkHasCar() ? '"Still on foot?" says Jess. "I could find you something. Something with most of its wheels."' : null),
       (L) => (L.s.items.sportscar ? 'She walks all the way round your sports car, slowly. "Who services it?" she asks, in a voice like a doctor’s.' : null),
       (L) => (L.s.items.bike && !L.s.items.car && !L.s.items.sportscar ? 'She oils your bicycle chain without asking and adjusts something, and suddenly it is a different bicycle.' : null),
       (L) => (L.s.job && L.s.job.c === 'trades' ? 'She asks how the trade is treating you, and you compare cuts on your knuckles.' : null),

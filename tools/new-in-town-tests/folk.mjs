@@ -179,7 +179,7 @@ export default function ({ check, fresh, Life }) {
   const satisfy = (L, fid) => {
     const s = L.s;
     ({
-      stacks: () => { s.folk.read += 3; }, crew: () => { s.st.fitness = Math.max(s.st.fitness, 45); },
+      stacks: () => { s.folk.read += 3; }, crew: () => { s.st.fitness = Math.max(s.st.fitness, 45); if (s.coast && !s.coast.lb && s.age <= 55) { s.time = 9; L.act('coastJoin'); } },
       fishpie: () => { s.folk.bag.fish = 2; s.folk.bag.fishT = s.t; }, picture: () => { s.paintings = 1; },
       peas: () => { s.grown.peas = (s.grown.peas || 0) + 1; s.folk.grown.peas = s.grown.peas; }, spuds: () => { s.grown.spuds = (s.grown.spuds || 0) + 1; s.folk.grown.spuds = s.grown.spuds; },
       veg: () => { s.folk.bag.veg = { c: 'leeks', n: 1, t: s.t }; }, appeal: () => { s.n.given = (s.n.given || 0) + 1000; },
@@ -254,6 +254,8 @@ export default function ({ check, fresh, Life }) {
     const N = clone(Life, L);
     N.s.folk.p.betty.f = 10; N.s.folk.p.jess.f = 10;
     check(bills(N)['Food and bills'] - bills(L)['Food and bills'] === 120 && bills(N)['Running the car'] - bills(L)['Running the car'] === 120, 'Betty feeds you for less, and Jess keeps the car going for less, while you keep in touch');
+    // (Crew on the lifeboat's own books train with the station, in coast.js, instead.)
+    if (s.coast && s.coast.lb) s.coast.lb.left = s.t;
     check(L.placeActions('farm').some((a) => a.id === 'fkLake') && L.placeActions('cove').some((a) => a.id === 'fkDrill') && L.placeActions('theatre').some((a) => a.id === 'fkRehearse'), 'a lake to fish, a lifeboat to go out in and a play to rehearse');
     for (const [id, place] of [['fkLake', 'farm'], ['fkDrill', 'cove'], ['fkRehearse', 'theatre']]) {
       s.time = 6; s.use = {};

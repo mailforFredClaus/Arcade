@@ -113,14 +113,19 @@ export const STORIES = {
         on('jess', 1, 6, 'Admit you know nothing about carburettors', (L) => { L.folkIntro('gaz'); return '"Thank God," says Jess. "An honest one." Len points at you approvingly, and on Saturday takes you to see the Rovers, where he introduces you to Gaz, the manager.'; }),
       ] } },
     { need: 25, title: 'Off the 4:15', said: 'You fetched a gearbox off the train. She looks after your car for mates’ rates.', card: {
-      icon: '🚂', text: 'A gearbox is coming in on the 4:15 from the city for the vet’s Land Rover. Jess cannot leave the garage and Len cannot lift it. "It’s heavy," she says. "Bring a trolley. Bring a friend."',
+      icon: '🚂', text: 'A gearbox is coming in on the 4:15 from the city for the vet’s pick-up. Jess cannot leave the garage and Len cannot lift it. "It’s heavy," she says. "Bring a trolley. Bring a friend."',
       opts: [yes('jess', 2, 'gearbox', 'Fetch it'), no('jess', 'Not today', '"Dad," says Jess, "you’re going to have to point at it very hard."')] } },
     { need: 45, title: 'Most of its wheels', said: 'She built a car out of three dead ones, and let you have the first drive.', card: {
-      icon: '🚗', text: (L) => (L.s.items.car || L.s.items.sportscar ? 'Jess has been building a little blue hatchback out of three dead ones, and wants somebody to take it for its first drive who will not mind if a door comes off.' : 'Jess has been building a little blue hatchback out of three dead ones. "It’s yours if you want it," she says. "Cost price. Five thousand, and you never tell anybody it was ever three cars."'),
+      icon: '🚗', text: (L) => (L.folkHasCar() ? 'Jess has been building a little blue hatchback out of three dead ones, and wants somebody to take it for its first drive who will not mind if a door comes off.' : 'Jess has been building a little blue hatchback out of three dead ones. "It’s yours if you want it," she says. "Cost price. Five thousand, and you never tell anybody it was ever three cars."'),
       opts: [
-        on('jess', 3, 6, 'Buy it', (L) => { L.folkCar(); L.joy(6); return 'You drive it off the forecourt with Len pointing you out all the way to the corner. It goes beautifully. One of the doors is a slightly different blue.'; }, { cost: 5000, show: (L) => !L.s.items.car && !L.s.items.sportscar }),
-        on('jess', 3, 2, 'You will manage without', () => '"Your loss," says Jess. It goes to the vicar, who drives it everywhere in second gear.', { show: (L) => !L.s.items.car && !L.s.items.sportscar }),
-        on('jess', 3, 6, 'Take it round the bay', (L) => { L.joy(6); return 'Round the bay and up the hill and back, with Jess in the passenger seat listening to the engine like a doctor with a stethoscope. Nothing falls off. "Huh," she says.'; }, { show: (L) => !!(L.s.items.car || L.s.items.sportscar) }),
+        on('jess', 3, 6, 'Buy it', (L) => {
+          // (Should a car have turned up since the card was dealt, the money goes back.)
+          if (!L.folkCar()) { L.cash(5000); return 'You have a car already, it turns out, and Jess gives you your money back and the hatchback to the vicar, who drives it everywhere in second gear.'; }
+          L.joy(6);
+          return L.motorLicensed && !L.motorLicensed() ? `It is yours: a little sky-blue hatchback, one door a slightly different blue.${L.folkCarWait()}` : 'You drive it off the forecourt with Len pointing you out all the way to the corner. It goes beautifully. One of the doors is a slightly different blue.';
+        }, { cost: 5000, show: (L) => !L.folkHasCar() }),
+        on('jess', 3, 2, 'You will manage without', () => '"Your loss," says Jess. It goes to the vicar, who drives it everywhere in second gear.', { show: (L) => !L.folkHasCar() }),
+        on('jess', 3, 6, 'Take it round the bay', (L) => { L.joy(6); return 'Round the bay and up the hill and back, with Jess in the passenger seat listening to the engine like a doctor with a stethoscope. Nothing falls off. "Huh," she says.'; }, { show: (L) => L.folkHasCar() }),
       ] } },
     { need: 65, title: 'A letter from the city', said: 'A chain wanted to buy the garage, and you helped Len see it off.', card: {
       icon: '✉️', text: 'Len takes you to one side, which takes a while. A garage chain from the city has offered to buy Dobbs & Daughter. He has not told Jess. He would like you to look over the figures at the bank, quietly, before he does anything.',
@@ -134,7 +139,7 @@ export const STORIES = {
       opts: [
         on('jess', 5, 6, 'Make the speech', (L, win) => {
           L.folkKeep('spanner');
-          const gift = L.folkCar() ? ' Afterwards Len gives you the keys to his old Rover, which he has not driven since 1998 and which Jess has secretly kept running all this time.' : (L.cash(2500), ' Afterwards Len gives you an envelope with $2,500 in it, "for petrol", and will not take it back.');
+          const gift = L.folkCar(true) ? ` Afterwards Len gives you the keys to his old green estate, which he has not driven in twenty years and which Jess has secretly kept running all this time.${L.folkCarWait()}` : (L.cash(2500), ' Afterwards Len gives you an envelope with $2,500 in it, "for petrol", and will not take it back.');
           if (win) { L.fame(0.5); L.joy(8); return `You tell the story of the carburettor, and the whole forecourt laughs, and Len points at you all the way through, delighted.${gift}`; }
           L.joy(6);
           return `You forget most of it and say "Len" a great deal. It does not matter. Len points at you at the end, which is a standing ovation.${gift}`;
@@ -155,8 +160,8 @@ export const STORIES = {
     { need: 45, title: 'Raffle tickets', said: 'You sold the lifeboat raffle in the Gull & Anchor. You go out on exercise with the crew.', card: {
       icon: '🎟️', text: 'The lifeboat needs a new engine, the engine needs money, and the raffle needs selling. Quinn holds out a book of tickets as though it were something that had died. "Gull and Anchor," she says. "You talk. I don’t."',
       opts: [yes('quinn', 3, 'raffle', 'Sell them'), no('quinn', 'Talking is not your strong suit either', 'She looks at the book of tickets, and then at the sea, as though the sea might buy one.')] } },
-    { need: 65, title: 'The Merrow', said: 'You asked old Marlow what happened the night the Merrow went down, and told her.', card: {
-      icon: '⚓', text: 'Late, by the radio, she says more than you have ever heard her say. Her grandfather was the Merrow’s engineer, in 1961. They never found him. Nobody would ever tell her what happened that night. "Marlow was on the quay," she says. "He won’t talk to me. You ask him."',
+    { need: 65, title: 'The Kittiwake', said: 'You asked old Marlow what happened the night the Kittiwake went down, and told her.', card: {
+      icon: '⚓', text: 'Late, by the radio, she says more than you have ever heard her say. Her grandfather was the Kittiwake’s engineer, in 1961. They never found him. Nobody would ever tell her what happened that night. "Marlow was on the quay," she says. "He won’t talk to me. You ask him."',
       opts: [yes('quinn', 4, 'merrow', 'Ask him'), no('quinn', 'Some things are best left', '"Aye," says Quinn, and goes back to the radio.')] } },
     { need: 85, title: 'Grandfather’s medal', said: 'She gave you her grandfather’s lifeboat medal. You are proper crew now.', card: {
       icon: '🎖️', text: 'Captain Quinn gives you a small box. Inside, on a faded ribbon, is a lifeboat medal: her grandfather’s, for the winter of 1947. "Crew," she says. "Proper crew now. Yours." She goes before you can say anything, which is as well.',
@@ -169,11 +174,11 @@ export const STORIES = {
     { flag: true, title: 'The nets', said: 'You helped him untangle his nets.' },
     { flag: true, title: 'A lesson', said: 'He taught you where the fish would rather be.' },
     { flag: true, title: 'The Peggy Sue', said: 'He offered you his boat, the Peggy Sue.' },
-    { need: 55, title: 'Where the Merrow lies', said: 'You took him out to where the Merrow went down. He showed you his marks.', when: (L) => L.s.f.marlow === 3, card: {
-      icon: '🌊', text: 'Marlow does not look at you. "March 1961," he says. "I was fourteen, on the quay. The Merrow went down off the Head with eleven men, and the lifeboat couldn’t get out past the bar." A long silence. "I’d like to see where she lies. Once. On a fair day. Before I can’t."',
+    { need: 55, title: 'Where the Kittiwake lies', said: 'You took him out to where the Kittiwake went down. He showed you his marks.', when: (L) => L.s.f.marlow === 3, card: {
+      icon: '🌊', text: 'Marlow does not look at you. "March 1961," he says. "I was fourteen, on the quay. The Kittiwake went down off the Head with eleven men, and the lifeboat couldn’t get out past the bar." A long silence. "I’d like to see where she lies. Once. On a fair day. Before I can’t."',
       opts: [yes('marlow', 4, 'trip', 'Take him out'), no('marlow', 'Some other time', '"Aye," says Marlow. "Some other time." He says it as if there might not be many.')] } },
-    { need: 85, title: 'The bell', said: 'He showed you the Merrow’s bell, which he raised in 1970 and never told a soul.', card: {
-      icon: '🔔', text: 'Marlow takes you to his shed and pulls a tarpaulin off something in the corner. A ship’s bell, green with age: MERROW 1938. "Raised her in ’70, with a mate who’s gone now. Never told a soul. Nobody would have known what to do with it." He pats it. "You will."',
+    { need: 85, title: 'The bell', said: 'He showed you the Kittiwake’s bell, which he raised in 1970 and never told a soul.', card: {
+      icon: '🔔', text: 'Marlow takes you to his shed and pulls a tarpaulin off something in the corner. A ship’s bell, green with age: KITTIWAKE 1938. "Raised her in ’70, with a mate who’s gone now. Never told a soul. Nobody would have known what to do with it." He pats it. "You will."',
       opts: [
         on('marlow', 5, 6, 'Keep it safe', (L) => { L.gotCurio('bell'); L.folkKeep('merrow'); L.joy(8); return 'You carry it home between you on a wheelbarrow, through the whole of the High Street, and Marlow tells everybody who asks that it is a coal scuttle.'; }),
         on('marlow', 5, 6, 'Give it to the lifeboat station', (L) => { L.folkKeep('merrow'); L.karma(6); L.joy(8); if (L.folk('quinn').met != null) L.folkWarm('quinn', 10, false); return 'Captain Quinn hangs it on the station wall, beside the board of the lost, where it rings by itself in a south-westerly. She stands looking at it a long time. Marlow stands beside her. Neither of them says anything, and that is right.'; }),
@@ -201,7 +206,7 @@ export const STORIES = {
         ? 'Betty has been doing the teas in the church hall since the café went, and she has had enough of the urn. "There’s a shop come empty on the High Street," she says. "If somebody with a bit of money took it on, I’d come and do the baking, mornings, for nothing. Eight thousand would see it open."'
         : 'Betty is seventy, and her feet have voted. She is selling up. "I’d rather it went to somebody who knows what a scone should be," she says. "Eight thousand, and the recipes come with it. Or my nephew can have it, and do coffee in buckets."'),
       opts: [
-        on('betty', 5, 6, 'Take on Betty’s', (L) => { L.s.biz = { type: 'food', lvl: 1, rep: 65, mgr: false, age: 0, at: L.s.t }; L.folkKeep('cafebell'); L.joy(10); L.note('Took on Betty’s Café.', 'big'); return 'Your name goes over the door, under hers, which stays. Betty comes in every morning at four to do the scones and tell the new girl she is doing it wrong. The café is yours to run: work in it on the High Street.'; }, { cost: 8000, show: (L) => !L.s.biz }),
+        on('betty', 5, 6, 'Take on Betty’s', (L) => { L.s.biz = { type: 'food', lvl: 1, rep: 65, mgr: false, age: 0, at: L.s.t, paid: 8000 }; L.folkKeep('cafebell'); L.joy(10); L.note('Took on Betty’s Café.', 'big'); return 'Your name goes over the door, under hers, which stays. Betty comes in every morning at four to do the scones and tell the new girl she is doing it wrong. The café is yours to run: work in it on the High Street.'; }, { cost: 8000, show: (L) => !L.s.biz }),
         on('betty', 5, 6, 'Let her nephew have it', (L) => { L.folkKeep('cafebell'); L.joy(4); return 'The nephew has it, and does coffee in buckets, and it does rather well. On her last day Betty unscrews the brass bell from over the door and gives it to you. "Forty years that’s rung," she says. "Ring it now and then."'; }),
       ] } },
   ],
@@ -294,11 +299,11 @@ export const STORIES = {
         on('desmond', 3, 9, 'Say the stage door is the best seat in the house', () => 'He looks at you for a long time, then laughs the big laugh, the one from the panto. "It is," he says. "It really is."'),
         on('desmond', 3, 7, 'Promise to keep it to yourself', (L) => { L.karma(1); return '"Thank you," he says, and then, recovering: "Of course, I also understudied."'; }),
       ] } },
-    { need: 65, title: 'A play about the Merrow', said: 'Old Marlow came to tell the Players about the Merrow.', card: {
-      icon: '✒️', text: 'Desmond has written a play at last: about the wreck of the Merrow in 1961, and the night the lifeboat could not get out. "But I have it from the newspapers," he says. "I need it from somebody who was there. Marlow was there. Will you ask him to come and talk to us?"',
+    { need: 65, title: 'A play about the Kittiwake', said: 'Old Marlow came to tell the Players about the Kittiwake.', card: {
+      icon: '✒️', text: 'Desmond has written a play at last: about the wreck of the Kittiwake in 1961, and the night the lifeboat could not get out. "But I have it from the newspapers," he says. "I need it from somebody who was there. Marlow was there. Will you ask him to come and talk to us?"',
       opts: [yes('desmond', 4, 'marlowTalk', 'Ask Marlow'), no('desmond', 'It is not your story to ask for', '"No," says Desmond, after a while. "Perhaps it is not mine, either."')] } },
-    { need: 85, title: 'Opening night', said: 'The Merrow opened at the Pavilion, and you were in it.', card: {
-      icon: '🌹', text: 'The Merrow opens at the Pavilion. Every seat is sold; Marlow is in the front row in his tie. And the man playing the coxswain has lost his voice, and Desmond is looking at you.',
+    { need: 85, title: 'Opening night', said: 'The Kittiwake opened at the Pavilion, and you were in it.', card: {
+      icon: '🌹', text: 'The Kittiwake opens at the Pavilion. Every seat is sold; Marlow is in the front row in his tie. And the man playing the coxswain has lost his voice, and Desmond is looking at you.',
       opts: [
         on('desmond', 5, 6, 'Go on', (L, win) => {
           L.folkKeep('poster');
@@ -467,23 +472,27 @@ export const FAVOURS = {
 
   gearbox: { who: 'jess', icon: '⚙️', title: 'Fetch a gearbox off the train for Jess', at: 'station', time: 1, by: 2, gain: 6, check: ['fitness', 30],
     set: '"Lift with your legs," says Jess. Len points at his back, by way of a warning.',
-    done(L, win) { if (!win) L.hp(-1, 'a gearbox'); return `${win ? 'You get it off the train, onto a trolley and up the hill with only one rest.' : 'It gets away from you on the hill and you chase it down to the bus stop. It is fine. You are not.'} Jess has it in the Land Rover by teatime, and says she will see you right on your own car from now on.`; } },
+    done(L, win) { if (!win) L.hp(-1, 'a gearbox'); return `${win ? 'You get it off the train, onto a trolley and up the hill with only one rest.' : 'It gets away from you on the hill and you chase it down to the bus stop. It is fine. You are not.'} Jess has it in the pick-up by teatime, and says she will see you right on your own car from now on.`; } },
   ledgers: { who: 'jess', icon: '🧾', title: 'Go over the garage’s books at Harbour Bank', at: 'bank', time: 1, gain: 8, check: ['smarts', 40],
     set: 'Len gives you a carrier bag. It contains thirty years of receipts and a sandwich.',
     done(L, win) { return win ? 'Two hours with the bank manager and the ledgers: the chain is offering half what the place is worth, and you can prove it. Len reads your sums, points at the bottom line, and tears the letter up.' : 'The figures are beyond you, but not beyond the bank manager, who says it is a poor offer and Len would be daft. Len points at her approvingly and tears the letter up.'; } },
 
-  crew: { who: 'quinn', icon: '🛟', title: 'Sign on as shore crew at the lifeboat station', gain: 6,
-    goal: (L) => ({ have: Math.min(40, Math.floor(L.s.st.fitness)), want: 40, text: `Fitness 40 (you have ${Math.floor(L.s.st.fitness)})` }),
+  crew: { who: 'quinn', icon: '🛟', title: 'Sign on with the lifeboat at the cove', gain: 6,
+    // (The lifeboat is coast.js's: volunteering there is what she means. Past the age the boat takes
+    // anyone new, being fit enough for the slipway will do.)
+    goal: (L) => (L.coastOnBooks && L.s.age <= 55
+      ? { have: L.coastOnBooks() || L.s.coast.lb ? 1 : 0, want: 1, text: 'Volunteer at the lifeboat station in the cove' }
+      : { have: Math.min(40, Math.floor(L.s.st.fitness)), want: 40, text: `Fitness 40 (you have ${Math.floor(L.s.st.fitness)})` }),
     set: 'She writes "40" on the back of your hand in biro, as though you might forget.',
     done(L) { L.karma(2); return 'Quinn watches you run up the slipway with a coil of rope, twice. "Aye," she says, and writes your name on the shore crew list in pencil. Pencil, you learn later, is how everybody starts.'; } },
   raffle: { who: 'quinn', icon: '🎟️', title: 'Sell the lifeboat raffle in the Gull & Anchor', at: 'pub', time: 1, by: 2, gain: 6, check: ['charm', 35],
     set: '"First prize is a hamper," she says. "Second prize is two hampers." It is a joke. You think it is a joke.',
     done(L, win) { L.karma(1); return `${win ? 'You sell every ticket in the book, and a second book, to people who were only in for a pint. Quinn counts it, nods, and says "Talker." It is clearly a compliment.' : 'You sell half the book, mostly to Big Tam, who buys forty and wins the hamper. Quinn says it will do.'} From now on you may come out with the crew on exercise.`; } },
-  merrow: { who: 'quinn', icon: '⚓', title: 'Ask old Marlow about the night the Merrow went down', at: 'harbour', time: 1, gain: 10,
+  merrow: { who: 'quinn', icon: '⚓', title: 'Ask old Marlow about the night the Kittiwake went down', at: 'harbour', time: 1, gain: 10,
     set: '"All of it," says Quinn. "Not the nice version."',
-    done(L) { L.karma(2); L.folkWarm('marlow', 3, false); return 'Marlow tells you all of it, slowly, looking at the water: the engine failing, the rockets, the lifeboat beaten back off the bar three times, and the engineer who went below to try one more thing. "Brave man," he says. "Bravest I saw." You tell Quinn every word. She listens to the end, nods once, and goes out alone onto the slipway. In the morning the Merrow’s engineer has his name on the board of the lost, where it was never put.'; } },
+    done(L) { L.karma(2); L.folkWarm('marlow', 3, false); return 'Marlow tells you all of it, slowly, looking at the water: the engine failing, the rockets, the lifeboat beaten back off the bar three times, and the engineer who went below to try one more thing. "Brave man," he says. "Bravest I saw." You tell Quinn every word. She listens to the end, nods once, and goes out alone onto the slipway. In the morning the Kittiwake’s engineer has his name on the board of the lost, where it was never put.'; } },
 
-  trip: { who: 'marlow', icon: '⛵', title: 'Take Marlow out to where the Merrow lies', at: 'harbour', time: 2, gain: 10,
+  trip: { who: 'marlow', icon: '⛵', title: 'Take Marlow out to where the Kittiwake lies', at: 'harbour', time: 2, gain: 10,
     why: (L) => (L.s.wx === 'storm' || L.s.wx === 'fog' ? 'Not in this weather. He wants a fair day for it.' : null),
     set: '"First fair day," says Marlow. "I’ll bring the flask."',
     done(L) { L.joy(6); return `Flat calm, and Gorse Head standing over you. ${L.s.items.boat ? 'From your boat' : 'From the Peggy Sue, you at the tiller'}, Marlow drops a sprig of rosemary from his garden over the side and says eleven names, slowly. Then he clears his throat. "Right," he says. "Mackerel." You fish all afternoon, and he shows you marks he has never shown anybody.`; } },
@@ -525,7 +534,7 @@ export const FAVOURS = {
   posters: { who: 'desmond', icon: '📜', title: 'Put up the Pavilion’s posters on the High Street', at: 'highstreet', time: 1, gain: 6,
     set: 'He gives you a box of posters and a roll of Sellotape, as though handing over a sword.',
     done() { return 'Every window on the High Street, by charm or by Sellotape. Betty takes two. Mr Pym takes one and puts it face to the wall. The summer play sells out for the first time in nine years, and Desmond makes you a member of the Pavilion Players: you may come to any rehearsal you like.'; } },
-  marlowTalk: { who: 'desmond', icon: '🧓', title: 'Ask old Marlow to tell the Players about the Merrow', at: 'harbour', time: 1, gain: 8,
+  marlowTalk: { who: 'desmond', icon: '🧓', title: 'Ask old Marlow to tell the Players about the Kittiwake', at: 'harbour', time: 1, gain: 8,
     set: '"Tell him," says Desmond, "that there will be biscuits."',
     done(L) { L.folkWarm('marlow', 3, false); return 'It takes two pints and a promise that nobody will make a fuss. Marlow comes up to the Pavilion in a tie, sits on the edge of the stage and talks for an hour. Nobody moves. Desmond rewrites the whole second act that night.'; } },
 
@@ -558,12 +567,12 @@ export const KEEPSAKES = {
   deeds: { icon: '📜', name: 'The deeds to the bottom field', from: 'windle', said: 'And the lake, on condition the path stays open.' },
   spanner: { icon: '🔧', name: 'Len’s spanner', from: 'jess', said: 'The one he pointed with, for forty years.' },
   crew: { icon: '🛟', name: 'Your name on the crew board', from: 'quinn', said: 'In paint, not pencil.' },
-  merrow: { icon: '🔔', name: 'The Merrow’s bell', from: 'marlow', said: 'MERROW 1938. Raised in 1970, and never told.' },
+  merrow: { icon: '🔔', name: 'The Kittiwake’s bell', from: 'marlow', said: 'KITTIWAKE 1938. Raised in 1970, and never told.' },
   recipes: { icon: '📖', name: 'Betty’s recipes', from: 'betty', said: 'Forty years of them, in your handwriting.' },
   cafebell: { icon: '🛎️', name: 'The bell from Betty’s door', from: 'betty', said: 'Forty years that rang.' },
   hoe: { icon: '🪏', name: 'Mrs Pargeter’s hoe', from: 'parg', said: 'On loan, which means for ever.' },
   ball: { icon: '⚽', name: 'The 1987 ball', from: 'gaz', said: 'From the Coastal League Shield, signed by both teams of the County Cup final.' },
-  poster: { icon: '🎭', name: 'A poster for The Merrow', from: 'desmond', said: 'Opening night at the Pavilion, with your name on it.' },
+  poster: { icon: '🎭', name: 'A poster for The Kittiwake', from: 'desmond', said: 'Opening night at the Pavilion, with your name on it.' },
   penny: { icon: '🪙', name: 'The first penny from the fountain', from: 'priya', said: 'Fished out of the water by Priya, for you.' },
   freedom: { icon: '📜', name: 'The Freedom of Starling Bay', from: 'penn', said: 'You may graze sheep on the green, and be rude to the mayor.' },
 };
