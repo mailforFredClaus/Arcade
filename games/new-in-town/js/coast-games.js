@@ -188,8 +188,8 @@ export const GAME_CSS = `
 .cv-foot.at-mouth .cv-out { display: block; }
 .cv-foot.at-mouth .cv-say { display: none; }
 .cs { display: grid; gap: 14px; justify-items: center; width: 100%; }
-.cs-beach { box-sizing: border-box; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; width: min(330px, 100%); padding: 14px; border-radius: 20px; background: var(--sand, #f3dfae); background-image: radial-gradient(#e6cf96 1.2px, #0000 1.6px); background-size: 12px 12px; box-shadow: 0 3px 0 #dcc58d; }
-.mini-stage .cs-b { position: relative; aspect-ratio: 1; min-height: 88px; border-radius: 18px; background: #fff7e2; box-shadow: 0 4px 0 #d9c38c; display: grid; place-items: center; padding: 0; --p: 0; }
+.cs-beach { box-sizing: border-box; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; width: min(330px, 100%); padding: 14px; border-radius: 20px; background: var(--sand, #f3dfae); background-image: radial-gradient(#e6cf96 1.2px, #0000 1.6px); background-size: 12px 12px; box-shadow: 0 3px 0 #dcc58d; }
+.mini-stage .cs-b { position: relative; aspect-ratio: 1; min-width: 0; border-radius: 18px; background: #fff7e2; box-shadow: 0 4px 0 #d9c38c; display: grid; place-items: center; padding: 0; --p: 0; }
 .cs-b i { font-style: normal; font-size: 40px; line-height: 1; transition: transform .15s; }
 .cs-b.held i { transform: scale(1.12) rotate(-8deg); }
 .cs-b.up { background: #e4f5ea; box-shadow: 0 4px 0 #9fd5b2; }
