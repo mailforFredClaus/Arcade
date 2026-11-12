@@ -60,9 +60,9 @@ export default function ({ check, fresh, Life, ACTIONS }) {
     }
     for (const id of ['heistsOpen', 'heistsPick', 'heistsCase0', 'heistsCase1', 'heistsCase2', 'heistsDig', 'heistsCopy', 'heistsAsk', 'heistsLad', 'heistsSelf', 'heistsOff', 'heistsSet', 'heistsGo', 'heistsDrop', 'heistsWashSal', 'heistsWashChips', 'heistsWashBiz', 'heistsWashBank', 'heistsWashHouse', 'heistsSpend', 'heistsTea', 'heistsPatchOff']) check(ACTIONS[id], `there is an action ${id}`);
     const ids = new Set(EVENTS.map((e) => e.id));
-    for (const id of ['heistIn', 'heistSnag', 'heistTake', 'heistOut', 'heistDone', 'heistBlown', 'heistGrass', 'heistStale', 'heistLoose', 'kittoMeet', 'kittoVisit', 'kittoFlash', 'kittoPromo', 'kittoBent', 'kittoRetire', 'kittoGaol', 'lagMate', 'lagFoe', 'lagGate', 'salHome', 'carneArrive', 'carneNan', 'carneFire', 'carneHit', 'carneSitdown', 'carneWar', 'carneStash']) check(ids.has(id), `card ${id} is in the deck`);
+    for (const id of ['heistIn', 'heistSnag', 'heistTake', 'heistOut', 'heistDone', 'heistBlown', 'heistGrass', 'heistStale', 'heistLoose', 'kittoMeet', 'kittoVisit', 'kittoFlash', 'kittoPromo', 'kittoBent', 'kittoRetire', 'kittoGaol', 'lagMate', 'lagFoe', 'lagGate', 'salHome', 'carneArrive', 'carneNan', 'carneFire', 'carneHit', 'carneSitdown', 'carneWar', 'carneStash', 'carneBreak']) check(ids.has(id), `card ${id} is in the deck`);
     // (All sent for by the rules here: none of them crowds the random deck.)
-    const mine = ['heistIn', 'heistSnag', 'heistTake', 'heistOut', 'heistDone', 'heistBlown', 'heistGrass', 'heistStale', 'heistLoose', 'kittoMeet', 'kittoVisit', 'kittoFlash', 'kittoPromo', 'kittoBent', 'kittoRetire', 'kittoGaol', 'lagMate', 'lagFoe', 'lagGate', 'salHome', 'carneArrive', 'carneNan', 'carneFire', 'carneHit', 'carneSitdown', 'carneWar', 'carneStash'];
+    const mine = ['heistIn', 'heistSnag', 'heistTake', 'heistOut', 'heistDone', 'heistBlown', 'heistGrass', 'heistStale', 'heistLoose', 'kittoMeet', 'kittoVisit', 'kittoFlash', 'kittoPromo', 'kittoBent', 'kittoRetire', 'kittoGaol', 'lagMate', 'lagFoe', 'lagGate', 'salHome', 'carneArrive', 'carneNan', 'carneFire', 'carneHit', 'carneSitdown', 'carneWar', 'carneStash', 'carneBreak'];
     check(EVENTS.filter((e) => mine.includes(e.id)).every((e) => !e.w), 'the new cards are all sent for, never dealt at random');
     check(EVENTS.find((e) => e.id === 'gCellmate').w === 0, 'Bernard is sent for, not dealt over and over');
     check(!ACTIONS.heist, 'the one-tap bank job is gone');
@@ -494,6 +494,9 @@ export default function ({ check, fresh, Life, ACTIONS }) {
     let truce = null;
     for (let i = 0; i < 20 && !truce; i++) { const X = clone(T, i * 3 + 1); X.queue('carneSitdown'); X.choose(0); if (X.s.heists.rival.end === 'truce') truce = X; }
     check(truce && TROPHIES.heistCarne.test(truce) && truce.s.heists.sal > 50, 'a truce, brokered over the teapot, and Sal grateful');
+    // Years later, it may not hold.
+    truce.queue('carneBreak'); truce.choose(0);
+    check(!truce.s.heists.rival.end && truce.s.heists.rival.stage === 3, 'and years later the truce may break, and it is war again');
     // You in charge of the pier.
     const Y = fresh();
     Y.s.st.charm = 100; Y.s.heists.rival.stage = 3;

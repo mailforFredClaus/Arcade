@@ -13,6 +13,7 @@ export default function (kit) {
   const dots = (n, of = 3) => `<span class="hp-dots">${Array.from({ length: of }, (_, i) => `<i class="${i < Math.round(n) ? 'on' : ''}"></i>`).join('')}</span>`;
   const pct = (p) => `${Math.round(p * 100)}%`;
   const bar = (icon, label, n, colour) => `<div class="skill"><i>${icon}</i><span>${label}</span><span class="bar"><span style="width:${Math.round(n)}%${colour ? `;background:${colour}` : ''}"></span></span><b>${Math.round(n)}</b></div>`;
+  const lowFirst = (t) => t[0].toLowerCase() + t.slice(1);
   const bondWord = (b) => (b >= 80 ? 'would do anything for you' : b >= 60 ? 'very close' : b >= 40 ? 'close' : b >= 20 ? 'friendly' : 'hardly knows you');
 
   // ---- the planning sheet ----
@@ -80,9 +81,11 @@ export default function (kit) {
 
     // The night.
     const ready = L.heistReady(), go = L.look('heistsGo');
-    const cuts = L.heistCuts();
+    const crew = L.heistCrew(), lads = crew.filter((c) => c.kind === 'lad').length;
+    const with_ = [...crew.filter((c) => c.kind === 'friend').map((c) => c.who.name.split(' ')[0]), lads ? `${['', 'one', 'two', 'three'][lads]} of Sal’s lads` : ''].filter(Boolean);
+    const said = with_.length < 2 ? with_.join('') : `${with_.slice(0, -1).join(', ')} and ${with_[with_.length - 1]}`;
     body += `<div class="item hp-go">
-      <p class="lead">${ready ? esc(ready) : `Everything is ready. ${w ? esc(w.name) : ''}, with ${cuts.length ? cuts.filter(([n]) => n !== 'Sal').map(([n]) => esc(n.replace(/ \(.*\)$/, ''))).join(', ') : 'nobody but you'}${p.ride ? `, and away by ${esc(RIDES[p.ride].name.toLowerCase().replace('sal’s', 'Sal’s'))}` : ''}.`}</p>
+      <p class="lead">${ready ? esc(ready) : `Everything is ready: ${esc(lowFirst(w.name))}, with ${esc(said || 'nobody but you')}, and away by ${esc(lowFirst(RIDES[p.ride].name))}.`}</p>
       ${ready ? '' : `<div class="facts"><span>Getting in: ${pct(L.heistStage('in'))}</span><span>The take: ${pct(L.heistStage('take'))}</span><span>The getaway: ${pct(L.heistStage('out'))}</span></div>`}
       <div class="picks">${pick(`Do it tonight ${chip('time', '⏱ 3')}`, 'heistsGo', undefined, go.why)}${pick('Call it off', 'heistsDrop', undefined, null, 'quiet')}</div></div>`;
     return { icon: T.icon, title: 'The job', sub: T.name, body };

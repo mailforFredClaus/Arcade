@@ -664,6 +664,8 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     const s = L.s, H = s.heists, r = H.rival;
     if (r.end) {
       if (r.end === 'sal' && r.back != null && r.back <= s.t && !H.f.salHome) { H.f.salHome = 1; L.queue('salHome'); return true; }
+      // A truce is only as good as the youngest grandson: years on, it may not hold.
+      if (r.end === 'truce' && !H.f.broke && s.t - (H.cd.carneSitdown || 0) >= 16 && L.chance(0.02)) { H.f.broke = 1; L.queue('carneBreak'); return true; }
       if (r.end === 'yours' && r.patch) L.lawFile(1);
       if (r.end === 'yours' && r.patch && L.chance(0.03)) { L.queue('busted', { what: 'an envelope of the pier’s protection money', sev: 2 }); return true; }
       return false;
@@ -1455,6 +1457,15 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       opts: [
         { t: 'Go and get it back', check: ['fitness', 55], run(L, x, win) { const H = L.s.heists, r = rv(L), n = Math.round(H.hot * 0.6); r.heat += 15; L.karma(-2); if (win) { r.turf = Math.min(100, r.turf + 8); return 'You find it in the boot of a minicab behind the bingo hall, still in your carrier bags, and take the minicab’s float as well, for your trouble.'; } H.hot -= n; L.rough(15, 'the Carne boys'); return `The minicab office is full of Carnes. You come home with a black eye and without ${money(n)}.`; } },
         { t: 'Let it go: you can hardly tell the police', run(L) { const H = L.s.heists, n = Math.round(H.hot * 0.6); H.hot -= n; L.joy(-6); return `${money(n)}, gone, and nobody to complain to. That is the trouble with money like that.`; } },
+      ],
+    },
+    {
+      id: 'carneBreak', icon: '💔', title: 'The truce', ok: (L) => out(L) && rv(L).end === 'truce',
+      text: 'Danny Carne, Nan’s youngest, has been selling on the harbour side of the pier, and one of Sal’s lads has put him in hospital for it. Nan has telephoned Sal, and Sal has hung up on Nan. Your truce lasted longer than anybody thought it would.',
+      opts: [
+        { t: 'Stand with Sal', run(L) { const r = rv(L); r.end = null; r.stage = 3; r.side = 'sal'; r.wars = 0; L.salTrust(6); return 'You go round to the ice house and sit with Sal while he makes the telephone calls. It is war again.'; } },
+        { t: 'Try to patch it up', check: ['charm', 65], run(L, x, win) { const r = rv(L); if (win) { L.joy(4); return 'A second sit-down at Betty’s, and an apology from somebody who has never apologised before. It holds. For now.'; } r.end = null; r.stage = 3; r.wars = 1; return 'Neither of them will come to Betty’s this time. It is war again, and both of them blame you.'; } },
+        { t: 'Keep out of it', run(L) { const r = rv(L); r.end = null; r.stage = 3; r.wars = 2; return 'You stay at home with the curtains closed. It will be over by the spring, one way or another.'; } },
       ],
     },
     {
