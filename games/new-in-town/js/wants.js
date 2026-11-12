@@ -90,8 +90,9 @@ function draw(L, p, r) {
 function inlaws(L, p) {
   const last = p.name.split(' ')[1] || '';
   const mum = L.pick(['Pat', 'Maureen', 'Brenda', 'Jean', 'Sheila', 'Margaret', 'Val', 'Dot']), dad = L.pick(['Keith', 'Derek', 'Brian', 'Roy', 'Clive', 'Malcolm', 'Les', 'Terry']);
-  const age = p.age + L.int(25, 32);
-  return { mum: last ? `${mum} ${last}` : mum, dad: last ? `${dad} ${last}` : dad, age, left: age < 82 ? 2 : age < 92 ? 1 : 0, last: null, w: 50, help: 0 };
+  const age = p.age + L.int(25, 32), M = last ? `${mum} ${last}` : mum, D = last ? `${dad} ${last}` : dad, left = age < 82 ? 2 : age < 92 ? 1 : 0;
+  // (Of an old couple, one may be left: more often the mother.)
+  return { mum: M, dad: D, age, left, last: left === 1 ? (L.chance(0.6) ? M : D) : null, w: 50, help: 0 };
 }
 // How a child's exams went: what they know, how much they revised, and the day.
 function examGrade(L, k, r) {
@@ -155,7 +156,7 @@ function partnerBeats(L, p, r, add) {
   if (held && free && !a) add('wantsRoad', { p: p.id, a: held.id }, 1.2, false, () => { held.road = 1; });
   // Children, or not.
   if (p.wish && !L.kids().length && !s.due && live && together >= 6 && (r.kidN || 0) < 3 && t >= (r.kidAt || 0) && s.age <= 50 && p.age <= 48) add('wantsBaby', x, 2.5);
-  if (!p.wish && !r.noKid && together >= 4 && s.age <= 46 && p.age <= 46) add('wantsNoBaby', x, 2, false, () => { r.noKid = 1; });
+  if (!p.wish && !r.noKid && !L.kids().length && together >= 4 && s.age <= 46 && p.age <= 46) add('wantsNoBaby', x, 2, false, () => { r.noKid = 1; });
   // Their parents.
   if (together >= 3) {
     if (!r.inl) r.inl = inlaws(L, p);
@@ -191,8 +192,9 @@ function childBeats(L, k, r, add) {
 function parentBeats(L, q, r, add) {
   const s = L.s, x = { p: q.id };
   if (r.ask) add('wantsFrail', { p: q.id, why: r.askWhy || null }, 6, true, () => { r.ask = 0; r.askWhy = null; });
-  const widow = r.widow || s.gen > 1;
-  if (!r.suitor && widow && q.age >= 55 && q.age <= 80 && !(r.need > 1)) {
+  // (A widowed parent, a few years on, and still on their feet.)
+  const widow = r.widow != null ? s.t - r.widow >= 8 : s.gen > 1;
+  if (!r.suitor && widow && q.age >= 55 && q.age <= 80 && !r.need) {
     add('wantsSuitor', { p: q.id, him: q.sex !== 'm', name: L.pick(q.sex !== 'm' ? ['Clive', 'Bernard', 'Desmond', 'Ray', 'Gordon'] : ['Marjorie', 'Irene', 'Babs', 'Rita', 'Joan']), was: L.pick(['postman', 'dentist', 'ferry captain', 'piano tuner', 'bank manager']) }, 0.9, false, () => { r.suitor = 1; });
   }
   if (!r.money && q.age >= 62) add('wantsParentMoney', { p: q.id, n: price(L, 1500) }, 0.5, false, () => { r.money = 1; });
@@ -256,39 +258,41 @@ export function install({ A, Life, hooks, addEvents }) {
     wantsRec(p) { return this.s.wants.p[p.id] || null; },
     wantsAway(p) { return awayNow(this, this.s.wants.p[p.id]); },
     // What a person is hoping for, or going through, just now: { icon, text } or null.
+    // (text reads after their name: "Harry hopes to take The Undertow on tour".)
     wantsHope(p) {
       const s = this.s, r = s.wants.p[p.id], t = s.t;
       if (!r) return null;
       if (isLove(p)) {
-        if (r.ill && r.ill.on) return { icon: '🩺', text: `Getting over ${r.ill.what}` };
-        if (r.patch) return { icon: '🌧️', text: 'Going through a rough patch with you. Time together helps.' };
-        if (r.voyage > t) return { icon: '🌍', text: 'At sea with you, round the world' };
-        if (awayNow(this, r)) return { icon: r.awayWhy === 'band' ? '🚐' : '⛵', text: r.awayWhy === 'band' ? `On tour with ${r.band}` : 'Away at sea' };
-        const a = r.am && r.am.find((q) => q.out == null && q.at != null);
-        if (a) { const k = AMBITIONS[a.id]; return { icon: k.icon, text: k.hope[Math.min(a.st, k.hope.length - 1)](r) }; }
-        if (r.city) return { icon: '🚆', text: 'Working in the city, home on Fridays' };
-        if (p.wish && !this.kids().length && (r.kidN || 0) < 9) return { icon: '👶', text: 'A baby, one day' };
+        if (r.ill && r.ill.on) return { icon: '🩺', text: `Is getting over ${(r.ill.what || 'an illness').replace(/,.*$/, '')}` };
+        if (r.patch) return { icon: '🌧️', text: 'Is going through a rough patch with you. Time together helps.' };
+        if (r.voyage > t) return { icon: '🌍', text: 'Is at sea with you, round the world' };
+        if (awayNow(this, r)) return { icon: r.awayWhy === 'band' ? '🚐' : '⛵', text: r.awayWhy === 'band' ? `Is on tour with ${r.band}` : 'Is away at sea' };
+        // (A dream shows once it has been talked about: after its first card.)
+        const a = r.am && r.am.find((q) => q.out == null && q.st >= 1);
+        if (a) { const k = AMBITIONS[a.id], h = k.hope[Math.min(a.st, k.hope.length - 1)](r); return { icon: k.icon, text: /^To /.test(h) ? `Hopes ${h[0].toLowerCase()}${h.slice(1)}` : `Hopes for ${h[0].toLowerCase()}${h.slice(1)}` }; }
+        if (r.city) return { icon: '🚆', text: 'Works in the city, home on Fridays' };
+        if (p.wish && !this.kids().length && (r.kidN || 0) < 9) return { icon: '👶', text: 'Hopes for a baby, one day' };
         return null;
       }
       if (p.kind === 'child') {
-        if (r.back > t) return { icon: '🧳', text: 'Living back at home for a while' };
+        if (r.back > t) return { icon: '🧳', text: 'Is living back at home for a while' };
         if (p.age < 17 && r.hope) return { icon: '🌟', text: `Wants to be ${r.hope[0]}` };
-        if (p.age < 18 && r.path) return { icon: '🧭', text: PATHS[r.path] ? PATHS[r.path].said : 'Making plans' };
-        if (p.age >= 18 && r.path === 'uni' && !(r.ms && r.ms.wantsGrad)) return { icon: '🎓', text: 'At university in the city' };
+        if (p.age < 18 && r.path) return { icon: '🧭', text: PATHS[r.path] ? PATHS[r.path].plan : 'Is making plans' };
+        if (p.age >= 18 && r.path === 'uni' && !(r.ms && r.ms.wantsGrad)) return { icon: '🎓', text: 'Is at university in the city' };
         return null;
       }
       if (p.kind === 'parent') {
-        if (r.ask) return { icon: '🫖', text: 'Not managing on their own' };
+        if (r.ask) return { icon: '🫖', text: 'Is not managing alone any more' };
         if (r.care) return { icon: '🫖', text: CARE[r.care].said };
-        if (r.suitor === 2) return { icon: '💍', text: `Married again, to ${r.with}` };
+        if (r.suitor === 2) return { icon: '💍', text: `Is married again, to ${r.with}` };
         return null;
       }
       if (p.kind === 'friend') {
         const ln = s.wants.loans.find((q) => q.p === p.id), v = s.wants.ven;
-        if (r.fell != null) return { icon: '🗯️', text: 'Not speaking to you' };
+        if (r.fell != null) return { icon: '🗯️', text: 'Is not speaking to you' };
         if (ln) return { icon: '🫴', text: `Owes you ${money(ln.n)}` };
-        if (v && v.p === p.id) return { icon: '📈', text: `Running ${v.name}, with your money in it` };
-        if (r.best === 1) return { icon: '🤵', text: 'Getting married, with you at the top table' };
+        if (v && v.p === p.id) return { icon: '📈', text: `Runs ${v.name}, with your money in it` };
+        if (r.best === 1) return { icon: '🤵', text: 'Is getting married, with you at the top table' };
         return null;
       }
       return null;
@@ -335,10 +339,10 @@ export function install({ A, Life, hooks, addEvents }) {
         if (v.got > v.stake) W.f.angel = 1;
         W.ven = null;
       } else {
+        // (What it paid you came in with the season, just now: see the income below. Then it has another season.)
+        if (v.st >= 1 && v.hp >= 50 && t >= (v.wait || 0)) v.got += Math.round(v.stake * 0.04);
         v.age++;
         if (v.hp > 0) v.hp = clamp(v.hp + 2.5 * s.eco + L.int(-7, 7) + (v.age <= 4 ? -1.5 : 0.5), 0, 100);
-        // (What it pays you comes in with the season: see the income below.)
-        if (v.st >= 1 && v.hp >= 50 && t >= (v.wait || 0)) v.got += Math.round(v.stake * 0.04);
       }
     }
     if (jailed) return;
@@ -483,7 +487,7 @@ export function install({ A, Life, hooks, addEvents }) {
     }
     if (id === 'parentDies') {
       const r = W.p[x], S = s.soul;
-      for (const q of s.people.filter((p) => p.kind === 'parent')) rec(L, q).widow = 1;
+      for (const q of s.people.filter((p) => p.kind === 'parent')) rec(L, q).widow = s.t;
       if (r) {
         if (r.care === 'you' || r.care === 'with') { W.n.cared++; tale(L, 'looked after an ageing parent at home to the very end'); }
         if (S && r.talk && r.talk !== 'later') S.grief = Math.max(0, Math.round((S.grief - 2.5) * 100) / 100);
@@ -602,7 +606,10 @@ export function install({ A, Life, hooks, addEvents }) {
     const a = A[id];
     if (!a) continue;
     const why = a.why;
-    a.why = (L, p, x) => (p && L.s.wants && L.wantsAway(p) ? `${first(p)} is away until next season.` : why ? why(L, p, x) : null);
+    a.why = (L, p, x) => {
+      if (p && L.s.wants && L.wantsAway(p)) { const n = L.s.wants.p[p.id].away - L.s.t; return `${first(p)} is away${n > 1 ? ` for another ${n} seasons` : ' until next season'}.`; }
+      return why ? why(L, p, x) : null;
+    };
   }
 
   Object.assign(TROPHIES, {

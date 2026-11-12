@@ -370,6 +370,8 @@ export default function ({ check, fresh, Life, ACTIONS }) {
   // ---- whole family lives: nothing breaks, the same choices give the same life, nothing repeats for ever ----
   for (const seed of [21, 22, 23]) {
     const { L, F } = family(fresh, seed);
+    // (One married to somebody older, whose own parents are very old or gone.)
+    if (seed === 23) L.person(F.sp).age = 62;
     let ok = true, twinOk = true, mine = 0, seasons = 0, worst = 0;
     const per = {};
     try {

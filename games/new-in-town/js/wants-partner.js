@@ -325,10 +325,18 @@ export const PARTNER_CARDS = [
   {
     id: 'wantsAnniv', icon: '💐', ok: (L, x) => mine(L, x) && P(L, x).kind === 'spouse',
     title: (L, x) => (MILESTONES[x.y] ? `${cap(MILESTONES[x.y])}` : `${ORD(x.y)} anniversary`),
-    text: (L, x) => { const p = P(L, x), m = MILESTONES[x.y]; return `It is ${x.y === 1 ? 'a year' : `${x.y} years`} since you married ${first(p)}${m ? ` (${m}, apparently)` : ''}, and for once you have remembered in good time.${x.y >= 25 ? ' Half the town seems to know about it already.' : ''}`; },
+    text: (L, x) => {
+      const p = P(L, x), m = MILESTONES[x.y], f = first(p);
+      const when = x.y === 1 ? 'a year' : `${x.y} years`, what = m ? ` (${m}, apparently)` : '';
+      return [
+        `It is ${when} since you married ${f}${what}, and for once you have remembered in good time.`,
+        `You and ${f} have been married ${when} this week${what}. You have known for a fortnight, and have a plan, or most of one. ${f} is pretending not to have noticed the date.`,
+        `There is a card from ${f} propped against the kettle, and it is ${when} today${what}. You did remember. You remembered on Tuesday, and have been quietly smug ever since.`,
+      ][x.y % 3] + (x.y >= 25 ? ' Half the town seems to know about it already.' : '');
+    },
     opts: [
       { t: 'The good restaurant, and the song from the wedding', cost: (L, x) => price(L, MILESTONES[x.y] ? 500 : 250), run(L, x) { const p = P(L, x); L.bond(p, MILESTONES[x.y] ? 12 : 8); L.joy(5); return L.pick(['A table by the window, the band plays your song, and the waiter gives you the last of the pudding for nothing.', 'You dance in the restaurant, between the tables, and nobody minds.', 'Three courses, two hours, and not one word about work.']); } },
-      { t: 'Make something by hand', check: ['craft', 40], run(L, x, win) { const p = P(L, x); if (win) { L.bond(p, 12); L.joy(3); return `${first(p)} cries, and puts it on the mantelpiece, where it stays.`; } L.bond(p, 3); return 'It is the thought that counts, you are told, kindly.'; } },
+      { t: 'Make something by hand', check: ['craft', 40], run(L, x, win) { const p = P(L, x); if (win) { L.bond(p, 12); L.joy(3); return L.pick([`${first(p)} cries, and puts it on the mantelpiece, where it stays.`, `A little box of driftwood with your initials burnt into the lid. ${first(p)} keeps the letters in it.`, `A frame, made from the wood of the old garden bench, round the wedding photograph. ${first(p)} cannot speak for a minute.`]); } L.bond(p, 3); return L.pick(['It is the thought that counts, you are told, kindly.', 'It is meant to be a bird. Everybody agrees it is very nearly a bird.', `It falls apart on the table. ${first(p)} laughs until ${he(p)} cries, which is a present of a kind.`]); } },
       { t: 'A walk to where you first met', run(L, x) { const p = P(L, x); L.bond(p, 6); L.joy(3); L.gain('fitness', 0.5); return L.pick(['It has become a phone shop. You stand outside it holding hands anyway.', 'The bench is still there. So, it turns out, are your initials.', 'You argue about where exactly it was, and both enjoy it very much.']); } },
       { t: 'Renew your vows at St Brigid’s', show: (L, x) => x.y >= 25, cost: (L) => price(L, 1500), run(L, x) { const p = P(L, x); L.bond(p, 15); L.joy(12); been(L, p, `Renewed your vows after ${x.y} years.`); return 'The Reverend Hollis reads the service with her glasses on her head, looking for them. Your old friends fill the front pews, older, and the bells ring as if you were twenty-five.'; } },
       { t: ti('romantic', 'Recreate your first date, down to the last chip'), show: tr('romantic'), run(L, x) { const p = P(L, x); L.bond(p, 12); L.joy(6); return `Same chip shop, same bench, same gull, very possibly. ${first(p)} laughs until ${he(p)} has to sit down.`; } },
@@ -418,26 +426,26 @@ export const PARTNER_CARDS = [
   // ---- their parents ----
   {
     id: 'wantsInlawsKids', icon: '🧶', title: 'Thursdays', ok: (L, x) => mine(L, x) && !!rec(L, P(L, x)).inl,
-    text: (L, x) => { const p = P(L, x), i = rec(L, p).inl; return `${first(p)}’s mother, ${i.mum}, rings. She would like to have the little one on Thursdays, every week, "if that is not interfering". It is a bit interfering. It would also be a whole day.`; },
+    text: (L, x) => { const p = P(L, x), i = rec(L, p).inl; return `${first(p)}’s mother, ${i.mum.split(' ')[0]}, rings. She would like to have the little one on Thursdays, every week, "if that is not interfering". It is a bit interfering. It would also be a whole day.`; },
     opts: [
       { t: 'Say yes, gratefully', run(L, x) { const p = P(L, x), i = rec(L, p).inl; i.help = 1; i.w = clamp(i.w + 10, 0, 100); L.bond(p, 4); return 'The baby comes back every Thursday with a new word, a new cardigan, and jam in places jam should not be.'; } },
-      { t: 'Say yes, with a list of rules', run(L, x) { const i = rec(L, P(L, x)).inl; i.help = 1; i.w = clamp(i.w + 2, 0, 100); return `${i.mum} reads the list, says "Of course, dear", and does exactly as she likes.`; } },
-      { t: 'Say you can manage', run(L, x) { const p = P(L, x), i = rec(L, p).inl; i.w = clamp(i.w - 8, 0, 100); L.bond(p, -2); return `"Of course you can," says ${i.mum}, in a voice that could chill milk.`; } },
+      { t: 'Say yes, with a list of rules', run(L, x) { const i = rec(L, P(L, x)).inl; i.help = 1; i.w = clamp(i.w + 2, 0, 100); return `${i.mum.split(' ')[0]} reads the list, says "Of course, dear", and does exactly as she likes.`; } },
+      { t: 'Say you can manage', run(L, x) { const p = P(L, x), i = rec(L, p).inl; i.w = clamp(i.w - 8, 0, 100); L.bond(p, -2); return `"Of course you can," says ${i.mum.split(' ')[0]}, in a voice that could chill milk.`; } },
     ],
   },
   {
     id: 'wantsInlawsRuby', icon: '💍', title: 'Forty years', ok: (L, x) => mine(L, x) && !!rec(L, P(L, x)).inl && rec(L, P(L, x)).inl.left === 2,
-    text: (L, x) => { const p = P(L, x), i = rec(L, p).inl; return `${first(p)}’s parents, ${i.mum} and ${i.dad}, have been married forty years, and there is to be a party in the function room at the Gull. ${first(p)} has been asked to say a few words, and has asked you to say them instead.`; },
+    text: (L, x) => { const p = P(L, x), i = rec(L, p).inl; return `${first(p)}’s parents, ${i.mum.split(' ')[0]} and ${i.dad.split(' ')[0]}, have been married forty years, and there is to be a party in the function room at the Gull. ${first(p)} has been asked to say a few words, and has asked you to say them instead.`; },
     opts: [
-      { t: 'Say a few words', check: ['charm', 45], run(L, x, win) { const p = P(L, x), i = rec(L, p).inl; if (win) { i.w = clamp(i.w + 15, 0, 100); L.bond(p, 6); L.joy(4); return `You tell the story of how ${i.dad} proposed on a ferry and dropped the ring overboard. ${i.mum} laughs until her hat comes off.`; } i.w = clamp(i.w + 3, 0, 100); L.bond(p, 2); return `You get ${i.mum}’s name wrong in the first sentence, and never quite recover. They are very nice about it.`; } },
-      { t: 'Pay for the band', cost: (L) => price(L, 400), run(L, x) { const p = P(L, x), i = rec(L, p).inl; i.w = clamp(i.w + 10, 0, 100); L.bond(p, 5); return `The band plays everything from 1960 onwards, and ${i.dad} dances with every woman in the room, slowly.`; } },
+      { t: 'Say a few words', check: ['charm', 45], run(L, x, win) { const p = P(L, x), i = rec(L, p).inl; if (win) { i.w = clamp(i.w + 15, 0, 100); L.bond(p, 6); L.joy(4); return `You tell the story of how ${i.dad.split(' ')[0]} proposed on a ferry and dropped the ring overboard. ${i.mum.split(' ')[0]} laughs until her hat comes off.`; } i.w = clamp(i.w + 3, 0, 100); L.bond(p, 2); return `You get ${i.mum.split(' ')[0]}’s name wrong in the first sentence, and never quite recover. They are very nice about it.`; } },
+      { t: 'Pay for the band', cost: (L) => price(L, 400), run(L, x) { const p = P(L, x), i = rec(L, p).inl; i.w = clamp(i.w + 10, 0, 100); L.bond(p, 5); return `The band plays everything from 1960 onwards, and ${i.dad.split(' ')[0]} dances with every woman in the room, slowly.`; } },
       { t: 'Go, and stay near the buffet', run(L, x) { const i = rec(L, P(L, x)).inl; i.w = clamp(i.w + 2, 0, 100); return 'Vol-au-vents, a cheese and pineapple hedgehog, and a long talk with an uncle about drainage.'; } },
       { t: 'Have a prior engagement', run(L, x) { const p = P(L, x), i = rec(L, p).inl; i.w = clamp(i.w - 10, 0, 100); L.bond(p, -5); return 'You are missed, and the missing is noted.'; } },
     ],
   },
   {
     id: 'wantsInlawsIll', icon: '🩹', title: 'A fall', ok: (L, x) => mine(L, x) && !!rec(L, P(L, x)).inl && rec(L, P(L, x)).inl.left > 0,
-    text: (L, x) => { const p = P(L, x), i = rec(L, p).inl, who = i.left === 1 ? i.last : i.dad; return `${first(p)}’s ${who === i.mum ? 'mother' : 'father'}, ${who}, has had a fall and is in hospital with a broken hip. ${first(p)} wants to go and stay for a few weeks, to help.`; },
+    text: (L, x) => { const p = P(L, x), i = rec(L, p).inl, who = (i.left === 1 && i.last) || i.dad; return `${first(p)}’s ${who === i.mum ? 'mother' : 'father'}, ${who.split(' ')[0]}, has had a fall and is in hospital with a broken hip. ${first(p)} wants to go and stay for a few weeks, to help.`; },
     opts: [
       { t: 'Go together', run(L, x) { const p = P(L, x), i = rec(L, p).inl; busy(L, 2); L.bond(p, 8); i.w = clamp(i.w + 10, 0, 100); return 'You make up the spare bed, do the shopping and fix a banister that has been loose since 1974. Nobody asked you to. Everybody notices.'; } },
       { t: 'Hold the fort at home', run(L, x) { const p = P(L, x), i = rec(L, p).inl; busy(L, young(L, 12).length ? 1 : 0); L.bond(p, 5); i.w = clamp(i.w + 4, 0, 100); return `You ring every evening. ${first(p)} comes home three weeks later, exhausted, and finds the house still standing.`; } },

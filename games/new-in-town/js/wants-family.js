@@ -304,7 +304,7 @@ export const FAMILY_CARDS = [
     id: 'wantsVenture', icon: '📈', title: 'A share in it', ok: (L, x) => pal(L, x) && !L.s.wants.ven,
     text: (L, x) => { const p = P(L, x); return `${first(p)} is opening ${x.what}, and has been going round everybody ${he(p)} knows with a business plan and the face of somebody asking a stranger to dance. Would you put in ${money(x.n)} for a quarter share?`; },
     opts: [
-      { t: 'Put in what they ask', cost: (L, x) => x.n, run(L, x) { const p = P(L, x); venture(L, p, x, x.n, 0); L.bond(p, 8); return `${first(p)} shakes your hand for a full minute. ${x.name} opens in the spring.`; } },
+      { t: 'Put in what they ask', cost: (L, x) => x.n, run(L, x) { const p = P(L, x); venture(L, p, x, x.n, 0); L.bond(p, 8); return `${first(p)} shakes your hand for a full minute. ${cap1(x.name)} opens in the spring.`; } },
       { t: 'Look over the plan, then put in what they ask', cost: (L, x) => x.n, check: ['smarts', 50], run(L, x, win) { const p = P(L, x); venture(L, p, x, x.n, win ? 18 : 0); L.bond(p, 8); return win ? 'You find a better supplier, a cheaper lease and a mistake in the VAT. The plan comes back from you looking twice as good.' : 'You read the plan twice and nod a lot. It looks fine to you, which may not mean much.'; } },
       { t: 'Put in twice that', cost: (L, x) => x.n * 2, run(L, x) { const p = P(L, x); venture(L, p, x, x.n * 2, 5); L.bond(p, 10); return `${first(p)} has to sit down. With money like that, ${x.name} can open properly, with a sign that lights up.`; } },
       { t: 'Wish them luck, and keep your money', run(L, x) { L.bond(P(L, x), -2); return 'You buy something on the opening day, and tell everybody you know.'; } },

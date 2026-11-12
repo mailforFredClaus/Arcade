@@ -107,15 +107,15 @@ export const HOPES = {
 };
 // Careers that want a degree, for a child who goes to university.
 export const GRADUATE = ['medicine', 'law', 'tech', 'teaching', 'finance', 'politics'];
-// The ways a child can go at eighteen.
+// The ways a child can go at eighteen. said: once they have gone; plan: before.
 export const PATHS = {
-  uni: { said: 'Off to university in the city' },
-  'app-trades': { said: 'Apprenticed at Dobbs & Daughter', job: 'trades' },
-  'app-sea': { said: 'Crewing on Captain Quinn’s boats', job: 'sea' },
-  'app-kitchen': { said: 'In the kitchen at the Gull', job: 'kitchen' },
-  work: { said: 'Straight into work' },
-  gap: { said: 'A year away with a rucksack' },
-  sea: { said: 'On the boats' },
+  uni: { said: 'Went to university in the city', plan: 'Is off to university next year' },
+  'app-trades': { said: 'Trained at Dobbs & Daughter', plan: 'Starts at Dobbs & Daughter next year', job: 'trades' },
+  'app-sea': { said: 'Learned the sea on Captain Quinn’s boats', plan: 'Joins Captain Quinn’s boats next year', job: 'sea' },
+  'app-kitchen': { said: 'Trained in the kitchen at the Gull', plan: 'Starts in the kitchen at the Gull next year', job: 'kitchen' },
+  work: { said: 'Went straight into work', plan: 'Wants to go straight into work' },
+  gap: { said: 'Took a year away with a rucksack', plan: 'Is planning a year away with a rucksack' },
+  sea: { said: 'Went to work on the boats', plan: 'Is going to work on the boats' },
 };
 export const EXAM = ['failed most of them', 'scraped through', 'done well', 'got top marks in nearly everything'];
 
@@ -123,9 +123,9 @@ export const EXAM = ['failed most of them', 'scraped through', 'done well', 'got
 
 // Who looks after a parent who cannot manage: what it is called, what it costs a season.
 export const CARE = {
-  you: { said: 'You go round every day', cost: 0 },
-  carer: { said: 'A carer comes in', cost: 800 },
-  home: { said: 'At Seaview House', cost: 2000 },
-  with: { said: 'Living with you', cost: 250 },
-  sib: { said: 'Your family are taking turns', cost: 0 },
+  you: { said: 'Is looked after by you, every day', cost: 0 },
+  carer: { said: 'Has a carer coming in', cost: 800 },
+  home: { said: 'Is at Seaview House', cost: 2000 },
+  with: { said: 'Lives with you now', cost: 250 },
+  sib: { said: 'Is staying with family for now', cost: 0 },
 };

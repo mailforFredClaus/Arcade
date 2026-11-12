@@ -19,8 +19,9 @@ export default function (kit) {
     const r = life.wantsRec(p);
     if (!r) return '';
     const s = life.s, t = s.t, rows = [], first = esc(p.name.split(' ')[0]);
-    const h = life.wantsHope(p);
-    if (h) rows.push(row(h.icon, `<b>${esc(h.text)}</b>`, 'hope'));
+    const h = life.wantsHope(p), ln = s.wants.loans.find((q) => q.p === p.id), v = s.wants.ven && s.wants.ven.p === p.id ? s.wants.ven : null;
+    // (Unless the rows below say it already.)
+    if (h && !(p.kind === 'parent' && r.care) && !(p.kind === 'friend' && (ln || v))) rows.push(row(h.icon, `<b>${esc(h.text)}</b>`, 'hope'));
     if ((p.kind === 'partner' || p.kind === 'spouse') && r.am) {
       for (const a of r.am.filter((q) => q.out)) rows.push(row(AMBITIONS[a.id].icon, `${esc(AMBITIONS[a.id].name)}: ${OUT[a.out] || 'over'}`, a.out === 'won' ? 'done' : 'past'));
       if (r.wed != null && p.kind === 'spouse' && t > r.wed) { const y = Math.floor((t - r.wed) / 4); if (y >= 1) rows.push(row('💍', `Married ${y} year${y === 1 ? '' : 's'}${r.forgot ? `, and you forgot the last anniversary` : ''}`)); }
@@ -29,7 +30,7 @@ export default function (kit) {
     if (p.kind === 'child') {
       if (p.age >= 6 && p.age < 17 && r.hope && !(h && h.text.includes(r.hope[0]))) rows.push(row('🌟', `Says ${p.sex === 'm' ? 'he' : 'she'} will be ${esc(r.hope[0])}`));
       if (r.ex != null) rows.push(row('✉️', `At sixteen, ${p.sex === 'm' ? 'he' : 'she'} ${EXAM_SAID[r.ex]}`));
-      if (r.path && p.age >= 18 && PATHS[r.path]) rows.push(row('🧭', esc(PATHS[r.path].said)));
+      if (r.path && p.age >= 18 && PATHS[r.path] && !(h && h.text === PATHS[r.path].said)) rows.push(row('🧭', esc(PATHS[r.path].said)));
       if (r.path === 'crew') rows.push(row('🦊', 'Works for Sal'));
       if (r.dream) rows.push(row('✨', `Became ${esc(r.hope[0].replace(/, like .*$/, ''))}, as ${p.sex === 'm' ? 'he' : 'she'} always said`, 'done'));
       if (p.age < 5 && r.care) rows.push(row('🧸', { nursery: 'At the Bayview Nursery three days a week', gran: 'With Gran three days a week', home: 'At home with you' }[r.care] || ''));
@@ -39,9 +40,8 @@ export default function (kit) {
       rows.push(row('🫖', `${esc(c.said)}${c.cost ? ` · ${money(Math.round(fee(life, c.cost) / (half ? 2 : 1)))} a season${half ? ', your half' : ''}` : ''}${r.care === 'you' ? ' · it takes a block of your time each season' : ''}`));
     }
     if (p.kind === 'friend') {
-      const ln = s.wants.loans.find((q) => q.p === p.id), v = s.wants.ven;
       if (ln) rows.push(row('🫴', `Borrowed ${money(ln.n)}, to be paid back ${ln.due <= t ? 'by now' : ln.due - t === 1 ? 'next season' : `in ${ln.due - t} seasons`}`));
-      if (v && v.p === p.id) rows.push(row('📈', `Your ${money(v.stake)} is in ${esc(v.name)}: ${v.hp >= 65 ? 'doing well' : v.hp >= 40 ? 'getting by' : 'struggling'}${v.got ? `, ${money(v.got)} back so far` : ''}`));
+      if (v) rows.push(row('📈', `Your ${money(v.stake)} is in ${esc(v.name)}: ${v.hp >= 65 ? 'doing well' : v.hp >= 40 ? 'getting by' : 'struggling'}${v.got ? `, ${money(v.got)} back so far` : ''}`));
       if ((r.owe || 0) >= 2) rows.push(row('🤝', `${first} has not forgotten what you did for ${p.sex === 'm' ? 'him' : 'her'}`));
     }
     const been = life.wantsBeen(p);
