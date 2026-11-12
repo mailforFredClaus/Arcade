@@ -134,15 +134,16 @@ function partnerBeats(L, p, r, add) {
   if (r.patch) {
     if (r.patch.n >= 3 || p.bond >= 62) add('wantsRoughUp', x, 5, true);
     else if (t - r.patch.at >= 5) add('wantsRoughDown', x, 5, true);
-  } else if (together >= 6 && t - (r.last ?? -99) >= 16 && (p.bond < 38 || (r.sore || 0) >= 3)) add('wantsRough', x, 4, (r.sore || 0) >= 5);
+  } else if (live && together >= 6 && t - (r.last ?? -99) >= 16 && (p.bond < 38 || (r.sore || 0) >= 3)) add('wantsRough', x, 4, (r.sore || 0) >= 5);
   // Somebody at their work.
   if (r.eye === 2 && t >= r.eyeAt) add('wantsFound', x, 6, true);
-  else if (!r.eye && together >= 10 && p.age < 68 && s.age < 70) {
+  else if (!r.eye && live && together >= 10 && p.age < 68 && s.age < 70) {
     const strain = s.soul && s.soul.mind ? s.soul.mind.strain : 0;
     add('wantsEye', x, 0.25 + (p.bond < 55 ? 0.5 : 0) + (strain >= 10 ? 0.35 : 0), false, () => { r.eye = 1; r.eyeName = L.freshName(s.sex === 'f' ? 'f' : 'm').split(' ')[0]; });
   }
-  // Their ambitions, a stage at a time (not while something else has the upper hand).
-  if (!r.am && together >= 2) r.am = draw(L, p, r);
+  // Their ambitions, a stage at a time (not while something else has the upper hand), once
+  // the two of you have made a home together: nobody brings out the ring binder on a third date.
+  if (!r.am && live && together >= 4) r.am = draw(L, p, r);
   // Years after the last dream was settled, another (four in a long life together, at most).
   if (r.am && r.am.length < 4 && r.am.every((q) => q.out != null) && t - Math.max(...r.am.map((q) => q.end ?? t)) >= 16) { const c = draw(L, p, r); if (c) r.am.push(c); }
   const a = r.am && r.am.find((q) => q.out == null);
@@ -156,7 +157,7 @@ function partnerBeats(L, p, r, add) {
   if (held && free && !a) add('wantsRoad', { p: p.id, a: held.id }, 1.2, false, () => { held.road = 1; });
   // Children, or not.
   if (p.wish && !L.kids().length && !s.due && live && together >= 6 && (r.kidN || 0) < 3 && t >= (r.kidAt || 0) && s.age <= 50 && p.age <= 48) add('wantsBaby', x, 2.5);
-  if (!p.wish && !r.noKid && !L.kids().length && together >= 4 && s.age <= 46 && p.age <= 46) add('wantsNoBaby', x, 2, false, () => { r.noKid = 1; });
+  if (!p.wish && !r.noKid && !L.kids().length && live && together >= 4 && s.age <= 46 && p.age <= 46) add('wantsNoBaby', x, 2, false, () => { r.noKid = 1; });
   // Their parents.
   if (together >= 3) {
     if (!r.inl) r.inl = inlaws(L, p);

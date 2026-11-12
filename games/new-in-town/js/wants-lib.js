@@ -124,8 +124,8 @@ export const EXAM = ['failed most of them', 'scraped through', 'done well', 'got
 // Who looks after a parent who cannot manage: what it is called, what it costs a season.
 export const CARE = {
   you: { said: 'Is looked after by you, every day', cost: 0 },
-  carer: { said: 'Has a carer coming in', cost: 800 },
-  home: { said: 'Is at Seaview House', cost: 2000 },
+  carer: { said: 'Has a carer coming in', cost: 600 },
+  home: { said: 'Is at Seaview House', cost: 1500 },
   with: { said: 'Lives with you now', cost: 250 },
   sib: { said: 'Is staying with family for now', cost: 0 },
 };
