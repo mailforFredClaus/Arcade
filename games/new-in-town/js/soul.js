@@ -20,7 +20,7 @@
 //
 // Everything is kept in s.soul.
 
-import { TROPHIES, money } from './data.js';
+import { TROPHIES, CAREERS, money } from './data.js';
 
 // ---- the traits ------------------------------------------------------------------------
 
@@ -102,6 +102,8 @@ const HELPS = { soulVicar: 'vicar', therapy: 'care', gDoc: 'care', rest: 'rest',
 const HELP_SAID = { talk: 'someone close', vicar: 'the Reverend Hollis', move: 'fresh air and exercise', care: 'the counsellor at St Wren’s', quiet: 'quiet hours', rest: 'rest', away: 'getting away' };
 const CLOSE = ['friend', 'partner', 'spouse', 'parent', 'sibling', 'child', 'grandchild'];
 const KIN = ['partner', 'spouse', 'parent', 'sibling', 'child', 'grandchild'];
+// Someone you could pour your heart out to (not a toddler).
+const confidant = (p) => CLOSE.includes(p.kind) && p.bond >= 30 && ((p.kind !== 'child' && p.kind !== 'grandchild') || p.age >= 16);
 // Deaths the town's cards bring, and how hard each is felt.
 const DEATHS = { parentDies: 5, spouseDies: 8, sibDies: 4 };
 const GRIEF = { parent: 5, spouse: 8, partner: 8, sibling: 4, friend: 3 };
@@ -467,7 +469,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       const said = L.pick([
         ['The Reverend Hollis loses her place in the Easter sermon, and finds a better one.', 'Easter lilies everywhere, and a child who asks, loudly, whether the vicar is married to God.'],
         ['The doors are propped open, and a sparrow attends the whole service.', 'A hot Sunday. The sermon is short, by popular demand.'],
-        ['Harvest festival: tins of beans stacked round the font, and a marrow on the altar that Tom Windle insists on calling “her”.', 'The sermon is about seeds. It is really about the roof.'],
+        ['Harvest festival: tins of beans stacked round the font, and a marrow on the altar that Tom Windle insists on calling "her".', 'The sermon is about seeds. It is really about the roof.'],
         ['Frost on the inside of the windows. Everybody sings louder to keep warm.', 'Advent: one candle lit, and the Reverend’s breath showing as she preaches.'],
       ][L.season].concat(['The sermon is about bees, again. It is better than it sounds.', 'You sing a hymn you have not sung since you were nine, and remember every word.']));
       return `${said}${p ? ` Over the tea urn you get talking to ${p.name}.` : ' Tea after, in cups and saucers.'}${ring(L)}`;
@@ -501,9 +503,9 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     run(L) {
       const S = L.s.soul, g = S.graves[S.graves.length - 1];
       L.joy(2); parish(L, 1);
-      if (S.mind.spell) return S.mind.spell.k === 'low' ? 'You do not mean to tell her, and then you do. She listens, says very little, and gives you a jar of honey and the number of a counsellor at St Wren’s. “And come back next week,” she says. “I mean it.”' : '“You look like somebody who has not sat down since Easter,” she says, and makes you sit down. You talk about everything except work. It helps more than you expected.';
+      if (S.mind.spell) return S.mind.spell.k === 'low' ? 'You do not mean to tell her, and then you do. She listens, says very little, and gives you a jar of honey and the number of a counsellor at St Wren’s. "And come back next week," she says. "I mean it."' : '"You look like somebody who has not sat down since Easter," she says, and makes you sit down. You talk about everything except work. It helps more than you expected.';
       if (S.grief >= 2 && g) { S.grief = Math.max(0, S.grief - 1); return `You talk about ${g.name}. She remembers the funeral, and what was said. It helps to hear it back.`; }
-      return L.pick(['She shows you the hives. The bees, she says, have opinions about the new hymn book.', 'She lends you a romantic novel by somebody called R. A. Berg. “I have my suspicions about who that is,” she says, looking towards the library.', 'The tea is stewed and the biscuits are soft, and you stay two hours.', 'She tells you about the roof. Then she tells you about the roof again, in more detail.']);
+      return L.pick(['She shows you the hives. The bees, she says, have opinions about the new hymn book.', 'She lends you a romantic novel by somebody called R. A. Berg. "I have my suspicions about who that is," she says, looking towards the library.', 'The tea is stewed and the biscuits are soft, and you stay two hours.', 'She tells you about the roof. Then she tells you about the roof again, in more detail.']);
     },
   });
 
@@ -557,7 +559,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     L.joy(5); L.karma(2);
     L.note('Helped St Brigid’s raise enough to mend its roof.', 'big');
     L.say('⛪', 'The roof of St Brigid’s is mended', 'good');
-    return ' And that does it: the thermometer reaches the top, and the Reverend Hollis rings the bell herself. “Now,” she says, “the spire.”';
+    return ' And that does it: the thermometer reaches the top, and the Reverend Hollis rings the bell herself. "Now," she says, "the spire."';
   }
 
   def('soulBells', {
@@ -570,7 +572,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       S.n.bells++;
       S.bells.best = Math.max(S.bells.best, q);
       L.gain('craft', 1 + q); L.joy(2 + 3 * q); parish(L, 2);
-      let text = q >= 0.9 ? L.pick(['Not one clash all evening. Mr Tregenza, the tower captain, says nothing at all, which from him is a standing ovation.', 'The changes come round clean as a whistle. Down in the square, people stop to listen.']) : q >= 0.6 ? L.pick(['A clash in the third row, but the rest is sound. Mr Tregenza nods.', 'You find the rhythm halfway through and keep it. The tenor ringer gives you a thumbs up.']) : L.pick(['You ring the treble when it should be the fourth, twice. “Lovely enthusiasm,” says Mr Tregenza.', 'The rope tries to take you up the tower with it. Everyone remembers their first time.']);
+      let text = q >= 0.9 ? L.pick(['Not one clash all evening. Mr Tregenza, the tower captain, says nothing at all, which from him is a standing ovation.', 'The changes come round clean as a whistle. Down in the square, people stop to listen.']) : q >= 0.6 ? L.pick(['A clash in the third row, but the rest is sound. Mr Tregenza nods.', 'You find the rhythm halfway through and keep it. The tenor ringer gives you a thumbs up.']) : L.pick(['You ring the treble when it should be the fourth, twice. "Lovely enthusiasm," says Mr Tregenza.', 'The rope tries to take you up the tower with it. Everyone remembers their first time.']);
       if (q >= 0.9 && S.n.bells >= 4 && !S.f.peal) { S.f.peal = 1; L.note('Rang a clean peal at St Brigid’s.', 'big'); text += ' The band writes your name in the peal book.'; }
       if (!was && L.soulRinger()) text += ' Afterwards Mr Tregenza asks if you could ring on Sundays.';
       return text;
@@ -641,7 +643,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     // ---- life's big days ----
     {
       id: 'soulBanns', icon: '⛪', title: 'The banns', ok: (L, x) => { const p = L.person(x); return !!p && p.kind === 'partner' && !!p.eng && !L.s.gaol; },
-      text: (L, x) => `The Reverend Hollis catches you on the High Street. “I hear you and ${P(L, x).name} are getting married. You know you could marry at St Brigid’s? I would read the banns three Sundays running, the bells would ring, and the roof only leaks at the back.”`,
+      text: (L, x) => `The Reverend Hollis catches you on the High Street. "I hear you and ${P(L, x).name} are getting married. You know you could marry at St Brigid’s? I would read the banns three Sundays running, the bells would ring, and the roof only leaks at the back."`,
       opts: [
         { t: 'Marry at St Brigid’s', cost: 5000, run: (L, x) => churchWed(L, x, false) },
         { t: ic('romantic', 'Marry at St Brigid’s, with vows you wrote yourselves'), show: tr('romantic'), cost: 5000, run: (L, x) => churchWed(L, x, true) },
@@ -702,7 +704,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
         { t: 'Read the poem the Reverend suggests', run(L, x) { eulogy(L, x, 'read', { joy: 2, grief: 2 }); return 'Something about a ship going over the horizon, and still being a ship on the far side. It says it better than you could.'; } },
         { t: (L, x) => ic('joker', `Do as ${he(x)} asked, and send ${him(x)} off laughing`), show: tr('joker'), run(L, x) { eulogy(L, x, 'joke', { joy: 6, grief: 3, kin: 4, friends: 4, deed: { joker: 3 } }); return `Three jokes, two of them ${his(x)}, one of them rude. The Reverend Hollis laughs loudest. Nobody can remember a better funeral.`; } },
         { t: (L, x) => ic('bookish', `Read from the book ${he(x)} loved, and say why`), show: tr('bookish'), run(L, x) { eulogy(L, x, 'book', { joy: 4, grief: 3, kin: 2, deed: { bookish: 2 } }); return `A page from the book on ${his(x)} bedside table, folded at the corner where ${he(x)} left off. You read on to the end of the chapter for ${him(x)}.`; } },
-        { t: ic('romantic', 'Read from the letters you sent each other'), show: (L, x) => L.soulHas('romantic') && (x.kind === 'spouse' || x.kind === 'partner'), run(L, x) { eulogy(L, x, 'letters', { joy: 4, grief: 4, kin: 5, deed: { romantic: 3 } }); return 'The first one, from before. The church goes very quiet, and then the children take your hands.'; } },
+        { t: ic('romantic', 'Read from the letters you sent each other'), show: (L, x) => L.soulHas('romantic') && (x.kind === 'spouse' || x.kind === 'partner'), run(L, x) { eulogy(L, x, 'letters', { joy: 4, grief: 4, kin: 5, deed: { romantic: 3 } }); return 'The first one, from before everything. The church goes very quiet, and somebody in the front pew takes your hand.'; } },
         { t: (L, x) => ic('kind', `Thank everyone who sat with ${him(x)} at the end`), show: tr('kind'), run(L, x) { eulogy(L, x, 'thanks', { joy: 3, grief: 2, kin: 5, friends: 3, karma: 2, deed: { kind: 2 } }); return 'You name every one of them: the nurses, the neighbour with the soup, the man from the paper shop. Each of them cries.'; } },
         { t: ic('hothead', 'Say what you think of the relatives who never visited'), show: tr('hothead'), run(L, x) { eulogy(L, x, 'row', { joy: 3, grief: 2, kin: -5, karma: -2, deed: { hothead: 3 } }); return 'It needed saying. Not everybody agrees that it needed saying at a funeral.'; } },
         { t: ic('churchgoer', 'Choose the hymns yourself, and lead the singing'), show: tr('churchgoer'), run(L, x) { eulogy(L, x, 'hymns', { joy: 4, grief: 3, kin: 2, deed: { churchgoer: 2 } }); parish(L, 4); return 'You choose the ones that make everybody cry and sing at once. The roof very nearly comes off, which would at least settle the matter.'; } },
@@ -715,9 +717,9 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       text: 'It has crept up on you. Mornings are heavy, the things you used to enjoy feel like chores, and you are tired in a way sleep does not touch. It is not your fault, and it will not last for ever, though it feels as if it might.',
       opts: [
         {
-          t: 'Tell someone close', show: (L) => L.s.people.some((p) => CLOSE.includes(p.kind) && p.bond >= 30),
+          t: 'Tell someone close', show: (L) => L.s.people.some(confidant),
           run(L) {
-            const p = L.s.people.filter((q) => CLOSE.includes(q.kind) && q.bond >= 30).sort((a, b) => b.bond - a.bond)[0], sp = L.soulSpell();
+            const p = L.s.people.filter(confidant).sort((a, b) => b.bond - a.bond)[0], sp = L.soulSpell();
             L.bond(p, 4); L.joy(2); sp.depth = Math.max(1, sp.depth - 1.5); sp.by.talk = (sp.by.talk || 0) + 1.5;
             return `You tell ${p.name}. ${cap(he(p))} does not try to fix it. ${cap(he(p))} puts the kettle on, and stays.`;
           },
@@ -737,7 +739,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     },
     {
       id: 'soulConfide', icon: '🫂', title: 'Are you all right?', ok: (L, x) => !!L.person(x) && !!L.soulSpell(),
-      text: (L, x) => `${P(L, x).name} catches your eye over a cup of tea. “You have not been yourself lately,” ${he(P(L, x))} says. “Are you all right? Really?”`,
+      text: (L, x) => `${P(L, x).name} catches your eye over a cup of tea. "You have not been yourself lately," ${he(P(L, x))} says. "Are you all right? Really?"`,
       opts: [
         { t: 'Tell the truth', run(L, x) { const p = P(L, x), sp = L.soulSpell(); L.bond(p, 5); L.joy(3); sp.depth = Math.max(1, sp.depth - 1.5); sp.by.talk = (sp.by.talk || 0) + 1.5; return `It all comes out. ${p.name} listens to every word, and then rings you every few days, just to ask.`; } },
         { t: ic('loner', 'Go for a walk together, and say nothing much'), show: tr('loner'), run(L, x) { const p = P(L, x), sp = L.soulSpell(); L.bond(p, 3); L.joy(2); sp.depth = Math.max(1, sp.depth - 1); return 'Two miles of cliff path in companionable silence. At the end of it you feel lighter, and so, you suspect, does the dog.'; } },
@@ -763,9 +765,9 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     // ---- the town, and who you are in it ----
     {
       id: 'soulDrip', icon: '🪣', title: 'The bucket in the north aisle', w: 3, cd: 16, when: (L) => L.s.age >= 20 && !L.soulRoofDone(),
-      text: 'The Reverend Hollis is up a stepladder in St Brigid’s, emptying a bucket into another bucket. “Another tile gone,” she says. “The fund thermometer has not moved since Easter.”',
+      text: 'The Reverend Hollis is up a stepladder in St Brigid’s, emptying a bucket into another bucket. "Another tile gone," she says. "The fund thermometer has not moved since Easter."',
       opts: [
-        { t: 'Put $100 in the tin', cost: 100, run(L) { L.karma(1); L.joy(1); parish(L, 1); return `“Bless you,” she says, and means it.${raiseRoof(L, 100)}`; } },
+        { t: 'Put $100 in the tin', cost: 100, run(L) { L.karma(1); L.joy(1); parish(L, 1); return `"Bless you," she says, and means it.${raiseRoof(L, 100)}`; } },
         { t: 'Hold the ladder', run(L) { L.joy(2); parish(L, 2); return 'She hands you the bucket, then the hammer, then her glasses, then the bucket again.'; } },
         { t: ic('daredevil', 'Go up on the roof yourself'), show: tr('daredevil'), odds: () => 0.75, run(L, x, win) { if (win) { parish(L, 5); L.karma(2); L.joy(4); return `You fix three tiles and wave at the whole town from the ridge. That saves the fund a roofer’s fee.${raiseRoof(L, 600)}`; } L.hp(-6, 'a fall from the church roof'); L.joy(-2); return 'A slate slides, and so do you, the last six feet. The Reverend Hollis drives you to St Wren’s, praying aloud at every junction.'; } },
         { t: ic('thrifty', 'Organise a sponsored silence'), show: tr('thrifty'), run(L) { parish(L, 3); L.joy(2); return `Forty people, an afternoon, not a word. It is the quietest the church hall has ever been, and the cheapest fundraiser ever held.${raiseRoof(L, 400)}`; } },
@@ -778,7 +780,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       opts: [
         { t: 'Help her coax them into a box', check: ['craft', 30], run(L, x, win) { if (win) { L.joy(4); parish(L, 3); return 'You hold the box, she shakes the branch, and the whole humming lot drops in. She gives you a jar of last year’s honey.'; } L.hp(-2); L.joy(-1); return 'Most of them go in the box. Several go up your sleeve.'; } },
         { t: ic('daredevil', 'Scoop them up with your bare hands'), show: tr('daredevil'), odds: () => 0.8, run(L, x, win) { if (win) { L.joy(6); L.fame(0.5); return 'Calm as you like, two handfuls of bees into the box. The bus queue applauds. It is in the Gazette.'; } L.hp(-4); return 'The bees have views about bare hands. So, afterwards, do you.'; } },
-        { t: ic('joker', 'Announce that the number twelve is now a hive'), show: tr('joker'), run(L) { L.joy(3); deed(L, { joker: 1 }); return 'The queue laughs, the bees ignore you, and the Reverend Hollis says you are “not helping”, while helping.'; } },
+        { t: ic('joker', 'Announce that the number twelve is now a hive'), show: tr('joker'), run(L) { L.joy(3); deed(L, { joker: 1 }); return 'The queue laughs, the bees ignore you, and the Reverend Hollis says you are "not helping", while helping.'; } },
         { t: 'Walk the long way round', run() { return 'Wisdom is knowing which bus shelters to avoid.'; } },
       ],
     },
@@ -797,7 +799,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       text: 'In the window of the outfitter’s on the High Street: a good wool coat, exactly your size, the last one. $300.',
       opts: [
         { t: 'Buy it', cost: 300, run(L) { L.joy(4); deed(L, { spender: 1 }); return 'It is the best coat you have ever owned, and the wind off the bay can do its worst.'; } },
-        { t: ic('spender', 'Buy it, and the scarf, and the hat'), show: tr('spender'), cost: 600, run(L) { L.joy(7); deed(L, { spender: 1 }); return 'The man in the shop calls you “sir or madam” with real feeling. You look magnificent.'; } },
+        { t: ic('spender', 'Buy it, and the scarf, and the hat'), show: tr('spender'), cost: 600, run(L) { L.joy(7); deed(L, { spender: 1 }); return 'The man in the shop calls you "sir or madam" with real feeling. You look magnificent.'; } },
         { t: ic('thrifty', 'Wait for the sale'), show: tr('thrifty'), odds: () => 0.6, run(L, x, win) { if (win) { L.cash(-150); L.joy(5); return 'A fortnight later it is in the sale at half price. You feel you have beaten the system.'; } L.joy(-1); return 'Somebody else got it. You see it on the bus most mornings.'; } },
         { t: 'Walk on by', run(L) { deed(L, { thrifty: 1 }); return 'Your old coat has a few years in it yet. Probably.'; } },
       ],
@@ -807,8 +809,8 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       text: 'A man in a golf umbrella walks straight past the queue at the post office and up to the counter. He is not even sorry.',
       opts: [
         { t: 'Let it go', run(L) { L.joy(-1); return 'You let it go. It follows you home anyway.'; } },
-        { t: 'Say something', check: ['charm', 45], run(L, x, win) { if (win) { L.joy(2); return 'You point out the queue, politely. He apologises, and goes to the back. The queue looks at you with love.'; } L.joy(-2); return '“I’m in a hurry,” he says, as if nobody else could be.'; } },
-        { t: ic('hothead', 'Tell him exactly what you think, loudly'), show: tr('hothead'), run(L) { L.joy(3); L.karma(-1); deed(L, { hothead: 2 }); if (L.chance(0.3) && L.enemies().length < 6) { L.foe(); return 'Everybody hears it. He hears it twice. He turns out to live three doors down from you.'; } return 'Everybody hears it. He goes to the back of the queue, red to the ears, and the postmistress winks at you.'; } },
+        { t: 'Say something', check: ['charm', 45], run(L, x, win) { if (win) { L.joy(2); return 'You point out the queue, politely. He apologises, and goes to the back. The queue looks at you with love.'; } L.joy(-2); return '"I’m in a hurry," he says, as if nobody else could be.'; } },
+        { t: ic('hothead', 'Tell him exactly what you think, loudly'), show: tr('hothead'), run(L) { L.joy(3); L.karma(-1); deed(L, { hothead: 2 }); if (L.chance(0.3) && L.enemies().length < 6) { L.foe({ sex: 'm' }); return 'Everybody hears it. He hears it twice. He turns out to live three doors down from you.'; } return 'Everybody hears it. He goes to the back of the queue, red to the ears, and the postmistress winks at you.'; } },
         { t: ic('joker', 'Make him laugh about it'), show: tr('joker'), run(L) { L.joy(3); deed(L, { joker: 1 }); return 'Something about umbrellas and the meek inheriting the earth. Even he laughs, and goes to the back.'; } },
         { t: ic('kind', 'Notice he looks dreadful, and ask if he is all right'), show: tr('kind'), run(L) { L.karma(2); L.joy(3); const p = L.maybeMeet(0.5); return p ? `His wife is in St Wren’s. He is posting her the crossword. His name is ${p.name}, and you see him most weeks after that.` : 'His wife is in St Wren’s, and he is posting her the crossword. The whole queue lets him go first.'; } },
       ],
@@ -818,7 +820,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       text: 'A young woman is sitting on the sea wall in the drizzle, crying the way people do when they think nobody is looking.',
       opts: [
         { t: 'Sit with her a while', run(L) { L.karma(2); L.joy(1); return 'She does not say much and you do not ask. After a while she says thank you, and goes home.'; } },
-        { t: ic('kind', 'Take her to Betty’s for a cup of tea, and listen'), show: tr('kind'), cost: 5, run(L) { L.karma(3); L.joy(4); const p = L.chance(0.4) && L.friends().length < 20 ? L.meet({ sex: 'f', age: Math.max(18, L.s.age - 10) }) : null; return p ? `A broken engagement, and a long way from home. By the second pot her name is ${p.name}, and she is laughing at something Betty said.` : 'A broken engagement, and a long way from home. Betty brings cake that nobody ordered.'; } },
+        { t: ic('kind', 'Take her to Betty’s for a cup of tea, and listen'), show: tr('kind'), cost: 5, run(L) { L.karma(3); L.joy(4); const p = L.chance(0.4) && L.friends().length < 20 ? L.meet({ sex: 'f', age: L.int(20, 32) }) : null; return p ? `A broken engagement, and a long way from home. By the second pot her name is ${p.name}, and she is laughing at something Betty said.` : 'A broken engagement, and a long way from home. Betty brings cake that nobody ordered.'; } },
         { t: ic('loner', 'Sit nearby, say nothing, and stay'), show: tr('loner'), run(L) { L.karma(1.5); L.joy(2); return 'Twenty minutes of company without a word. When she gets up she nods to you, as if you had agreed something.'; } },
         { t: 'Leave her be', run(L) { L.joy(-1); return 'You think about her on and off all week.'; } },
       ],
@@ -834,7 +836,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       ],
     },
     {
-      id: 'soulTuesday', icon: '🌹', title: 'A wet Tuesday', w: 3, cd: 16, when: (L) => !!L.partner() && !L.s.gaol,
+      id: 'soulTuesday', icon: '🌹', title: 'A wet Tuesday', w: 3, cd: 16, when: (L) => !!L.partner() && !!L.partner().live && !L.s.gaol,
       text: (L) => `Rain on the windows, nothing in the diary, and ${L.partner().name} still asleep.`,
       opts: [
         { t: 'Bring up a cup of tea', run(L) { L.bond(L.partner(), 2); return 'Two sugars, the good mug. A sleepy thank you.'; } },
@@ -844,11 +846,11 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       ],
     },
     {
-      id: 'soulBigJob', icon: '📁', title: 'A big job', w: 3, cd: 16, when: (L) => !!L.s.job && !L.s.gaol,
+      id: 'soulBigJob', icon: '📁', title: 'A big job', w: 3, cd: 16, when: (L) => !!L.s.job && !CAREERS[L.s.job.c].shady && !L.s.gaol,
       text: 'The boss calls everyone in. There is a big job coming up, it will mean late nights, and somebody has to lead it.',
       opts: [
         { t: 'Put your hand up', run(L) { const j = L.s.job; j.perf = clamp(j.perf + 4, 0, 100); L.s.stand[j.c] = j.perf; L.s.soul.mind.strain += 3; L.joy(-1); return 'It is a lot. You do it well, and the boss notices.'; } },
-        { t: ic('grafter', 'Take it on, and the weekends with it'), show: tr('grafter'), run(L) { const j = L.s.job; j.perf = clamp(j.perf + 8, 0, 100); L.s.stand[j.c] = j.perf; j.n += 0.5; L.s.soul.mind.strain += 5; L.joy(1); deed(L, { grafter: 2 }); return 'Six weeks of it. You enjoy it, oddly. The boss uses the word “indispensable”.'; } },
+        { t: ic('grafter', 'Take it on, and the weekends with it'), show: tr('grafter'), run(L) { const j = L.s.job; j.perf = clamp(j.perf + 8, 0, 100); L.s.stand[j.c] = j.perf; j.n += 0.5; L.s.soul.mind.strain += 5; L.joy(1); deed(L, { grafter: 2 }); return 'Six weeks of it. You enjoy it, oddly. The boss uses the word "indispensable".'; } },
         { t: ic('idler', 'Discover an urgent appointment with the dentist'), show: tr('idler'), run(L) { const j = L.s.job; j.perf = clamp(j.perf - 3, 0, 100); L.s.stand[j.c] = j.perf; L.joy(3); deed(L, { idler: 1 }); return 'The dentist is very surprised to see you. So, a week later, is the boss.'; } },
         { t: 'Keep your head down', run(L) { const j = L.s.job; j.perf = clamp(j.perf - 1, 0, 100); L.s.stand[j.c] = j.perf; return 'Somebody else gets it, and the late nights, and the credit.'; } },
       ],
