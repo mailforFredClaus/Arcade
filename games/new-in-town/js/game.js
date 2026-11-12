@@ -12,6 +12,7 @@ import {
 import { handTotal } from './pier.js';
 import { CHIRPS } from './fame.js';
 import { playMini, quitMini } from './mini.js';
+import { SCREENS } from './ui-mods.js';
 import { townSvg, gaolSvg, face, spark, placeTier } from './art.js';
 import { store, sfx, haptic, unlockAudio, lockViewport, registerOffline } from '../../../shared/arcade.js';
 import { cards, switchRow, confetti, toast, ICON } from '../../../shared/ui.js';
@@ -45,6 +46,8 @@ function persist() {
 
 let tab = 'town';
 let here = 'station'; // where you are standing on the map
+let area = 'bay'; // which map is showing: the bay, or the old town up the hill
+let MODS = []; // the screens for the newer parts of town (ui-mods.js), once they are set up
 let sheets = []; // the sheets open, one on top of another: { kind, id }
 let result = null; // what the last action said, shown at the top of the sheet
 let busy = false;
@@ -122,10 +125,19 @@ function renderMap() {
   const s = life.s, work = s.job ? CAREERS[s.job.c].place : null, biz = s.biz ? BUSINESSES[s.biz.type].place : null;
   const ripe = !!s.plot && (s.plot.beds.some((b) => life.bedRipe(b)) || (life.season === 2 && s.marrow > 0));
   const fest = s.use.fest ? null : life.fest().at;
-  const key = `${placeTier(s.home)}|${work}|${!!s.course}|${biz}|${ripe}|${fest}`;
+  const marks = {}, mark = (id, e, cls) => { if (id) (marks[id] = marks[id] || []).push(cls ? [e, cls] : [e]); };
+  mark(work, '💼'); mark(biz, '🏪'); mark(fest, '🎪', 'fest');
+  if (ripe) mark('park', '🥕');
+  if (s.course) mark('college', '✏️');
+  for (const m of MODS) if (m.marks) for (const [id, e] of m.marks(life) || []) mark(id, e);
+  const key = `${area}|${placeTier(s.home)}|${JSON.stringify(marks)}`;
   if (key !== mapKey) {
     mapKey = key;
-    $('mapArt').innerHTML = townSvg({ tier: placeTier(s.home), work, study: !!s.course, biz, ripe, fest });
+    $('mapArt').innerHTML = townSvg({ area, tier: placeTier(s.home), marks });
+    $('pTown').classList.toggle('hill', area === 'hill');
+    $('mapGo').innerHTML = area === 'bay' ? '⛰️ <b>Up the hill</b>' : '⚓ <b>Down to the bay</b>';
+    // (A badge on the other map is worth knowing about.)
+    $('mapGo').classList.toggle('dot', Object.keys(marks).some((id) => (PLACES[id].area || 'bay') !== area));
   }
   $('me').innerHTML = face(s.look, s.age, s.happy, s.sex);
   placeMe();
@@ -134,6 +146,7 @@ function renderMap() {
 
 function placeMe() {
   const p = PLACES[here];
+  $('me').hidden = (p.area || 'bay') !== area;
   $('me').style.left = `${(p.x + (p.x > 300 ? -34 : 34)) / 4}%`;
   $('me').style.top = `${(p.y + 2) / 6}%`;
 }
@@ -154,6 +167,7 @@ function goTo(place) {
   sfx('tap');
   const far = here !== place;
   here = place;
+  area = PLACES[place].area || 'bay';
   placeMe();
   $('me').classList.remove('hop');
   void $('me').offsetWidth;
@@ -651,6 +665,9 @@ function doAct(id, x) {
   if ((id === 'fish' || id === 'fishBoat') && x === undefined && !save.autoFish) return castLine(id);
   // A shift done by hand is played first, and marked on how it went.
   if (id === 'workPlay' && x === undefined) return playShift();
+  // The newer parts of town may want to play something first, too.
+  const mod = x === undefined && MODS.find((m) => m.act && m.act[id]);
+  if (mod) return mod.act[id]();
   const r = life.act(id, x);
   if (!r.ok) { sfx('nope'); toast(r.why); return; }
   haptic();
@@ -929,6 +946,7 @@ function meHtml() {
     ${s.f.licence > s.t ? '<div class="line down"><span>🪪 Out on licence</span><b>Keep your nose clean</b></div>' : ''}
     <button class="btn btn-soft wide" data-do="open" data-kind="gazette">📰 Read the Gazette</button></div>
   ${perks.length ? `<div class="box"><h3>Friends in the right places</h3>${perks.map((c) => `<div class="line"><span>${CAREERS[c].icon} ${CAREERS[c].name}</span><b class="perk">${PERKS[c]}</b></div>`).join('')}</div>` : ''}
+  ${MODS.map((m) => (m.me ? m.me(life) || '' : '')).join('')}
   <div class="box"><h3>Dreams</h3>${s.dreams.map((id) => `<div class="dream${s.dreamDone[id] ? ' done' : ''}"><i>${DREAMS[id].icon}</i><div><b>${DREAMS[id].name}</b><small>${s.dreamDone[id] ? `Came true at ${s.dreamDone[id]}` : DREAMS[id].desc}</small></div><em>${s.dreamDone[id] ? '✓' : ''}</em></div>`).join('')}</div>
   <div class="box"><h3>Belongings</h3>${items.length ? `<div class="things">${items.map((id) => `<span title="${ITEMS[id].name}">${ITEMS[id].icon}<small>${ITEMS[id].name}</small></span>`).join('')}</div>` : '<p class="sub">One suitcase. The High Street can fix that.</p>'}
     ${s.paintings ? `<p class="sub">🖼️ ${s.paintings} painting${s.paintings > 1 ? 's' : ''} to sell at the studios.</p>` : ''}${s.novel.p ? `<p class="sub">✍️ Novel: ${s.novel.p} of 10 sittings done.</p>` : ''}${Object.keys(s.fishbook).length ? `<p class="sub">📒 Fish book: ${Object.keys(s.fishbook).length} of ${Object.keys(FISH).length} kinds caught.</p>` : ''}
@@ -949,6 +967,7 @@ function peopleHtml() {
   if (s.pet) out += `<div class="box person pet"><span class="act-ico">${PETS[s.pet.kind].icon}</span><div><b>${esc(s.pet.name)}</b><small>Your ${PETS[s.pet.kind].name}, ${s.pet.age}. Always pleased to see you.</small></div></div>`;
   out += group(`Friends (${life.friends().length})`, ['friend']) || '<div class="box"><p class="sub">No friends in Starling Bay yet. Chat to the regulars at the Gull & Anchor, sit by the pond in the park, or go to hack night at the Labs.</p></div>';
   out += group('Old flames', ['ex']) + group('Bad blood', ['enemy']);
+  out += MODS.map((m) => (m.people ? m.people(life) || '' : '')).join('');
   return `${out}<p class="fine pad">People drift away unless you keep in touch. Tap someone to do something together; everyone has things they love doing.</p>`;
 }
 
@@ -1141,7 +1160,7 @@ function beginLife() {
   save.counted = false;
   save.yearWorth = life.netWorth();
   save.seenNew = NEWS;
-  tab = 'town'; here = 'station'; mapKey = ''; slotShow = null; hiloShow = null; bjShow = null; raceShow = null;
+  tab = 'town'; here = 'station'; area = 'bay'; mapKey = ''; slotShow = null; hiloShow = null; bjShow = null; raceShow = null;
   persist();
   $('start').hidden = true;
   $('app').hidden = false;
@@ -1227,6 +1246,12 @@ const DO = {
     if (el.dataset.why) { sfx('nope'); toast(el.dataset.why); return; }
     doAct(el.dataset.id, el.dataset.x === undefined ? undefined : JSON.parse(el.dataset.x));
   },
+  area(el) {
+    if (busy || !life || life.s.dead || life.s.gaol) return;
+    area = el.dataset.area || (area === 'bay' ? 'hill' : 'bay');
+    sfx('flip');
+    renderMap();
+  },
   goals() { sfx('tap'); if (life.s.gaol) { tab = 'town'; closeSheets(); render(); } else if (life.s.ill) goTo('hospital'); else showGoals(); },
   stake(el) { raceStake = Number(el.dataset.v); sfx('tap'); renderSheet(); },
   autofish() { const id = cast && cast.id; if (cast) clearTimeout(cast.timer); cast = null; $('cast').hidden = true; save.autoFish = true; persist(); toast('Fishing will look after itself from now on. The menu changes it back.', 3600); if (id) doAct(id, 1); },
@@ -1262,6 +1287,30 @@ const DO = {
   heirLife() { sfx('tap'); afterEnd(true); },
   newFamily() { sfx('tap'); afterEnd(false); },
 };
+
+// ---- the newer parts of town --------------------------------------------------------------
+
+// Each screen in ui-mods.js is handed this kit, and gives back what it adds:
+//   sheets: { kind(id) => { icon, title, sub, body } }, opened by data-do="open" data-kind="kind"
+//   do: { name(el) }, run by data-do="name"
+//   act: { actionId() }, run instead when that action is tapped (to play something first, say);
+//        it should finish with kit.doAct(actionId, what came of it)
+//   me(life), people(life): boxes of HTML for the Me and People tabs
+//   marks(life): [[place, emoji], ...] for badges on the map
+//   css: a stylesheet of its own
+const kit = {
+  $, esc, pct, money, cashShort, many, an, chip, pick, needChips, actRow, sections, face,
+  openSheet, closeSheets, backSheet, renderSheet, render, persist, doAct, landed, toast, sfx, haptic, playMini,
+  get life() { return life; }, get here() { return here; }, get cards() { return ui; },
+};
+MODS = SCREENS.map((make) => make(kit));
+for (const m of MODS) {
+  for (const k of Object.keys(m.sheets || {})) if (SHEET[k]) throw new Error(`two sheets called ${k}`);
+  for (const k of Object.keys(m.do || {})) if (DO[k]) throw new Error(`two handlers called ${k}`);
+  Object.assign(SHEET, m.sheets || {});
+  Object.assign(DO, m.do || {});
+  if (m.css) document.head.append(Object.assign(document.createElement('style'), { textContent: m.css }));
+}
 
 $('cast').addEventListener('pointerdown', (e) => { if (!e.target.closest('[data-do]')) { e.preventDefault(); strike(); } });
 

@@ -7,6 +7,7 @@ import { PLACES, LOOKS, HOMES } from './data.js';
 const SHORT = {
   home: 'Home', college: 'College', hospital: 'Hospital', studios: 'Studios', townhall: 'Town Hall', bank: 'Bank', gym: 'Gym',
   park: 'Park', highstreet: 'High Street', pub: 'Gull & Anchor', station: 'Station', labs: 'Labs', casino: 'Lucky Gull', harbour: 'Harbour',
+  church: 'St Brigid’s', library: 'Library', theatre: 'Pavilion', ground: 'Rovers', market: 'Market', farm: 'Windle Farm', headland: 'Gorse Head', cove: 'The Cove', garage: 'Garage',
 };
 
 // ---- small parts ------------------------------------------------------------------------
@@ -65,13 +66,59 @@ const BUILD = {
   harbour: () => `<rect x="-34" y="-2" width="26" height="20" rx="2" fill="#7fa3b5"/><path d="M-37 -1l16-12 16 12z" fill="#4f7386"/>${snow('M-35 -2l14-10 14 10')}${door(-26, 5, 10, 13, '#35566a')}<path d="M4 16v-34h16" stroke="#e08a3c" stroke-width="3" fill="none"/><path d="M18 -18v10" stroke="#5a5148" stroke-width="1.200"/><rect x="14" y="-8" width="8" height="6" fill="#b5654a"/><rect x="-2" y="8" width="9" height="8" fill="#ff6b5e"/><rect x="8" y="10" width="8" height="6" fill="#ffc93c"/>`,
 };
 
+
+// Up the hill.
+Object.assign(BUILD, {
+  church: () => `<rect x="-31" y="-28" width="17" height="46" rx="1.500" fill="#d8d0bf"/><path d="M-33.500 -27 -22.500 -60 -11.500 -27z" fill="#5d6175"/>${snow('M-31 -29 -22.500 -57 -14 -29')}<path d="M-22.500 -60v-6M-25 -63h5" stroke="#6b4a36" stroke-width="1.400"/><circle cx="-22.500" cy="-17" r="3.500" class="win"/><path d="M-27 18v-11a4.500 4.500 0 0 1 9 0v11z" fill="#6b4a36"/><g transform="translate(9 0)">${block(42, 26, '#e6dfcf', '#6b6f80', { pitch: 14, over: 3 })}${[-15, -5, 5].map((x) => `<path d="M${x} 4v-9a3.500 3.500 0 0 1 7 0v9z" class="win"/>`).join('')}</g><rect x="33" y="9" width="5" height="9" rx="2.500" fill="#b9b4a8"/><rect x="39" y="11" width="4" height="7" rx="2" fill="#b9b4a8"/>`,
+  library: () => `${block(62, 30, '#d98f6a', '#7a4a3a', { pitch: 10, over: 3 })}<rect x="-24" y="-17" width="48" height="8" rx="1.500" fill="#fbf1dc"/><text x="0" y="-11" class="sign" style="fill:#7a4a3a">LIBRARY</text>${[-25, -14, 7, 18].map((x) => `<path d="M${x} 6v-9a3.500 3.500 0 0 1 7 0v9z" class="win"/>`).join('')}<path d="M-6 18v-12a6 6 0 0 1 12 0v12z" fill="#3d4a6b"/><rect x="-10" y="15" width="20" height="3" fill="#cdbfa6"/>`,
+  theatre: () => `<rect x="-32" y="-8" width="64" height="26" rx="2" fill="#fbf4e8"/><rect x="-32" y="16" width="64" height="2" fill="rgba(0,0,0,.12)"/><path d="M-15 -8a15 15 0 0 1 30 0z" fill="#3fa58a"/>${snow('M-13 -10a13 12 0 0 1 26 0')}<path d="M0 -23v-7" stroke="#3fa58a" stroke-width="2"/><circle cx="0" cy="-31" r="2" fill="#ffc93c"/><rect x="-22" y="-5" width="44" height="9" rx="2" fill="#d94a4a"/><text x="0" y="1.600" class="sign" style="fill:#fff;font-size:6px">PAVILION</text>${door(-14, 7, 9, 11, '#7a2a3a')}${door(5, 7, 9, 11, '#7a2a3a')}${[-28, -18, 18, 28].map((x, i) => `<circle cx="${x}" cy="-8" r="1.800" class="bulb b${i % 2}"/>`).join('')}<path d="M-30 10l4-6 4 6M22 10l4-6 4 6" stroke="#d94a4a" stroke-width="1.500" fill="none"/>`,
+  ground: () => `<path d="M-32 -18h64l-4 -7h-56z" fill="#ff6b5e"/><rect x="-28" y="-18" width="56" height="9" fill="#3d4a6b"/>${[-22, -12, -2, 8, 18].map((x) => `<rect x="${x}" y="-16" width="5" height="5" rx="1" fill="#fff" opacity=".55"/>`).join('')}<rect x="-38" y="-8" width="76" height="26" rx="3" fill="#5fbf6a"/><path d="M0 -8v26M-38 5h0" stroke="#fff" stroke-width="1.200" opacity=".85"/><circle cx="0" cy="5" r="6" fill="none" stroke="#fff" stroke-width="1.200" opacity=".85"/><path d="M-38 -1h6v12h-6M38 -1h-6v12h6" fill="none" stroke="#fff" stroke-width="1.200" opacity=".85"/><path d="M-41 0v10M41 0v10" stroke="#fff" stroke-width="2"/><circle cx="9" cy="10" r="2.200" fill="#fff" stroke="#1f2a44" stroke-width=".6"/><path d="M-36 -8v-30M36 -8v-30" stroke="#8d897f" stroke-width="1.500"/><rect x="-39" y="-42" width="7" height="5" rx="1" class="lamp"/><rect x="32" y="-42" width="7" height="5" rx="1" class="lamp"/>`,
+  market: () => [[-24, '#ff6b5e'], [0, '#2aa7b8'], [24, '#ffc93c']].map(([x, c], i) => `<g transform="translate(${x} ${i === 1 ? -6 : 0})"><path d="M-9 18v-14M9 18v-14" stroke="#8a6142" stroke-width="1.600"/><rect x="-11" y="6" width="22" height="6" rx="1" fill="#b98a5a"/>${[-6, 0, 6].map((d, k) => `<circle cx="${d}" cy="4.500" r="2.600" fill="${['#ff9a3c', '#7ac36a', '#d94a4a'][(k + i) % 3]}"/>`).join('')}<path d="M-12 -4h24l-2 -7h-20z" fill="${c}"/><path d="M-7 -11v7M0 -11v7M7 -11v7" stroke="#fff" stroke-width="3"/>${snow('M-11 -11h22')}</g>`).join(''),
+  farm: () => `<path d="M-34 18v-22l12 -13 12 13v22z" fill="#c4473a"/><path d="M-36 -3l14 -15 14 15" stroke="#7a2a24" stroke-width="3" fill="none" stroke-linejoin="round"/>${snow('M-35 -4l13 -14 13 14')}<rect x="-28" y="4" width="12" height="14" fill="#fff"/><path d="M-28 4l12 14M-16 4l-12 14" stroke="#c4473a" stroke-width="1.600"/><rect x="-6" y="-24" width="12" height="42" rx="2" fill="#d9d4c7"/><path d="M-6 -24a6 6 0 0 1 12 0z" fill="#8d897f"/><path d="M-6 -10h12M-6 2h12" stroke="#b9b4a8" stroke-width="1"/>${[[18, 8], [30, 12], [24, 15]].map(([x, y]) => `<g><ellipse cx="${x}" cy="${y}" rx="5" ry="3.500" fill="#fff"/><circle cx="${x + 4.500}" cy="${y - 1.500}" r="2" fill="#3a352e"/></g>`).join('')}<path d="M10 18v-8M38 18v-8M10 13h28" stroke="#b98a5a" stroke-width="1.400"/>`,
+  headland: () => `<path d="M-40 18V-2q14-12 30-8t26 -4 24 8v24z" fill="#9a917f"/><path d="M-40 -2q14-12 30-8t26 -4 24 8" stroke="#6cbf6a" stroke-width="7" fill="none" stroke-linecap="round"/>${snow('M-38 -4q14-11 28-7t26 -4 22 7')}<path d="M-30 6l6 -3M14 4l8 2M-6 12l5 -2" stroke="#7a7262" stroke-width="1.400" stroke-linecap="round"/><path d="M-4 18v-9a8 8 0 0 1 16 0v9z" fill="#3a352e"/><path d="M-24 -10h12M-23 -10v4M-13 -10v4M-24 -13h12" stroke="#8a6142" stroke-width="1.600"/>${[[-32, -10], [20, -16], [28, -12]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="4" fill="#4f9a4a"/><circle cx="${x - 1}" cy="${y - 2}" r="1.300" fill="#ffc93c"/><circle cx="${x + 2}" cy="${y}" r="1.100" fill="#ffc93c"/>`).join('')}<path d="M-8 -30q3-3 6 0q3-3 6 0M8 -38q2-2 4 0q2-2 4 0" stroke="#1f2a44" stroke-width="1.200" fill="none" stroke-linecap="round"/>`,
+  cove: () => `<ellipse cx="0" cy="12" rx="40" ry="9" class="sand"/>${[['#ff6b5e', -34], ['#2aa7b8', -23], ['#ffc93c', -12]].map(([c, x]) => `<rect x="${x}" y="-2" width="9" height="12" fill="${c}"/><path d="M${x - 1} -2l5.500 -6 5.500 6z" fill="#fff"/><rect x="${x + 3}" y="3" width="3" height="7" fill="#fff" opacity=".8"/>`).join('')}<rect x="4" y="-14" width="30" height="24" rx="2" fill="#e8eef4"/><path d="M2 -13l17 -10 17 10z" fill="#2a5a8a"/>${snow('M4 -14l15 -9 15 9')}<path d="M9 10v-12h20v12" fill="#2a5a8a"/><path d="M12 6h14l-2 4h-10z" fill="#ff7a2a"/><path d="M19 6v-5" stroke="#fff" stroke-width="1.200"/><path d="M34 12l8 6" stroke="#a9a59c" stroke-width="4"/>`,
+  garage: () => `${block(56, 28, '#e9e4da', '#5a5f6b', { flat: true })}<rect x="-24" y="-17" width="48" height="8" rx="1.500" fill="#1f2a44"/><text x="0" y="-11.200" class="sign" style="fill:#ffc93c;font-size:5.400px">DOBBS &amp; DAUGHTER</text><rect x="-22" y="-5" width="24" height="23" fill="#8d97a6"/><path d="M-22 -1h24M-22 3h24M-22 7h24M-22 11h24M-22 15h24" stroke="#6b7484" stroke-width=".8"/>${win(8, -4, 14, 9)}<rect x="30" y="-6" width="8" height="24" rx="2" fill="#d94a4a"/><rect x="31.500" y="-3" width="5" height="5" rx="1" fill="#fff"/><path d="M38 2q5 0 5 6v6" stroke="#1f2a44" stroke-width="1.200" fill="none"/>`,
+});
+
+// The old town up the hill: farmland and moor at the top, the sea and the
+// cliffs to the right, and the road down to the bay at the bottom.
+function hillBackdrop() {
+  const road = (d) => `<path d="${d}" class="road-edge"/><path d="${d}" class="road"/>`;
+  let out = `<rect width="400" height="80" class="sky"/><circle cx="60" cy="28" r="12" class="sun"/>${cloud(250, 22, 0.9, 'c1')}${cloud(130, 14, 0.6, 'c2')}`;
+  out += `<path d="M0 64q40-30 100-16t110-14 90 12 100-10v40H0z" class="hill-far"/>`;
+  out += `<path d="M0 66q70-22 140-6t120-8 140 6v542H0z" class="land"/>`;
+  // Fields behind the farm.
+  out += `<path d="M0 72q30-6 60-2v40H0z" class="lawn" opacity=".7"/><path d="M62 70q30-4 54 2v34H62z" class="lawn" opacity=".45"/>`;
+  // The coast: cliffs, then the sea, with the cove bitten out of it.
+  out += `<path d="M372 60q-14 50 4 100t-8 110q-34 24-36 70t30 64q14 40-2 90t8 116H400V60z" fill="#9a917f"/>`;
+  out += `<path d="M380 60q-14 50 4 100t-8 110q-34 24-36 70t30 64q14 40-2 90t8 116H400V60z" class="sea"/>`;
+  out += `<path d="M386 120q6 10 0 20M382 300q6 10 0 20M384 470q6 10 0 20M390 560q6 10 0 20" class="wave"/>`;
+  out += boat(386, 220, '#ff6b5e', 'bob1');
+  // Roads, and the one down to the bay.
+  out += road('M70 140H322');
+  out += road('M70 256H322');
+  out += road('M70 368H322');
+  out += road('M70 140V368');
+  out += road('M322 140V368');
+  out += road('M196 128V600');
+  // Rooftops of the old town either side of the hill road.
+  const roof = (x, y, c) => `<rect x="${x}" y="${y}" width="22" height="16" rx="1.500" fill="#f3e2c4"/><path d="M${x - 2} ${y + 1}l13-10 13 10z" fill="${c}"/>${win(x + 4, y + 5, 5, 6)}${win(x + 13, y + 5, 5, 6)}`;
+  out += [[96, 430, '#b5654a'], [122, 438, '#7a5a8c'], [148, 430, '#5d7391'], [230, 432, '#5d7391'], [256, 440, '#b5654a'], [282, 432, '#7a5a8c'], [110, 496, '#7a5a8c'], [140, 504, '#b5654a'], [244, 500, '#b5654a'], [272, 494, '#5d7391']].map(([x, y, c]) => roof(x, y, c)).join('');
+  out += [[30, 96], [128, 96], [262, 92], [30, 196], [128, 196], [262, 196], [30, 300], [128, 304], [262, 300], [28, 420], [40, 520], [330, 440], [318, 530], [176, 470], [218, 560]].map(([x, y], i) => (i % 3 === 2 ? pine(x, y) : tree(x, y, 8 + (i % 3)))).join('');
+  // The signpost down to the bay.
+  out += `<g class="goto" data-do="area" data-area="bay" role="button" aria-label="Down to the bay"><rect x="160" y="540" width="72" height="44" fill="transparent"/><path d="M196 584v-34" stroke="#8a6142" stroke-width="3"/><path d="M168 550h52l8 8-8 8h-52z" fill="#fbf1dc" stroke="#8a6142" stroke-width="1.500"/><text x="194" y="561" class="sign" style="font-size:8px;fill:#6b4a36">THE BAY ↓</text></g>`;
+  return out;
+}
+
 // ---- the map ----------------------------------------------------------------------------
 
 // tier: which home to draw. work: the place you work at (gets a badge).
 // study: true if you're on a course. biz: the place your business is.
-export function townSvg({ tier = 0, work = null, study = false, biz = null, ripe = false, fest = null } = {}) {
+export function townSvg({ area = 'bay', tier = 0, marks = {} } = {}) {
   const road = (d) => `<path d="${d}" class="road-edge"/><path d="${d}" class="road"/>`;
   let out = `<svg viewBox="0 0 400 600" preserveAspectRatio="xMidYMid slice" class="town" xmlns="http://www.w3.org/2000/svg">`;
+  if (area === 'hill') out += hillBackdrop();
+  else {
   // Sky, far hills, the green, the sand and the sea.
   out += `<rect width="400" height="80" class="sky"/><circle cx="330" cy="26" r="13" class="sun"/>${cloud(70, 24, 1, 'c1')}${cloud(250, 16, 0.7, 'c2')}`;
   out += `<path d="M0 62q50-34 110-10t100-8 90 6 100-14v40H0z" class="hill-far"/>`;
@@ -96,18 +143,22 @@ export function townSvg({ tier = 0, work = null, study = false, biz = null, ripe
   // The park's grass, and trees about the place.
   out += `<rect x="150" y="288" width="100" height="62" rx="26" class="lawn"/>`;
   out += [[28, 96], [118, 78], [286, 82], [372, 92], [130, 186], [270, 190], [26, 282], [118, 298], [282, 292], [374, 290], [128, 396], [272, 400], [30, 396], [372, 392], [156, 304], [244, 300], [238, 344], [26, 470], [374, 468], [150, 476]].map(([x, y], i) => (i % 4 === 3 ? pine(x, y) : tree(x, y, 8 + (i % 3)))).join('');
-  // The places.
+  }
+  // The places, each with any badges it has earned: the first goes top right, the next top left, then above.
+  const SPOT = [[30, -24], [-30, -24], [0, -46], []];
   for (const [id, p] of Object.entries(PLACES)) {
+    if ((p.area || 'bay') !== area) continue;
     const art = id === 'home' ? BUILD.home(tier) : BUILD[id]();
     const label = SHORT[id], w = label.length * 5.600 + 14;
     out += `<g class="place" data-place="${id}" transform="translate(${p.x} ${p.y})" role="button" aria-label="${p.name}">`;
     out += `<ellipse cx="0" cy="19" rx="34" ry="5" class="shade"/>${art}`;
     out += `<g class="tag"><rect x="${-w / 2}" y="24" width="${w}" height="15" rx="7.500"/><text x="0" y="34.600">${label}</text></g>`;
-    if (id === work) out += `<g class="mark"><circle cx="30" cy="-24" r="10"/><text x="30" y="-20">💼</text></g>`;
-    if (id === biz) out += `<g class="mark"><circle cx="-30" cy="-24" r="10"/><text x="-30" y="-20">🏪</text></g>`;
-    if (id === fest) out += `<g class="mark fest"><circle cx="0" cy="-46" r="11"/><text x="0" y="-42">🎪</text></g>`;
-    if (id === 'park' && ripe) out += `<g class="mark"><circle cx="30" cy="-24" r="10"/><text x="30" y="-20">🥕</text></g>`;
-    if (id === 'college' && study) out += `<g class="mark"><circle cx="-30" cy="-24" r="10"/><text x="-30" y="-20">✏️</text></g>`;
+    let k = 0;
+    for (const [e, cls = ''] of marks[id] || []) {
+      // (A festival always flies over the top; anything past two more is left off.)
+      const [x, y] = cls === 'fest' ? SPOT[2] : SPOT[Math.min(k++, 3)];
+      if (x != null) out += `<g class="mark ${cls}"><circle cx="${x}" cy="${y}" r="${cls === 'fest' ? 11 : 10}"/><text x="${x}" y="${y + 4}">${e}</text></g>`;
+    }
     out += `<rect x="-40" y="-46" width="80" height="88" fill="transparent"/></g>`;
   }
   out += `<g class="flakes">${Array.from({ length: 26 }, (_, i) => `<circle cx="${(i * 67) % 400}" cy="${(i * 131) % 600}" r="${1.200 + (i % 3) * 0.500}"/>`).join('')}</g>`;

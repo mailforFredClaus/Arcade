@@ -58,6 +58,16 @@ export const PLACES = {
   labs: { name: 'Lighthouse Labs', icon: '💡', x: 338, y: 424, blurb: 'A tech company in the old lighthouse. Free snacks.' },
   casino: { name: 'The Lucky Gull', icon: '🎰', x: 98, y: 532, blurb: 'Bright lights on the end of the pier.' },
   harbour: { name: 'The Harbour', icon: '⚓', x: 262, y: 536, blurb: 'Boats, nets, rope, and gossip.' },
+  // Up the hill: the old town, on a map of its own.
+  farm: { name: 'Windle Farm', icon: '🐄', area: 'hill', x: 70, y: 112, blurb: 'Sheep, cows, mud, and a farmer with opinions about all three.' },
+  church: { name: 'St Brigid’s', icon: '⛪', area: 'hill', x: 196, y: 112, blurb: 'Bells on Sunday, jumble on Saturday, and a vicar who means well.' },
+  headland: { name: 'Gorse Head', icon: '🪨', area: 'hill', x: 322, y: 112, blurb: 'Cliffs, gulls, a bench with a view, and caves the tide keeps to itself.' },
+  ground: { name: 'Rovers’ Ground', icon: '⚽', area: 'hill', x: 70, y: 228, blurb: 'Home of Starling Rovers, who have not won anything since 1987.' },
+  library: { name: 'The Library', icon: '📚', area: 'hill', x: 196, y: 228, blurb: 'Books, newspapers, the town archives, and the warmest radiators in town.' },
+  garage: { name: 'Dobbs & Daughter', icon: '🔧', area: 'hill', x: 322, y: 228, blurb: 'Cars mended, cars sold, cars looked at doubtfully.' },
+  theatre: { name: 'The Pavilion', icon: '🎭', area: 'hill', x: 70, y: 340, blurb: 'Plays, pantomime, and a bar that opens at the interval.' },
+  market: { name: 'Market Square', icon: '🧺', area: 'hill', x: 196, y: 340, blurb: 'Stalls every Saturday, and a fountain nobody has ever seen working.' },
+  cove: { name: 'Smugglers’ Cove', icon: '🏖️', area: 'hill', x: 322, y: 340, blurb: 'A sandy cove below the cliffs, with beach huts and the lifeboat station.' },
 };
 
 // ---- careers ----------------------------------------------------------------------------

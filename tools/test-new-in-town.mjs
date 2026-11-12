@@ -1815,6 +1815,20 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', sibs:
   check(ok && s.t >= 12, 'and it plays on');
 }
 
+// ---- the newer parts of town ------------------------------------------------------------
+
+// Each has a file of checks of its own in tools/new-in-town-tests, handed
+// what it needs: check(ok, what), fresh(options) for a new life with the
+// to-do list out of the way, the Life itself and every action there is.
+{
+  const { readdirSync } = await import('node:fs');
+  const dir = new URL('./new-in-town-tests/', import.meta.url);
+  for (const f of readdirSync(dir).filter((n) => n.endsWith('.mjs')).sort()) {
+    const mod = await import(new URL(f, dir));
+    await mod.default({ check, fresh, Life, ACTIONS, date });
+  }
+}
+
 // ---- practice players -------------------------------------------------------------------
 
 const sane = (L, after) => {
