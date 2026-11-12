@@ -154,7 +154,8 @@ function mourn(L, info) {
   if (S.graves.length > 24) S.graves.shift();
   const hurt = (GRIEF[info.kind] || 3) * Math.min(1.4, Math.max(0.5, 0.5 + (info.bond || 40) / 100));
   S.grief = Math.min(10, Math.max(S.grief, hurt) + Math.min(S.grief, hurt) * 0.3);
-  if (!s.gaol && !s.dead) L.queue('soulFuneral', { ...info, g: S.graves.length - 1 });
+  // (Straight after the card that brought it, before anything else the season has dealt.)
+  if (!s.gaol && !s.dead) s.pend.unshift({ id: 'soulFuneral', x: { ...info, g: S.graves.length - 1 } });
 }
 const aboutOf = (p) => ({ name: p.name, kind: p.kind, sex: p.sex, age: p.age, bond: p.bond });
 
@@ -288,7 +289,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     if (DEATHS[id] && S.dying[x]) { const info = S.dying[x]; delete S.dying[x]; mourn(L, info); }
     if (id === 'baby' && !s.gaol) {
       const kid = L.kids().sort((a, b) => b.id - a.id)[0];
-      if (kid) L.queue('soulChristen', kid.id);
+      if (kid) s.pend.unshift({ id: 'soulChristen', x: kid.id });
     }
     if (id === 'wedding') S.banns = null;
     S.m = worthNow(s); S.k = s.karma;
