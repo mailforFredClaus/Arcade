@@ -187,7 +187,7 @@ export const BOOK_IDS = Object.keys(BOOKS);
 // What the book club reads: everything but the practical books.
 export const CLUB_READS = BOOK_IDS.filter((id) => BOOKS[id].kind !== 'practical');
 const VANE = ['vane1', 'vane2', 'vane3'];
-// The reading list’s trophy wants a good shelf of it, not every last manual.
+// Every book on the list, for the trophy.
 export const READ_ALL = BOOK_IDS.length;
 
 export function install({ def, Life, clamp, hooks, addEvents }) {
@@ -196,6 +196,7 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
     clubCabinet: { name: 'A full cabinet', icon: '🗄️', desc: 'Win eight pieces of club silverware in one life.', test: (L) => (L.s.clubs ? L.s.clubs.cab.length : 0) >= 8 },
     clubTop: { name: 'Pillar of the club', icon: '🎖️', desc: 'Rise to the top of a club.', test: (L) => !!(L.s.clubs && L.s.clubs.f.top) },
     clubJoiner: { name: 'Joiner', icon: '📋', desc: 'Belong to four clubs at once.', test: (L) => !!L.s.clubs && Object.keys(L.s.clubs.m).length >= 4 },
+    clubLong: { name: 'Long service', icon: '📜', desc: 'Twenty years in one club.', test: (L) => !!L.s.clubs && (L.s.clubs.f.long || 0) >= 20 },
     clubCup: { name: 'Since 1987', icon: '⚽', desc: 'Win a cup with Starling Rovers.', test: (L) => !!L.s.clubs && L.s.clubs.cab.some((e) => e.c === 'rovers') },
     readTen: { name: 'Bookworm', icon: '🐛', desc: 'Finish ten books from the library’s reading list.', test: (L) => !!L.s.clubs && Object.keys(L.s.clubs.read).length >= 10 },
     readAll: { name: 'Read the lot', icon: '📚', desc: 'Finish every book on the library’s reading list.', test: (L) => !!L.s.clubs && Object.keys(L.s.clubs.read).length >= READ_ALL },
@@ -227,12 +228,12 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
     clubCupYear() { return this.season >= 2 ? this.year : this.year - 1; },
     clubCupFinal() { const m = this.clubMem('rovers'), k = m && m.cup; return !!k && k.y === this.year - 1 && k.r >= 2 && !k.out; },
     clubCupWord() {
-      const m = this.clubMem('rovers'), k = m && m.cup, y = this.clubCupYear();
-      if (this.season === 1) return 'The cup starts again in the autumn.';
-      if (!k || k.y !== y || k.late) return this.season === 0 ? 'The cup run went on without you this year. It starts again in the autumn.' : 'The first round of the Coast Cup is this autumn.';
-      if (k.out) return `Out of the Coast Cup in the ${k.r ? 'semi-final' : 'first round'}. Next autumn, perhaps.`;
-      if (k.r >= 2) return this.season === 0 ? (m.occ === this.year ? 'The final has been played.' : 'Rovers are in the Coast Cup final, this spring.') : 'Through to the final, in the spring.';
-      return k.r === 1 ? 'Through to the semi-final, in the winter.' : 'The first round of the Coast Cup is this autumn.';
+      const m = this.clubMem('rovers'), k = m && m.cup, y = this.clubCupYear(), cup = m && m.mode === 'vets' ? 'the Veterans’ Shield' : 'the Coast Cup';
+      if (this.season === 1) return `The first round of ${cup} is in the autumn.`;
+      if (!k || k.y !== y || k.late) return this.season === 0 ? 'The cup run went on without you this year. It starts again in the autumn.' : `The first round of ${cup} is this autumn.`;
+      if (k.out) return `Out of ${cup} in the ${k.r ? 'semi-final' : 'first round'}. Next autumn, perhaps.`;
+      if (k.r >= 2) return this.season === 0 ? (m.occ === this.year ? 'The final has been played.' : `Rovers are in the final of ${cup}, this spring.`) : 'Through to the final, in the spring.';
+      return k.r === 1 ? 'Through to the semi-final, in the winter.' : `The first round of ${cup} is this autumn.`;
     },
     // What the next rank asks for, as a checklist; null at the top.
     clubNeeds(id) {
@@ -631,6 +632,9 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
     const s = L.s, c = s.clubs;
     for (const id of Object.keys(c.m)) {
       const m = c.m[id], club = CLUBS[id];
+      // Every ten years in one club is remembered.
+      const years = (s.t + 1 - m.since) / 4;
+      if (years > 0 && years % 10 === 0) { L.note(`${years} years with ${club.name}.`, 'big'); m.long = Math.max(m.long || 0, years); c.f.long = Math.max(c.f.long || 0, years); }
       // The cup goes on, with you or without you.
       if (id === 'rovers' && L.season >= 2) cupRound(L, false);
       if (m.last === s.t) continue;

@@ -262,7 +262,8 @@ Object.assign(GAMES, {
     play(api) {
       ownWords(api, 'clubPens');
       const kicks = 5, honest = clamp(0.78 - api.level * 0.06 + api.ease * 0.12, 0.5, 0.92);
-      const mid = 0.68, g = clamp(0.1 + api.ease * 0.06 - api.level * 0.01, 0.07, 0.16), speed = 0.8 + api.level * 0.1;
+      // (The needle swings once every two seconds or so: quicker, and the green narrower, in a bigger game.)
+      const mid = 0.68, g = clamp(0.1 + api.ease * 0.06 - api.level * 0.01, 0.07, 0.16), speed = 0.5 + api.level * 0.06;
       let k = 0, goals = 0, state = 'ready', t = 0, lean = 1, power = 0, ended = false;
       const marks = [];
       const box = el('div', 'cg-pens', `<div class="cg-goal"><div class="cg-net"></div><div class="cg-keeper">${KEEPER}</div><div class="cg-zones">${[0, 1, 2, 3, 4, 5].map((z) => `<button data-z="${z}" aria-label="Shoot ${['top left', 'top middle', 'top right', 'low left', 'low middle', 'low right'][z]}"></button>`).join('')}</div></div>
@@ -294,12 +295,11 @@ Object.assign(GAMES, {
         else if (dive !== col) res = 'goal';
         else res = top && col !== 1 && off <= g / 2 ? 'goal' : 'saved';
         // Where it all goes.
-        const gb = goal.getBoundingClientRect(), bb = box.getBoundingClientRect(), zb = box.querySelector(`[data-z="${z}"]`).getBoundingClientRect(), ob = ball.getBoundingClientRect();
+        const gb = goal.getBoundingClientRect(), zb = box.querySelector(`[data-z="${z}"]`).getBoundingClientRect(), ob = ball.getBoundingClientRect();
         const tx = zb.left + zb.width / 2 - (ob.left + ob.width / 2), ty = (res === 'over' ? gb.top - 26 : zb.top + zb.height / 2) - (ob.top + ob.height / 2);
         ball.style.transform = `translate(${tx}px, ${ty}px) scale(.55)`;
         box.classList.add('shot');
-        pose([-140, 0, 140][dive], [-75, 0, 75][dive], dive === 1 ? -6 : top ? -14 : 8);
-        void bb;
+        pose([-118, 0, 118][dive], [-70, 0, 70][dive], dive === 1 ? -6 : top ? -14 : 8);
         const ok = res === 'goal';
         api.after(560, () => {
           marks.push(ok); if (ok) goals++;

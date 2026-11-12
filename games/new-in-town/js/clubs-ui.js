@@ -120,6 +120,12 @@ export default function (kit) {
     act,
     do: { clubOpen(el) { kit.sfx('tap'); kit.openSheet({ kind: `club_${el.dataset.club}` }); } },
     marks(life) { return CLUB_IDS.filter((id) => life.clubOcc(id).open).map((id) => [CLUBS[id].place, CLUBS[id].occ.icon]); },
+    // Friends made through a club, by club (they are in the lists above too).
+    people(life) {
+      const groups = CLUB_IDS.map((id) => [id, life.clubFriends(id)]).filter(([, l]) => l.length);
+      if (!groups.length) return '';
+      return `<h3 class="group">Through your clubs</h3><div class="box cl-people">${groups.map(([id, l]) => `<div class="cl-pgroup"><b>${CLUBS[id].icon} ${esc(CLUBS[id].name)}</b><div>${l.map((p) => `<button class="pick quiet" data-do="person" data-id="${p.id}">${esc(p.name.split(' ')[0])}</button>`).join('')}</div></div>`).join('')}</div>`;
+    },
     me(life) {
       const c = life.s.clubs, mine = Object.keys(c.m), now = life.bookNow();
       let html = '<div class="box cl-me"><h3>Clubs and reading</h3>';
@@ -156,7 +162,7 @@ export default function (kit) {
 .cl-book.read { background: #f7fbf6; }
 .cl-book.out { box-shadow: 0 0 0 2.5px var(--teal); }
 .cl-bk { flex: none; display: grid; gap: 6px; justify-items: end; }
-.cl-bk .pick { min-height: 40px; }
+.cl-bk .pick { min-height: 44px; }
 .cl-log { margin: 4px 2px; font-size: 13px; font-weight: 700; color: #4d566e; }
 .cl-log b { display: inline-block; min-width: 26px; color: var(--teal-d); }
 .cl-me .cl-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 0; text-align: left; border-bottom: 1.5px solid var(--line); }
@@ -167,6 +173,10 @@ export default function (kit) {
 .cl-row .bar { height: 6px; margin-top: 4px; }
 .cl-row .bar > span { background: var(--teal); }
 .cl-row .go { font-style: normal; font-weight: 900; color: var(--muted); }
+.cl-pgroup + .cl-pgroup { margin-top: 10px; }
+.cl-pgroup b { font-size: 13.5px; font-weight: 900; }
+.cl-pgroup > div { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.cl-pgroup .pick { min-height: 44px; }
 .cl-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
 .cl-btns .btn { min-height: 44px; font-size: 14px; }
 `,

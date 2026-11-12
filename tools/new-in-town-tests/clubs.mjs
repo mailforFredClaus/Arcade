@@ -34,7 +34,7 @@ export default async function ({ check, fresh, Life, ACTIONS }) {
   check(BOOK_IDS.filter((id) => BOOKS[id].by === 'Clementine Vane').length === 3, 'Clementine Vane wrote three of them');
   check(CLUB_READS.length >= 20 && !CLUB_READS.some((id) => BOOKS[id].kind === 'practical'), 'the book club reads novels, not manuals');
   check(PLAYS.length >= 8, 'the Players have plays enough for years');
-  for (const t of ['clubSilver', 'clubCabinet', 'clubTop', 'clubJoiner', 'clubCup', 'readTen', 'readAll', 'readSecret']) check(TROPHIES[t], `trophy ${t}`);
+  for (const t of ['clubSilver', 'clubCabinet', 'clubTop', 'clubJoiner', 'clubLong', 'clubCup', 'readTen', 'readAll', 'readSecret']) check(TROPHIES[t], `trophy ${t}`);
   for (const id of ['clubMissYou', 'clubOverdue', 'clubVane', 'clubTeamTalk']) check(EV[id] && !EV[id].w, `the rules send for card ${id}`);
   check(EVENTS.filter((e) => e.id.startsWith('club') && e.w).length >= 12, 'a dozen club cards turn up by chance');
 
@@ -96,6 +96,13 @@ export default async function ({ check, fresh, Life, ACTIONS }) {
     check(L.clubMem('quiz').r === 0 && L.clubMem('quiz').n >= 24 && L.clubSkill('quiz') > 60, 'come back and you start at the bottom, but keep your nights and your skill');
     L.act('clubNight_quiz');
     check(L.clubMem('quiz').r === 0 || L.clubMem('quiz').r === 1, 'and climb back one rank at a time');
+  }
+  {
+    // Ten years in a club is a milestone; twenty, a trophy.
+    const L = life(), s = L.s;
+    L.act('clubJoin_choir');
+    for (let i = 0; i < 80; i++) { L.act('clubNight_choir'); next(L); }
+    check(s.log.filter((e) => /years with St Brigid’s Choir/.test(e.t)).length === 2 && s.ach.clubLong, 'ten years in the choir is in the journal, and twenty is a trophy');
   }
   {
     // A card through the door, and a choice.
