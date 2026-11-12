@@ -46,7 +46,8 @@ export const MEMO = 8; // sittings to write your memoirs
 export const KEEPSAKES = ['watch', 'ring', 'piano', 'guitar', 'easel', 'books', 'rod', 'boat', 'surfboard', 'weights'];
 const AGE_WORD = { 30: 'thirty', 45: 'forty-five', 60: 'sixty' };
 const NUM = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty'];
-const num = (n) => NUM[n] || String(n);
+const TENS = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+const num = (n) => NUM[n] || (n > 20 && n < 100 ? `${TENS[Math.floor(n / 10)]}${n % 10 ? `-${NUM[n % 10]}` : ''}` : String(n));
 const cap = (t) => t[0].toUpperCase() + t.slice(1);
 const list = (l) => (l.length < 2 ? l.join('') : `${l.slice(0, -1).join(', ')} and ${l[l.length - 1]}`);
 const first = (p) => p.name.split(' ')[0];
@@ -552,6 +553,10 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     for (const k of ['will', 'memo', 'old', 'n']) for (const [q, v] of Object.entries(b[k])) if (C[k][q] === undefined) C[k][q] = v;
     if (!C.start) C.start = { how: 'train', age: 18 };
     if (!C.snap) C.snap = snapNow(L);
+    if (!was && s.t > 0) {
+      // (A life already under way when the chapters began: its first chapter is counted from the train.)
+      C.snap = { t: 0, age: 18, worth: s.hist && s.hist.length && s.age < 118 ? s.hist[0] : 1500, home: 'hostel', owned: false, shifts: 0, retired: false, job: null, biz: null, pt: null };
+    }
     if (!was) {
       // A life saved before the chapters began: crossroads long past are passed over, and the journal's big moments are kept.
       for (const a of CROSS) if (s.age >= a + 4) C.cross[a] = -1;

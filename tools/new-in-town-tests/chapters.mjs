@@ -53,6 +53,12 @@ export default function ({ check, fresh, Life, ACTIONS }) {
     let ok = true;
     try { for (let i = 0; i < 8; i++) turn(R); } catch (e) { ok = false; console.log(e); }
     check(ok && !R.s.dead, 'and seasons go by');
+    // One saved at thirty-two still has its crossroads at thirty, counted from the train.
+    const T = fresh(); T.s.age = 32; T.s.t = 56; delete T.s.chap;
+    const T2 = new Life(JSON.parse(JSON.stringify(T.s)));
+    T2.s.t = 56; T2.s.time = 0; T2.endSeason(); T2.s.pend = T2.s.pend.filter((q) => q.id === 'chapCross');
+    const tx = T2.event();
+    check(tx && /^Fourteen years since you stepped off the train/.test(tx.text), `a life saved at thirty-two still comes to its crossroads (${tx && tx.text.slice(0, 60)})`);
     const H = fresh();
     delete H.s.chap.will.split; delete H.s.chap.old; delete H.s.chap.n.taught; delete H.s.chap.memo;
     const H2 = new Life(JSON.parse(JSON.stringify(H.s)));
