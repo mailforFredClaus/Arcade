@@ -772,7 +772,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     else if (s.f.wed) out.push('You are on your own now.');
     else out.push('Nobody special yet, and that is all right.');
     // Home and money.
-    const worth = L.netWorth(), w = `you are worth ${money(worth)}, where you had ${money(sn.worth)}`;
+    const worth = L.netWorth(), w = worth < 0 ? `you owe ${money(-worth)} all told, where you had ${money(sn.worth)}` : `you are worth ${money(worth)}, where you had ${money(sn.worth)}`;
     if (s.home !== sn.home) out.push(`You moved from ${homeSaid(sn.home)} to ${homeSaid(s.home)}${s.owned && !sn.owned ? ', which is yours' : ''}, and ${w}.`);
     else out.push(`You are in ${homeSaid(s.home)} still, and ${w}.`);
     // One thing the journal will not let you forget.
@@ -1002,7 +1002,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       ],
     },
     {
-      id: 'chapHeart', icon: '🫀', title: 'A tired valve', w: 2, once: true, when: (L) => L.s.age >= 68 && !L.s.gaol && !L.s.chap.dusk && (L.s.health < 72 || (L.s.ill && /heart/.test(L.s.ill.name))),
+      id: 'chapHeart', icon: '🫀', title: 'A tired valve', w: 2, once: true, when: (L) => L.s.age >= 68 && !L.s.gaol && !L.s.chap.dusk && (L.s.health < 60 || (L.s.ill && /heart/.test(L.s.ill.name))),
       text: 'After the tests, the cardiologist at St Wren’s draws you a heart on the back of an envelope, then a valve, then a cross through the valve. “It is tired,” she says. “A new one would give you years. The operation is not a small one.”',
       opts: [
         {

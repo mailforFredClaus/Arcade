@@ -402,6 +402,7 @@ export default function ({ check, fresh, Life, ACTIONS }) {
     for (let i = 0; i < 8 && s.chap.old.hip === 'wait'; i++) turn(L, { chapHipDone: 0 });
     check(s.chap.old.hip === 'new' && L.timeMax() >= t0, 'gets done in the end, and the time comes back');
     // The heart.
+    s.health = 50;
     ev = want('chapHeart');
     L.choose(ev.opts.findIndex((o) => /Tablets/.test(o.t)));
     check(s.chap.old.heart === 'pills', 'a heart can be lived with');
@@ -480,7 +481,7 @@ export default function ({ check, fresh, Life, ACTIONS }) {
     check(L.netWorth() === w - 5000, 'a gift is money given, not made');
     // Every option of every card that can be put up reads properly.
     const M = fresh();
-    M.s.age = 76; M.s.cash = 20000; M.s.health = 60;
+    M.s.age = 76; M.s.cash = 20000; M.s.health = 50;
     const kk = kid(M, { name: 'R', sex: 'f', age: 40, bond: 60, job: 'law' }); const gg = M.grandchild(kk); gg.age = 6;
     let fine = true, shown = 0;
     const look = (id, x) => {
