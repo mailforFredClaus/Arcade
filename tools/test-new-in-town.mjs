@@ -117,7 +117,8 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', sibs:
   check(s.items.bike && s.cash === 600 && s.time === 6 && L.timeMax() === 7, 'a bicycle gives a seventh block of time, straight away');
   check(!L.act('buy', 'bike').ok, 'one bicycle is enough');
   s.cash = 100000;
-  L.act('buy', 'car');
+  // (Cars come from Dobbs & Daughter up the hill now, to those with a licence: see new-in-town-tests/motor.mjs.)
+  s.motor.lic = 0; L.act('motorNew', 'pip');
   check(L.timeMax() === 8 && s.time === 7, 'a car makes it eight');
   s.st.smarts = 100; L.gain('smarts', 50);
   check(s.st.smarts === 100, 'no skill goes past 100');
@@ -1349,12 +1350,12 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', sibs:
   // He buys your own things too.
   const PW = fresh();
   PW.s.cash = 20000;
-  PW.act('buy', 'car'); PW.act('buy', 'guitar');
+  PW.act('buy', 'bike'); PW.act('buy', 'guitar');
   const blocks = PW.timeMax(), had = PW.s.cash;
-  check(PW.can('pawn', 'car') === 'You have only just bought it.', 'not on the day you bought it, though');
+  check(PW.can('pawn', 'bike') === 'You have only just bought it.', 'not on the day you bought it, though');
   PW.s.use = {};
-  check(PW.s.time === blocks && PW.act('pawn', 'car').ok && !PW.s.items.car && PW.s.cash === had + PW.pawnPrice('car') && PW.pawnPrice('car') < ITEMS.car.price / 2, 'Mr Pym buys your belongings for less than half what they cost');
-  check(PW.timeMax() === blocks - 2 && PW.s.time === PW.timeMax() && PW.can('pawn', 'car') && PW.can('pawn', 'nonsense'), 'and a car sold takes its time with it');
+  check(PW.s.time === blocks && PW.act('pawn', 'bike').ok && !PW.s.items.bike && PW.s.cash === had + PW.pawnPrice('bike') && PW.pawnPrice('bike') < ITEMS.bike.price / 2, 'Mr Pym buys your belongings for less than half what they cost');
+  check(PW.timeMax() === blocks - 1 && PW.s.time === PW.timeMax() && PW.can('pawn', 'bike') && PW.can('pawn', 'nonsense'), 'and a bicycle sold takes its time with it');
   // Buying and selling a bicycle is not a way to make time.
   const loop = fresh();
   loop.s.cash = 50000; loop.s.time = 0;
@@ -1657,7 +1658,7 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', sibs:
   const bc = bent.s.cash;
   check(story(bent, 'drains1', 0) && story(bent, 'drains2', 0) && bent.s.cash === bc + 8000 && bent.s.karma < 0 && !EVENTS.find((e) => e.id === 'drains3').when(bent), 'or the page can be lost, for a price');
   // The notice board.
-  for (const [id, j] of Object.entries(ODD_JOBS)) check(STATS.includes(j.stat) && j.win && j.lose && (j.pay > 0 || j.karma > 0) && (!j.need || ITEMS[j.need]), `${id}: a job for the notice board`);
+  for (const [id, j] of Object.entries(ODD_JOBS)) check(STATS.includes(j.stat) && j.win && j.lose && (j.pay > 0 || j.karma > 0) && (!j.need || ITEMS[j.need] || j.need === 'car'), `${id}: a job for the notice board`);
   const N = fresh();
   check(N.s.board.length === 3 && new Set(N.s.board).size === 3 && N.placeActions('townhall').filter((a) => a.sec === 'The notice board').length === 3, 'three jobs pinned up outside the Town Hall');
   const first = N.s.board[0], nc = N.s.cash;
@@ -1896,7 +1897,8 @@ function climber(seed, target) {
     // The basics.
     if (s.ill && !L.can('treat')) go('treat');
     if (!s.items.bike && !s.items.car && s.cash > 1200) go('buy', 'bike');
-    if (!s.items.car && s.cash > 20000) go('buy', 'car');
+    // (A car means lessons and a test at Dobbs & Daughter first: motorPlan says what comes next.)
+    if (!s.items.car && !s.items.sportscar && s.cash > 20000) { const step = L.motorPlan(); if (step) go(...step); }
     if (s.home === 'hostel' && s.cash > 4000) go('rentHome', 'bedsit');
     if (s.home === 'bedsit' && s.cash > 12000 && s.job && s.job.r >= 2) go('rentHome', 'flat');
     if (s.cash > 6000 && s.debt > 0) go('repay', Math.min(s.debt, s.cash - 3000));

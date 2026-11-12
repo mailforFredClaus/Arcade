@@ -8,5 +8,6 @@
 import { install as hill } from './hill.js';
 import { install as soul } from './soul.js';
 import { install as coast } from './coast.js'; // Gorse Head, Smugglers’ Cove and the Merrow
+import { install as motor } from './motor.js';
 
-export const RULES = [hill, soul, coast];
+export const RULES = [hill, soul, coast, motor];
