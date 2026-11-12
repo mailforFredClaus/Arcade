@@ -53,6 +53,10 @@ const ratesCut = (L) => has(L, 'rates') && ago(L, L.s.annals.built.rates) < ELEC
 const drives = (L) => !!(L.s.items.car || L.s.items.sportscar);
 const onHigh = (L) => { const b = L.s.biz; return !!b && BUSINESSES[b.type].place === 'highstreet'; };
 const inPolitics = (L) => !!L.s.job && L.s.job.c === 'politics';
+// A trait of yours (soul.js) can open a choice of its own on a card, marked with its icon there.
+const trait = (L, id) => !!L.soulHas && L.soulHas(id);
+const TRAIT_ICON = { daredevil: '🪂', joker: '🃏', churchgoer: '⛪' };
+const tr = (id, t) => `${TRAIT_ICON[id]} ${t}`;
 // What somebody stands for, in a sentence: "for a lido on the front", "for things as they are".
 const said = (p) => PLATS[p].said || PLATS[p].name.toLowerCase();
 
@@ -362,6 +366,7 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
       if (id === 'station' && lineShut(this)) out.push(['🚌', 'No trains: the line is shut. The coach to the city leaves from the forecourt, $150 on top of any trip and $80 more to visit family.']);
       if (id === 'station' && lineThreat(this)) out.push(['📣', 'SAVE OUR LINE, say the posters on every pillar.']);
       if (id === 'park' && has(this, 'carpark')) out.push(['🅿️', 'Half the green is a car park now, with the bandstand in the middle of it.']);
+      if (id === 'cove' && ev(this, 'heat') && ev(this, 'heat').t === s.t) out.push(['☀️', 'The cove is towel to towel, and the ice-cream vans are queuing to get into the car park.']);
       if (id === 'cove' && has(this, 'lido')) out.push(['🏊', `The lido on the front has been open since ${this.annalsWhen(an.built.lido)}.`]);
       if (id === 'highstreet' && ev(this, 'flood') && ev(this, 'flood').t === s.t && !ev(this, 'flood').held) out.push(['🌊', 'The High Street is still pumping out after the flood. The shops are shut this season.']);
       if (id === 'highstreet') {
@@ -513,7 +518,7 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
     promise(L, win);
     const shout = win.k === 'you' ? (old.k === 'you' ? `${s.name} is mayor again` : `${s.name} wins the election for mayor`)
       : same ? `${cap(full(L, win))} is re-elected` : `${cap(full(L, win))} is the new mayor`;
-    told(L, win.k === 'you' || !same ? 7 : 4, win.k === 'you' ? '🏛️' : PLATS[win.plat].icon, shout, win.plat === 'steady' ? 'Nothing much will change, the new mayor promises, and means it.' : `${cap(he(win))} promised ${PLATS[win.plat].name.toLowerCase()}, and the town will hold ${win.k === 'you' ? 'you' : he(win) === 'she' ? 'her' : 'him'} to it.`, win.k === 'you' ? 'dream' : '');
+    told(L, win.k === 'you' || !same ? 7 : 4, win.k === 'you' ? '🏛️' : PLATS[win.plat].icon, shout, win.plat === 'steady' ? 'Nothing much will change, the new mayor promises, and means it.' : win.k === 'you' ? `You promised ${said(win.plat)}, and the town will hold you to it.` : `${cap(he(win))} promised ${said(win.plat)}, and the town will hold ${he(win) === 'she' ? 'her' : 'him'} to it.`, win.k === 'you' ? 'dream' : '');
     // A card at the count, for anybody who had a hand in it.
     // (Your own vote, remembered for next time.)
     an.myVote = r.vote && r.vote !== 'you' ? { n: full(L, r.c.find((x) => x.k === r.vote)), p: r.c.find((x) => x.k === r.vote).plat, won: r.vote === win.k ? 1 : 0, t: s.t } : null;
@@ -559,8 +564,9 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
   function build(L, p, by) {
     const s = L.s, an = s.annals, P = PLATS[p];
     if (p === 'pier') { reopenPier(L, 'mayor'); return; }
-    if (p === 'homes') { startEstate(L, true); return; }
-    if (p === 'jobs') { startMarket(L, true); return; }
+    // (Unless it has come of its own accord in the meantime.)
+    if (p === 'homes') { if (!ev(L, 'estate')) startEstate(L, true); return; }
+    if (p === 'jobs') { if (!ev(L, 'market')) startMarket(L, true); return; }
     if (p === 'line') { if (lineShut(L)) reopenLine(L); else if (lineThreat(L)) saveLine(L, true); return; }
     if (p === 'green') delete an.built.carpark;
     an.built[p] = s.t;
@@ -588,7 +594,7 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
     const s = L.s, e = ev(L, 'storm');
     if (!e || !e.shut) return;
     e.shut = false; e.end = s.t;
-    const by = how === 'gift' ? `paid for by ${s.gifts.pier}` : how === 'mayor' ? 'on the mayor’s promise' : 'by the Pier Trust, a dollar at a time';
+    const by = how === 'gift' ? `with money from ${s.gifts.pier}` : how === 'mayor' ? 'on the mayor’s promise' : 'by the Pier Trust, a dollar at a time';
     told(L, 7, '🎡', 'The pier reopens', `Mended ${by}. The Lucky Gull’s lights come on along the front for the first time since the storm.`, 'good');
     if (!s.gaol && (e.trust >= 1000 || how === 'gift')) L.queue('anPierOpen', { how });
   }
@@ -991,6 +997,7 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
     desc: (L) => { const an = L.s.annals, m = L.annalsMayor(); return an.race ? `Polling day in ${L.annalsWhen(an.poll)}. Who is standing, the odds, and how to help.` : `${m.k === 'you' ? 'You are mayor' : L.annalsMayorTitle(m)}. What was promised, and what came of it.`; },
   });
   def('anYears', { place: 'library', sec: 'The town archives', icon: '🗂️', title: 'Years in the Bay', desc: 'The Gazette’s back numbers: every year you have lived here, in headlines.', time: 0, open: 'annalsYears' });
+  def('anYearsHome', { place: 'home', sec: 'At home', icon: '🗂️', title: 'Years in the Bay', desc: 'Your cuttings from the Gazette, a headline for every year here, and what the year was for you.', time: 0, open: 'annalsYears' });
 
   // Campaign for somebody (x: their key, or 'you'), once a season while the election is on.
   def('anCampaign', {
@@ -1093,9 +1100,12 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
               ev(L, 'estate') && ev(L, 'estate').done != null ? 'The queue at the church hall is longer since Brickworks Rise was built, and younger.' : 'The church hall smells of floor polish and the jumble sale it held yesterday.']);
         const stands = m.k !== 'you' && r.c.some((c) => c.k === m.k);
         const record = !stands ? '' : an.mbroke === m.k ? ' Nobody has forgotten the promise that came to nothing.' : an.mkept === m.k ? ' The mayor would like everybody to remember that the last promise was kept.' : '';
+        // (A grown child of yours voting for the first time comes too.)
+        const kid = L.kids().find((k) => k.age >= 18 && k.age <= 21);
+        const along = kid && !r.you ? ` ${kid.name.split(' ')[0]} walks down with you, voting for the first time, and will not say who for.` : '';
         if (r.you) return `${where}${record} Your own name is on the ballot paper, which looks very strange in print. The bookmaker has you at ${L.annalsPriceSaid('you')}.`;
-        const names = r.c.map((c) => `${full(L, c)}, ${c.k === 'penn' ? 'standing again' : c.job}: ${said(c.plat)}`);
-        return `${where}${record}${last(L)} On the paper: ${names.slice(0, -1).join('; ')}; and ${names[names.length - 1]}.`;
+        // (Who they are is in the council chamber; the paper has their names and what they promise.)
+        return `${where}${along}${record}${last(L)} On the paper: ${list(r.c.map((c) => `${cap(short(L, c))} (${said(c.plat)})`))}.`;
       },
       opts: [
         voteOpt(0), voteOpt(1), voteOpt(2),
@@ -1108,7 +1118,8 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
       text(L, x) {
         const last = L.s.annals.last, won = last.win === 'you';
         const by = L.pick(['by a street', 'by a few hundred votes', 'comfortably', 'on the third recount, by eleven votes']);
-        let t = won ? `At two in the morning the returning officer clears her throat, and reads out your name. You have won, ${by}.` : `At two in the morning the returning officer reads out the result: ${last.name} has won, ${by}.`;
+        const when = L.pick(['At two in the morning', 'Just after midnight, under the portraits in the Town Hall,', 'With the sun coming up over the harbour,']);
+        let t = won ? `${when} the returning officer clears her throat, and reads out your name. You have won, ${by}.` : `${when} the returning officer reads out the result: ${last.name} has won, ${by}.`;
         if (x.you && !won) t += ' You shake the winner’s hand, and mean it, mostly.';
         if (x.paid) t += ` The bookmaker pays out ${money(x.paid)}, with bad grace.`;
         else if (x.bet) t += ' Your betting slip goes in the bin.';
@@ -1169,6 +1180,7 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
       opts: [
         { t: 'Turn out with the lifeboat crew', show: (L) => !!L.coastOnBooks && L.coastOnBooks(), run(L) { L.karma(4); L.fame(1); L.gain('fitness', 1); L.hp(-2, 'a night at sea'); return 'Two boats dragging their moorings, and a man in pyjamas on the end of the pier who went to look. You bring them all in. Captain Quinn says "Good." twice.'; } },
         { t: 'Help fill sandbags on the front', check: ['fitness', 40], run(L, x, win) { L.karma(3); if (win) { L.gain('fitness', 1); L.joy(3); return 'All night in a line of strangers, bag after bag, until the tide turns. By dawn they are not strangers.'; } L.hp(-3, 'a night in a gale'); return 'A wave comes over the sea wall and takes you off your feet. You are fished out, and sent home with a blanket.'; } },
+        { t: tr('daredevil', 'Go down to the front and watch it'), show: (L) => trait(L, 'daredevil'), check: ['fitness', 50], run(L, x, win) { if (win) { L.joy(6); L.fame(0.5); return 'You stand on the sea wall in the screaming dark and watch the pier go, piece by piece, lit by the lightning. The Gazette prints a photograph of somebody who looks very like you, and a stern word.'; } L.hp(-6, 'a night on the sea wall'); return 'A wave the size of a bus comes over the wall. You come round in St Wren’s, with a nurse saying things about people who go and look.'; } },
         { t: 'Stay in and listen to it', run(L) { L.joy(-1); return 'You lie awake listening to it go over, and in the morning you go down to look like everybody else.'; } },
       ],
     },
@@ -1291,6 +1303,7 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
       text: (L, x) => (x && x.low ? `You wake at three to the sound of water where there should not be any. By morning ${L.s.owned ? 'your ground floor' : 'your rooms'} are a foot deep in the sea, and your things are floating.` : 'From up the hill you can see the harbour in the High Street and the High Street in the park. Down in the town people are carrying what they can up the stairs.'),
       opts: [
         { t: 'Go down and help', check: ['fitness', 40], run(L, x, win) { L.karma(5); L.s.time = Math.max(0, L.s.time - 1); if (win) { L.joy(2); L.gain('fitness', 1); return 'Boats in the High Street, and you in one of them, ferrying old people and their cats from upstairs windows. The Gazette prints your photograph, wet through.'; } L.hp(-3, 'a soaking'); return 'You do what you can, which is a lot of carrying and some falling over. You go home soaked and cold and glad you went.'; } },
+        { t: tr('churchgoer', 'Open up the church hall with the vicar'), show: (L) => trait(L, 'churchgoer'), run(L) { L.karma(6); L.joy(3); L.s.time = Math.max(0, L.s.time - 1); if (L.folkWarm && L.folk('hollis').met != null) L.folkWarm('hollis', 4); return 'Camp beds, a tea urn the size of a dustbin and the Reverend Hollis in wellingtons, giving orders. Forty people sleep dry, and nobody is allowed to say thank you more than twice.'; } },
         { t: 'Take in a family who have lost everything', show: (L) => L.s.home !== 'hostel', run(L) { L.karma(6); L.joy(1); L.cash(-200); if (L.friends().length < 20 && L.chance(0.5)) { const p = L.meet({ age: L.int(30, 50) }); L.bond(p, 15); return `The ${p.name.split(' ')[1]}s sleep on your floor for a month, and do all the washing-up. ${p.name} becomes a friend for life.`; } return 'A family of four and a dog sleep on your floor for a month, and do all the washing-up. It costs you a bit in food. It is worth it.'; } },
         { t: 'Save what you can of your own', run(L, x) { if (x && x.low) { const back = Math.round((ev(L, 'flood').cost || 0) / 3 / 10) * 10; if (back > 0) L.cash(back); return `You carry what matters up the stairs and save some of it: ${money(back)} of what the water would have cost.`; } L.joy(-1); return 'You stay up the hill and dry. It does not feel as good as you thought it would.'; } },
       ],
@@ -1349,6 +1362,7 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
       opts: [
         { t: 'Buy a round in their memory', cost: 220, run(L, x) { L.joy(3); L.gain('charm', 1); for (const p of L.friends()) L.bond(p, 1); return `"To ${x.n.split(' ')[0]}," says the whole pub, and drinks. It is a good night, which is what ${x.sex === 'f' ? 'she' : 'he'} would have wanted, or at least would have said.`; } },
         { t: 'Say a few words', check: ['charm', 45], run(L, x, win) { if (win) { L.karma(2); L.joy(4); return `You tell the story everybody knows, and one nobody did. They laugh in the right places and go quiet in the right places.`; } L.joy(1); return 'You stand up, and find you cannot, after all. Somebody pats your arm and takes over.'; } },
+        { t: (L, x) => tr('joker', `Tell the joke ${x.sex === 'f' ? 'she' : 'he'} always told, badly`), show: (L) => trait(L, 'joker'), run(L, x) { L.joy(5); for (const p of L.friends()) L.bond(p, 2); return `You get the punchline wrong, the way ${x.n.split(' ')[0]} always did, and the whole pub shouts the right one back at you. It is the best laugh the Gull has had in years.`; } },
         { t: 'Raise a glass, quietly', run(L) { L.joy(1); return 'One drink, in the corner, and then home.'; } },
       ],
     },

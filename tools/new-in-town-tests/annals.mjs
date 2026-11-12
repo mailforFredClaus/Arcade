@@ -184,6 +184,12 @@ export default function ({ check, fresh, Life }) {
     check(!L.act('anGive', { to: 'pier', n: 100 }).ok, 'once a season');
     s.cash = 3000000;
     check(L.act('fund', 'pier').ok && !e.shut && !L.can('slots', 50), 'paying for the whole pier through the mayor’s appeal mends it at once');
+    // A daredevil (soul.js) has a choice of their own on the night of the storm.
+    const Dd = fresh();
+    Dd.s.soul.has.daredevil = 0;
+    Dd.annalsStart('storm');
+    Dd.s.pend = Dd.s.pend.filter((p) => p.id === 'anStorm');
+    check(Dd.event().opts.some((o) => /watch it/.test(o.t)) && !L.event().opts.some((o) => /watch it/.test(o.t)), 'a daredevil can go down to the front to watch the storm');
     const H = fresh();
     H.s.gifts.pier = 'Gran Test';
     H.annalsStart('storm');
@@ -282,15 +288,20 @@ export default function ({ check, fresh, Life }) {
   {
     const L = fresh({ seed: 5 }), s = L.s, an = s.annals;
     let votes = 0;
+    const bad = (t) => /undefined|NaN|null|\[object/.test(t);
+    let printed = true;
     const live = (X, count = () => {}) => {
       while (X.s.age < 60) {
         X.endSeason();
         let ev, n = 0;
-        while ((ev = X.event()) && n++ < 30) { count(ev); X.choose(ev.opts.findIndex((o) => !o.why)); }
+        while ((ev = X.event()) && n++ < 30) { count(ev); if (bad(ev.title + ev.text + ev.opts.map((o) => o.t).join())) printed = false; X.choose(ev.opts.findIndex((o) => !o.why)); }
         X.s.time = 20; X.s.health = Math.max(X.s.health, 60);
+        const g = X.gazette(), places = ['pub', 'highstreet', 'townhall', 'casino', 'station', 'park', 'cove'].flatMap((p) => X.annalsPlace(p).map((q) => q[1]));
+        if (bad(JSON.stringify(g)) || places.some(bad) || X.annalsOn().some((q) => bad(q[1])) || X.annalsWorks().some((w) => bad(w.state + w.by))) printed = false;
       }
     };
     live(L, (ev) => { if (ev.id === 'anPoll') votes++; });
+    check(printed, 'forty years of cards, Gazettes and place notes, all printed properly');
     check(an.yr.length === 42 && an.yr.every((y, i) => y.a === 18 + i && typeof y.h === 'string' && y.h.length > 4 && y.i), 'a headline for every year in the Bay, from 18 on');
     check(new Set(an.yr.map((y) => y.h)).size >= 30, 'and they are not all the same');
     check(an.mayors.length >= 3 && an.penn === 'out', 'mayors come and go, and Pennington goes in the end');

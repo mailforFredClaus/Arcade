@@ -65,9 +65,9 @@ export default function (kit) {
           ${race.camp[k] ? `<div class="facts"><span class="up">📣 You have campaigned for ${mine ? 'yourself' : 'them'}</span></div>` : ''}
           <div class="picks">${pick(`📣 Campaign ${chip('time', '⏱ 1')}`, 'anCampaign', k, camp)}${race.bet ? '' : bets}</div></div>`;
       }
-      if (race.bet) { const c = race.c.find((q) => q.k === race.bet.on); body += `<p class="sub">🎫 Your bet: ${money(race.bet.n)} on ${race.bet.on === 'you' ? 'yourself' : esc(c ? c.name : 'them')}, at ${race.bet.a} to ${race.bet.b}.</p>`; }
+      if (race.bet) { const c = race.c.find((q) => q.k === race.bet.on), { a, b } = race.bet; body += `<p class="sub">🎫 Your bet: ${money(race.bet.n)} on ${race.bet.on === 'you' ? 'yourself' : esc(c ? c.name : 'them')}, at ${a === b ? 'evens' : a < b ? `${b} to ${a} on` : `${a} to ${b}`}.</p>`; }
       if (you) body += '<p class="fine">Your own chances rest on your Charm, your name in town and your fame, and on how hard you campaign.</p>';
-    } else body += `<h3>The next election</h3><p class="sub">In ${life.annalsWhen(an.poll)}${an.poll - s.t <= 6 ? ', and nominations open two seasons before' : ''}.${an.last ? ` Last time: ${esc(an.last.name)}, for ${esc(PLATS[an.last.plat].name.toLowerCase())}.` : ''}</p>`;
+    } else body += `<h3>The next election</h3><p class="sub">In ${life.annalsWhen(an.poll)}${an.poll - s.t <= 6 ? ', and nominations open two seasons before' : ''}.${an.last ? ` Last time: ${esc(an.last.name)}, for ${esc(PLATS[an.last.plat].said || PLATS[an.last.plat].name.toLowerCase())}.` : ''}</p>`;
     // Standing yourself.
     const j = s.job;
     if (j && j.c === 'politics') body += j.r === 3 && !s.f.elected ? `<h3>Your own name</h3>${actRow(life.look('mayor'))}` : j.r < 3 ? '<p class="fine">Deputy Mayors may stand for mayor. You have some way to go.</p>' : '';
