@@ -54,7 +54,13 @@ const SHADY_SECS = ['Light fingers', 'Vices', 'Under the counter', 'Under the pi
 //   luck(L)                    a little added to (or taken from) every chance the town offers
 //   epitaph(L, out)            push sentences to the Gazette's obituary (legacy.js)
 //   seize(L)                   the bailiffs are in: give up something of yours as [what, dollars] (or null)
-export const HOOKS = { load: [], season: [], late: [], year: [], mood: [], time: [], income: [], bills: [], worth: [], acted: [], chose: [], luck: [], epitaph: [], seize: [] };
+//   noted(L, entry)            a line has gone into the journal ({ a, q, t, k }: see note)
+//   reprieve(L, cause)         a natural death is due (old age, or health run out): return true to hold it off
+//                              for now (chapters.js turns it into a last illness, so that the end is seen coming)
+//   died(L)                    the life has just ended (chapters.js carries out the will)
+//   obit(L, o)                 add to or change the obituary's summing-up (chapters.js: the heir and what the will gave)
+export const HOOKS = { load: [], season: [], late: [], year: [], mood: [], time: [], income: [], bills: [], worth: [], acted: [], chose: [], luck: [], epitaph: [], seize: [], noted: [], reprieve: [], died: [], obit: [] };
+const spared = (L, cause) => HOOKS.reprieve.some((f) => f(L, cause));
 const hookSum = (list, ...args) => list.reduce((a, f) => a + (f(...args) || 0), 0);
 // Cards from elsewhere join the deck.
 export function addEvents(list) {
@@ -960,8 +966,10 @@ export class Life {
 
   note(text, kind = '') {
     const s = this.s;
-    s.log.push({ a: s.age, q: s.t % 4, t: text, k: kind });
+    const e = { a: s.age, q: s.t % 4, t: text, k: kind };
+    s.log.push(e);
     if (s.log.length > 400) s.log.splice(1, s.log.length - 400);
+    for (const f of HOOKS.noted) f(this, e);
   }
   // Something to flash up on screen.
   say(icon, text, kind = '') { this.news.push({ icon, text, kind }); }
@@ -1326,7 +1334,8 @@ export class Life {
       s.ach[id] = 1;
       this.say(t.icon, `Trophy: ${t.name}`, 'trophy');
     }
-    if (!s.dead && s.health <= 0) this.die(s.hurt || 'ill health');
+    // (Unless the end is held off a while, to be seen coming: see reprieve in HOOKS.)
+    if (!s.dead && s.health <= 0 && !spared(this, s.hurt || 'ill health')) this.die(s.hurt || 'ill health');
   }
 
   // ---- events ----
@@ -1528,7 +1537,7 @@ export class Life {
     // Old age.
     if (s.age >= 70) {
       const p = (s.age - 68) ** 2 / 1800 * (1.35 - s.health / 100) * (s.heir === 'evergreen' ? 0.6 : 1);
-      if (s.age >= 112 || this.chance(p)) this.die('old age');
+      if (s.age >= 112 || (this.chance(p) && !spared(this, 'old age'))) this.die('old age');
     }
   }
 
@@ -1639,6 +1648,7 @@ export class Life {
     s.dead = { age: s.age, cause };
     s.pend = []; s.hilo = null; s.bj = null;
     this.note(`Died at ${s.age}, of ${cause}.`, 'big');
+    for (const f of HOOKS.died) f(this);
     for (const [id, t] of Object.entries(TROPHIES)) if (!s.ach[id] && t.test(this)) s.ach[id] = 1;
   }
   // The life, summed up.
@@ -1652,7 +1662,7 @@ export class Life {
       + Object.keys(s.dreamDone).length * 80 + Object.keys(s.ach).length * 10
       + Math.min(80, s.people.reduce((a, p) => a + p.bond, 0) / 10) + s.age + Math.max(0, s.karma) * 0.5 + s.fame,
     );
-    return {
+    const o = {
       name: s.name, age: s.age, cause: s.dead ? s.dead.cause : '', gen: s.gen, worth, score, ribbon,
       title: s.job ? this.jobTitle() : s.biz ? `Ran ${an(lowJob(this.bizName()))}` : s.retired ? 'Retired' : '',
       dreams: s.dreams.map((id) => ({ id, done: !!s.dreamDone[id] })),
@@ -1665,6 +1675,9 @@ export class Life {
       parent: spouse ? { name: spouse.name, age: spouse.age, look: spouse.look, sex: spouse.sex } : null,
       gifts: s.gifts,
     };
+    // (What the will says, and who carries on, is worked out in chapters.js.)
+    for (const f of HOOKS.obit) f(this, o);
+    return o;
   }
 }
 
