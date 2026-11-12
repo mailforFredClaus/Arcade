@@ -519,7 +519,9 @@ export function install({ def, A, Life, clamp }) {
       if (!b) return 0;
       const k = BUSINESSES[b.type];
       // (Its goodwill is worth nothing until it has been going a while.)
-      return Math.round((k.cost.slice(0, b.lvl + 1).reduce((a, n) => a + n, 0) * 0.6 + this.bizTake() * Math.min(4, b.age / 2)) / 100) * 100;
+      const worth = Math.round((k.cost.slice(0, b.lvl + 1).reduce((a, n) => a + n, 0) * 0.6 + this.bizTake() * Math.min(4, b.age / 2)) / 100) * 100;
+      // (One taken on cheap, as a favour, is worth what was paid for it until it has proved itself.)
+      return b.paid != null && b.age < 8 ? Math.min(worth, b.paid + Math.round(b.age / 8 * (worth - b.paid) / 100) * 100) : worth;
     },
     bizCost(lvl) { return Math.round(BUSINESSES.food.cost[lvl] * (lvl === 0 && this.s.heir === 'founder' ? 0.5 : 1)); },
     // The end of a season in the life of the business.

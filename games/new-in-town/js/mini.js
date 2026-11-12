@@ -413,10 +413,10 @@ export function playMini(o, done) {
   const ease = clamp(o.ease || 0, 0, 1);
   // Where time is what you are short of, skill buys a little more of it.
   const total = def.time * (def.fixed ? 1 : 1 + 0.3 * ease);
-  let raf = 0, over = false, left = total, game = null, clock = 0, sure = 0;
+  let raf = 0, over = false, left = total, game = null, clock = 0, sure = 0, gaveUp = false;
   const stop = () => { over = true; cancelAnimationFrame(raf); clearInterval(clock); for (const t of timers) { clearTimeout(t); clearInterval(t); } };
   // (The game stays up a moment after it has reported, so that a last tap cannot land on what is underneath.)
-  const close = (q) => { done(q); setTimeout(() => { root.hidden = true; root.classList.remove('done'); stage.innerHTML = ''; live = null; window.__mini = null; }, 420); };
+  const close = (q) => { done(q, gaveUp); setTimeout(() => { root.hidden = true; root.classList.remove('done'); stage.innerHTML = ''; live = null; window.__mini = null; }, 420); };
   const api = {
     stage, level: clamp(o.level || 0, 0, 5), ease, rnd: Math.random, total,
     left: () => Math.max(0, left),
@@ -429,7 +429,8 @@ export function playMini(o, done) {
       const q = clamp(score, 0, 1), g = grade(q);
       sfx(g >= 2 ? 'win' : g ? 'chime' : 'lose');
       root.classList.add('done');
-      const banner = el('div', 'mini-end', `<i>${'<b>★</b>'.repeat(g)}${'<s>★</s>'.repeat(3 - g)}</i><b>${GRADE_WORD[g]}</b>`);
+      // (A game that is not a shift may say how it went in words of its own: words, worst first.)
+      const banner = el('div', 'mini-end', `<i>${'<b>★</b>'.repeat(g)}${'<s>★</s>'.repeat(3 - g)}</i><b>${(def.words || GRADE_WORD)[g]}</b>`);
       root.append(banner);
       setTimeout(() => { banner.remove(); close(q); }, 1150);
     },
@@ -441,6 +442,7 @@ export function playMini(o, done) {
       if (over) return;
       if (force || !game) { stop(); root.classList.add('done'); if (force) { root.hidden = true; root.classList.remove('done'); stage.innerHTML = ''; live = null; window.__mini = null; return; } close(null); return; }
       if (performance.now() > sure) { sure = performance.now() + 2500; quitBtn.textContent = 'Sure?'; setTimeout(() => { quitBtn.textContent = 'Give up'; }, 2500); return; }
+      gaveUp = true;
       api.finish(game.score() * Math.min(0.8, (total - left) / total));
     },
   };

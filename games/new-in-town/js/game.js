@@ -12,6 +12,7 @@ import {
 import { handTotal } from './pier.js';
 import { CHIRPS } from './fame.js';
 import { playMini, quitMini } from './mini.js';
+import { SCREENS } from './ui-mods.js';
 import { townSvg, gaolSvg, face, spark, placeTier } from './art.js';
 import { store, sfx, haptic, unlockAudio, lockViewport, registerOffline } from '../../../shared/arcade.js';
 import { cards, switchRow, confetti, toast, ICON } from '../../../shared/ui.js';
@@ -45,6 +46,45 @@ function persist() {
 
 let tab = 'town';
 let here = 'station'; // where you are standing on the map
+let area = 'bay'; // which map is showing: the bay, or the old town up the hill
+let MODS = []; // the screens for the newer parts of town (ui-mods.js), once they are set up
+
+// ---- the same again -----------------------------------------------------------------------
+
+// What was done this season, in order, to offer as next season's routine: [action, x]. Things
+// that were played by hand are kept without their score (done again they come out middling),
+// a shift by hand is kept as a plain shift (the boss still wants to watch now and then), and
+// one-off dealings (buying, selling, applying, moving, betting) are not kept at all.
+const ONE_OFF = new Set(['apply', 'enrol', 'rentHome', 'buyHome', 'buyLet', 'moveIn', 'letProp', 'sellEstate', 'pet', 'bizStart', 'shares', 'sellShares',
+  'deposit', 'withdraw', 'borrow', 'repay', 'repayStudent', 'buy', 'pawn', 'quit', 'retire', 'trip', 'slots', 'raceBet', 'curioBuy', 'curioSell', 'fund']);
+let doneNow = [];
+// (Only called once the thing has taken time: nothing is asked of the action itself, which may
+// no longer describe itself once done, like a book just finished.)
+function keep(id, x, played) {
+  if (ONE_OFF.has(id) || /^(bj|hilo)/.test(id)) return;
+  doneNow.push(id === 'workPlay' ? ['work'] : played ? [id] : x === undefined ? [id] : [id, x]);
+}
+// Plays last season's routine for as long as there is time, stopping for any card that comes up.
+function sameAgain() {
+  if (!life || busy || spinning || ui.isOpen() || life.s.gaol || life.s.dead) return;
+  const plan = save.plan || [], news = [];
+  let did = 0, skip = 0;
+  for (const [id, x] of plan) {
+    if (life.s.time <= 0 || life.event() || life.s.dead) break;
+    if (life.can(id, x)) { skip++; continue; }
+    const t0 = life.s.time, r = life.act(id, x);
+    if (!r.ok) { skip++; continue; }
+    did++;
+    if (life.s.time < t0) keep(id, x, false);
+    news.push(...(r.news || []));
+  }
+  persist();
+  render();
+  sfx(did ? 'fill' : 'nope');
+  toast(did ? `The same again: ${did} thing${did > 1 ? 's' : ''} done${skip ? `, ${skip} not possible this season` : ''}.` : 'None of it can be done this season.', 3200);
+  showNews(news);
+  pump();
+}
 let sheets = []; // the sheets open, one on top of another: { kind, id }
 let result = null; // what the last action said, shown at the top of the sheet
 let busy = false;
@@ -61,8 +101,9 @@ function renderTop() {
   const s = life.s;
   $('app').className = `app s${life.season}`;
   $('ava').innerHTML = face(s.look, s.age, s.happy, s.sex);
-  $('whoName').textContent = s.name;
-  $('whoSub').textContent = `Age ${s.age} · ${s.gaol ? 'Starling Gaol' : life.jobTitle() || (s.retired ? 'Retired' : 'Between jobs')}`;
+  // (The age goes with the name, so that the job has the line beneath to itself.)
+  $('whoName').textContent = `${s.name}, ${s.age}`;
+  $('whoSub').textContent = s.gaol ? 'Starling Gaol' : life.jobTitle() || (s.retired ? 'Retired' : s.biz ? `Runs ${an(lowJob(life.bizName()))}` : 'Between jobs');
   $('cash').textContent = cashShort(s.cash);
   $('date').textContent = `${SEASON_ICON[life.season]} ${SEASONS[life.season]}, year ${life.year}${s.wx !== 'fair' ? ` ${life.weather().icon}` : ''}`;
   meter('mHealth', s.health, life.healthCap());
@@ -122,24 +163,39 @@ function renderMap() {
   const s = life.s, work = s.job ? CAREERS[s.job.c].place : null, biz = s.biz ? BUSINESSES[s.biz.type].place : null;
   const ripe = !!s.plot && (s.plot.beds.some((b) => life.bedRipe(b)) || (life.season === 2 && s.marrow > 0));
   const fest = s.use.fest ? null : life.fest().at;
-  const key = `${placeTier(s.home)}|${work}|${!!s.course}|${biz}|${ripe}|${fest}`;
+  const marks = {}, mark = (id, e, cls) => { if (id) (marks[id] = marks[id] || []).push(cls ? [e, cls] : [e]); };
+  mark(work, '💼'); mark(biz, '🏪'); mark(fest, '🎪', 'fest');
+  if (ripe) mark('park', '🥕');
+  if (s.course) mark('college', '✏️');
+  for (const m of MODS) if (m.marks) for (const [id, e] of m.marks(life) || []) mark(id, e);
+  const key = `${area}|${placeTier(s.home)}|${JSON.stringify(marks)}`;
   if (key !== mapKey) {
     mapKey = key;
-    $('mapArt').innerHTML = townSvg({ tier: placeTier(s.home), work, study: !!s.course, biz, ripe, fest });
+    $('mapArt').innerHTML = townSvg({ area, tier: placeTier(s.home), marks });
+    $('pTown').classList.toggle('hill', area === 'hill');
+    $('mapGo').innerHTML = area === 'bay' ? '⛰️ <b>Up the hill</b>' : '⚓ <b>Down to the bay</b>';
+    // (A badge on the other map is worth knowing about.)
+    $('mapGo').classList.toggle('dot', Object.keys(marks).some((id) => (PLACES[id].area || 'bay') !== area));
   }
   $('me').innerHTML = face(s.look, s.age, s.happy, s.sex);
+  // (Only at the start of a season, before anything else has been done.)
+  $('mapAgain').hidden = !(save.plan && save.plan.length && s.time >= life.timeMax() && !s.gaol && !doneNow.length);
   placeMe();
   fitMap();
 }
 
 function placeMe() {
   const p = PLACES[here];
+  $('me').hidden = (p.area || 'bay') !== area;
   $('me').style.left = `${(p.x + (p.x > 300 ? -34 : 34)) / 4}%`;
   $('me').style.top = `${(p.y + 2) / 6}%`;
 }
 
 // The map keeps its shape and fits the space between the bars.
 function fitMap() {
+  // (Notices drop in just below the header, wherever that ends: see .news in style.css.)
+  const top = document.querySelector('header.top');
+  if (top && top.offsetHeight) document.documentElement.style.setProperty('--top-h', `${top.getBoundingClientRect().bottom}px`);
   const box = $('pTown');
   const w = box.clientWidth, h = box.clientHeight;
   if (!w || !h) return;
@@ -154,6 +210,7 @@ function goTo(place) {
   sfx('tap');
   const far = here !== place;
   here = place;
+  area = PLACES[place].area || 'bay';
   placeMe();
   $('me').classList.remove('hop');
   void $('me').offsetWidth;
@@ -206,7 +263,8 @@ const SHEET = {
     let sub = p.blurb, title = p.name;
     if (id === 'home') { title = HOMES[s.home].name; sub = `${s.owned ? 'Yours' : `Rent ${money(life.rentOf(s.home))} a season`}. ${HOMES[s.home].blurb}`; }
     const plaques = life.plaques(id).map((t) => `<p class="plaque">🪧 ${esc(t)}</p>`).join('');
-    return { icon: p.icon, title, sub, body: plaques + sections(life.placeActions(id)) };
+    const notes = MODS.map((m) => (m.place ? m.place(life, id) || '' : '')).join('');
+    return { icon: p.icon, title, sub, body: plaques + notes + sections(life.placeActions(id)) };
   },
 
   jobs() {
@@ -259,7 +317,7 @@ const SHEET = {
       const how = (p) => (p.loan ? `${cashShort(Math.max(0, p.cash))} down, ${cashShort(p.loan)} borrowed` : p.cash > 0 ? `${cashShort(p.cash)} outright` : `${cashShort(-p.cash)} back in your pocket`);
       body += `<div class="item${here ? ' mine' : ''}">
         <div class="item-top"><span class="act-ico">${h.icon}</span><div><b>${h.name}</b><small>${esc(h.blurb)}</small></div></div>
-        <div class="facts"><span>Comfort ${'★'.repeat(Math.max(1, Math.round(h.comfort / 4.4)))}</span><span>${h.kids ? `Room for ${h.kids} ${h.kids > 1 ? 'children' : 'child'}` : id === 'hostel' ? 'Just you' : 'Room for two'}</span>${plan ? `<span>Sells for ${cashShort(plan.price)}</span>` : ''}</div>
+        <div class="facts"><span>Comfort ${h.comfort > 0 ? '★'.repeat(Math.max(1, Math.round(h.comfort / 4.4))) : 'none to speak of'}</span><span>${h.kids ? `Room for ${h.kids} ${h.kids > 1 ? 'children' : 'child'}` : id === 'hostel' ? 'Just you' : 'Room for two'}</span>${plan ? `<span>Sells for ${cashShort(plan.price)}</span>` : ''}</div>
         <div class="picks">
           ${here ? `<span class="note ok">You live here${s.owned ? ', and own it' : ''}</span>` : ''}
           ${h.rent != null && !(here && !s.owned) ? pick(`Rent · ${money(life.rentOf(id))} a season ${chip('time', '⏱ 1')}`, 'rentHome', id, life.can('rentHome', id)) : ''}
@@ -342,7 +400,7 @@ const SHEET = {
       body += `<div class="item${st.fund ? ' fund' : ''}">
         <div class="item-top"><span class="act-ico">${st.icon}</span><div><b>${st.name}</b><small>${sym} · ${esc(st.blurb)}</small></div>
           <div class="quote"><b>$${p.toFixed(2)}</b><small class="${move >= 0 ? 'up' : 'down'}">${move >= 0 ? '▲' : '▼'} ${Math.abs(move * 100).toFixed(1)}%</small></div></div>
-        ${spark(h, 300, 34)}
+        ${h.length > 1 ? spark(h, 300, 34) : ''}
         <div class="facts">${long != null ? `<span class="${long >= 0 ? 'up' : 'down'}">${long >= 0 ? 'Up' : 'Down'} ${Math.abs(long * 100).toFixed(0)}% in ${h.length - 1 >= 40 ? 'ten years' : `${h.length - 1} seasons`}</span>` : ''}<span>${st.div ? `Pays ${(st.div * 100).toFixed(1)}% a season` : 'No dividend'}</span>
           ${own ? `<span>You hold ${own.toLocaleString()}, worth ${cashShort(worth)}</span><span class="${gain >= 0 ? 'up' : 'down'}">${gain >= 0 ? 'Up' : 'Down'} ${cashShort(Math.abs(gain))} on what you paid</span>` : ''}</div>
         <div class="picks">${buy(1000)}${buy(10000)}${buy(100000)}${maxQ >= 1 && have > 1000 ? pick('Buy all I can', 'shares', { sym, n: maxQ }) : ''}
@@ -585,6 +643,7 @@ const SHEET = {
     const perk = p.job && !['parent', 'ex', 'enemy'].includes(p.kind) && p.age >= 18 ? `<p class="fine">${life.perk(p.job) && p.bond >= 60 ? '✓ ' : ''}Someone close in ${CAREERS[p.job].name.toLowerCase()} (60 bond) gets you ${PERKS[p.job]}.</p>` : '';
     const body = `<div class="bondbar big${foe ? ' grudge' : ''}"><span style="width:${foe ? p.grudge : p.bond}%"></span></div><p class="lead">${bondWord(p)} · ${foe ? `grudge ${Math.round(p.grudge)}. It cools with time, faster if the town thinks well of you; while it lasts, ${p.sex === 'm' ? 'he' : 'she'} will do you small harms.` : `bond ${Math.round(p.bond)}`}${p.kind === 'child' && p.age >= 18 ? ` · ${He} takes after what you taught ${p.sex === 'm' ? 'him' : 'her'}` : ''}</p>
       <div class="facts">${facts.join('')}</div>${perk}${p.kind === 'child' && p.age < 18 ? `<p class="fine">What ${first} learns now, ${p.sex === 'm' ? 'he' : 'she'} keeps: a child who carries on the family starts with some of it.</p>` : ''}
+      ${MODS.map((m) => (m.person ? m.person(life, p) || '' : '')).join('')}
       ${sections(life.personActions(p))}`;
     return { icon: face(p.look, p.age, foe ? 12 : 40 + p.bond * 0.6, p.sex), title: p.name, sub: `${p.sex === 'm' ? '♂' : '♀'} ${relation(p)}, ${p.age}`, body };
   },
@@ -651,8 +710,12 @@ function doAct(id, x) {
   if ((id === 'fish' || id === 'fishBoat') && x === undefined && !save.autoFish) return castLine(id);
   // A shift done by hand is played first, and marked on how it went.
   if (id === 'workPlay' && x === undefined) return playShift();
-  const r = life.act(id, x);
+  // The newer parts of town may want to play something first, too.
+  const mod = x === undefined && MODS.find((m) => m.act && m.act[id]);
+  if (mod) return mod.act[id]();
+  const t0 = life.s.time, r = life.act(id, x);
   if (!r.ok) { sfx('nope'); toast(r.why); return; }
+  if (life.s.time < t0) keep(id, x, id === 'workPlay' || id === 'fish' || id === 'fishBoat' || MODS.some((m) => m.act && m.act[id]));
   haptic();
   if (id === 'slots') return spin(r);
   if (id === 'raceBet') return race(r);
@@ -851,6 +914,8 @@ function nextSeason() {
   if (life.s.time >= 3 && !save.restTip && !life.s.gaol) { save.restTip = true; toast('Time you do not use is rest: good for health and mood.', 4200); }
   const r = life.endSeason();
   bjShow = null; raceShow = null;
+  if (doneNow.length) save.plan = doneNow;
+  doneNow = [];
   persist();
   tab = 'town';
   render();
@@ -919,7 +984,8 @@ function meHtml() {
     <div class="line"><span>🚨 The law</span><b>${life.lawWord()}</b></div>
     <div class="line"><span>Crimes to your name</span><b>${s.n.crimes}</b></div>${s.record ? `<div class="line down"><span>Criminal record</span><b>${s.record} conviction${s.record > 1 ? 's' : ''}</b></div>` : ''}
     ${Object.keys(s.habit).map((k) => `<div class="skill"><i>${k === 'drink' ? '🥃' : '✨'}</i><span>${k === 'drink' ? 'Drink' : 'Dust'}</span><span class="bar"><span style="width:${Math.min(100, s.habit[k])}%;background:${s.habit[k] >= 60 ? 'var(--bad)' : 'var(--sun)'}"></span></span><b>${Math.round(Math.min(100, s.habit[k]))}</b></div>`).join('')}
-    ${life.hooked('drink') || life.hooked('dust') ? '<p class="fine">You are hooked: it costs you health every season, and a season without it is a miserable one. Going without wears it down; the clinic at St Wren’s ends it.</p>' : ''}</div>` : ''}
+    ${life.hooked('drink') || life.hooked('dust') ? '<p class="fine">You are hooked: it costs you health every season, and a season without it is a miserable one. Going without wears it down; the clinic at St Wren’s ends it.</p>' : ''}
+    ${MODS.map((m) => (m.lowRoad ? m.lowRoad(life) || '' : '')).join('')}</div>` : ''}
   <div class="box"><h3>About town</h3>
     <div class="line"><span>${life.eco().icon} Business in the Bay</span><b>${life.eco().name}</b></div>
     ${s.chirp ? `<div class="line"><span>🐤 Chirper</span><b>${many(life.followers())} followers</b></div>` : ''}
@@ -929,6 +995,7 @@ function meHtml() {
     ${s.f.licence > s.t ? '<div class="line down"><span>🪪 Out on licence</span><b>Keep your nose clean</b></div>' : ''}
     <button class="btn btn-soft wide" data-do="open" data-kind="gazette">📰 Read the Gazette</button></div>
   ${perks.length ? `<div class="box"><h3>Friends in the right places</h3>${perks.map((c) => `<div class="line"><span>${CAREERS[c].icon} ${CAREERS[c].name}</span><b class="perk">${PERKS[c]}</b></div>`).join('')}</div>` : ''}
+  ${MODS.map((m) => (m.me ? m.me(life) || '' : '')).join('')}
   <div class="box"><h3>Dreams</h3>${s.dreams.map((id) => `<div class="dream${s.dreamDone[id] ? ' done' : ''}"><i>${DREAMS[id].icon}</i><div><b>${DREAMS[id].name}</b><small>${s.dreamDone[id] ? `Came true at ${s.dreamDone[id]}` : DREAMS[id].desc}</small></div><em>${s.dreamDone[id] ? '✓' : ''}</em></div>`).join('')}</div>
   <div class="box"><h3>Belongings</h3>${items.length ? `<div class="things">${items.map((id) => `<span title="${ITEMS[id].name}">${ITEMS[id].icon}<small>${ITEMS[id].name}</small></span>`).join('')}</div>` : '<p class="sub">One suitcase. The High Street can fix that.</p>'}
     ${s.paintings ? `<p class="sub">🖼️ ${s.paintings} painting${s.paintings > 1 ? 's' : ''} to sell at the studios.</p>` : ''}${s.novel.p ? `<p class="sub">✍️ Novel: ${s.novel.p} of 10 sittings done.</p>` : ''}${Object.keys(s.fishbook).length ? `<p class="sub">📒 Fish book: ${Object.keys(s.fishbook).length} of ${Object.keys(FISH).length} kinds caught.</p>` : ''}
@@ -949,6 +1016,7 @@ function peopleHtml() {
   if (s.pet) out += `<div class="box person pet"><span class="act-ico">${PETS[s.pet.kind].icon}</span><div><b>${esc(s.pet.name)}</b><small>Your ${PETS[s.pet.kind].name}, ${s.pet.age}. Always pleased to see you.</small></div></div>`;
   out += group(`Friends (${life.friends().length})`, ['friend']) || '<div class="box"><p class="sub">No friends in Starling Bay yet. Chat to the regulars at the Gull & Anchor, sit by the pond in the park, or go to hack night at the Labs.</p></div>';
   out += group('Old flames', ['ex']) + group('Bad blood', ['enemy']);
+  out += MODS.map((m) => (m.people ? m.people(life) || '' : '')).join('');
   return `${out}<p class="fine pad">People drift away unless you keep in touch. Tap someone to do something together; everyone has things they love doing.</p>`;
 }
 
@@ -1000,18 +1068,36 @@ function showMenu() {
 }
 
 // Shown once to a life that was begun before the town grew.
-const NEWS = 4;
+const NEWS = 5;
 function showNew() {
   const was = save.seenNew || 0;
   save.seenNew = NEWS;
   persist();
-  const hands = '<p><b>🎮 Work can be done by hand.</b> Every career has a game of its own: at your workplace, tap the row that ends “yourself”. Play it well and the shift pays up to half as much again and counts for more. You can leave most shifts to look after themselves, but now and then the boss wants to watch.</p>';
-  if (was >= 3) {
-    ui.show(`<div class="ev-ico">🎮</div><h2>New in Starling Bay</h2><div class="how">${hands}</div>
+  const hill = `<p><b>⛰️ Up the hill.</b> Tap “Up the hill” at the top of the map for the old town: St Brigid’s, the library, the Pavilion, the Rovers’ ground, Market Square, Windle Farm, Gorse Head, Smugglers’ Cove and Dobbs & Daughter’s garage.</p>
+    <p><b>👥 The people of the town.</b> Thirteen townsfolk to get to know: chat, bring presents, hear their stories and do them favours. They are on the People tab.</p>
+    <p><b>⚽ Clubs.</b> The choir, the Pavilion Players, the Rovers’ Sunday side, the book club, the sailing club and the pub quiz team: turn up, rise through the ranks, and play your part on the big day. And a reading list at the library.</p>
+    <p><b>🌊 The coast.</b> Birds and caves on Gorse Head, beachcombing and the lifeboat at the cove, and the long mystery of the <i>Merrow</i>.</p>
+    <p><b>🚗 Driving.</b> Lessons, a theory test and a driving test, then a car from the forecourt, a classic to restore and day trips out. (A car you already had is still yours, with a licence.)</p>
+    <p><b>🐓 Farm and market.</b> Seasonal work at Windle Farm, hens and bees at home, and a Saturday stall in Market Square.</p>
+    <p><b>🕯️ Who you become.</b> Traits grow out of how you live, there are big days at St Brigid’s, and a low spell needs looking after.</p>
+    <p><b>💼 A working life.</b> Every career has a story over the years, with a mentor, a rival and choices that can make or end it.</p>
+    <p><b>💞 Your people want things.</b> A partner with dreams of their own, children who grow up their own way, parents who need looking after, friends who ask.</p>
+    <p><b>📖 Chapters, old age and a will.</b> New dreams at 30, 45 and 60; old age has its own play; a will says who carries on, and a grown heir carries on at their own age, at home.</p>
+    <p><b>🕶️ The low road has a plot.</b> Plan a proper job with a crew, wash the money, and mind Detective Sergeant Kitto, who keeps a file. A rival crew wants Sal’s patch.</p>
+    <p><b>🗳️ The town grows old with you.</b> Elections every four years, storms, a supermarket, a film crew, shops that come and go, and “Years in the Bay” to look back on.</p>
+    <p><b>↻ Same again.</b> At the start of a season, one tap repeats last season’s routine.</p>`;
+  if (was >= 4) {
+    ui.show(`<div class="ev-ico">⛰️</div><h2>New in Starling Bay</h2><div class="how">${hill}</div>
       <div class="actions"><button class="btn btn-primary" data-action="evDone">Show me</button></div>`);
     return;
   }
-  ui.show(`<div class="ev-ico">📰</div><h2>New in Starling Bay</h2><div class="how">${hands}
+  const hands = '<p><b>🎮 Work can be done by hand.</b> Every career has a game of its own: at your workplace, tap the row that ends “yourself”. Play it well and the shift pays up to half as much again and counts for more. You can leave most shifts to look after themselves, but now and then the boss wants to watch.</p>';
+  if (was >= 3) {
+    ui.show(`<div class="ev-ico">⛰️</div><h2>New in Starling Bay</h2><div class="how">${hill}${hands}</div>
+      <div class="actions"><button class="btn btn-primary" data-action="evDone">Show me</button></div>`);
+    return;
+  }
+  ui.show(`<div class="ev-ico">📰</div><h2>New in Starling Bay</h2><div class="how">${hill}${hands}
     <p><b>⛓️ Prison is lived, not skipped.</b> Get sent down and you serve it a season at a time: behave for parole, fight for your place, study, or dig.</p>
     <p><b>😠 Exes and enemies.</b> A bad break-up leaves an ex you can win back. Cross somebody and they may take against you, until you make peace or see them off.</p>
     <p><b>🐤 Chirper.</b> On your phone, at home: post, gather followers, get paid.</p>
@@ -1031,8 +1117,10 @@ function showHow() {
     <p><b>One life, a season at a time.</b> Each season you get a few blocks of time ⏱. Tap a place on the map and spend them: work, study, train, see people. Tap <b>Next</b> when you are done; time left over is rest.</p>
     <p><b>Four skills</b> open doors: 🧠 Smarts, 💪 Fitness, 💬 Charm and 🎨 Craft. Every career is a ladder that asks for skills and shifts worked. A course from the college lets you start partway up: a medical degree makes you a junior doctor.</p>
     <p><b>Work by hand.</b> Every career has a game of its own: the row at your workplace that ends “yourself”. Played well, a shift pays up to half as much again and counts for more towards promotion; played badly, less. Most shifts can be left to look after themselves, but every so often the boss wants to watch. The better you are at the job’s skill, the kinder its game is.</p>
-    <p><b>Look after yourself.</b> ❤️ Health falls with age and overwork; if it runs out, so do you. 🙂 Mood follows how life is going: a better home, friends, love, a pet.</p>
-    <p><b>Bills fall due every season.</b> Save at the bank, buy shares (the index fund is the steady one) or property to let out, start a business, or borrow. A bicycle or a car gives you more time.</p>
+    <p><b>Look after yourself.</b> ❤️ Health falls with age and overwork; if it runs out, so do you. 🙂 Mood follows how life is going: a better home, friends, love, a pet. Who you are grows out of what you do: the Me tab shows the traits taking shape, and a long low spell needs looking after.</p>
+    <p><b>Bills fall due every season.</b> Save at the bank, buy shares (the index fund is the steady one) or property to let out, start a business, or borrow. A bicycle gives you more time, and so does a car, once you have passed your test at the garage up the hill.</p>
+    <p><b>Up the hill</b> (the button at the top of the map) is the old town: the church, the library, the Pavilion, the football ground, the market, a farm, the cliffs, a cove and a garage. Join a club, keep hens, learn to drive, solve the mystery of the <i>Merrow</i>.</p>
+    <p><b>The townsfolk</b> have stories of their own. Call on them, bring presents they like, and do them favours: a good friend in town is worth more than money.</p>
     <p><b>People.</b> Friends are made all over town, and everyone has things they love doing. For romance, chat someone up at the pub, try the dating app, or ask out a friend who is single. Close friends in the right jobs do you favours.</p>
     <p><b>Life happens.</b> Cards turn up with choices. A percentage shows your chance where a skill decides it.</p>
     <p><b>Or go bad.</b> Pick pockets at the station, lift from the shops, drink and brawl at the pub, bend the rules at work. Sal’s back room at the harbour has worse: burglary, bare-knuckle fights, his crew, the bank. The law takes an interest.</p>
@@ -1075,11 +1163,9 @@ let draft = null;
 function showStart() {
   const nx = save.next;
   const rand = (n) => Math.floor(Math.random() * n);
-  const ids = Object.keys(DREAMS);
-  const offered = [];
-  // (An heir is not offered a dream the family has already made impossible.)
-  const open = (id) => !DREAMS[id].open || DREAMS[id].open({ gifts: (nx && nx.gifts) || {} });
-  while (offered.length < 6) { const id = ids[rand(ids.length)]; if (!offered.includes(id) && open(id)) offered.push(id); }
+  // (An heir is not offered a dream the family has already made impossible, nor one already come true,
+  // nor one out of reach at the heir's age: chapters.js looks at the life the heir would start.)
+  const offered = Life.chapOffer(nx, Math.random);
   const sex = nx && nx.sex ? nx.sex : 'm';
   draft = {
     name: nx && nx.name ? nx.name : '', sex, into: sex === 'm' ? 'f' : 'm',
@@ -1103,10 +1189,10 @@ function renderStart() {
   $('start').innerHTML = `<div class="start-in">
     <div class="start-top"><a class="ico-btn" href="../../index.html" aria-label="Back to the arcade">${ICON.back}</a><button class="ico-btn" data-do="menu" aria-label="Menu">${ICON.gear}</button></div>
     <h1 class="logo"><span>New</span><span>in Town</span></h1>
-    <p class="tag">${nx ? `Generation ${nx.gen}. ${esc(nx.from)} left you ${money(nx.inherit)}${raised.length ? `, and brought you up with a head start in ${raised.join(' and ')}` : ''}.` : 'One suitcase. One town. One whole life.'}</p>
+    <p class="tag">${nx ? (nx.carry && nx.carry.said ? `Generation ${nx.gen}. ${esc(nx.carry.said)}${nx.carry.how === 'home' ? ` You are ${nx.carry.age}, and the Bay is home.` : ''}` : `Generation ${nx.gen}. ${esc(nx.from)} left you ${money(nx.inherit)}${raised.length ? `, and brought you up with a head start in ${raised.length > 1 ? `${raised.slice(0, -1).join(', ')} and ${raised[raised.length - 1]}` : raised[0]}` : ''}.`) : 'One suitcase. One town. One whole life.'}</p>
 
     <div class="box"><h3>Who are you?</h3>
-      <div class="namer"><span class="ava big">${face(d.look, 18, 70, d.sex)}</span>
+      <div class="namer"><span class="ava big">${face(d.look, (nx && nx.carry && nx.carry.how === 'home' && nx.carry.age) || 18, 70, d.sex)}</span>
         <div><input id="nameIn" type="text" maxlength="16" placeholder="Your name" value="${esc(d.name)}" autocomplete="off" autocapitalize="words" spellcheck="false">
         <div class="picks"><button class="pick quiet" data-do="rname">🎲 Name</button><button class="pick quiet" data-do="rlook">🎲 Look</button><button class="pick quiet" data-do="style">💇 Hair</button>${d.sex === 'm' ? `<button class="pick quiet" data-do="beard">🧔 ${d.look.beard ? 'Shave' : 'Beard'}</button>` : ''}</div></div></div>
       <div class="row"><span>I am a</span><div class="seg">${seg('sex', 'm', 'Man', d.sex === 'm')}${seg('sex', 'f', 'Woman', d.sex === 'f')}</div></div>
@@ -1115,11 +1201,11 @@ function renderStart() {
 
     <div class="box"><h3>What were you like at school?</h3><div class="grid3">${Object.entries(BACKGROUNDS).map(([id, b]) => `<button class="opt-card${d.bg === id ? ' on' : ''}" data-do="bg" data-id="${id}"><i>${b.icon}</i><b>${b.name}</b><small>${b.blurb}</small></button>`).join('')}</div></div>
 
-    <div class="box"><h3>What do you dream of? <em>Pick three</em></h3><div class="grid2">${d.offered.map((id) => `<button class="opt-card wide${d.dreams.includes(id) ? ' on' : ''}" data-do="dream" data-id="${id}"><i>${DREAMS[id].icon}</i><b>${DREAMS[id].name}</b><small>${DREAMS[id].desc}</small></button>`).join('')}</div></div>
+    <div class="box"><h3>What do you dream of? <em>Pick three</em></h3><div class="grid2">${d.offered.map((id) => `<button class="opt-card wide${d.dreams.includes(id) ? ' on' : ''}" data-do="dream" data-id="${id}"><i>${DREAMS[id].icon}</i><b>${DREAMS[id].name}</b><small>${DREAMS[id].desc}</small></button>`).join('')}</div><button class="pick quiet reroll" data-do="dreamsAgain">🎲 Other dreams</button></div>
 
     ${heirs.length ? `<div class="box"><h3>An heirloom <em>Pick one to bring</em></h3><div class="grid2">${heirs.map((r) => `<button class="opt-card wide${d.heir === r.id ? ' on' : ''}" data-do="heir" data-id="${r.id}"><i>${r.heir.icon}</i><b>${r.heir.name}</b><small>${r.heir.desc}</small></button>`).join('')}</div></div>` : ''}
 
-    <button class="btn btn-primary go-btn${ready ? '' : ' off'}" data-do="begin">${ready ? 'Catch the train to Starling Bay' : !d.name.trim() ? 'Choose a name' : `Pick ${3 - d.dreams.length} more dream${3 - d.dreams.length > 1 ? 's' : ''}`}</button>
+    <button class="btn btn-primary go-btn${ready ? '' : ' off'}" data-do="begin">${ready ? (nx && nx.carry && nx.carry.how === 'home' ? `Carry on as ${esc(d.name.trim())}` : 'Catch the train to Starling Bay') : !d.name.trim() ? 'Choose a name' : `Pick ${3 - d.dreams.length} more dream${3 - d.dreams.length > 1 ? 's' : ''}`}</button>
   </div>`;
   const input = $('nameIn');
   input.addEventListener('input', () => {
@@ -1137,16 +1223,25 @@ function beginLife() {
     inherit: nx ? nx.inherit : 0, gen: nx ? nx.gen : 1, parent: nx ? nx.parent : null, raised: nx ? nx.st : null, gifts: nx ? nx.gifts : null, sibs: nx && nx.sibs ? nx.sibs : nx ? [] : null,
     seed: (Math.random() * 2 ** 32) >>> 0,
   });
+  // (A grown child or grandchild starts at their own age, at home, with what the will gave them: chapters.js.)
+  life.chapBegin(nx ? nx.carry : null, d.dreams);
   save.next = null;
   save.counted = false;
   save.yearWorth = life.netWorth();
   save.seenNew = NEWS;
-  tab = 'town'; here = 'station'; mapKey = ''; slotShow = null; hiloShow = null; bjShow = null; raceShow = null;
+  // (Off the train at the station, or, for one who grew up here, at home.)
+  tab = 'town'; here = life.chapIntro() ? 'home' : 'station'; area = 'bay'; mapKey = ''; doneNow = []; save.plan = null; slotShow = null; hiloShow = null; bjShow = null; raceShow = null;
   persist();
   $('start').hidden = true;
   $('app').hidden = false;
   render();
-  const s = life.s;
+  const s = life.s, intro = life.chapIntro();
+  if (intro) {
+    ui.show(`<div class="ev-ico">${intro.icon}</div><h2>${esc(intro.title)}</h2>${intro.text.map((t) => `<p class="ev-text">${esc(t)}</p>`).join('')}
+      ${intro.letter ? `<p class="ev-text letter">${esc(intro.letter)}</p>` : ''}
+      <div class="actions"><button class="btn btn-primary" data-action="begin">${esc(intro.btn)}</button></div>`);
+    return;
+  }
   ui.show(`<div class="ev-ico">🚂</div><h2>Starling Bay</h2>
     <p class="ev-text">The train pulls out and leaves you on the platform with one suitcase, ${money(s.cash)}, and a bunk booked at the Seagull Hostel.${s.gen > 1 ? ' Your family has history here.' : ' You do not know a soul.'}</p>
     <p class="ev-text">Gulls. Salt in the air. A whole town, and a whole life to live in it.</p>
@@ -1176,37 +1271,40 @@ function showEnd() {
     m.hall.unshift({ name: s.name, age: o.age, ribbon: o.ribbon.id, score: o.score, gen: s.gen, title: o.title, worth: o.worth });
     m.hall.length = Math.min(m.hall.length, 40);
     save.fresh = fresh;
-    save.next = { sibs: o.sibs, gifts: o.gifts, gen: s.gen + 1, inherit: o.inherit, from: s.name, name: o.heir ? o.heir.name : '', look: o.heir ? o.heir.look : null, sex: o.heir ? o.heir.sex : null, st: o.heir ? o.heir.st : null, parent: o.parent };
+    save.next = life.chapNextLife(0);
     persist();
   } else fresh = !!save.fresh;
   closeSheets();
   ui.close();
   newsQueue.length = 0;
   $('news').innerHTML = '';
-  const big = s.log.filter((e) => e.k === 'big' || e.k === 'love').slice(1, -1).slice(-9);
+  // The biggest moments of the life, in order (chapters.js keeps them as they happen).
+  const big = o.highlights;
   $('app').hidden = true;
   $('end').hidden = false;
   $('end').innerHTML = `<div class="start-in end-in">
     <p class="rip">In loving memory</p>
     <span class="ava huge">${face(s.look, s.age, 70, s.sex)}</span>
     <h1 class="end-name">${esc(s.name)}</h1>
-    <p class="tag">Came to Starling Bay at 18. Died at ${o.age}, of ${esc(o.cause)}.</p>
+    <p class="tag">${esc(life.chapOrigin())} Died at ${o.age}, of ${esc(o.cause)}.</p>
     <div class="ribbon"><i>${o.ribbon.icon}</i><b>${o.ribbon.name}</b><small>${o.ribbon.desc}</small></div>
     ${fresh ? `<div class="box warn good">New heirloom for the lives to come: ${o.ribbon.heir.icon} <b>${o.ribbon.heir.name}</b>. ${o.ribbon.heir.desc}</div>` : ''}
     <div class="stats"><div><b>${o.score.toLocaleString()}</b><span>Score</span></div><div><b>${cashShort(o.worth)}</b><span>Left behind</span></div><div><b>${o.trophies}</b><span>Trophies</span></div></div>
-    <div class="box"><h3>Dreams</h3>${o.dreams.map((d) => `<div class="dream${d.done ? ' done' : ''}"><i>${DREAMS[d.id].icon}</i><div><b>${DREAMS[d.id].name}</b><small>${d.done ? 'Came true' : 'Not this time'}</small></div><em>${d.done ? '✓' : ''}</em></div>`).join('')}</div>
+    <div class="box"><h3>Dreams</h3>${o.dreams.map((d) => `<div class="dream${d.done ? ' done' : ''}"><i>${DREAMS[d.id].icon}</i><div><b>${DREAMS[d.id].name}</b><small>${d.done ? 'Came true' : d.was ? 'Let go, for another' : 'Not this time'}</small></div><em>${d.done ? '✓' : ''}</em></div>`).join('')}</div>
     <div class="paper obit"><p class="mast">The Starling Bay Gazette</p><p class="dateline">${SEASONS[life.season]}, year ${life.year} · Obituaries</p><h2>${esc(s.name)}, ${o.age}</h2>${life.epitaph().slice(1).map((t) => `<p class="story">${esc(t)}</p>`).join('')}</div>
     ${big.length ? `<div class="box"><h3>A life</h3>${big.map((e) => `<p class="entry"><i>${e.a}</i>${esc(e.t)}</p>`).join('')}</div>` : ''}
     <div class="box"><h3>Skills at the end</h3>${STATS.map((k) => `<div class="skill"><i>${STAT_ICON[k]}</i><span>${STAT_NAME[k]}</span><span class="bar"><span style="width:${s.st[k]}%"></span></span><b>${Math.floor(s.st[k])}</b></div>`).join('')}</div>
-    <button class="btn btn-primary go-btn" data-do="heirLife">${o.heir ? `Carry on as ${esc(o.heir.name)}, your ${o.heir.sex === 'm' ? 'son' : 'daughter'}` : 'Carry on as a distant cousin'}<small>Inherits ${money(o.inherit)}${o.heir ? ', and what you taught' : ''}</small></button>
+    ${o.carry.map((c, i) => `<button class="btn ${i ? 'btn-soft' : 'btn-primary'} go-btn" data-do="heirLife" data-i="${i}">${c.how === 'train' ? 'Carry on as a distant cousin' : `Carry on as ${esc(c.name)}, your ${c.rel}`}<small>${esc(life.chapStartSaid(c))}</small></button>`).join('')}
     <button class="btn btn-soft go-btn" data-do="newFamily">Start a new family from nothing</button>
   </div>`;
   $('end').scrollTop = 0;
   if (fresh) confetti();
 }
 
-function afterEnd(keep) {
+function afterEnd(keep, i = 0) {
   if (!keep) save.next = null;
+  // (Carrying on as somebody other than the one the will names: they come with what the will gave them.)
+  else if (i && life) save.next = life.chapNextLife(i);
   save.counted = false;
   save.fresh = false;
   life = null;
@@ -1226,6 +1324,13 @@ const DO = {
   act(el) {
     if (el.dataset.why) { sfx('nope'); toast(el.dataset.why); return; }
     doAct(el.dataset.id, el.dataset.x === undefined ? undefined : JSON.parse(el.dataset.x));
+  },
+  routine() { sameAgain(); },
+  area(el) {
+    if (busy || !life || life.s.dead || life.s.gaol) return;
+    area = el.dataset.area || (area === 'bay' ? 'hill' : 'bay');
+    sfx('flip');
+    renderMap();
   },
   goals() { sfx('tap'); if (life.s.gaol) { tab = 'town'; closeSheets(); render(); } else if (life.s.ill) goTo('hospital'); else showGoals(); },
   stake(el) { raceStake = Number(el.dataset.v); sfx('tap'); renderSheet(); },
@@ -1259,9 +1364,37 @@ const DO = {
   },
   heir(el) { draft.heir = draft.heir === el.dataset.id ? null : el.dataset.id; sfx('tap'); renderStart(); },
   begin: beginLife,
-  heirLife() { sfx('tap'); afterEnd(true); },
+  heirLife(el) { sfx('tap'); afterEnd(true, Number(el.dataset.i || 0)); },
+  dreamsAgain() { draft.offered = [...draft.dreams, ...Life.chapOffer(save.next, Math.random, draft.dreams)]; sfx('flip'); renderStart(); },
   newFamily() { sfx('tap'); afterEnd(false); },
 };
+
+// ---- the newer parts of town --------------------------------------------------------------
+
+// Each screen in ui-mods.js is handed this kit, and gives back what it adds:
+//   sheets: { kind(id) => { icon, title, sub, body } }, opened by data-do="open" data-kind="kind"
+//   do: { name(el) }, run by data-do="name"
+//   act: { actionId() }, run instead when that action is tapped (to play something first, say);
+//        it should finish with kit.doAct(actionId, what came of it)
+//   me(life), people(life): boxes of HTML for the Me and People tabs
+//   person(life, p): HTML for someone's own sheet, under what is known about them
+//   lowRoad(life): lines of HTML for the Low road box on the Me tab (shown once there is a crime to your name)
+//   marks(life): [[place, emoji], ...] for badges on the map
+//   place(life, id): HTML to show at the top of a place's sheet (how it has changed, say)
+//   css: a stylesheet of its own
+const kit = {
+  $, esc, pct, money, cashShort, many, an, chip, pick, needChips, actRow, sections, face,
+  openSheet, closeSheets, backSheet, renderSheet, render, persist, doAct, landed, toast, sfx, haptic, playMini,
+  get life() { return life; }, get here() { return here; }, get cards() { return ui; },
+};
+MODS = SCREENS.map((make) => make(kit));
+for (const m of MODS) {
+  for (const k of Object.keys(m.sheets || {})) if (SHEET[k]) throw new Error(`two sheets called ${k}`);
+  for (const k of Object.keys(m.do || {})) if (DO[k]) throw new Error(`two handlers called ${k}`);
+  Object.assign(SHEET, m.sheets || {});
+  Object.assign(DO, m.do || {});
+  if (m.css) document.head.append(Object.assign(document.createElement('style'), { textContent: m.css }));
+}
 
 $('cast').addEventListener('pointerdown', (e) => { if (!e.target.closest('[data-do]')) { e.preventDefault(); strike(); } });
 

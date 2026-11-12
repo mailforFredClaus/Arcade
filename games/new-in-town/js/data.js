@@ -29,7 +29,8 @@ export function cashShort(n) {
 }
 
 // The right one of a and an in front of a word, and a job title said mid-sentence (an IT helpdesk).
-export const an = (w) => `${/^[aeiou]/i.test(w) ? 'an' : 'a'} ${w}`;
+// (Numbers too: an 8-year-old, an 11-year-old, an 18-year-old.)
+export const an = (w) => `${/^([aeiou]|8|1[18](?!\d))/i.test(w) ? 'an' : 'a'} ${w}`;
 export const lowJob = (t) => t.toLowerCase().replace(/\bit\b/g, 'IT');
 
 // A crowd, counted: 950, 12.4k, 1.2M.
@@ -58,6 +59,16 @@ export const PLACES = {
   labs: { name: 'Lighthouse Labs', icon: '💡', x: 338, y: 424, blurb: 'A tech company in the old lighthouse. Free snacks.' },
   casino: { name: 'The Lucky Gull', icon: '🎰', x: 98, y: 532, blurb: 'Bright lights on the end of the pier.' },
   harbour: { name: 'The Harbour', icon: '⚓', x: 262, y: 536, blurb: 'Boats, nets, rope, and gossip.' },
+  // Up the hill: the old town, on a map of its own.
+  farm: { name: 'Windle Farm', icon: '🐄', area: 'hill', x: 70, y: 112, blurb: 'Sheep, cows, mud, and a farmer with opinions about all three.' },
+  church: { name: 'St Brigid’s', icon: '⛪', area: 'hill', x: 196, y: 112, blurb: 'Bells on Sunday, jumble on Saturday, and a vicar who means well.' },
+  headland: { name: 'Gorse Head', icon: '🪨', area: 'hill', x: 322, y: 112, blurb: 'Cliffs, gulls, a bench with a view, and caves the tide keeps to itself.' },
+  ground: { name: 'Rovers’ Ground', icon: '⚽', area: 'hill', x: 70, y: 228, blurb: 'Home of Starling Rovers, who have not won anything since 1987.' },
+  library: { name: 'The Library', icon: '📚', area: 'hill', x: 196, y: 228, blurb: 'Books, newspapers, the town archives, and the warmest radiators in town.' },
+  garage: { name: 'Dobbs & Daughter', icon: '🔧', area: 'hill', x: 322, y: 228, blurb: 'Cars mended, cars sold, cars looked at doubtfully.' },
+  theatre: { name: 'The Pavilion', icon: '🎭', area: 'hill', x: 70, y: 340, blurb: 'Plays, pantomime, and a bar that opens at the interval.' },
+  market: { name: 'Market Square', icon: '🧺', area: 'hill', x: 196, y: 340, blurb: 'Stalls every Saturday, and a fountain nobody has ever seen working.' },
+  cove: { name: 'Smugglers’ Cove', icon: '🏖️', area: 'hill', x: 322, y: 340, blurb: 'A sandy cove below the cliffs, with beach huts and the lifeboat station.' },
 };
 
 // ---- careers ----------------------------------------------------------------------------
@@ -312,8 +323,8 @@ export const INSURANCE = {
 
 export const ITEMS = {
   bike: { name: 'Bicycle', icon: '🚲', price: 400, at: 'highstreet', sec: 'Getting about', blurb: 'One more block of time every season.' },
-  car: { name: 'Second-hand hatchback', icon: '🚗', price: 9000, at: 'highstreet', sec: 'Getting about', blurb: 'Two more blocks of time every season. Costs $300 a season to run.' },
-  sportscar: { name: 'Sports car', icon: '🏎️', price: 85000, at: 'highstreet', sec: 'Getting about', blurb: 'Two more blocks of time, heads turn (Charm grows faster), and it cheers you up. Costs $1,200 a season to run.' },
+  // (Cars are sold, mended and learned in at Dobbs & Daughter up the hill: see motor.js. Owning
+  // one that goes still sets s.items.car, or s.items.sportscar, for the rest of the game.)
   phone: { name: 'Phone', icon: '📱', price: 600, at: 'highstreet', sec: 'Handy', blurb: 'Friends drift away more slowly, and you can try the dating app.' },
   laptop: { name: 'Laptop', icon: '💻', price: 1400, at: 'highstreet', sec: 'Handy', blurb: 'Take freelance gigs, and write a novel at home.' },
   books: { name: 'Shelf of good books', icon: '📚', price: 450, at: 'highstreet', sec: 'Handy', blurb: 'Smarts grows a little faster.' },
@@ -354,12 +365,12 @@ export const LOAN_RATE = 0.02;
 // your holding is worth. Every one of them tends upwards over the years:
 // the steady ones almost surely, the wild ones probably.
 export const STOCKS = {
-  BAY: { name: 'Bay 50 Index Fund', icon: '🧺', start: 100, drift: 0.011, swing: 0, div: 0.004, fund: true, blurb: 'A little of every company in town. The safe way to own shares.' },
-  GULL: { name: 'Gull & Co. Fisheries', icon: '🐟', start: 40, drift: 0.009, swing: 0.04, div: 0.008, blurb: 'Steady as the tide, and pays well.' },
-  BRCK: { name: 'Bay Brick & Timber', icon: '🧱', start: 60, drift: 0.011, swing: 0.07, div: 0.005, blurb: 'Grows when the town does.' },
-  SNCK: { name: 'Snack Shack Holdings', icon: '🍩', start: 25, drift: 0.012, swing: 0.1, div: 0.003, blurb: 'Doughnuts are a volatile business.' },
-  LITE: { name: 'Lighthouse Labs', icon: '💡', start: 80, drift: 0.015, swing: 0.13, div: 0, blurb: 'The future. Probably.' },
-  MOON: { name: 'Moonshot Mining', icon: '🚀', start: 10, drift: 0.008, swing: 0.22, div: 0, blurb: 'A fortune or a lesson. Usually both, in turn.' },
+  BAY: { name: 'Bay 50 Index Fund', icon: '🧺', start: 100, drift: 0.0075, swing: 0, div: 0.004, fund: true, blurb: 'A little of every company in town. The safe way to own shares.' },
+  GULL: { name: 'Gull & Co. Fisheries', icon: '🐟', start: 40, drift: 0.005, swing: 0.04, div: 0.008, blurb: 'Steady as the tide, and pays well.' },
+  BRCK: { name: 'Bay Brick & Timber', icon: '🧱', start: 60, drift: 0.006, swing: 0.07, div: 0.005, blurb: 'Grows when the town does.' },
+  SNCK: { name: 'Snack Shack Holdings', icon: '🍩', start: 25, drift: 0.0065, swing: 0.1, div: 0.003, blurb: 'Doughnuts are a volatile business.' },
+  LITE: { name: 'Lighthouse Labs', icon: '💡', start: 80, drift: 0.008, swing: 0.13, div: 0, blurb: 'The future. Probably.' },
+  MOON: { name: 'Moonshot Mining', icon: '🚀', start: 10, drift: 0.003, swing: 0.22, div: 0, blurb: 'A fortune or a lesson. Usually both, in turn.' },
 };
 // What the papers say when one company has a very good or very bad season.
 export const HEADLINES = {
@@ -865,7 +876,7 @@ export const JOB_GAMES = {
   retail: { game: 'till', icon: '💵', title: 'Take the till yourself', said: ['The till is forty dollars out, and nobody can say which way.', 'The till balances, near enough.', 'Right to the penny, with a queue out of the door.', 'Right to the penny all day, and every customer leaves smiling.'] },
   trades: { game: 'pipes', icon: '🔧', title: 'Plumb it in yourself', said: ['It leaks. It is not supposed to leak.', 'It holds water, which is the main thing.', 'Neat, tight, and done by teatime.', 'Not a drip. The inspector takes a photograph for his own pleasure.'] },
   tech: { game: 'sweep', icon: '🐛', title: 'Hunt the bugs yourself', said: ['You fix one bug and let out four.', 'It runs. Nobody asks how.', 'Clean, and out on the day it was promised.', 'Not one bug left alive. They name the release after you.'] },
-  medicine: { game: 'steady', icon: '🩹', title: 'Do the stitching yourself', said: ['The stitches would shame a sailmaker.', 'It will heal, with a scar to talk about.', 'Neat work. Sister says so, and Sister says very little.', 'You could not find the join. The registrar comes to look.'] },
+  medicine: { game: 'steady', icon: '🩹', title: 'Do the stitching yourself', said: ['The stitches would shame a sailmaker.', 'It will heal, with a scar to talk about.', 'Neat work. Sister says so, and Sister says very little.', 'Stitches so fine the registrar comes down to admire them.'] },
   police: { game: 'lineup', icon: '🕵️', title: 'Run the line-up yourself', said: ['You arrest the witness.', 'You get there in the end, by elimination.', 'Picked out first time, all but once.', 'Right every time. The sergeant buys the tea.'] },
   law: { game: 'print', icon: '🔎', title: 'Read the small print yourself', said: ['You sign off a contract that sells your client’s house to his tenant.', 'You catch most of it.', 'Nothing gets past you but the tea trolley.', 'Every change found. The other side’s solicitor stops returning your calls.'] },
   arts: { game: 'tune', icon: '🎸', title: 'Play the set yourself', said: ['You are a bar behind the band all night, and the band notices.', 'It hangs together, mostly.', 'Tight. People dance.', 'Not a note wrong. Somebody at the back shouts for more, and means it.'] },

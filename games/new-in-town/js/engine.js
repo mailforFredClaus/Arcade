@@ -17,7 +17,7 @@
 import {
   SEASONS, STATS, STAT_NAME, PLACES, CAREERS, SHIFTS_FOR_RUNG, COURSES, GRADES, STUDENT_RATE, HOMES, UPGRADES, FOOD, INSURANCE, ITEMS, TRIPS,
   SAVINGS_RATE, LOAN_RATE, STOCKS, HEADLINES, PLOT_RENT, FESTS, JOB_GAMES, PLAY_EVERY, NAMES_M, NAMES_F, PET_NAMES, PETS, BACKGROUNDS, LOOKS,
-  DREAMS, QUESTS, TROPHIES, RIBBONS, money, cashShort, an, lowJob,
+  DREAMS, QUESTS, TROPHIES, RIBBONS, money, cashShort, an, lowJob, many,
 } from './data.js';
 import { EVENTS } from './events.js';
 import { install } from './living.js';
@@ -30,6 +30,7 @@ import { install as installTown } from './town.js';
 import { install as installLegacy } from './legacy.js';
 import { install as installKin } from './kin.js';
 import { grade } from './minilogic.js';
+import { RULES } from './mods.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const val = (v, L, x, y) => (typeof v === 'function' ? v(L, x, y) : v);
@@ -37,6 +38,41 @@ const val = (v, L, x, y) => (typeof v === 'function' ? v(L, x, y) : v);
 const EVENT = Object.fromEntries(EVENTS.map((e) => [e.id, e]));
 const FIRST_TIME = 6;
 const SHADY_SECS = ['Light fingers', 'Vices', 'Under the counter', 'Under the pier'];
+
+// What the later parts of the town (the files listed in mods.js) hang their
+// rules on. Each is a list of functions, called at its moment:
+//   load(L)                    whenever a life is opened, new or saved: fill in anything missing from s
+//   ready(L)                   just after every load hook has run (for what needs every part's state)
+//   season(L, lines, jailed)   the turn of the season, after the bills (push [what, dollars] to lines)
+//   late(L, jailed)            the turn of the season, just before a card may be drawn
+//   year(L)                    a birthday
+//   mood(L)                    a number added to how life is going (outside prison)
+//   time(L, skip)              blocks of time added or taken each season (skip: an item being sold)
+//   income(L, out), bills(L, out, jailed)   push [what, dollars] for each season
+//   worth(L)                   dollars owned that the rest of the sums do not know about
+//   acted(L, id, x, y)         after any action has been done
+//   chose(L, id, x, i, win)    after any card has been answered (i: the option, win: if it came off)
+//   luck(L)                    a little added to (or taken from) every chance the town offers
+//   epitaph(L, out)            push sentences to the Gazette's obituary (legacy.js)
+//   seize(L)                   the bailiffs are in: give up something of yours as [what, dollars] (or null)
+//   noted(L, entry)            a line has gone into the journal ({ a, q, t, k }: see note)
+//   reprieve(L, cause)         a natural death is due (old age, or health run out): return true to hold it off
+//                              for now (chapters.js turns it into a last illness, so that the end is seen coming)
+//   died(L)                    the life has just ended (chapters.js carries out the will)
+//   obit(L, o)                 add to or change the obituary's summing-up (chapters.js: the heir and what the will gave)
+//   shut(L, a, x)              a reason the town has shut something for now (a storm, a flood), or null (annals.js)
+//   gazette(L, g)              add to this season's Gazette: g = { lead, items, quiet } (quiet: nothing bigger leads) (annals.js)
+export const HOOKS = { load: [], ready: [], season: [], late: [], year: [], mood: [], time: [], income: [], bills: [], worth: [], acted: [], chose: [], luck: [], epitaph: [], seize: [], noted: [], reprieve: [], died: [], obit: [], shut: [], gazette: [] };
+const spared = (L, cause) => HOOKS.reprieve.some((f) => f(L, cause));
+const hookSum = (list, ...args) => list.reduce((a, f) => a + (f(...args) || 0), 0);
+// Cards from elsewhere join the deck.
+export function addEvents(list) {
+  for (const e of list) {
+    if (EVENT[e.id]) throw new Error(`there are two cards called ${e.id}`);
+    EVENTS.push(e);
+    EVENT[e.id] = e;
+  }
+}
 
 // ---- actions ----------------------------------------------------------------------------
 
@@ -149,7 +185,8 @@ def('retire', {
     s.pension += p - had; s.f.jobPension = p; s.job = null;
     if (!s.retired) L.joy(8);
     s.retired = true;
-    L.note(`Retired as ${t} on a pension of ${money(p)} a season.`, 'big');
+    // (Coming back to work and retiring again is not a new chapter of a life.)
+    L.note(`Retired as ${t} on a pension of ${money(p)} a season.`, p > had ? 'big' : '');
     return `They give you a clock and a cake. After all those years as ${t}, your time is your own.`;
   },
 });
@@ -170,6 +207,7 @@ def('adopt', {
   why: (L) => (L.s.age > 55 ? 'The agency prefers younger parents.' : L.s.due ? 'There is already a little one on the way.' : L.s.record ? 'Your record counts against you.' : L.s.karma < 0 ? 'The agency has heard things about you.' : L.partner() && L.partner().live && !L.partner().wish ? `${L.partner().name} does not want children.` : L.roomForKid() ? null : 'You need a home with room for a child.'),
   run(L) { L.s.due = { t: L.s.t + 1, adopt: true }; return 'Forms, interviews, more forms. Then: a yes. A child will join you next season.'; },
 });
+// (annals.js puts standing for mayor on the town's four-yearly election calendar: see there.)
 def('mayor', {
   place: 'townhall', sec: 'Work', icon: '🗳️', title: 'Stand for mayor', desc: (L) => `Run a campaign. Your chances: ${Math.round(L.mayorOdds() * 100)}%.`, cost: 20000, time: 2,
   show: (L) => L.s.job && L.s.job.c === 'politics' && L.s.job.r === 3 && !L.s.f.elected,
@@ -487,7 +525,8 @@ def('slots', {
     s.n.casino += win - bet;
     L.out = { reels: reels.map((k) => REEL[k]), win };
     if (win) { L.cash(win); L.joy(mult >= 15 ? 6 : 0.5); } else L.joy(-0.3);
-    if (reels[0] === 5 && mult) { s.f.jackpot = 1; L.note(`Hit the jackpot on the slots: ${money(win)}.`, 'big'); return `JACKPOT! Three diamonds! ${money(win)}!`; }
+    // (Only three diamonds is the jackpot: a diamond and two cherries is just the cherries.)
+    if (reels[0] === 5 && reels[1] === 5 && reels[2] === 5) { s.f.jackpot = 1; L.note(`Hit the jackpot on the slots: ${money(win)}.`, 'big'); return `JACKPOT! Three diamonds! ${money(win)}!`; }
     return win ? `A win! ${money(win)}.` : L.pick(['Nothing.', 'So close.', 'Not this time.', 'The machine plays a sad little tune.']);
   },
 });
@@ -659,12 +698,12 @@ def('exam', {
 
 def('buy', {
   time: 0, cost: (L, id) => L.itemPrice(id),
-  why: (L, id) => (L.s.items[id] ? 'You have one.' : id === 'car' && L.s.items.sportscar ? 'You have something faster.' : null),
+  // (Cars are bought from Dobbs & Daughter now: see motor.js.)
+  why: (L, id) => (!ITEMS[id] ? 'Nothing like that in the shops.' : L.s.items[id] ? 'You have one.' : null),
   run(L, id) {
     const s = L.s, it = ITEMS[id];
     s.items[id] = 1;
-    if (id === 'sportscar') L.joy(8);
-    if (id === 'bike' || id === 'car' || id === 'sportscar') { const was = L.timeMaxWithout(id); s.time += L.timeMax() - was; }
+    if (id === 'bike') { const was = L.timeMaxWithout(id); s.time += L.timeMax() - was; }
     s.use[`got_${id}`] = 1;
     return `You buy the ${it.name.toLowerCase()}. ${it.blurb}`;
   },
@@ -761,6 +800,9 @@ export class Life {
     for (const [k, v] of Object.entries(later)) if (state[k] == null) state[k] = v;
     if (!state.cur) this.restock();
     if (!state.board) this.pinUp();
+    for (const f of HOOKS.load) f(this);
+    // (Then, once every part has its state, anything that needs the whole life to be there.)
+    for (const f of HOOKS.ready) f(this);
   }
 
   // name, sex ('m' or 'f'), into: who you fall for ('m', 'f' or 'b' for both),
@@ -901,7 +943,8 @@ export class Life {
     if (s.cash < 0) {
       const take = Math.min(s.bank, -s.cash);
       s.bank -= take; s.cash += take;
-      if (s.cash < 0) { s.debt += -s.cash; s.cash = 0; }
+      // (What goes on the overdraft this way is remembered, so that it can be cleared by itself.)
+      if (s.cash < 0) { s.debt += -s.cash; s.f.od = (s.f.od || 0) - s.cash; s.cash = 0; }
     }
   }
   // Skills grow more slowly the higher they are.
@@ -917,7 +960,9 @@ export class Life {
     s.st[k] = clamp(v + base * m * (1 - v / 105) ** 1.6, 0, 100);
   }
   lose(k, d) { this.s.st[k] = clamp(this.s.st[k] - d, 0, 100); }
-  joy(d) { this.s.happy = clamp(this.s.happy + d, 0, 100); }
+  // (A good thing lifts you less the happier you already are: how life is going, not a run of
+  // nice afternoons, is what keeps a mood up.)
+  joy(d) { const h = this.s.happy; this.s.happy = clamp(h + (d > 0 ? d * clamp((100 - h) / 40, 0.2, 1) : d), 0, 100); }
   hp(d, cause) {
     const s = this.s;
     s.health = clamp(s.health + d, 0, this.healthCap());
@@ -932,8 +977,10 @@ export class Life {
 
   note(text, kind = '') {
     const s = this.s;
-    s.log.push({ a: s.age, q: s.t % 4, t: text, k: kind });
+    const e = { a: s.age, q: s.t % 4, t: text, k: kind };
+    s.log.push(e);
     if (s.log.length > 400) s.log.splice(1, s.log.length - 400);
+    for (const f of HOOKS.noted) f(this, e);
   }
   // Something to flash up on screen.
   say(icon, text, kind = '') { this.news.push({ icon, text, kind }); }
@@ -961,6 +1008,7 @@ export class Life {
     if (s.age >= 85) t -= 2; else if (s.age >= 75) t -= 1;
     if (s.job && CAREERS[s.job.c].summer && this.season === 1) t += 1;
     if (s.ill && s.ill.sev >= 2) t -= 1;
+    t += hookSum(HOOKS.time, this, skip);
     return Math.max(3, t);
   }
 
@@ -969,7 +1017,7 @@ export class Life {
   blacklisted() { return this.s.f.bustAt != null && this.s.t - this.s.f.bustAt < 20; }
   sharesWorth() { const k = this.s.stk; return Object.keys(k.own).reduce((a, sym) => a + k.own[sym] * k.p[sym], 0); }
   dividends() { const k = this.s.stk; return Math.floor(Object.keys(k.own).reduce((a, sym) => a + k.own[sym] * k.p[sym] * STOCKS[sym].div, 0)); }
-  netWorth() { const s = this.s; return Math.round(s.cash + s.bank - s.debt - s.sloan - s.shark + this.sharesWorth() + this.estateWorth() + this.bizWorth() + this.curiosWorth()); }
+  netWorth() { const s = this.s; return Math.round(s.cash + s.bank - s.debt - s.sloan - s.shark + this.sharesWorth() + this.estateWorth() + this.bizWorth() + this.curiosWorth() + hookSum(HOOKS.worth, this)); }
   creditLimit() {
     const s = this.s, pay = s.job ? CAREERS[s.job.c].rungs[s.job.r].pay : s.pension;
     return Math.round(2000 + 12 * pay + 0.8 * this.estateWorth() + 0.5 * this.sharesWorth());
@@ -991,16 +1039,19 @@ export class Life {
     if (priv) out.push(['School fees', 2500 * priv]);
     if (s.pet) out.push([`${s.pet.name}'s food and vet`, 200]);
     if (s.plot) out.push(['Allotment rent', PLOT_RENT]);
-    if (s.items.sportscar) out.push(['Running the sports car', 1200]);
-    else if (s.items.car) out.push(['Running the car', 300]);
+    if (s.items.sportscar && !jailed) out.push(['Running the sports car', 1200]);
+    else if (s.items.car && !jailed) out.push(['Running the car', 300]);
     for (const id of Object.keys(INSURANCE)) if (s.ins[id]) out.push([INSURANCE[id].name, INSURANCE[id].cost]);
+    for (const f of HOOKS.bills) f(this, out, jailed);
     if (s.debt > 0) out.push(['Loan interest', Math.round(s.debt * LOAN_RATE)]);
     return out;
   }
   // What comes in each season without lifting a finger: [what, how much].
   income() {
     const s = this.s, out = [];
-    if (s.pension) out.push(['Pension', s.pension]);
+    // (A pension from a job is not paid while you are back at work; the state's is.)
+    const pen = s.pension - (s.job ? s.f.jobPension || 0 : 0);
+    if (pen > 0) out.push(['Pension', pen]);
     const rents = this.letIncome(), divs = this.dividends(), biz = this.bizIdle(), roy = this.royalties();
     if (rents) out.push(['Rent from your properties', rents]);
     if (divs) out.push(['Dividends', divs]);
@@ -1008,6 +1059,7 @@ export class Life {
     if (s.gave.pier) out.push(['The pier company’s board', 6000]);
     if (s.lodger > 0) out.push(['Rent from your lodger', 500]);
     if (biz) out.push([`Takings from your ${this.bizName().toLowerCase()}`, biz]);
+    for (const f of HOOKS.income) f(this, out);
     return out;
   }
 
@@ -1151,7 +1203,7 @@ export class Life {
 
   // ---- odds ----
 
-  luck() { return this.s.heir === 'gambler' ? 0.07 : 0; }
+  luck() { return (this.s.heir === 'gambler' ? 0.07 : 0) + hookSum(HOOKS.luck, this); }
   checkOdds(stat, dc) { return clamp(0.5 + (this.s.st[stat] - dc) / 60 + this.luck(), 0.05, 0.95); }
   mayorOdds() { const s = this.s; return clamp(0.25 + (s.st.charm - 60) / 100 + s.karma / 200 + s.fame / 300 + this.luck(), 0.1, 0.9); }
   pitchOdds() { const s = this.s; return clamp(0.15 + (s.st.smarts - 60) / 100 + s.st.charm / 400 + this.luck(), 0.1, 0.6); }
@@ -1192,6 +1244,8 @@ export class Life {
     if (!!s.gaol !== !!a.gaol) return s.gaol ? 'Not from a cell in Starling Gaol.' : 'Not just now.';
     if (a.who && !p) return 'They are not around.';
     if (a.show && !a.show(this, p, y)) return 'Not just now.';
+    // (Something the town has shut for now: see HOOKS.)
+    for (const f of HOOKS.shut) { const w = f(this, a, y); if (w) return w; }
     if (a.per && (s.use[a.id] || 0) >= a.per) return a.per === 1 ? 'Once a season.' : 'That is enough for this season.';
     const w = a.why && a.why(this, p, y);
     if (w) return w;
@@ -1256,8 +1310,11 @@ export class Life {
     if (!a.selfPay) this.cash(-val(a.cost, this, p, y));
     if (a.per) s.use[id] = (s.use[id] || 0) + 1;
     const text = a.run(this, p, y) || '';
+    for (const f of HOOKS.acted) f(this, id, p, y);
+    // (What the action itself did, before any reward from the to-do list is counted in with it.)
+    const changes = this.diff(before);
     this.after();
-    return { ok: true, text, changes: this.diff(before), news: this.takeNews(), out: this.out };
+    return { ok: true, text, changes, news: this.takeNews(), out: this.out };
   }
 
   snap() {
@@ -1294,7 +1351,8 @@ export class Life {
       s.ach[id] = 1;
       this.say(t.icon, `Trophy: ${t.name}`, 'trophy');
     }
-    if (!s.dead && s.health <= 0) this.die(s.hurt || 'ill health');
+    // (Unless the end is held off a while, to be seen coming: see reprieve in HOOKS.)
+    if (!s.dead && s.health <= 0 && !spared(this, s.hurt || 'ill health')) this.die(s.hurt || 'ill health');
   }
 
   // ---- events ----
@@ -1331,6 +1389,7 @@ export class Life {
     if (v.opts[i].cost) this.cash(-v.opts[i].cost);
     const win = v.opts[i].chance == null ? true : this.chance(v.opts[i].chance);
     const text = o.run ? o.run(this, x, win) || '' : '';
+    for (const f of HOOKS.chose) f(this, id, x, i, v.opts[i].chance == null ? null : win);
     if (e.log !== false && text && !s.dead) this.note(`${v.title}: ${text}`);
     this.after();
     return { ok: true, text, win: v.opts[i].chance == null ? null : win, changes: this.diff(before), news: this.takeNews() };
@@ -1378,6 +1437,13 @@ export class Life {
     const owed = s.debt;
     this.cash(-out);
     if (s.debt > owed) lines.push(['Short! Put on your overdraft', 0]);
+    // An overdraft run up paying the bills is cleared as soon as there is money spare for it (a loan
+    // you chose to take stays until you choose to pay it).
+    else if (s.f.od > 0) {
+      const od = Math.min(s.f.od, s.debt), pay = Math.min(od, Math.max(0, s.cash + s.bank - out));
+      if (pay > 0) { const fromBank = Math.min(s.bank, pay); s.bank -= fromBank; s.cash -= pay - fromBank; s.debt -= pay; lines.push(['Overdraft paid off', 0]); }
+      s.f.od = Math.min(s.debt, od - pay);
+    }
     if (s.debt > this.creditLimit() * 1.1 + 1000) this.bailiffs();
     // A lodger stays a year, unless the house goes first.
     if (s.lodger > 0 && (--s.lodger === 0 || !s.owned)) { s.lodger = 0; this.note('Your lodger moved on, and left you a pot plant.'); }
@@ -1385,6 +1451,7 @@ export class Life {
     this.viceSeason();
     this.fameSeason();
     this.feudSeason();
+    for (const f of HOOKS.season) f(this, lines, jailed);
 
     // How you stand at work: a good name earns a bonus, a bad one the sack.
     const j = s.job;
@@ -1448,6 +1515,7 @@ export class Life {
     if (!s.dead) {
       this.townSeason();
       this.legacySeason();
+      for (const f of HOOKS.late) f(this, jailed);
       if (s.gaol) this.gaolSeason(); else this.lamSeason();
     }
     if (!s.dead && jailed === !!s.gaol) {
@@ -1489,10 +1557,11 @@ export class Life {
     const c = s.job && CAREERS[s.job.c];
     if (c && c.retire && s.age >= c.retire && s.job.r >= 2) this.queue('sportsRetire');
     if (s.age === 30 || s.age === 50 || s.age === 100) this.queue(`birthday${s.age}`);
+    for (const f of HOOKS.year) f(this);
     // Old age.
     if (s.age >= 70) {
       const p = (s.age - 68) ** 2 / 1800 * (1.35 - s.health / 100) * (s.heir === 'evergreen' ? 0.6 : 1);
-      if (s.age >= 112 || this.chance(p)) this.die('old age');
+      if (s.age >= 112 || (this.chance(p) && !spared(this, 'old age'))) this.die('old age');
     }
   }
 
@@ -1515,6 +1584,7 @@ export class Life {
     if (s.health < 40) b -= 8;
     if (s.ill) b -= 4;
     if (!s.job && !s.retired && !s.biz && s.age < 65 && s.cash + s.bank < 2000) b -= 6;
+    b += hookSum(HOOKS.mood, this);
     return clamp(b, 10, 95);
   }
 
@@ -1527,15 +1597,32 @@ export class Life {
     if (r < 0.02) { m = -0.22; this.note('The stock market crashed.'); this.say('📉', 'The stock market has crashed', 'bad'); k.news.unshift({ t: s.t, up: false, text: 'Panic on the exchange: everything is down' }); }
     else if (r < 0.04) { m = 0.18; this.note('The stock market boomed.'); this.say('📈', 'The stock market is booming', 'good'); k.news.unshift({ t: s.t, up: true, text: 'Boom! Everything is up' }); }
     const hot = this.chance(0.16) ? this.pick(Object.keys(STOCKS).filter((sym) => !STOCKS[sym].fund)) : null;
+    // Each company has what it is really worth (f), which grows slowly and now and then
+    // jumps; its price wanders about that, and is pulled back towards it, so that a
+    // lucky run does not go on for ever. (A life saved before this starts from its prices.)
+    const fair = k.f || (k.f = {});
     for (const [sym, st] of Object.entries(STOCKS)) {
-      let p = k.p[sym] * Math.exp(st.drift + m + st.swing * this.gauss());
+      const f0 = fair[sym] ?? k.p[sym];
+      let f = f0 * Math.exp(st.drift + m);
+      // (A miner strikes it rich, or the seam runs dry: that is what it is worth from now on.)
+      if (sym === 'MOON') { const j = this.rnd(); if (j < 0.009) f *= 2; else if (j < 0.018) f *= 0.5; }
+      let p = f * Math.exp(Math.log(k.p[sym] / f0) * 0.8 + st.swing * this.gauss());
       // (What somebody whispered on Thursday is in the paper on Friday.)
       if (k.tip && k.tip.sym === sym) { p *= 1.28; k.news.unshift({ t: s.t, sym, up: true, text: `${st.name} announces what a few people seemed to know already` }); k.tip = null; }
-      if (sym === 'MOON') { const j = this.rnd(); if (j < 0.03) p *= 2.5; else if (j < 0.06) p *= 0.4; }
       if (sym === hot) {
         const up = this.chance(0.5), by = 0.1 + this.rnd() * 0.18;
         p *= up ? 1 + by : 1 - by;
         k.news.unshift({ t: s.t, sym, up, text: `${st.name} ${this.pick(HEADLINES[up ? 'up' : 'down'])}` });
+      }
+      fair[sym] = f;
+      // A company worth a fraction of what it started at goes under, and its shares with it.
+      // (It is floated again at its first price, under new owners.)
+      if (!st.fund && f < st.start * 0.15) {
+        const had = k.own[sym] || 0;
+        if (had) { this.note(`${st.name} went bust, and ${many(had)} shares in it went with it.`, 'bad'); this.say('💥', `${st.name} has gone bust`, 'bad'); }
+        delete k.own[sym]; delete k.paid[sym];
+        k.news.unshift({ t: s.t, sym, up: false, text: `${st.name} goes into administration; new owners float it again` });
+        fair[sym] = f = st.start; p = st.start;
       }
       k.p[sym] = Math.max(0.5, Math.round(p * 100) / 100);
       k.h[sym].push(k.p[sym]);
@@ -1564,7 +1651,9 @@ export class Life {
       sold.push(`the ${this.propSaid(e)}`);
     }
     if (!settle() && s.biz) { s.cash += Math.round(this.bizWorth() * 0.8); sold.push(`your ${this.bizName().toLowerCase()}`); s.biz = null; }
-    for (const id of ['boat', 'sportscar', 'watch', 'car', 'piano']) {
+    // (A car is sold by the newer parts of town that own it: see motor.js.)
+    for (const f of HOOKS.seize) { while (!settle()) { const got = f(this); if (!got) break; s.cash += got[1]; sold.push(got[0]); } }
+    for (const id of ['boat', 'watch', 'piano']) {
       if (settle()) break;
       if (s.items[id]) { s.cash += Math.round(ITEMS[id].price * 0.5); delete s.items[id]; sold.push(`the ${ITEMS[id].name.toLowerCase()}`); }
     }
@@ -1600,6 +1689,7 @@ export class Life {
     s.dead = { age: s.age, cause };
     s.pend = []; s.hilo = null; s.bj = null;
     this.note(`Died at ${s.age}, of ${cause}.`, 'big');
+    for (const f of HOOKS.died) f(this);
     for (const [id, t] of Object.entries(TROPHIES)) if (!s.ach[id] && t.test(this)) s.ach[id] = 1;
   }
   // The life, summed up.
@@ -1613,7 +1703,7 @@ export class Life {
       + Object.keys(s.dreamDone).length * 80 + Object.keys(s.ach).length * 10
       + Math.min(80, s.people.reduce((a, p) => a + p.bond, 0) / 10) + s.age + Math.max(0, s.karma) * 0.5 + s.fame,
     );
-    return {
+    const o = {
       name: s.name, age: s.age, cause: s.dead ? s.dead.cause : '', gen: s.gen, worth, score, ribbon,
       title: s.job ? this.jobTitle() : s.biz ? `Ran ${an(lowJob(this.bizName()))}` : s.retired ? 'Retired' : '',
       dreams: s.dreams.map((id) => ({ id, done: !!s.dreamDone[id] })),
@@ -1626,11 +1716,15 @@ export class Life {
       parent: spouse ? { name: spouse.name, age: spouse.age, look: spouse.look, sex: spouse.sex } : null,
       gifts: s.gifts,
     };
+    // (What the will says, and who carries on, is worked out in chapters.js.)
+    for (const f of HOOKS.obit) f(this, o);
+    return o;
   }
 }
 
 install({ def, A, Life, clamp });
 installVice({ def, A, Life, clamp });
-for (const add of [installInside, installFeuds, installPier, installFame, installTown, installLegacy, installKin]) add({ def, A, Life, clamp });
+for (const add of [installInside, installFeuds, installPier, installFame, installTown, installLegacy, installKin]) add({ def, A, Life, clamp, hooks: HOOKS });
+for (const add of RULES) add({ def, A, Life, clamp, val, hooks: HOOKS, addEvents });
 
 export { A as ACTIONS, money, cashShort };

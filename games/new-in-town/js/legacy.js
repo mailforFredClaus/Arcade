@@ -11,7 +11,7 @@
 
 import { GIFTS, SIDELINES, CAREERS, COURSES, FISH, money, an, lowJob } from './data.js';
 
-export function install({ def, A, Life, clamp }) {
+export function install({ def, A, Life, clamp, hooks }) {
   Object.assign(Life.prototype, {
     // Something the town was given, by you or by your family before you.
     gift(id) { return this.s.gifts[id] || null; },
@@ -35,7 +35,8 @@ export function install({ def, A, Life, clamp }) {
       const jobs = Object.keys(s.worked).filter((c) => CAREERS[c]).sort((x, y) => s.worked[y] - s.worked[x]);
       const kids = this.kids(), grand = this.grandkids().length;
       const spouse = s.people.find((p) => p.kind === 'spouse'), partner = s.people.find((p) => p.kind === 'partner');
-      out.push(`${s.name}, who came to Starling Bay at eighteen with one suitcase${s.gen > 1 ? ', as the family had before' : ''}, has died at ${s.age}.`);
+      // (An heir who grew up in the Bay did not come on the train: chapters.js says how such a life began.)
+      out.push((this.chapOpening && this.chapOpening()) || `${s.name}, who came to Starling Bay at eighteen with one suitcase${s.gen > 1 ? ', as the family had before' : ''}, has died at ${s.age}.`);
       if (jobs.length) {
         const c = jobs[0], title = lowJob(CAREERS[c].rungs[s.worked[c]].title);
         if (CAREERS[c].shady) out.push(`${He} was known to the police, and to Sal, in whose service ${he} rose to ${title}.`);
@@ -64,6 +65,8 @@ export function install({ def, A, Life, clamp }) {
       if (s.f.patron || (s.n.sets || 0) >= 1) hobbies.push('could not pass Mr Pym’s window');
       if (Object.keys(s.trips).length >= 6) hobbies.push('had seen a good deal of the world and come back every time');
       if (hobbies.length) out.push(`${He} ${list(hobbies)}.`);
+      // (The newer parts of town have their say: see HOOKS in engine.js.)
+      for (const f of hooks.epitaph) f(this, out);
       // Who is left.
       const kin = [];
       if (spouse) kin.push(`a ${spouse.sex === 'm' ? 'husband' : 'wife'}, ${spouse.name.split(' ')[0]}`);
