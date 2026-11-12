@@ -69,6 +69,10 @@ export default function ({ check, fresh, Life, ACTIONS }) {
           hire(L, c, Math.min(top, Math.max(ch.r || 0, s.job ? s.job.r : 0) + (path % 5 === 4 && i >= 4 ? 1 : 0)));
           s.pend = []; s.gaol = null; s.time = 6;
           const st = L.careerStory(c) || { n: 0 };
+          // (Now and then the mentor, or the rival, has died by the time a chapter comes.)
+          for (const [rec, when] of [[st.mn, path % 7 === 3 && i >= 2], [st.rv, path % 7 === 5 && i >= 3]]) {
+            if (rec && when && rec.dead == null) { const p = L.person(rec.id); if (p && p.name === rec.name) L.gone(p); rec.dead = s.t; }
+          }
           if (st.n !== i) { problems.push(`${c} ${i}: the story is at ${st.n}`); break; }
           if (!L.careerNext(true)) { problems.push(`${c} ${i}: never sent for`); break; }
           const ev = L.event();

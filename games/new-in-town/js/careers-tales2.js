@@ -55,7 +55,7 @@ export function tales({ perf, credit, bonus, busy, mentor, rival, sack, up, gaz,
           opts: [
             { t: 'Sign, on your own', run(L, k) { L.fame(5); perf(L, 6); rival(L, k, -30); k.f.deal = 'solo'; return `You sign on a paper napkin. The band finds out from the Gazette. ${k.R.first} keeps the van.`; } },
             { t: 'The band, or nobody', run(L, k) { rival(L, k, 15); L.karma(2); L.fame(1); k.f.deal = 'band'; return `He goes back to London on the late train. The band plays the Gull on Friday as usual, and ${k.R.first} knows why.`; } },
-            { t: (L, k) => `Ask ${k.M.first} to read the contract first`, run(L, k) { mentor(L, k, 6); L.fame(3); perf(L, 3); k.f.deal = 'careful'; return `${k.M.first} reads it with a pencil and crosses out a third of it. The man from London goes pale, then agrees to the band as well, and to the songs staying yours.`; } },
+            { t: (L, k) => `Ask ${k.M.first} to read the contract first`, show: (L, k) => !k.M.dead, run(L, k) { mentor(L, k, 6); L.fame(3); perf(L, 3); k.f.deal = 'careful'; return `${k.M.first} reads it with a pencil and crosses out a third of it. The man from London goes pale, then agrees to the band as well, and to the songs staying yours.`; } },
           ],
         },
         {
@@ -152,7 +152,7 @@ export function tales({ perf, credit, bonus, busy, mentor, rival, sack, up, gaz,
           r: 3, y: 44, icon: '🏅', title: 'One last summer',
           text: (L, k) => `You are ${L.s.age}. The national championships are in August, and Coach thinks there is one more good summer in your legs${k.f.knee === 'bad' ? ', whatever your knee thinks' : ''}. ${k.R.name} is entered too.`,
           opts: [
-            { t: 'Go for the title', check: ['fitness', 75], run(L, k, win) { if (!win) { perf(L, -2); return `Fourth. ${k.R.first} gets the bronze, and finds you in the car park after, and does not say anything, which is kind.`; } L.fame(4); mentor(L, k, 8); const rose = !k.top && up(L, k); gaz(L, k, '{He} won the national championships one August, and fell over the line laughing.'); return `You win by a stride, fall over the line, and lie on the track laughing. ${rose ? `${L.jobTitle()}.` : 'Another medal for the drawer.'} Coach cries, and says it is the wind.`; } },
+            { t: 'Go for the title', check: ['fitness', 75], run(L, k, win) { if (!win) { perf(L, -2); return `Fourth. ${k.R.first} gets the bronze, and finds you in the car park after, and does not say anything, which is kind.`; } L.fame(4); mentor(L, k, 8); const rose = !k.top && up(L, k); gaz(L, k, '{He} won the national championships one August, and fell over the line laughing.'); return `You win by a stride, fall over the line, and lie on the track laughing. ${rose ? `${L.jobTitle()}.` : 'Another medal for the drawer.'} ${k.M.dead ? 'You dedicate it to Coach, who would have said you went off too fast.' : 'Coach cries, and says it is the wind.'}`; } },
             { t: 'Go out on top', run(L, k) { L.fame(3); const n = bonus(L, 6); L.joy(6); leave(L, k, `Retired from sport as ${k.title}, on top.`, 'You have hung up your boots', EVER); return `A testimonial at the Tidewater, a lap of honour on a borrowed track, and ${n}. Now: what next?`; } },
             { t: (L, k) => `Coach ${k.R.first} instead`, show: (L, k) => !k.R.dead && k.R.v >= 0, run(L, k) { rival(L, k, 25); mentor(L, k, 6); return `You spend the summer at the side of the track with a stopwatch. ${k.R.first} wins silver, and gives you the ribbon.`; } },
           ],

@@ -500,7 +500,7 @@ export function tales({ perf, credit, bonus, busy, mentor, rival, sack, up, gaz,
           r: 3, icon: '🕴️', title: 'Two men from the city',
           text: (L, k) => (k.f.bent || k.f.planted
             ? `Two officers from the city are in the inspector’s office with the door shut, and they want you next. They know about the Thursday van${k.f.planted ? ', and about the bag in Drake’s car' : ''}.`
-            : `Two officers from the city want you to give evidence against the inspector, about the Thursday van, and against ${k.M.name}, who, it turns out, knew all along.`),
+            : k.M.dead ? 'Two officers from the city want you to give evidence against the inspector, about the Thursday van. The old sergeant knew all along, it turns out, and took it to the grave.' : `Two officers from the city want you to give evidence against the inspector, about the Thursday van, and against ${k.M.name}, who, it turns out, knew all along.`),
           opts: [
             { t: 'Tell them everything, and resign', show: (L, k) => !!(k.f.bent || k.f.planted), run(L, k) { L.karma(4); gaz(L, k, '{He} served in the police, and when it came to it, told the truth about the ice house and handed in {his} warrant card.'); sack(L, k, 'Resigned from the police, and told the inquiry everything.', { bar: EVER, why: 'Not with what the police know about you' }); return 'You tell them all of it. The inspector goes to prison; you go home, and do not go back.'; } },
             {
@@ -522,8 +522,8 @@ export function tales({ perf, credit, bonus, busy, mentor, rival, sack, up, gaz,
                 return 'The inspector has already told them everything, mostly about you.';
               },
             },
-            { t: 'Give evidence against them both', show: (L, k) => !(k.f.bent || k.f.planted), run(L, k) { L.karma(5); mentor(L, k, -40); perf(L, 6); gaz(L, k, '{He} gave evidence against {his} own inspector, and was never forgiven for it at the station, nor ashamed of it.'); const rose = !k.top && up(L, k); return `The inspector goes to prison, and ${k.M.first} loses ${k.M.his} pension. The station is a cold place for a while. ${rose ? `Then you are made ${L.jobTitle()}, into the hole they left.` : 'Then, slowly, it warms up.'}`; } },
-            { t: (L, k) => `Against the inspector, and not ${k.M.first}`, check: ['charm', 50], show: (L, k) => !(k.f.bent || k.f.planted), run(L, k, win) { if (win) { L.karma(3); perf(L, 6); mentor(L, k, 10); return `They take the inspector, and leave the old sergeant to ${k.M.his} allotment. ${k.M.first} never says thank you, and sends you a marrow every autumn.`; } perf(L, -6); return 'They want both or neither, and in the end they get neither. Nobody at the station is quite sure whose side you were on.'; } },
+            { t: (L, k) => (k.M.dead ? 'Give evidence' : 'Give evidence against them both'), show: (L, k) => !(k.f.bent || k.f.planted), run(L, k) { L.karma(5); mentor(L, k, -40); perf(L, 6); gaz(L, k, '{He} gave evidence against {his} own inspector, and was never forgiven for it at the station, nor ashamed of it.'); const rose = !k.top && up(L, k); return `The inspector goes to prison${k.M.dead ? '' : `, and ${k.M.first} loses ${k.M.his} pension`}. The station is a cold place for a while. ${rose ? `Then you are made ${L.jobTitle()}, into the hole they left.` : 'Then, slowly, it warms up.'}`; } },
+            { t: (L, k) => `Against the inspector, and not ${k.M.first}`, check: ['charm', 50], show: (L, k) => !(k.f.bent || k.f.planted) && !k.M.dead, run(L, k, win) { if (win) { L.karma(3); perf(L, 6); mentor(L, k, 10); return `They take the inspector, and leave the old sergeant to ${k.M.his} allotment. ${k.M.first} never says thank you, and sends you a marrow every autumn.`; } perf(L, -6); return 'They want both or neither, and in the end they get neither. Nobody at the station is quite sure whose side you were on.'; } },
             { t: 'Refuse', show: (L, k) => !(k.f.bent || k.f.planted), run(L, k) { perf(L, -8); mentor(L, k, 5); L.karma(-2); return 'You will not do it. The inspector retires at Christmas with his pension and a carriage clock, and you are passed over for a long time.'; } },
           ],
         },
@@ -589,7 +589,7 @@ export function tales({ perf, credit, bonus, busy, mentor, rival, sack, up, gaz,
           text: () => 'The net lofts on the quay went up in March, and two boats with them. The whole town has decided it was Dennis Pook, a surly man who had words with half the fleet. Nobody in Starling Bay will defend him. The judge asks you.',
           opts: [
             { t: 'Take the case', run(L, k) { k.f.case = 1; L.joy(-3); for (const p of L.friends()) L.bond(p, -2); return 'The Gull goes quiet when you walk in. Somebody writes something on your car. You start reading the fire brigade’s report, slowly, every word.'; } },
-            { t: 'Refuse it', run(L, k) { k.f.case = 0; mentor(L, k, -6); return `The judge finds somebody from the city, who meets his client once, on the steps. ${k.M.first} says nothing, in a way you can hear.`; } },
+            { t: 'Refuse it', run(L, k) { k.f.case = 0; mentor(L, k, -6); return `The judge finds somebody from the city, who meets his client once, on the steps. ${k.M.dead ? 'You can imagine what old ' + k.M.first + ' would have said.' : `${k.M.first} says nothing, in a way you can hear.`}`; } },
             { t: 'Take it, and get him to plead guilty', run(L, k) { k.f.case = 2; L.karma(-3); perf(L, 2); return 'It is quick, and quiet, and he goes down for six years, and the town buys you drinks.'; } },
           ],
         },

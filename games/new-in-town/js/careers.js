@@ -315,10 +315,11 @@ export function install({ A, Life, hooks, addEvents }) {
     // The people in it, the first time.
     if (!st.mn) {
       const sex = L.chance(0.5) ? 'm' : 'f';
-      st.mn = person(L, sex, clampN(s.age + L.int(16, 26), 38, 60));
+      st.mn = person(L, sex, clampN(s.age + L.int(26, 32), 45, 62));
       st.mn.v = 25; st.mn.trait = L.pick(['kind', 'bookish', 'witty']);
     }
-    if (!st.rv) st.rv = person(L, L.chance(0.5) ? 'm' : 'f', clampN(s.age + L.int(-3, 3), 18, 70));
+    // (A rival who has died is soon replaced: there is always somebody who wants your job.)
+    if (!st.rv || st.rv.dead != null) st.rv = person(L, L.chance(0.5) ? 'm' : 'f', clampN(s.age + L.int(-3, 3), 18, 70));
     if (tale.prep) tale.prep(L, st);
     st.at = s.t;
     L.queue(cardId(j.c, st.n), { c: j.c, n: st.n });
