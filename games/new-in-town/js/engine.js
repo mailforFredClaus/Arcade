@@ -503,7 +503,7 @@ def('folks', {
 });
 
 // -- the casino
-def('slotsOpen', { place: 'casino', sec: 'Games', icon: '🎰', title: 'Play the slots', desc: 'Three diamonds pay 400 to 1.', time: 0, open: 'slots' });
+def('slotsOpen', { place: 'casino', sec: 'Games', icon: '🎰', title: 'Play the slots', desc: (L) => `Three diamonds pay 400 to 1, up to the house limit: ${money(L.houseMax())} over the stake.`, time: 0, open: 'slots' });
 def('hiloOpen', { place: 'casino', sec: 'Games', icon: '🃏', title: 'Higher or Lower', desc: 'Call the next card. Cash out any time.', time: 0, open: 'hilo' });
 const REEL = ['🍒', '🍋', '🔔', '⭐', '7️⃣', '💎'];
 const REEL_ODDS = [0.3, 0.25, 0.18, 0.14, 0.09, 0.04];
@@ -521,7 +521,8 @@ def('slots', {
     let mult = 0;
     if (reels[0] === reels[1] && reels[1] === reels[2]) mult = REEL_PAYS[reels[0]];
     else if (reels.filter((k) => k === 0).length === 2) mult = s.heir === 'rogue' ? 2.5 : 2;
-    const win = bet * mult;
+    // (Nothing the Lucky Gull pays out on one bet goes past the house limit: see pier.js.)
+    const win = Math.min(bet + L.houseMax(), bet * mult);
     s.n.casino += win - bet;
     L.out = { reels: reels.map((k) => REEL[k]), win };
     if (win) { L.cash(win); L.joy(mult >= 15 ? 6 : 0.5); } else L.joy(-0.3);
@@ -537,7 +538,7 @@ def('hiloStart', {
 });
 def('hiloGuess', {
   time: 0,
-  why: (L, dir) => (!L.s.hilo ? 'Place a bet first.' : L.hiloOdds(dir) <= 0 ? 'Nothing beats that.' : null),
+  why: (L, dir) => (!L.s.hilo ? 'Place a bet first.' : L.hiloOdds(dir) <= 0 ? 'Nothing beats that.' : L.s.hilo.pot >= L.s.hilo.bet + L.houseMax() ? 'The pot is at the house limit. Cash it.' : null),
   run(L, dir) {
     const s = L.s, h = s.hilo, next = L.int(1, 13), p = L.hiloOdds(dir);
     const won = dir === 'hi' ? next > h.card : next < h.card;
@@ -546,7 +547,8 @@ def('hiloGuess', {
       L.out = { card: next, lost: true };
       return next === h.card ? 'The same again: the house takes ties. Your stake is gone.' : 'Wrong way. Your stake is gone.';
     }
-    h.pot = Math.round(h.pot * (s.heir === 'rogue' ? 1 : 0.97) / p);
+    // (The house keeps a twentieth of every right call, a little less from a rogue.)
+    h.pot = Math.min(h.bet + L.houseMax(), Math.round(h.pot * (s.heir === 'rogue' ? 0.99 : 0.95) / p));
     h.card = next; h.streak++;
     s.n.streak = Math.max(s.n.streak, h.streak);
     L.out = { card: next };
@@ -1377,15 +1379,21 @@ export class Life {
     const { id, x } = s.pend[0], e = EVENT[id];
     return {
       id, icon: val(e.icon, this, x), title: val(e.title, this, x), text: val(s.gaol && e.inText ? e.inText : e.text, this, x),
-      opts: e.opts.filter((o) => !o.show || o.show(this, x)).map((o) => ({
-        t: val(o.t, this, x),
-        cost: val(o.cost, this, x) || 0,
-        chance: o.check ? this.checkOdds(o.check[0], o.check[1]) : o.odds ? clamp(o.odds(this, x) + this.luck(), 0.02, 0.98) : null,
-        stat: o.check ? o.check[0] : null,
-        why: (o.cost && s.cash + s.bank < val(o.cost, this, x) ? `You need ${money(val(o.cost, this, x))}.` : null) || (o.why ? o.why(this, x) : null),
-      })),
+      opts: e.opts.filter((o) => !o.show || o.show(this, x)).map((o) => {
+        const chance = o.check ? this.checkOdds(o.check[0], o.check[1]) : o.odds ? clamp(o.odds(this, x) + this.luck(), 0.02, 0.98) : null;
+        return {
+          // (A choice that is nearly hopeless says so in words, not only as a small number: see hopeWord.)
+          t: val(o.t, this, x) + this.hopeWord(chance),
+          cost: val(o.cost, this, x) || 0,
+          chance,
+          stat: o.check ? o.check[0] : null,
+          why: (o.cost && s.cash + s.bank < val(o.cost, this, x) ? `You need ${money(val(o.cost, this, x))}.` : null) || (o.why ? o.why(this, x) : null),
+        };
+      }),
     };
   }
+  // What a choice's odds come to, in words, when they are poor enough to say so.
+  hopeWord(chance) { return chance == null || chance > 0.2 ? '' : chance <= 0.1 ? ' (hardly any chance)' : ' (a long shot)'; }
   choose(i) {
     const s = this.s, v = this.event();
     if (!v) return { ok: false, why: 'Nothing to decide.' };

@@ -29,14 +29,14 @@ const round10 = (n) => Math.round(n / 10) * 10;
 // how the price and the wanting move from spring to winter. fresh: it does
 // not keep past the end of the season.
 export const GOODS = {
-  eggs: { name: 'Eggs', icon: '🥚', one: 'box of eggs', many: 'boxes of eggs', price: 16, want: 24, fresh: true, rate: [0.9, 0.95, 1.05, 1.35], dem: [1, 1, 1, 1.1] },
-  milk: { name: 'Goat’s milk', icon: '🥛', one: 'pint of goat’s milk', many: 'pints of goat’s milk', price: 9, want: 16, fresh: true, rate: [1, 1, 1, 1.2], dem: [1, 1.1, 1, 0.9] },
-  cake: { name: 'Cakes and bakes', icon: '🍰', one: 'cake', many: 'cakes', price: 40, want: 12, fresh: true, rate: [1, 0.95, 1, 1.25], dem: [1, 0.9, 1, 1.3] },
-  veg: { name: 'Veg from the allotment', icon: '🥕', one: 'box of veg', many: 'boxes of veg', price: 80, want: 8, fresh: true, rate: [1.15, 0.85, 0.95, 1.2], dem: [1, 1, 1.1, 0.9] },
-  honey: { name: 'Honey', icon: '🍯', one: 'jar of honey', many: 'jars of honey', price: 58, want: 10, rate: [1.1, 0.9, 1, 1.25], dem: [1, 0.9, 1, 1.3] },
-  jam: { name: 'Jam', icon: '🍓', one: 'jar of jam', many: 'jars of jam', price: 30, want: 14, rate: [1, 0.9, 1.1, 1.25], dem: [0.9, 0.9, 1.1, 1.3] },
-  cheese: { name: 'Goat’s cheese', icon: '🧀', one: 'goat’s cheese', many: 'goat’s cheeses', price: 55, want: 8, rate: [1, 1.05, 1, 1.2], dem: [1, 1, 1, 1.2] },
-  bric: { name: 'Bric-a-brac', icon: '🕰️', one: 'piece of bric-a-brac', many: 'pieces of bric-a-brac', price: 36, want: 6, rate: [1, 1.1, 1, 1.1], dem: [1, 1.2, 1, 1] },
+  eggs: { name: 'Eggs', icon: '🥚', one: 'box of eggs', many: 'boxes of eggs', price: 16, want: 36, fresh: true, rate: [0.9, 0.95, 1.05, 1.35], dem: [1, 1, 1, 1.1] },
+  milk: { name: 'Goat’s milk', icon: '🥛', one: 'pint of goat’s milk', many: 'pints of goat’s milk', price: 9, want: 22, fresh: true, rate: [1, 1, 1, 1.2], dem: [1, 1.1, 1, 0.9] },
+  cake: { name: 'Cakes and bakes', icon: '🍰', one: 'cake', many: 'cakes', price: 40, want: 22, fresh: true, rate: [1, 0.95, 1, 1.25], dem: [1, 0.9, 1, 1.3] },
+  veg: { name: 'Veg from the allotment', icon: '🥕', one: 'box of veg', many: 'boxes of veg', price: 80, want: 12, fresh: true, rate: [1.15, 0.85, 0.95, 1.2], dem: [1, 1, 1.1, 0.9] },
+  honey: { name: 'Honey', icon: '🍯', one: 'jar of honey', many: 'jars of honey', price: 58, want: 14, rate: [1.1, 0.9, 1, 1.25], dem: [1, 0.9, 1, 1.3] },
+  jam: { name: 'Jam', icon: '🍓', one: 'jar of jam', many: 'jars of jam', price: 30, want: 26, rate: [1, 0.9, 1.1, 1.25], dem: [0.9, 0.9, 1.1, 1.3] },
+  cheese: { name: 'Goat’s cheese', icon: '🧀', one: 'goat’s cheese', many: 'goat’s cheeses', price: 55, want: 11, rate: [1, 1.05, 1, 1.2], dem: [1, 1, 1, 1.2] },
+  bric: { name: 'Bric-a-brac', icon: '🕰️', one: 'piece of bric-a-brac', many: 'pieces of bric-a-brac', price: 36, want: 8, rate: [1, 1.1, 1, 1.1], dem: [1, 1.2, 1, 1] },
   // (Pictures are the ones you paint in the park, also sold at the studios. Nobody at a
   // Saturday market pays gallery prices, so the price here has a ceiling.)
   art: { name: 'Paintings', icon: '🖼️', one: 'painting', many: 'paintings', price: 0, want: 1, rate: [1, 1.3, 0.9, 1.1], dem: [1, 1.4, 0.9, 1] },
@@ -55,7 +55,11 @@ export const LEVELS = [
 export const WX_FOOT = { fair: 1, wet: 0.7, hot: 1.1, storm: 0.5, fog: 0.85, snow: 0.65 };
 const WX_SAID = { fair: 'A fair Saturday, and the square is busy.', wet: 'Rain, and the awnings drip down people’s necks. Fewer come.', hot: 'A scorcher. The square is packed, and the butter is sweating.', storm: 'A gale. Half the stalls do not open, and the ones that do hold on to their awnings.', fog: 'Fog on the hill. People loom out of it, buy something, and vanish.', snow: 'Snow on the cobbles. A brave few, all wanting something warming.' };
 export const PITCH_COST = 250; // a trestle table, an awning and a cash tin, once
-export const PITCH_FEE = 200; // to Priya, each season you trade
+export const PITCH_FEE = 200; // to Priya, each season you trade (out of the tin, if need be)
+// What a box of veg fetches on the table by the allotment gate, with the honesty box.
+export const GATE_BOX = 45;
+// How many jars a morning's jam-making fills, and how many cakes a morning's baking makes (a little more with Craft).
+export const JAM_BATCH = 22, BAKE_BATCH = 16;
 
 // What your stall is called: {n} is your first name.
 export const STALL_NAMES = ['{n}’s Pantry', 'The Good Egg', 'Hive and Hedgerow', 'Jam Tomorrow', 'Top of the Hill', 'The Honesty Box', 'The Starling Larder', 'Busy Bee'];
@@ -159,7 +163,7 @@ export const askMark = (ask, tier) => (ask > tier ? 0 : LEVELS[ask].mul / LEVELS
 // ---- a life's farm and stall ------------------------------------------------------------------
 
 const blank = (t) => ({
-  farm: 0, days: 0, told: false, herd: {}, ready: {}, stock: {}, stall: null, veg: false,
+  farm: 0, days: 0, told: false, herd: {}, ready: {}, stock: {}, stall: null, veg: false, vegSet: false,
   hot: HOT[(t * 3) % HOT.length], next: HOT[(t * 3 + 5) % HOT.length],
   show: { y: 0, c: {} }, firsts: {}, ros: 0, champ: 0, loft: 0, rival: 0, shut: -1, tom: 0,
   n: { days: 0, take: 0, sold: 0, best: 0, made: 0 },
@@ -254,7 +258,7 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
     // How many come up the hill to the stall: its name, the weather, the times, and any rival.
     mktFoot() {
       const s = this.s, st = s.mkt.stall;
-      return (0.55 + (st ? st.rep : 0) / 110) * (WX_FOOT[s.wx] || 1) * (1 + 0.05 * s.eco) * (s.mkt.rival > 0 ? 0.8 : 1);
+      return (0.65 + (st ? st.rep : 0) / 90) * (WX_FOOT[s.wx] || 1) * (1 + 0.05 * s.eco) * (s.mkt.rival > 0 ? 0.8 : 1);
     },
     // How much of a thing you have, and how good it is (0 to 1).
     mktHave(g) { return g === 'art' ? this.s.paintings : (this.s.mkt.stock[g] || { n: 0 }).n; },
@@ -334,6 +338,8 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
     if (!s.mkt || typeof s.mkt !== 'object') { s.mkt = b; return; }
     for (const [k, v] of Object.entries(b)) if (s.mkt[k] == null) s.mkt[k] = v;
     for (const [k, v] of Object.entries(b.n)) if (s.mkt.n[k] == null) s.mkt.n[k] = v;
+    // (Once you hold a pitch, the allotment's harvest goes to it, unless you have said otherwise.)
+    if (s.mkt.stall && !s.mkt.vegSet) s.mkt.veg = true;
   });
 
   // ---- money in and out ----
@@ -362,6 +368,14 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
     const left = Object.keys(m.ready).filter((g) => m.ready[g].n > 0);
     if (left.length) L.note(`Nobody collected the ${andList(left.map(plain))}. The rats were grateful.`);
     m.ready = {};
+    // (Veg that the stall did not sell goes on the table by the allotment gate, with the honesty
+    // box, for less than the stall would have got; the rest is past its best.)
+    if (m.stock.veg && m.stock.veg.n > 0) {
+      const n = m.stock.veg.n, got = round10(n * GATE_BOX * (0.75 + 0.5 * m.stock.veg.q));
+      delete m.stock.veg;
+      if (got > 0) { L.cash(got); s.n.earned += got; lines.push(['Veg left by the allotment gate, with the honesty box', got]); }
+      L.note(`The ${n === 1 ? 'box of veg' : `${n} boxes of veg`} the stall did not sell went on the table by the allotment gate: ${money(got)} in the honesty box.`);
+    }
     const off = GOOD_IDS.filter((g) => GOODS[g].fresh && m.stock[g]);
     if (off.length) { L.note(`The ${andList(off.map(plain))} you did not sell went past ${off.length > 1 || g1(off[0]) ? 'their' : 'its'} best.`); for (const g of off) delete m.stock[g]; }
     // What the animals gave, and how they fared.
@@ -446,7 +460,9 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
   // (Tom thinks more of a hand who signed his petition, and less of one who did not.)
   Life.prototype.mktWorkPay = function (score) {
     const s = this.s, m = s.mkt;
-    return (320 + 3.2 * m.farm + 2.4 * s.st.fitness) * (0.75 + 0.5 * score) * (m.tom > 0 ? 1.1 : m.tom < 0 ? 0.9 : 1);
+    // (A modest living for a hand who knows what they are doing: about what the docks pay a
+    // beginner, and more than a first rung's wage once Farming is high.)
+    return (480 + 6 * m.farm + 3 * s.st.fitness) * (0.75 + 0.5 * score) * (m.tom > 0 ? 1.1 : m.tom < 0 ? 0.9 : 1);
   };
   def('windleTom', {
     place: 'farm', sec: 'Work on the farm', icon: '🧑‍🌾', title: 'Lean on the gate with Tom Windle', per: 1,
@@ -536,10 +552,10 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
     place: 'home', sec: 'Making for the stall', icon: '🍓', title: 'Make jam', per: 2,
     // (In autumn the hedges are full of blackberries, for nothing.)
     cost: (L) => (L.season === 2 ? 30 : 90),
-    desc: (L) => `About ${Math.round(16 * (0.85 + L.s.st.craft / 400))} jars, which keep. ${L.season === 2 ? 'Blackberries from the hedges, so only sugar and jars to buy.' : 'Fruit from the greengrocer; it is cheaper in autumn.'} Craft.`,
+    desc: (L) => `About ${Math.round(JAM_BATCH * (0.85 + L.s.st.craft / 400))} jars, which keep. ${L.season === 2 ? 'Blackberries from the hedges, so only sugar and jars to buy.' : 'Fruit from the greengrocer; it is cheaper in autumn.'} Craft.`,
     why: kitchen,
     run(L) {
-      const n = Math.round(16 * (0.85 + L.s.st.craft / 400)), q = made(L);
+      const n = Math.round(JAM_BATCH * (0.85 + L.s.st.craft / 400)), q = made(L);
       addStock(L, 'jam', n, q);
       L.gain('craft', 1.2); L.joy(1); L.s.mkt.n.made++;
       return `${L.pick(['The kitchen smells of hot sugar for a week.', 'You do the cold saucer test four times and it sets on the fifth.', 'Every surface is sticky, including the cat.', 'A row of jars on the windowsill, glowing like stained glass.'])} ${n} jars.`;
@@ -549,12 +565,12 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
     place: 'home', sec: 'Making for the stall', icon: '🍰', title: 'Bake for the stall', per: 2,
     // (Your own eggs make it cheaper.)
     cost: (L) => ((L.s.mkt.stock.eggs || { n: 0 }).n >= 2 ? 45 : 70),
-    desc: (L) => `About ${Math.round(12 * (0.85 + L.s.st.craft / 400))} cakes, to sell this season: they do not keep.${(L.s.mkt.stock.eggs || { n: 0 }).n >= 2 ? ' Uses two boxes of your own eggs.' : ''} Craft.`,
+    desc: (L) => `About ${Math.round(BAKE_BATCH * (0.85 + L.s.st.craft / 400))} cakes, to sell this season: they do not keep.${(L.s.mkt.stock.eggs || { n: 0 }).n >= 2 ? ' Uses two boxes of your own eggs.' : ''} Craft.`,
     why: kitchen,
     run(L) {
       const m = L.s.mkt, own = (m.stock.eggs || { n: 0 }).n >= 2;
       if (own) take(L, 'eggs', 2);
-      const n = Math.round(12 * (0.85 + L.s.st.craft / 400)), q = made(L, own ? 0.05 : 0);
+      const n = Math.round(BAKE_BATCH * (0.85 + L.s.st.craft / 400)), q = made(L, own ? 0.05 : 0);
       addStock(L, 'cake', n, q);
       L.gain('craft', 1.2); L.joy(1.5); m.n.made++;
       return `${L.pick(['Victoria sponges, a lemon drizzle and a tray of flapjack.', 'One of them sinks in the middle. You fill the hole with cream and call it a feature.', 'You lick every bowl. It is the law.'])} ${n} cakes.`;
@@ -599,9 +615,11 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
     run(L, i) {
       const s = L.s, m = s.mkt, name = L.mktNameOf(i);
       m.stall = { name, rep: 20, price: {}, out: {}, paid: -1, at: -1, days: 0, since: s.t, log: [] };
+      // (What the allotment gives comes to the stall from now on, unless you say otherwise.)
+      if (!m.vegSet) m.veg = true;
       L.joy(4);
       L.note(`Took a pitch on Market Square: ${name}.`, 'big');
-      return `Priya Lal writes ${name} in a ledger with a fountain pen and shows you your pitch, between the cheese and the man who sells only batteries. “Saturdays,” she says. “Nine sharp. Not nine-ish.”`;
+      return `Priya Lal writes ${name} in a ledger with a fountain pen and shows you your pitch, between the cheese and the man who sells only batteries. “Saturdays,” she says. “Nine sharp. Not nine-ish.”${s.plot && m.veg ? ' What the allotment gives will come to the stall now, in boxes.' : ''}`;
     },
   });
   def('mktRename', {
@@ -631,35 +649,38 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
   def('mktVeg', {
     time: 0,
     why: (L) => (!L.s.mkt.stall ? 'You have no pitch.' : null),
-    run(L) { const m = L.s.mkt; m.veg = !m.veg; return m.veg ? 'What the allotment gives will come to the stall, in boxes.' : 'What the allotment gives will go on the table by the gate, with the honesty box.'; },
+    run(L) { const m = L.s.mkt; m.veg = !m.veg; m.vegSet = true; return m.veg ? 'What the allotment gives will come to the stall, in boxes.' : 'What the allotment gives will go on the table by the gate, with the honesty box.'; },
   });
   def('mktQuit', {
     time: 0,
     why: (L) => (L.s.mkt.stall ? null : 'You have no pitch.'),
-    run(L) { const st = L.s.mkt.stall; L.s.mkt.stall = null; L.s.mkt.veg = false; L.note(`Gave up the pitch on Market Square after ${st.days} Saturday${st.days === 1 ? '' : 's'}.`); return 'You hand Priya the key to the padlock on the awning. “The batteries man will be glad,” she says. “He has wanted your end for years.”'; },
+    run(L) { const st = L.s.mkt.stall; L.s.mkt.stall = null; L.s.mkt.veg = false; L.s.mkt.vegSet = false; L.note(`Gave up the pitch on Market Square after ${st.days} Saturday${st.days === 1 ? '' : 's'}.`); return 'You hand Priya the key to the padlock on the awning. “The batteries man will be glad,” she says. “He has wanted your end for years.”'; },
   });
   def('mktTrade', {
+    // (Priya's fee comes out of the cash tin at the end of the first Saturday of the season, so a
+    // stall with something to sell can always open.)
     place: 'market', sec: 'Your stall', icon: '🛎️', title: 'Trade on Saturday', time: 2, per: 2,
-    cost: (L) => (L.s.mkt.stall && L.s.mkt.stall.paid !== L.s.t ? L.mktFee() : 0),
     desc: (L) => {
       const out = L.mktOnStall(), n = out.reduce((a, g) => a + L.mktGuess(g).sum, 0), due = L.s.mkt.stall.paid !== L.s.t;
       if (!out.length) return 'Nothing on the stall to sell.';
-      return `Serve the queue. Should bring in about ${money(n)}${due ? `; Priya’s pitch fee is ${money(L.mktFee())} this season${n < L.mktFee() * 2 ? ', so it is hardly worth setting up' : ''}` : ''}.`;
+      const fresh = out.filter((g) => GOODS[g].fresh);
+      return `Serve the queue. Should bring in about ${money(n)}${due ? `, less Priya’s pitch fee of ${money(L.mktFee())} this season${n < L.mktFee() * 2 ? ', so it is hardly worth setting up' : ''}` : ''}.${fresh.length ? ` The ${andList(fresh.map(plain))} will not keep past the season${fresh.includes('veg') ? ' (veg left over goes to the honesty box by the allotment gate)' : ''}.` : ''}`;
     },
     show: (L) => !!L.s.mkt.stall,
     why: (L, x) => (x !== undefined && !(typeof x === 'number' && x >= 0 && x <= 1) ? 'Roll your sleeves up.' : L.s.mkt.shut === L.s.t ? 'The inspector has shut you until next season.' : !L.mktOnStall().length ? 'Nothing on the stall to sell. Make something, grow something, or collect from your animals.' : null),
     run(L, x) {
       const s = L.s, m = s.mkt, st = m.stall, score = x === undefined ? 0.5 : x;
+      const fee = st.paid !== s.t ? L.mktFee() : 0;
       st.paid = s.t;
       const day = L.mktDay(score);
-      L.cash(day.sum); s.n.earned += day.sum;
+      L.cash(day.sum - fee); s.n.earned += day.sum;
       st.days++; st.at = s.t; st.log.unshift({ t: s.t, take: day.sum }); st.log.length = Math.min(st.log.length, 6);
       m.n.days++; m.n.take += day.sum; m.n.sold += day.units; m.n.best = Math.max(m.n.best, day.sum);
       L.gain('charm', 1.2); L.joy(2 + (day.sum >= 1000 ? 2 : 0));
       const what = day.sold.length ? andList(day.sold.map((d) => sayMany(GOODS[d.g], d.n))) : 'nothing at all';
       const how = score >= 0.9 ? 'You read every customer like a book.' : score >= 0.65 ? 'The queue goes quickly and most go away happy.' : score >= 0.35 ? 'A steady day behind the trestle table.' : 'You get the prices muddled all morning, and several people walk off.';
       if (st.days === 1) L.note(`First Saturday at ${st.name}: ${money(day.sum)} taken.`);
-      return `${WX_SAID[s.wx] || WX_SAID.fair} ${how} You sell ${what}: ${money(day.sum)}.`;
+      return `${WX_SAID[s.wx] || WX_SAID.fair} ${how} You sell ${what}: ${money(day.sum)}.${fee ? ` Priya takes her ${money(fee)} out of the tin.` : ''}`;
     },
   });
   def('mktPriya', {
