@@ -1988,7 +1988,8 @@ function monkey(seed) {
       }
       for (const kind of [...Object.keys(HOMES), ...Object.keys(PROPS)]) if (!L.can('buyLet', kind)) opts.push(['buyLet', kind]);
       for (const e of s.estate) for (const id of ['letProp', 'sellEstate', 'moveIn']) if (!L.can(id, e.id)) opts.push([id, e.id]);
-      for (const p of s.people) for (const a of L.personActions(p)) if (!a.why && (wild || !lowRoad(a))) opts.push([a.id, a.x]);
+      // (People are half of a life: with the town as big as it is now, they get a double share of a random player's time.)
+      for (const p of s.people) for (const a of L.personActions(p)) if (!a.why && (wild || !lowRoad(a))) opts.push([a.id, a.x], [a.id, a.x]);
       for (const kind of Object.keys(PETS)) if (!L.can('pet', kind)) opts.push(['pet', kind]);
       for (const type of Object.keys(BUSINESSES)) if (!L.can('bizStart', type)) opts.push(['bizStart', type]);
       for (const sym of Object.keys(STOCKS)) {
