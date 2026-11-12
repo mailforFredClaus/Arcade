@@ -38,6 +38,7 @@ Object.assign(GAMES, {
   // ---- the stall: ask the most each customer will pay ----
   stall: {
     how: 'Read each customer, then ask a price: cheap, fair or dear. Ask the most they will pay. Too much and they walk off; too little and the money stays in their purse.', time: 34,
+    words: ['A slow Saturday', 'A fair Saturday', 'A good Saturday', 'Sold out by noon'],
     play(api) {
       const goods = STALL.length ? STALL : [{ g: 'jam', icon: '🍓', name: 'Jam', one: 'jar of jam', q: 0.5, each: [18, 22, 29] }];
       const want = 8, twist = 0.15 + api.level * 0.04;
@@ -75,6 +76,7 @@ Object.assign(GAMES, {
   // ---- the farm: stack the loads on the trailer ----
   trailer: {
     how: 'A load swings over Tom’s trailer: tap to drop it. Stack them square. One that hangs too far over the edge falls off, and three off is the end of it.', time: 28,
+    words: ['Half of it in the lane', 'A fair load', 'A tidy load', 'Square as a brick'],
     play(api) {
       const N = 8, W = 30 + api.ease * 8, H = 9, BED = { x: 14, w: 72 }, TOP = 84;
       const stack = [];

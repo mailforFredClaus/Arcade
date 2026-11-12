@@ -1019,18 +1019,30 @@ function showMenu() {
 }
 
 // Shown once to a life that was begun before the town grew.
-const NEWS = 4;
+const NEWS = 5;
 function showNew() {
   const was = save.seenNew || 0;
   save.seenNew = NEWS;
   persist();
-  const hands = '<p><b>🎮 Work can be done by hand.</b> Every career has a game of its own: at your workplace, tap the row that ends “yourself”. Play it well and the shift pays up to half as much again and counts for more. You can leave most shifts to look after themselves, but now and then the boss wants to watch.</p>';
-  if (was >= 3) {
-    ui.show(`<div class="ev-ico">🎮</div><h2>New in Starling Bay</h2><div class="how">${hands}</div>
+  const hill = `<p><b>⛰️ Up the hill.</b> Tap “Up the hill” at the top of the map for the old town: St Brigid’s, the library, the Pavilion, the Rovers’ ground, Market Square, Windle Farm, Gorse Head, Smugglers’ Cove and Dobbs & Daughter’s garage.</p>
+    <p><b>👥 The people of the town.</b> Thirteen townsfolk to get to know: chat, bring presents, hear their stories and do them favours. They are on the People tab.</p>
+    <p><b>⚽ Clubs.</b> The choir, the Pavilion Players, the Rovers’ Sunday side, the book club, the sailing club and the pub quiz team: turn up, rise through the ranks, and play your part on the big day. And a reading list at the library.</p>
+    <p><b>🌊 The coast.</b> Birds and caves on Gorse Head, beachcombing and the lifeboat at the cove, and the long mystery of the <i>Merrow</i>.</p>
+    <p><b>🚗 Driving.</b> Lessons, a theory test and a driving test, then a car from the forecourt, a classic to restore and day trips out. (A car you already had is still yours, with a licence.)</p>
+    <p><b>🐓 Farm and market.</b> Seasonal work at Windle Farm, hens and bees at home, and a Saturday stall in Market Square.</p>
+    <p><b>🕯️ Who you become.</b> Traits grow out of how you live, there are big days at St Brigid’s, and a low spell needs looking after.</p>`;
+  if (was >= 4) {
+    ui.show(`<div class="ev-ico">⛰️</div><h2>New in Starling Bay</h2><div class="how">${hill}</div>
       <div class="actions"><button class="btn btn-primary" data-action="evDone">Show me</button></div>`);
     return;
   }
-  ui.show(`<div class="ev-ico">📰</div><h2>New in Starling Bay</h2><div class="how">${hands}
+  const hands = '<p><b>🎮 Work can be done by hand.</b> Every career has a game of its own: at your workplace, tap the row that ends “yourself”. Play it well and the shift pays up to half as much again and counts for more. You can leave most shifts to look after themselves, but now and then the boss wants to watch.</p>';
+  if (was >= 3) {
+    ui.show(`<div class="ev-ico">⛰️</div><h2>New in Starling Bay</h2><div class="how">${hill}${hands}</div>
+      <div class="actions"><button class="btn btn-primary" data-action="evDone">Show me</button></div>`);
+    return;
+  }
+  ui.show(`<div class="ev-ico">📰</div><h2>New in Starling Bay</h2><div class="how">${hill}${hands}
     <p><b>⛓️ Prison is lived, not skipped.</b> Get sent down and you serve it a season at a time: behave for parole, fight for your place, study, or dig.</p>
     <p><b>😠 Exes and enemies.</b> A bad break-up leaves an ex you can win back. Cross somebody and they may take against you, until you make peace or see them off.</p>
     <p><b>🐤 Chirper.</b> On your phone, at home: post, gather followers, get paid.</p>
@@ -1050,8 +1062,10 @@ function showHow() {
     <p><b>One life, a season at a time.</b> Each season you get a few blocks of time ⏱. Tap a place on the map and spend them: work, study, train, see people. Tap <b>Next</b> when you are done; time left over is rest.</p>
     <p><b>Four skills</b> open doors: 🧠 Smarts, 💪 Fitness, 💬 Charm and 🎨 Craft. Every career is a ladder that asks for skills and shifts worked. A course from the college lets you start partway up: a medical degree makes you a junior doctor.</p>
     <p><b>Work by hand.</b> Every career has a game of its own: the row at your workplace that ends “yourself”. Played well, a shift pays up to half as much again and counts for more towards promotion; played badly, less. Most shifts can be left to look after themselves, but every so often the boss wants to watch. The better you are at the job’s skill, the kinder its game is.</p>
-    <p><b>Look after yourself.</b> ❤️ Health falls with age and overwork; if it runs out, so do you. 🙂 Mood follows how life is going: a better home, friends, love, a pet.</p>
-    <p><b>Bills fall due every season.</b> Save at the bank, buy shares (the index fund is the steady one) or property to let out, start a business, or borrow. A bicycle or a car gives you more time.</p>
+    <p><b>Look after yourself.</b> ❤️ Health falls with age and overwork; if it runs out, so do you. 🙂 Mood follows how life is going: a better home, friends, love, a pet. Who you are grows out of what you do: the Me tab shows the traits taking shape, and a long low spell needs looking after.</p>
+    <p><b>Bills fall due every season.</b> Save at the bank, buy shares (the index fund is the steady one) or property to let out, start a business, or borrow. A bicycle gives you more time, and so does a car, once you have passed your test at the garage up the hill.</p>
+    <p><b>Up the hill</b> (the button at the top of the map) is the old town: the church, the library, the Pavilion, the football ground, the market, a farm, the cliffs, a cove and a garage. Join a club, keep hens, learn to drive, solve the mystery of the <i>Merrow</i>.</p>
+    <p><b>The townsfolk</b> have stories of their own. Call on them, bring presents they like, and do them favours: a good friend in town is worth more than money.</p>
     <p><b>People.</b> Friends are made all over town, and everyone has things they love doing. For romance, chat someone up at the pub, try the dating app, or ask out a friend who is single. Close friends in the right jobs do you favours.</p>
     <p><b>Life happens.</b> Cards turn up with choices. A percentage shows your chance where a skill decides it.</p>
     <p><b>Or go bad.</b> Pick pockets at the station, lift from the shops, drink and brawl at the pub, bend the rules at work. Sal’s back room at the harbour has worse: burglary, bare-knuckle fights, his crew, the bank. The law takes an interest.</p>

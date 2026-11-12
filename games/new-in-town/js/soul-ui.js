@@ -52,6 +52,7 @@ function rows(n) {
 }
 
 GAMES.bells = {
+  words: ['A clatter', 'Rounds, mostly', 'A good touch', 'A clean peal'],
   how: 'Six bells, rung in turn, one to each beat. The lit number is the bell whose turn it is: tap that bell before the beat moves on. Each row changes the order a little.',
   time: 60, fixed: true,
   play(api) {
