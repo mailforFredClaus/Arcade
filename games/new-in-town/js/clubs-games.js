@@ -130,7 +130,7 @@ export const QUIZ = {
     ['Which gas makes up most of the Earth’s air?', 'Nitrogen', 'Oxygen', 'Argon', 'Carbon dioxide'],
     ['What is a group of crows called?', 'A murder', 'A parliament', 'An unkindness', 'A clamour'],
     ['In which year was the Great Fire of London?', '1666', '1566', '1766', '1606'],
-    ['Which planet has a day longer than its year?', 'Venus', 'Mercury', 'Mars', 'Neptune'],
+    ['Which planet takes longer to spin once than to go round the Sun?', 'Venus', 'Jupiter', 'Mars', 'Neptune'],
     ['What is the capital of Turkey?', 'Ankara', 'Istanbul', 'Izmir', 'Antalya'],
     ['Who composed “The Four Seasons”?', 'Vivaldi', 'Handel', 'Haydn', 'Bach'],
     ['What is the commonest element in the universe?', 'Hydrogen', 'Helium', 'Oxygen', 'Carbon'],
@@ -495,7 +495,7 @@ Object.assign(GAMES, {
         sea.classList.toggle('headed', !good);
         btn.classList.toggle('off', me.turn > 0);
         tally.textContent = `${['1st', '2nd', '3rd'][ahead()]} · ${Math.round(clamp(me.y, 0, 100))}% of the way`;
-        if (me.y >= 100) { place = 1 + rivals.filter((r) => r.y >= 100).length; sfx(place === 1 ? 'cheer' : 'chime'); finish(); }
+        if (me.y >= 100) { place = 1 + rivals.filter((r) => r.y >= 100).length; finish(); }
       });
       return { score, auto: () => { me.y = 100; for (const r of rivals) r.y = Math.min(r.y, 90); place = 1; finish(); } };
     },

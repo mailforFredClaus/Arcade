@@ -123,7 +123,7 @@ export const CLUBS = {
     lead: { title: 'Teach the beginners’ course', icon: '🛟', desc: 'Once a year, a weekend of it. Good for your name in town.' },
   },
   quiz: {
-    name: 'The Gull & Anchor Quiz Team', the: 'the quiz team', place: 'pub', icon: '🧠', sec: 'The quiz team',
+    name: 'The Gull & Anchor Quiz Team', the: 'the quiz team’s table', place: 'pub', icon: '🧠', sec: 'The quiz team',
     skill: 'General knowledge', stat: 'smarts', also: 'charm', fee: 10, subs: 40, night: 5, time: 1,
     blurb: 'The Know-It-Gulls: four chairs, one table by the dartboard, and the Bay & District Quiz League every other Wednesday. Not to be confused with quiz night, which is for amateurs.',
     ranks: ['a reserve', 'on the team', 'captain', 'question setter'],

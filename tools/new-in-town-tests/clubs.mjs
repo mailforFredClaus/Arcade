@@ -38,6 +38,25 @@ export default async function ({ check, fresh, Life, ACTIONS }) {
   for (const id of ['clubMissYou', 'clubOverdue', 'clubVane', 'clubTeamTalk']) check(EV[id] && !EV[id].w, `the rules send for card ${id}`);
   check(EVENTS.filter((e) => e.id.startsWith('club') && e.w).length >= 12, 'a dozen club cards turn up by chance');
 
+  // ---- the games ----
+  {
+    const { GAMES } = await import('../../games/new-in-town/js/mini.js');
+    const G = await import('../../games/new-in-town/js/clubs-games.js');
+    for (const id of new Set(CLUB_IDS.flatMap((k) => [CLUBS[k].occ.game, CLUBS[k].drill.game]))) check(GAMES[id] && GAMES[id].how && GAMES[id].time > 0 && typeof GAMES[id].play === 'function', `${id}: a game the frame can play`);
+    check(Object.keys(GAMES).filter((k) => k.startsWith('club')).length >= 5, 'at least five club games');
+    const bank = (b) => Object.values(b).flat();
+    const fair = (q) => q.length === 5 && q.every((t) => typeof t === 'string' && t.trim()) && new Set(q.slice(1)).size === 4;
+    check(bank(G.QUIZ).length >= 80 && G.QUIZ.easy.length >= 20 && G.QUIZ.medium.length >= 20 && G.QUIZ.hard.length >= 15, `around eighty quiz questions, in three tiers (${bank(G.QUIZ).length})`);
+    check(bank(G.QUIZ).every(fair) && bank(G.BOOK_QUIZ).every(fair), 'every question has one right answer and three different wrong ones');
+    check(new Set(bank(G.QUIZ).map((q) => q[0])).size === bank(G.QUIZ).length, 'no question is asked twice in the bank');
+    const rnd = (() => { let r = 1; return () => { r = (r * 16807) % 2147483647; return r / 2147483647; }; })();
+    for (let level = 0; level <= 5; level++) { const qs = G.pickQuestions(G.QUIZ, level, rnd); check(qs.length === 8 && new Set(qs.map((q) => q[0])).size === 8, `a round at level ${level} is eight different questions`); }
+    const hard = (level) => G.pickQuestions(G.QUIZ, level, rnd).filter((q) => G.QUIZ.hard.includes(q)).length;
+    check(hard(0) === 0 && hard(5) >= 3, 'harder questions for a bigger occasion');
+    check(G.SCRIPT.length >= 20 && G.SCRIPT.every(([who, cue, line]) => { const c = G.lineChoices(line); return who && cue && c.right && c.wrong.length === 3 && new Set([c.right, ...c.wrong]).size === 4 && !/[{}|]/.test(c.right); }), 'every line can be said right, and nearly right three ways');
+    check(G.towards(15, G.lifted(15)) > G.towards(15, -G.lifted(15)) && G.towards(-15, G.lifted(-15)) > G.towards(-15, -G.lifted(-15)), 'the lifted tack takes you nearer the mark');
+  }
+
   // ---- joining ----
   {
     const L = fresh(), s = L.s;

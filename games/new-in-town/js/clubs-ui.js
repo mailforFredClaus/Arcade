@@ -12,15 +12,14 @@ const cap = (t) => t[0].toUpperCase() + t.slice(1);
 const GAME_NAME = { clubPens: 'a penalty shoot-out', clubHymn: 'holding your note', clubLines: 'learning your lines', clubTack: 'racing on the wind shifts', clubQuiz: 'eight questions', clubBooks: 'eight questions on books' };
 
 export default function (kit) {
-  const { esc, money, chip, pick, needChips, face, actRow, sections } = kit;
+  const { esc, money, pick, needChips, face, actRow, sections } = kit;
 
   // When the club’s big day is, from where you stand.
   const when = (life, id) => {
     const o = life.clubOcc(id), here = life.season;
     if (id === 'rovers' && life.clubMem(id) && !o.open && here !== 1) return life.clubCupWord().replace(/\.$/, '');
     if (o.open) return `${cap(o.name)} is this ${SEASONS[o.season].toLowerCase()}`;
-    const later = o.season > here || (o.season === here && !o.done && !o.now);
-    return `${cap(o.name)}: ${later ? 'this' : 'next'} ${SEASONS[o.season].toLowerCase()}`;
+    return `${cap(o.name)}: ${o.season > here ? 'this' : 'next'} ${SEASONS[o.season].toLowerCase()}`;
   };
   const bar = (ico, label, v, cls = '') => `<div class="skill cl-bar ${cls}"><i>${ico}</i><span>${esc(label)}</span><span class="bar"><span style="width:${Math.max(0, Math.min(100, v))}%"></span></span><b>${Math.round(v)}</b></div>`;
   // What a book leaves behind, in a few words.
@@ -61,7 +60,8 @@ export default function (kit) {
     body += `<h3>Members you know</h3>${fr.length ? fr.map((p) => `<button class="act cl-mate" data-do="person" data-id="${p.id}"><span class="ava">${face(p.look, p.age, 40 + p.bond * 0.6, p.sex)}</span><span class="act-main"><b>${esc(p.name)}</b><small>Bond ${Math.round(p.bond)}</small></span><span class="act-cost"><i class="go">›</i></span></button>`).join('') : '<p class="fine pad">Nobody you know yet. Turn up, and you will get talking.</p>'}`;
     const cab = s.clubs.cab.filter((e) => e.c === id);
     body += `<h3>The trophy cabinet</h3>${cab.length ? `<div class="things cl-cab">${cab.map((e) => `<span>${e.icon}<small>${esc(cap(e.name))}<br>at ${e.a}</small></span>`).join('')}</div>` : `<p class="fine pad">Empty, for now. ${esc(cap(o.prize))} would look well in it.</p>`}`;
-    if (m) body += `<div class="picks mid">${pick('Leave the club', 'clubLeave', id, null, 'quiet')}</div>`;
+    // (Years of standing go with it, so it asks twice.)
+    if (m) body += `<div class="picks mid"><button class="pick quiet" data-do="clubLeaveAsk" data-club="${id}">Leave the club</button></div>`;
     return { icon: c.icon, title: c.name, sub: m ? `You are ${c.ranks[m.r]}` : `Meets at ${PLACES[c.place].name}`, body };
   }
 
@@ -118,7 +118,14 @@ export default function (kit) {
   return {
     sheets,
     act,
-    do: { clubOpen(el) { kit.sfx('tap'); kit.openSheet({ kind: `club_${el.dataset.club}` }); } },
+    do: {
+      clubOpen(el) { kit.sfx('tap'); kit.openSheet({ kind: `club_${el.dataset.club}` }); },
+      clubLeaveAsk(el) {
+        if (el.dataset.sure) { kit.doAct('clubLeave', el.dataset.club); return; }
+        kit.sfx('tap'); el.dataset.sure = '1'; el.textContent = 'Tap again to leave';
+        setTimeout(() => { if (el.isConnected) { delete el.dataset.sure; el.textContent = 'Leave the club'; } }, 2500);
+      },
+    },
     marks(life) { return CLUB_IDS.filter((id) => life.clubOcc(id).open).map((id) => [CLUBS[id].place, CLUBS[id].occ.icon]); },
     // Friends made through a club, by club (they are in the lists above too).
     people(life) {
