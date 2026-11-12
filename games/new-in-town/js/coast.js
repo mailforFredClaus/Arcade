@@ -209,7 +209,7 @@ export const LEADS = {
   archive: { icon: '🗄️', name: 'The inquest', hint: 'The coroner’s papers are in the archives too, somewhere at the bottom.' },
   register: { icon: '📜', name: 'The burial register', hint: 'St Brigid’s has buried the town’s dead for three hundred years. You would need a name and a date.' },
   chart: { icon: '🗺️', name: 'An old chart', hint: 'Old charts of this coast turn up in Mr Pym’s window now and then.' },
-  quinn: { icon: '📘', name: 'The old tide tables', hint: 'Captain Quinn keeps the harbour’s old tide tables, for her own lifeboat crew.' },
+  quinn: { icon: '📘', name: 'The old tide tables', hint: 'Captain Quinn keeps the harbour’s old tide tables, for her own lifeboat crew and for skippers she knows.' },
   marks: { icon: '🕯️', name: 'Marks in the caves', hint: 'The survivors sheltered in the caves under Gorse Head. People say they left their marks.' },
 };
 const OLD_FIRST = ['Josiah', 'Tobias', 'Elias', 'Silas', 'Amos', 'Ezra', 'Jem', 'Nathaniel', 'Reuben', 'Abel', 'Caleb', 'Zebedee', 'Obadiah', 'Jabez'];
@@ -293,7 +293,7 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
     coastShoutOdds(id, bold) {
       const s = this.s, lb = s.coast.lb, sc = SHOUTS[id];
       if (!lb || !sc) return 0.5;
-      const bonus = 0.04 * Math.max(0, lb.rank - 1) + (s.job && s.job.c === 'sea' ? 0.08 : 0) + (s.gifts.lifeboat ? 0.05 : 0) + (s.coast.m && s.coast.m.end === 'town' ? 0.05 : 0);
+      const bonus = 0.04 * Math.max(0, lb.rank - 1) + (s.job && s.job.c === 'sea' ? 0.08 : 0) + (s.items.boat ? 0.04 : 0) + (s.gifts.lifeboat ? 0.05 : 0) + (s.coast.m && s.coast.m.end === 'town' ? 0.05 : 0);
       return clamp((bold ? this.checkOdds('fitness', sc.dc) : this.checkOdds('smarts', sc.dc - 25)) + bonus, 0.05, 0.95);
     },
     // A call-out answered (how: 'bold', 'safe' or 'miss').
@@ -483,7 +483,7 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
       if (m.clues.quinn == null && !m.told && L.coastTrusted()) { m.told = 1; L.say('📘', 'Captain Quinn wants a word, down at the harbour', 'good'); }
       if (m.clues.marlow == null && L.season === 3 && (s.f.marlow || 0) >= 1) L.say('🍺', 'Old Marlow is by the fire at the Gull & Anchor most nights now', '');
     }
-    if (m && m.end === 'keep' && !m.claimed && m.claimAt != null && s.t >= m.claimAt && !out) L.queue('coastClaim');
+    if (m && m.end === 'keep' && !m.claimed && m.claimAt != null && s.t >= m.claimAt && !out && !s.pend.some((p) => p.id === 'coastClaim')) L.queue('coastClaim');
   });
 
   // ---- Gorse Head --------------------------------------------------------------------------
@@ -554,7 +554,7 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
       // The survivors left their marks in here, for anyone who looks.
       if (m && m.on != null && m.found == null && m.clues.marks == null && L.chance(0.15 + 0.5 * clamp((q - 0.4) / 0.6, 0, 1))) {
         L.coastGot('marks');
-        text += ` On the way out, low on the wall where the lantern catches it, something carved: a ship with her mast down, and the letter M. You copy it into your notebook with cold fingers.`;
+        text += ` On the way out, low on the wall where the lantern catches it, something carved: a ship with her mast down, the letter M, and more. You copy it all into your notebook with cold fingers.`;
       }
       return text;
     },
@@ -779,7 +779,7 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
     place: 'harbour', sec: 'The Merrow', icon: '📘', title: 'Ask Captain Quinn about the old tides', time: 0, per: 1,
     desc: 'She keeps the harbour’s old tide tables in a cupboard nobody else may open.',
     show: (L) => L.coastHunting() && L.s.coast.m.clues.quinn == null,
-    why: (L) => (L.coastTrusted() ? null : L.s.coast.lb && L.coastCrew() ? 'Quinn has not made up her mind about you yet.' : 'Captain Quinn keeps the old tide tables for her own crew, and you are not it.'),
+    why: (L) => (L.coastTrusted() ? null : L.s.coast.lb && L.coastCrew() ? 'Quinn has not made up her mind about you yet.' : 'Captain Quinn keeps the old tide tables for her own crew, and for skippers she knows. You are neither.'),
     run(L) {
       const m = L.s.coast.m;
       L.coastGot('quinn');
@@ -879,18 +879,18 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
       ],
     },
     {
-      id: 'coastCutOff', w: 0, icon: '🌊', title: 'Cut off',
+      id: 'coastCutOff', w: 0, icon: '🌊', title: 'Cut off', log: false,
       text: 'The tide has come round the point while you were inside. The mouth of the cave is a churn of white, and the ledge you are standing on is the highest dry thing there is.',
       opts: [
         { t: 'Wait on the ledge to be rescued', run: (L) => L.coastRescued('wait') },
         { t: 'Swim for it', check: ['fitness', 60], run(L, x, win) { if (win) { L.hp(-5, 'the cold sea'); L.joy(-1); return 'You come out on the sand blue and laughing, and tell nobody, ever.'; } L.hp(-14, 'the cold sea'); return L.coastRescued('swim'); } },
-        { t: 'Climb the cliff', check: ['fitness', 50], run(L, x, win) { if (win) { L.hp(-3, 'a fall'); L.gain('fitness', 1); return 'Hand over hand up sixty feet of rock and gull. At the top a man walking his dog asks if you have lost something.'; } L.hp(-16, 'a fall'); return L.coastRescued('climb'); } },
+        { t: 'Climb out along the rocks and up the cliff', check: ['fitness', 50], run(L, x, win) { if (win) { L.hp(-3, 'a fall'); L.gain('fitness', 1); return 'Hand over hand up sixty feet of rock and gull. At the top a man walking his dog asks if you have lost something.'; } L.hp(-16, 'a fall'); return L.coastRescued('climb'); } },
       ],
     },
     {
       id: 'coastHoard', w: 0, icon: '⚓', title: 'The Merrow',
       ok: (L) => !!L.s.coast.m && L.s.coast.m.found != null && !L.s.coast.m.end,
-      text: (L) => { const m = L.s.coast.m, k = CARGO[m.cargo]; return `${cap(k.what)}. ${cap(k.name)}, lost with the Merrow on the Mare’s Teeth in ${m.year}, is in your hands, and worth something like ${money(k.worth)}. The Receiver of Wreck has been told. The rest of the town will know by morning. What happens to it now is up to you.`; },
+      text: (L) => { const m = L.s.coast.m, k = CARGO[m.cargo]; return `${cap(k.what)}. The Merrow’s ${k.short}, lost on the Mare’s Teeth in ${m.year}, is in your hands at last, and worth something like ${money(k.worth)}. The Receiver of Wreck has been told; the rest of the town will know by morning. What happens to it now is up to you.`; },
       opts: [
         { t: 'Sell it to the highest bidder', run: (L) => L.coastEnd('keep') },
         { t: 'Give it to the town museum', run: (L) => L.coastEnd('museum') },

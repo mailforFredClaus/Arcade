@@ -306,6 +306,9 @@ export default function ({ check, fresh, Life, ACTIONS }) {
     check(L.act('coastChart').ok && s.cash === c0 - 700 && m.clues.chart != null && L.can('coastChart') === 'Not just now.', 'buying the chart');
     // Quinn: crew only.
     check(/crew/.test(L.can('coastQuinn')), 'Quinn keeps her tables for her crew');
+    s.job = { c: 'sea', r: 3, n: 0, perf: 50, raise: 0 };
+    check(L.coastTrusted(), 'and for a skipper');
+    s.job = null;
     s.coast.lb = { at: 0, train: 4, rank: 1, stand: 55, calls: 3, saved: 5, medal: 0, bigs: 0, miss: 0, log: [], act: s.t, left: null, done: null };
     check(L.act('coastQuinn').ok && m.clues.quinn != null, 'and gives them to one she trusts');
     check(fits(m, Object.keys(m.clues)).join() === m.ans, 'five leads are enough to know where it lies');
@@ -372,7 +375,8 @@ export default function ({ check, fresh, Life, ACTIONS }) {
 
 // For the random players: digging, ruling out, and the games played well and badly.
 export function moves(L) {
-  const out = [['coastCaves', 0.05], ['coastCaves', 1], ['coastCastle', 0.2], ['coastCastle', 0.95]];
+  // (Cut off now and then, not every season.)
+  const out = [['coastCaves', L.s.t % 4 ? 1 : 0.05], ['coastCastle', L.s.t % 8 ? 0.95 : 0.2]];
   if (L.coastHunting()) for (const id of Object.keys(SITES)) out.push(['coastDig', id], ['coastCross', id]);
   if (L.s.t % 17 === 5) out.push(['coastQuit']);
   return out;

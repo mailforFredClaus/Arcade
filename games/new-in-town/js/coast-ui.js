@@ -85,7 +85,7 @@ export default function (kit) {
       <p class="fine">${esc(L.coastStandWord())}. Training and good shouts raise it; missing a shout, or a season out of her sight, lowers it.</p></div>`;
     const ladder = [['Four training sessions', lb.train >= 4], ['Standing 60, and six shouts', lb.rank >= 2], ['Standing 85, and fifteen shouts', lb.rank >= 3]];
     body += `<details><summary>The crew, from the bottom up</summary>${LB_RANKS.map((r, i) => `<div class="rung${lb.rank === i && lb.left == null && lb.done == null ? ' now' : ''}"><b>${i + 1}. ${r}</b><div>${i ? `<i class="need${ladder[i - 1][1] ? ' ok' : ''}">${ladder[i - 1][1] ? '✓' : '○'} ${ladder[i - 1][0]}</i>` : '<i class="need ok">Anyone with Fitness 25</i>'}</div></div>`).join('')}
-      <p class="fine">The pagers go more often in bad weather. A bold rescue is the likelier to win a medal, and the likelier to hurt. Fitness counts for the bold way, Smarts for the careful one; working at sea helps with both.</p></details>`;
+      <p class="fine">The pagers go more often in bad weather. A bold rescue is the likelier to win a medal, and the likelier to hurt. Fitness counts for the bold way, Smarts for the careful one; working at sea, or a boat of your own, helps with both.</p></details>`;
     if (lb.log.length) body += `<h3>The board</h3>${lb.log.map((e) => `<p class="entry"><i>${e.saved}</i>${esc(SHOUTS[e.id] ? SHOUTS[e.id].board : 'A shout')}.</p>`).join('')}<p class="fine">The number is how many came home.</p>`;
     if (L.coastOnBooks()) body += `<h3>At the station</h3>${actRow(L.look('coastTrain'))}<div class="picks">${pick('Step down from the crew', 'coastQuit', undefined, null, 'quiet')}</div>`;
     else if (lb.done == null) body += actRow(L.look('coastJoin'));
