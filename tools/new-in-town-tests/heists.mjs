@@ -547,7 +547,7 @@ export default function ({ check, fresh, Life, ACTIONS }) {
       for (let i = 0; i < n; i++) { const Y = clone(X, i + 1); const r = Y.choose(i); if (!r.ok || !r.text) ok = false; }
       check(ok, `${m}: a cellmate with a few things to say to`);
     }
-    // At the gate: Nan Carne's Rover, or the detective on a lamppost.
+    // At the gate: Nan Carne's car, or the detective on a lamppost.
     const G = fresh();
     G.s.heists.rival.stage = 2; G.s.heists.sal = 20;
     let nan = false, det = false;
@@ -557,7 +557,7 @@ export default function ({ check, fresh, Life, ACTIONS }) {
       X.jail(1); X.endSeason();
       while (X.event() && X.event().id !== 'lagGate') X.choose(0);
       const g = X.event(), o = g ? g.opts.map((q) => q.t) : [];
-      if (o.includes('Get in the pink Rover')) { nan = true; const c = X.s.cash; X.choose(o.indexOf('Get in the pink Rover')); check(X.s.heists.rival.side === 'nan' && X.s.cash === c + 2000, 'Nan Carne’s car, and her money, and her side'); } else if (o.includes('Nod to the detective')) det = true;
+      if (o.includes('Get in the pink Corvan')) { nan = true; const c = X.s.cash; X.choose(o.indexOf('Get in the pink Corvan')); check(X.s.heists.rival.side === 'nan' && X.s.cash === c + 2000, 'Nan Carne’s car, and her money, and her side'); } else if (o.includes('Nod to the detective')) det = true;
     }
     check(nan && det, 'somebody different across the road, now and then');
     // The detective's tea.
