@@ -4,5 +4,6 @@
 // game.js.
 
 import soul from './soul-ui.js';
+import coast from './coast-ui.js'; // Gorse Head, Smugglers’ Cove and the Merrow
 
-export const SCREENS = [soul];
+export const SCREENS = [soul, coast];

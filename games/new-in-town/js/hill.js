@@ -52,8 +52,8 @@ export function install({ def }) {
   def('cliffWalk', {
     place: 'headland', sec: 'Gorse Head', icon: '🥾', title: 'Walk the cliff path', desc: 'Wind, gulls and the whole bay below you. Good for Fitness.',
     run(L) {
-      L.gain('fitness', 2.4); L.joy(L.s.wx === 'gale' ? 1 : 4);
-      return L.s.wx === 'gale' ? 'You lean into the wind at an angle that would be impressive if anyone could see.' : L.pick(['You can see three counties and a ferry.', 'A kestrel hangs over the gorse, perfectly still, then drops.', 'Up and down, up and down. Your legs file a complaint.']);
+      L.gain('fitness', 2.4); L.joy(L.s.wx === 'storm' ? 1 : 4);
+      return L.s.wx === 'storm' ? 'You lean into the wind at an angle that would be impressive if anyone could see.' : L.pick(['You can see three counties and a ferry.', 'A kestrel hangs over the gorse, perfectly still, then drops.', 'Up and down, up and down. Your legs file a complaint.']);
     },
   });
   def('seaSwim', {
