@@ -9,7 +9,7 @@ import { GIFTS, FESTS, ODD_JOBS, WEATHER, CROPS, PLOT_RENT, PLOT_BEDS, CURIOS, C
 const round10 = (n) => Math.round(n / 10) * 10;
 const seasonsOf = (list) => list.map((q) => SEASONS[q].toLowerCase()).join(' or ');
 
-export function install({ def, A, Life, clamp }) {
+export function install({ def, A, Life, clamp, hooks }) {
   Object.assign(Life.prototype, {
     // ---- good years and bad ----
     eco() { return ECO[this.s.eco + 2]; },
@@ -63,7 +63,10 @@ export function install({ def, A, Life, clamp }) {
       const big = s.log.slice().reverse().find((e) => e.k === 'big' && (s.age - e.a) <= 1 && s.log.indexOf(e) > 0);
       if (big && !s.gaol) items.push({ icon: '✒️', h: 'Local notes', t: `Of ${s.name}: "${big.t}"` });
       items.push({ icon: '📌', h: 'Small ads', t: `${turn(SMALL_ADS)} ${turn(SMALL_ADS, 5)}` });
-      return { lead, items };
+      // (The newer parts of town may add their own news, and lead with it when nothing bigger has happened: see HOOKS.)
+      const g = { lead, items, quiet: lead.icon === '🗞️' || lead.t === this.eco().text };
+      for (const f of (hooks && hooks.gazette) || []) f(this, g);
+      return { lead: g.lead, items: g.items };
     },
 
     // ---- the weather ----
