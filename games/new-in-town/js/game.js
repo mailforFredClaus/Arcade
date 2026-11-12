@@ -1079,7 +1079,13 @@ function showNew() {
     <p><b>🌊 The coast.</b> Birds and caves on Gorse Head, beachcombing and the lifeboat at the cove, and the long mystery of the <i>Merrow</i>.</p>
     <p><b>🚗 Driving.</b> Lessons, a theory test and a driving test, then a car from the forecourt, a classic to restore and day trips out. (A car you already had is still yours, with a licence.)</p>
     <p><b>🐓 Farm and market.</b> Seasonal work at Windle Farm, hens and bees at home, and a Saturday stall in Market Square.</p>
-    <p><b>🕯️ Who you become.</b> Traits grow out of how you live, there are big days at St Brigid’s, and a low spell needs looking after.</p>`;
+    <p><b>🕯️ Who you become.</b> Traits grow out of how you live, there are big days at St Brigid’s, and a low spell needs looking after.</p>
+    <p><b>💼 A working life.</b> Every career has a story over the years, with a mentor, a rival and choices that can make or end it.</p>
+    <p><b>💞 Your people want things.</b> A partner with dreams of their own, children who grow up their own way, parents who need looking after, friends who ask.</p>
+    <p><b>📖 Chapters, old age and a will.</b> New dreams at 30, 45 and 60; old age has its own play; a will says who carries on, and a grown heir carries on at their own age, at home.</p>
+    <p><b>🕶️ The low road has a plot.</b> Plan a proper job with a crew, wash the money, and mind Detective Sergeant Kitto, who keeps a file. A rival crew wants Sal’s patch.</p>
+    <p><b>🗳️ The town grows old with you.</b> Elections every four years, storms, a supermarket, a film crew, shops that come and go, and “Years in the Bay” to look back on.</p>
+    <p><b>↻ Same again.</b> At the start of a season, one tap repeats last season’s routine.</p>`;
   if (was >= 4) {
     ui.show(`<div class="ev-ico">⛰️</div><h2>New in Starling Bay</h2><div class="how">${hill}</div>
       <div class="actions"><button class="btn btn-primary" data-action="evDone">Show me</button></div>`);
