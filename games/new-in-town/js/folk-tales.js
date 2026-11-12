@@ -367,6 +367,56 @@ export const PARG_AGAIN = {
   need: 25, icon: '🏚️', title: 'The shed', text: 'Mrs Pargeter’s shed has blown over in the night, onto her runner beans. She is standing looking at it with her arms folded. She has not asked anybody to help, and she will not.',
 };
 
+// ---- the townsfolk in the rest of your life: cards that turn up by chance ---------------
+
+// Somebody you know well enough (n: how well) who is not cross with you.
+const aFriendOf = (n) => (L) => { const ids = Object.keys(STORIES).filter((id) => L.folk(id).f >= n && !L.folkShut(id)); return ids.length ? L.pick(ids) : null; };
+const has = (n) => (L) => Object.keys(STORIES).some((id) => L.folk(id).f >= n && !L.folkShut(id));
+const BRINGS = {
+  hollis: 'a jar of honey, a casserole and a leaflet about the roof', achterberg: 'three library books she has chosen for you, and a look that says they are due back on Tuesday',
+  windle: 'a dozen eggs and a bottle of something that will either cure you or not', jess: 'a flask of Len’s tea, which could strip paint', quinn: 'a thermos, and no conversation at all, which is exactly right',
+  marlow: 'a mackerel and a story', betty: 'a pan of soup the size of a bucket', pym: 'a Victorian hot-water bottle, on loan', parg: 'a basket of whatever is in season, and an opinion of your guttering',
+  gaz: 'two meat pies and last Saturday’s programme', desmond: 'grapes, and a dramatic reading', priya: 'a cheese that will make you feel better or worse, quickly', penn: 'a signed photograph of himself, framed',
+};
+export const CHANCES = [
+  {
+    id: 'fk_visit', icon: '🧺', title: 'A knock at the door', w: 3, cd: 12,
+    when: (L) => (!!L.s.ill || L.s.happy < 30) && has(20)(L), ctx: aFriendOf(20), ok: (L, x) => !!x && L.folk(x).f > 0,
+    text: (L, x) => `${L.folkName(x)} has heard you are ${L.s.ill ? 'poorly' : 'low'}, and is on your doorstep with ${BRINGS[x]}.`,
+    opts: [
+      { t: 'Let them in', run(L, x) { L.hp(L.s.ill ? 4 : 1); L.joy(6); L.folkWarm(x, 4); L.folk(x).seen = L.s.t; return 'An hour, a pot of tea, and you are made to sit down and be looked after. You feel better before the door has shut behind them.'; } },
+      { t: 'Say you are fine, through the letterbox', run(L, x) { L.folkWarm(x, -2); return 'They leave it on the step and go. You are not fine. You eat it all.'; } },
+    ],
+  },
+  {
+    id: 'fk_lane', icon: '🐑', title: 'Over the lane', w: 3, cd: 16,
+    when: (L) => L.s.wx === 'wet' && L.folk('windle').f >= 10 && !L.s.gaol,
+    text: 'A week of rain, and the lane up to Windle Farm is a river. Tom Windle’s sheep are on the wrong side of it, and Tom is on the right side, swearing.',
+    opts: [
+      { t: 'Wade in and help', check: ['fitness', 35], run(L, x, win) { L.folk('windle').seen = L.s.t; if (win) { L.folkWarm('windle', 6); L.karma(2); L.gain('fitness', 1); return 'Two hours up to your thighs in brown water, and forty-one sheep on the right side. Tom counts them twice and says "Forty-one." It is thanks.'; } L.folkWarm('windle', 4); L.hp(-3, 'a chill'); return 'You fall in. Twice. The sheep get across on their own in the end, mostly by walking round you.'; } },
+      { t: 'Stay dry', run(L) { L.folkWarm('windle', -1); return 'Tom gets them across with a dog and a great deal of language. He sees you watching from the bridge.'; } },
+    ],
+  },
+  {
+    id: 'fk_lights', icon: '💡', title: 'The floodlights', w: 3, cd: 16,
+    when: (L) => L.folk('gaz').f >= 10 && L.s.cash + L.s.bank >= 600,
+    text: 'Gaz is outside the clubhouse with a bucket. The Rovers cannot pay the electricity, and the floodlights go off on Friday unless somebody finds $500.',
+    opts: [
+      { t: 'Find the $500', cost: 500, run(L) { L.folkWarm('gaz', 6); L.karma(2); L.s.n.given = (L.s.n.given || 0) + 500; L.folk('gaz').seen = L.s.t; return 'The lights stay on for Friday. Gaz names a stand after you. It is a bench, but it is a stand to Gaz.'; } },
+      { t: 'Put a twenty in the bucket', cost: 20, run(L) { L.folkWarm('gaz', 1); return '"Every little helps," says Gaz, and means it. They play Friday’s match by the light of the car park.'; } },
+      { t: 'Walk on', run(L) { L.folkWarm('gaz', -2); return 'You hear the bucket rattle behind you all the way down the hill.'; } },
+    ],
+  },
+  {
+    id: 'fk_cell', icon: '🫖', title: 'Visiting hour', w: 4, cd: 6, gaol: true,
+    when: has(20), ctx: aFriendOf(20), ok: (L, x) => !!x,
+    text: (L, x) => `Visiting hour. Across the table, in a coat still wet from the bus, is ${L.folkName(x)}.`,
+    opts: [
+      { t: 'Talk until the bell', run(L, x) { L.joy(6); L.folkWarm(x, 3); L.folk(x).seen = L.s.t; return x === 'hollis' ? 'The vicar does not ask what you did. She tells you about the roof instead, and the bees, and you laugh for the first time in weeks. The cake she brought is searched, and has nothing in it but cake.' : `${L.folkName(x)} does not ask what you did, and tells you what the town has been up to instead. You laugh for the first time in weeks.`; } },
+    ],
+  },
+];
+
 // ---- the favours ------------------------------------------------------------------------
 
 // at: where a deed is done (a goal is handed over at the person’s own place).

@@ -28,9 +28,9 @@
 
 import { TROPHIES, PLACES, CROPS, CURIOS, CURIO_SET_SAID, SEASONS, money } from './data.js';
 import { FOLK, GOODS, CORNERS } from './folk-cast.js';
-import { STORIES, FAVOURS, KEEPSAKES, BOONS, PARG_AGAIN } from './folk-tales.js';
+import { STORIES, FAVOURS, KEEPSAKES, BOONS, PARG_AGAIN, CHANCES } from './folk-tales.js';
 
-export { FOLK, GOODS, CORNERS, STORIES, FAVOURS, KEEPSAKES, BOONS };
+export { FOLK, GOODS, CORNERS, STORIES, FAVOURS, KEEPSAKES, BOONS, CHANCES };
 
 export const FOLK_IDS = Object.keys(FOLK);
 const KEEP_IN_TOUCH = 30;
@@ -403,7 +403,7 @@ export function install({ def, Life, clamp, val, hooks, addEvents }) {
       { t: 'Leave her to it', run: (L) => L.folkNo('parg', 'She has it back up by teatime, alone, and does not look your way.') },
     ],
   });
-  addEvents(cards);
+  addEvents([...cards, ...CHANCES]);
 
   // ---- trophies ----
   const corners = (L) => new Set(FOLK_IDS.filter((id) => L.s.folk.p[id].f >= 60).map((id) => FOLK[id].corner));

@@ -160,6 +160,17 @@ export default function ({ check, fresh, Life }) {
     // A card whose moment has passed is not shown.
     L.queue('fk_hollis1');
     check(L.event() === null, 'a chapter already told is not told again');
+    // Some chapters can be settled with money instead of a favour, if you have it.
+    const M = fresh();
+    M.act('fkChat_hollis');
+    Object.assign(M.s.folk.p.hollis, { f: 50, stage: 2, at: M.s.t - 5 });
+    M.s.cash = 1000; M.s.bank = 0;
+    M.queue('fk_hollis3');
+    check(M.event().opts[0].why, 'no cheque for the roof without the money');
+    M.s.cash = 3000;
+    const given = M.s.n.given || 0;
+    M.choose(0);
+    check(M.s.folk.p.hollis.stage === 3 && M.s.cash === 1500 && M.s.n.given === given + 1500 && M.s.folk.p.achterberg.met != null, 'with it, the roof is saved, and you meet the librarian over it');
   }
 
   // ---- every story can be told to the end ---------------------------------------------------
@@ -361,6 +372,36 @@ export default function ({ check, fresh, Life }) {
     const E = fresh();
     E.s.f.pymOff = E.s.t + 3;
     check(E.can('fkChat_pym') && E.folkShut('pym'), 'Mr Pym will not see you while he remembers the tea caddy');
+  }
+
+  // ---- the townsfolk in the rest of your life -----------------------------------------------
+  {
+    const L = fresh(), s = L.s;
+    for (const id of ['fk_visit', 'fk_lane', 'fk_lights', 'fk_cell']) check(EV[id] && EV[id].w > 0, `${id}: a chance card`);
+    s.ill = { name: 'a cold', sev: 1 }; s.wx = 'wet'; s.cash = 5000;
+    check(!EV.fk_visit.when(L) && !EV.fk_lane.when(L) && !EV.fk_lights.when(L), 'nobody calls on a stranger');
+    L.act('fkChat_betty'); s.folk.p.betty.f = 50;
+    check(EV.fk_visit.when(L) && EV.fk_visit.ctx(L) === 'betty', 'a friend hears you are poorly');
+    L.queue('fk_visit', 'betty');
+    check(L.event().text.includes('soup'), 'and Betty brings soup');
+    const hp = s.health, f = s.folk.p.betty.f;
+    L.choose(0);
+    check(s.health > hp && s.folk.p.betty.f > f, 'letting her in does you good, and her');
+    L.act('fkChat_windle'); s.folk.p.windle.f = 30;
+    check(EV.fk_lane.when(L), 'in a wet season Tom’s sheep need help');
+    L.queue('fk_lane'); L.choose(1);
+    check(s.folk.p.windle.f < 30, 'staying dry is noticed');
+    L.act('fkChat_gaz'); s.folk.p.gaz.f = 30;
+    const cash = s.cash + s.bank, given = s.n.given || 0;
+    L.queue('fk_lights'); L.choose(0);
+    check(s.cash + s.bank === cash - 500 && s.n.given === given + 500, 'keeping the Rovers’ lights on is giving to the town');
+    s.gaol = { left: 2, total: 2, served: 0, good: 50, rep: 20 };
+    check(EV.fk_cell.when(L), 'a friend visits you inside');
+    L.queue('fk_cell', 'betty');
+    const joy = s.happy;
+    check(L.event() && L.event().id === 'fk_cell', 'at visiting hour');
+    L.choose(0);
+    check(s.happy > joy, 'and it lifts you');
   }
 
   // ---- prison, and old saves ----------------------------------------------------------------

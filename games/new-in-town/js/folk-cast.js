@@ -164,7 +164,7 @@ export const FOLK = {
       (L) => (L.s.f.cafe ? '"Still here, thanks to you," says Betty, and will not let you pay.' : null),
       (L) => (L.s.biz && L.s.biz.type === 'food' ? '"I hear you’re in the trade now," she says. "Watch your scones. Everybody’s a critic."' : null),
     ],
-    loved: { honey: '"Proper honey!" says Betty. "That’s next week’s scones sorted."', flowers: 'She puts them in the window in a milk bottle, where they stay until they are dust.', veg: '"Soup," says Betty, looking into the basket with love. "Soup for a week."' },
+    loved: { honey: '"Proper honey," says Betty, holding it to the light. "That’s next week’s scones sorted."', flowers: 'She puts them in the window in a milk bottle, where they stay until they are dust.', veg: '"Soup," says Betty, looking into the basket with love. "Soup for a week."' },
     hated: { tea: '"I sell tea, love," says Betty, quite kindly.', shortbread: 'She turns the tin over and reads the label. "Shop-bought," she says, and puts it under the counter.' },
   },
 
@@ -231,7 +231,7 @@ export const FOLK = {
     seasons: ['Three games left and the Rovers need four points. Gaz has done the sums on a napkin. They come out differently every time.', 'No football. Gaz mows the pitch twice a week to feel useful.', 'A new season, new hope, the same players.', 'The pitch is frozen and the match is off. Gaz stands in the middle of it anyway, just in case.'],
     life: [
       (L) => (L.s.st.fitness >= 60 ? 'He looks you up and down. "Ever played?" he asks, in the voice of a man who has seen a vision.' : null),
-      (L) => (L.s.job && L.s.job.c === 'sports' ? '"A professional!" says Gaz, and asks for your autograph for the clubhouse wall. He has it framed.' : null),
+      (L) => (L.s.job && L.s.job.c === 'sports' ? '"A professional," says Gaz, in a hushed voice, and asks for your autograph for the clubhouse wall. He has it framed.' : null),
       (L) => (L.kids().some((k) => k.age >= 4 && k.age < 12) ? '"Bring the little ’uns Saturday," he says. "Mascots. Free pie."' : null),
       (L) => (L.s.eco <= -1 ? 'Gate receipts are down to forty-one and a dog. Gaz says the dog is the most loyal fan they have.' : null),
     ],
@@ -259,7 +259,7 @@ export const FOLK = {
       (L) => (L.s.f.exhibited ? 'He has seen your exhibition, and would like to talk to you about scenery.' : null),
       (L) => (L.s.fests.panto ? 'He saw your dame. "Brave," he says. "Bold. Broad." Then: "Again next year."' : null),
     ],
-    loved: { painting: '"A backcloth!" he cries. "For the second act!" It will be a forest by Friday.', flowers: 'He takes a bow over them. Several bows.' },
+    loved: { painting: '"A backcloth," he breathes. "For the second act." It will be a forest by Friday.', flowers: 'He takes a bow over them. Several bows.' },
     hated: { fish: '"Not in a theatre," he says. "Never in a theatre. It is worse luck than whistling."', pies: '"The Pavilion," he says, "is not a football ground." He gives them to the stage crew.' },
   },
 
@@ -302,7 +302,7 @@ export const FOLK = {
     ],
     seasons: ['He has been asked to judge the bonny babies at the Spring Fair, and is terrified.', 'A new hat for Regatta Day, a speech for Regatta Day, and a deep fear of boats.', 'Budget week. He has the look of a man who has seen the figures.', 'He switches the Christmas lights on, and they go off, and he switches them on again. The town applauds, from habit.'],
     life: [
-      (L) => (L.s.job && L.s.job.c === 'politics' && L.s.job.r < 4 ? '"A colleague!" he says, with the expression of a man spotting a rival.' : null),
+      (L) => (L.s.job && L.s.job.c === 'politics' && L.s.job.r < 4 ? '"A colleague," he says, with the expression of a man spotting a rival.' : null),
       (L) => (L.s.f.drains === -1 ? 'He winks at you. You wish he would not.' : null),
       (L) => (L.s.karma >= 40 ? '"The town thinks well of you," he says. "Have you ever thought of standing for something? Not my seat. Something else."' : null),
       (L) => (L.s.fame >= 30 ? 'He would like a photograph with you, for the parlour. And for the Gazette. And for his mother.' : null),

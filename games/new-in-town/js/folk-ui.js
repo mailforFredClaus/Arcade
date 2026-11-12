@@ -94,7 +94,7 @@ export default function (kit) {
     // What lasts.
     const boons = life.folkBoons(id), keeps = life.folkKeeps(id);
     if (boons.length || keeps.length) {
-      body += `<h3>What you have from ${esc(life.folkCall(id))}</h3>${boons.map((b) => `<div class="fk-boon${b.on ? '' : ' lapsed'}"><span>${b.icon}</span><div><b>${esc(b.name)}</b><small>${esc(b.said)}${b.on ? '' : b.keep ? ' (Not while you are strangers: keep in touch.)' : ''}</small></div></div>`).join('')}
+      body += `<h3>What you have from ${esc(life.folkCall(id))}</h3>${boons.map((b) => `<div class="fk-boon${b.on ? '' : ' lapsed'}"><span>${b.icon}</span><div><b>${esc(b.name)}</b><small>${esc(b.said)}${b.on ? '' : b.keep ? ' (Lapsed: you have drifted apart. Call again.)' : ''}</small></div></div>`).join('')}
         ${keeps.map((v) => `<div class="fk-boon"><span>${v.icon}</span><div><b>${esc(v.name)}</b><small>${esc(v.said)}</small></div></div>`).join('')}`;
     }
     return { icon: folkFace(id), title: name, sub: `${life.folkWord(p.f)} · ${PLACES[place].name}`, body };
