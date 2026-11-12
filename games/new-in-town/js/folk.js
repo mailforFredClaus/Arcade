@@ -204,7 +204,10 @@ export function install({ def, Life, clamp, val, hooks, addEvents }) {
     // Jess (or Len) sees you right for a car, if you have none. Returns whether they did.
     folkCar() {
       const s = this.s;
-      if (s.items.car || s.items.sportscar) return false;
+      if (s.items.car || s.items.sportscar || (s.motor && s.motor.car)) return false;
+      // (Through the garage's own books, so that it is a real car with a condition and an MOT:
+      // see motor.js. Without a licence it waits for you on the forecourt.)
+      if (this.motorTake) { this.motorTake({ m: 'pip', age: 6, cond: 88, col: 'sky-blue' }); this.motorSync(true); return true; }
       const was = this.timeMaxWithout('car');
       s.items.car = 1;
       s.time += this.timeMax() - was;

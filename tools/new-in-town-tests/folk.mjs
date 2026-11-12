@@ -240,7 +240,11 @@ export default function ({ check, fresh, Life }) {
     check(gained > 0 && gained < 5000, `all those stories pay little in cash (${gained})`);
     check(s.plot.beds.length === 4, 'Mrs Pargeter’s strip of plot 9 is a fourth bed');
     check(s.biz && s.biz.type === 'food' && s.biz.lvl === 1, 'you can take on Betty’s Café');
-    check(s.items.car, 'Jess sees you right for a car');
+    check(s.motor.car && s.motor.car.m === 'pip', 'Jess sees you right for a car');
+    // (A licence and a car on the road, so that it costs what a car costs.)
+    if (s.motor.lic == null) s.motor.lic = s.t;
+    s.motor.car.off = null;
+    L.motorSync(false);
     // What it all lasts as.
     check(L.income().some(([w, n]) => w.includes('bottom field') && n === 350), 'Tom pays rent on the bottom field');
     const W = clone(Life, L);
