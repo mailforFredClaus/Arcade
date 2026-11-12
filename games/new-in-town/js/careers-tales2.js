@@ -426,7 +426,7 @@ export function tales({ perf, credit, bonus, busy, mentor, rival, sack, up, gaz,
           r: 4, icon: '🏛️', title: 'The sea wall',
           text: () => 'Your first winter in the chain of office, and the sea wall below the front is failing. Mending it means a rise in everybody’s rates. A developer will mend it for nothing, if he can build a marina with flats on it.',
           opts: [
-            { t: 'Mend the wall, and raise the rates', run(L, k) { L.karma(5); L.fame(2); perf(L, -4); gaz(L, k, '{He} served as mayor, and mended the sea wall when nobody wanted to pay for it, and everybody was glad of it in the end.'); return 'The rates go up, and so does the wall. The Gazette is furious for a month. The next gale breaks on it and goes home.'; } },
+            { t: 'Mend the wall, and raise the rates', run(L, k) { L.karma(5); L.fame(2); perf(L, -4); gaz(L, k, '{He} mended the sea wall when nobody wanted to pay for it, and everybody was glad of it in the end.'); return 'The rates go up, and so does the wall. The Gazette is furious for a month. The next gale breaks on it and goes home.'; } },
             { t: 'Let him build the marina', run(L, k) { perf(L, 6); L.karma(-4); return 'The wall is mended, the marina is full of boats from the city, and the flats are empty most of the year. The view is not what it was.'; } },
             { t: 'Ask the town', check: ['charm', 60], run(L, k, win) { if (win) { L.karma(4); L.fame(3); perf(L, 2); return 'A town meeting, a vote, and a jumble sale. They choose the wall, and a fifth of the money comes from the jumble sale. It is the best night of your time in office.'; } perf(L, -6); return 'The meeting goes on until two in the morning and decides to have another meeting.'; } },
           ],

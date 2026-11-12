@@ -525,7 +525,8 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'anniv', icon: '🌹', title: 'An anniversary', w: 3, when: (L) => L.partner()?.kind === 'spouse',
+    // (Retired where wants.js keeps the anniversaries, in their own season: wantsAnniv and wantsForgot.)
+    id: 'anniv', icon: '🌹', title: 'An anniversary', w: 3, when: (L) => L.partner()?.kind === 'spouse' && !L.s.wants,
     text: (L) => `It is your wedding anniversary on Saturday. ${L.partner().name} has not mentioned it. This is a test.`,
     opts: [
       { t: 'Grand gesture', cost: 800, run(L) { L.bond(L.partner(), 12); L.joy(6); return 'A table at the good restaurant, and the song from your wedding.'; } },
@@ -534,7 +535,8 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'inlaws', icon: '🫖', title: 'The in-laws are coming', w: 2, when: (L) => L.partner()?.kind === 'spouse' && L.partner().age <= 62, // (careers.js: their parents still about)
+    // (careers.js: their parents still about; and where wants.js knows them, one of them still living.)
+    id: 'inlaws', icon: '🫖', title: 'The in-laws are coming', w: 2, when: (L) => { const p = L.partner(), i = p && L.s.wants && L.s.wants.p[p.id] && L.s.wants.p[p.id].inl; return p?.kind === 'spouse' && p.age <= 62 && (!i || i.left > 0); },
     text: 'For a fortnight. They have opinions about your curtains.',
     opts: [
       { t: 'Be the perfect host', check: ['charm', 45], run(L, x, win) { const p = L.partner(); L.joy(-2); if (win) { L.bond(p, 8); return 'By the end they are calling you "our favourite".'; } L.bond(p, -2); return 'You smile until your face aches. It is not quite enough.'; } },

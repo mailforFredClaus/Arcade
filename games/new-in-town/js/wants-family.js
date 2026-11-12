@@ -46,7 +46,7 @@ export const FAMILY_CARDS = [
     text: (L, x) => { const p = P(L, x), g = granny(L); return `${first(p)} is into everything: cupboards, plant pots, the cat. The Bayview Nursery has a place three days a week, for ${money(fee(L, 600))} a season, which would give you some of your days back.${g ? ` ${first(g)} has offered to have ${him(p)} for nothing, and has already bought a stairgate.` : ''}`; },
     opts: [
       { t: 'The Bayview Nursery', run(L, x) { const p = P(L, x); rec(L, p).care = 'nursery'; grow(p, 'charm', 2); return `${first(p)} cries for a week at the door, then not at all, and comes home with paint in places paint should not go.`; } },
-      { t: (L, x) => `${first(granny(L))} will have ${him(P(L, x))}`, show: (L) => !!granny(L), run(L, x) { const p = P(L, x), g = granny(L); rec(L, p).care = 'gran'; L.bond(g, 6); grow(p, 'smarts', 1); grow(p, 'charm', 1); return `${first(p)} comes back from ${first(g)}’s three days a week fatter, happier and knowing all the words to songs from 1958.`; } },
+      { t: (L, x) => `${first(granny(L))} will have ${him(P(L, x))}`, show: (L) => !!granny(L), run(L, x) { const p = P(L, x), g = granny(L); rec(L, p).care = 'gran'; rec(L, p).gran = g.id; L.bond(g, 6); grow(p, 'smarts', 1); grow(p, 'charm', 1); return `${first(p)} comes back from ${first(g)}’s three days a week fatter, happier and knowing all the words to songs from 1958.`; } },
       { t: 'Keep them at home with you', run(L, x) { const p = P(L, x); rec(L, p).care = 'home'; L.bond(p, 6); grow(p, 'craft', 2); grow(p, 'smarts', 1); return 'Playdough, puddles, the swings, the ducks, the swings again. You are exhausted by eleven, every day, and would not swap it.'; } },
     ],
   },
@@ -214,7 +214,8 @@ export const FAMILY_CARDS = [
     ],
   },
   {
-    id: 'wantsMinding', icon: '🧸', title: (L, x) => `Thursdays with ${first(P(L, x))}`, ok: (L, x) => { const g = L.person(x && x.p); return !!g && g.kind === 'grandchild' && g.age < 5 && !L.s.gaol; },
+    // (Not if the grandchildren have been taken on for Tuesdays and Thursdays meanwhile: see chapMind in chapters.js.)
+    id: 'wantsMinding', icon: '🧸', title: (L, x) => `Thursdays with ${first(P(L, x))}`, ok: (L, x) => { const g = L.person(x && x.p), O = L.s.chap && L.s.chap.old; return !!g && g.kind === 'grandchild' && g.age < 5 && !L.s.gaol && !(O && O.mind && O.mind.on); },
     text: (L, x) => { const g = P(L, x), k = L.person(g.of); return `${k ? first(k) : 'Your child'} is going back to work, and asks, carefully, whether you could have little ${first(g)} on Thursdays.`; },
     opts: [
       { t: 'Every Thursday, gladly', run(L, x) { const g = P(L, x), k = L.person(g.of); L.s.wants.mind = g.id; L.bond(g, 6); if (k) L.bond(k, 6); return `Thursdays become the best day of the week. ${first(g)} learns to say your name, and to post things through the cat flap.`; } },

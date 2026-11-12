@@ -328,11 +328,12 @@ export default function ({ check, fresh, Life, ACTIONS }) {
     check(Old.chapHeir() === gg, 'with a child past sixty, a grown grandchild carries on');
     sixty.age = 50;
     check(Old.chapHeir() === sixty, 'otherwise the child does');
-    // An heir of fifty-eight may be a grandparent already.
+    // An heir of fifty-eight may be a grandparent already. (Who is, is settled by the children themselves,
+    // not the dice, so that the start screen knows: see seams.mjs.)
     let grands = 0;
     for (let i = 0; i < 12; i++) {
       const O = Life.create({ seed: 50 + i, name: 'Old', sex: 'f', gen: 2, sibs: [] });
-      O.chapBegin({ ...nx.carry, age: 58, kids: [{ name: 'Zed', sex: 'm', age: 34 }, { name: 'Amy', sex: 'f', age: 31 }], home: null }, []);
+      O.chapBegin({ ...nx.carry, age: 58, kids: [{ name: ['Zed', 'Bo', 'Cy', 'Dov'][i % 4], sex: 'm', age: 30 + (i % 5) }, { name: ['Amy', 'Eve', 'Fay'][i % 3], sex: 'f', age: 28 + (i % 4) }], home: null }, []);
       const gk = O.grandkids();
       if (gk.length) grands++;
       if (gk.some((g) => !O.person(g.of) || g.age < 0 || g.age > 8)) grands = -99;

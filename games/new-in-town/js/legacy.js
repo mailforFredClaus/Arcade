@@ -29,7 +29,7 @@ export function install({ def, A, Life, clamp, hooks }) {
     epitaph() {
       const s = this.s, out = [], m = s.sex !== 'f', He = m ? 'He' : 'She', he = He.toLowerCase(), his = m ? 'his' : 'her', him = m ? 'him' : 'her';
       const first = s.name.split(' ')[0];
-      const count = (n, one, many) => (n === 1 ? one : `${['', '', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight'][n] || n} ${many}`);
+      const count = (n, one, many) => (n === 1 ? one : `${['', '', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty'][n] || n} ${many}`);
       // A list in which anything with a comma of its own is closed off before the "and".
       const list = (l) => (l.length < 2 ? l.join('') : `${l.slice(0, -1).join(', ')}${l.slice(0, -1).some((t) => t.includes(',')) ? ',' : ''} and ${l[l.length - 1]}`);
       const jobs = Object.keys(s.worked).filter((c) => CAREERS[c]).sort((x, y) => s.worked[y] - s.worked[x]);
@@ -52,7 +52,8 @@ export function install({ def, A, Life, clamp, hooks }) {
       if (works.length) out.push(`${He} ${list(works)}.`);
       if (this.followers() >= 100000) out.push(`${this.followers() >= 1e6 ? 'More than a million' : 'A hundred thousand'} strangers followed ${his} every word on Chirper. The Gazette has 212.`);
       else if (s.fame >= 50) out.push(`${He} was, for a while, the best-known face in the Bay.`);
-      if (s.f.wasMayor) out.push(`${He} served as mayor, and the Town Hall clock ran four minutes slow throughout.`);
+      // (Not "served as mayor" when the line about work has just said so.)
+      if (s.f.wasMayor) out.push(/\bbe mayor\b|\ba mayor\b/.test(out[1] || '') ? `The Town Hall clock ran four minutes slow throughout ${his} time in office.` : `${He} served as mayor, and the Town Hall clock ran four minutes slow throughout.`);
       const made = Object.keys(s.gave);
       if (made.length) out.push(`The town owes ${him} ${list(made.map((id) => GIFTS[id].said))}.`);
       else if ((s.n.given || 0) >= 100000) out.push(`${He} gave away more than most people earn.`);
@@ -76,8 +77,12 @@ export function install({ def, A, Life, clamp, hooks }) {
       if (s.pet) kin.push(`${s.pet.name}, who is waiting by the door`);
       if (kin.length) out.push(`${He} leaves ${list(kin)}.`);
       if (!spouse && !partner) {
-        if (s.f.wed) out.push(s.f.divorced ? `${He} had been married, and did not speak of it.` : `${He} had been a ${m ? 'widower' : 'widow'} for some years.`);
-        else if (!kin.length || (kin.length === 1 && s.pet)) out.push(this.friends().length >= 3 ? `${He} never married, and was never short of company.` : `${He} kept ${his} own company.`);
+        // (By how the last marriage ended, not by whether an earlier one did; and nothing that says it did not speak of a marriage the Gazette has just spoken of.)
+        const end = (this.chapWedEnd && this.chapWedEnd()) || (s.f.divorced ? { how: 'divorced' } : { how: 'widowed' });
+        if (s.f.wed) {
+          if (end.how === 'widowed') out.push(end.t != null && s.t - end.t < 8 ? `${He} had been widowed only lately.` : `${He} had been a ${m ? 'widower' : 'widow'} for some years.`);
+          else if (!out.some((t) => / married to /.test(t))) out.push(`${He} had been married, and did not speak of it.`);
+        } else if (!kin.length || (kin.length === 1 && s.pet)) out.push(this.friends().length >= 3 ? `${He} never married, and was never short of company.` : `${He} kept ${his} own company.`);
       }
       const worth = this.netWorth();
       out.push(worth >= 1e6 ? `${first} died rich, which surprised nobody.` : worth >= 50000 ? `${first} died comfortably off.` : worth >= 0 ? `${first} leaves very little, and owed nothing.` : `${first} leaves debts, which the bank is looking into.`);

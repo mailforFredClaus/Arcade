@@ -33,7 +33,9 @@ export default function (kit) {
       if (r.path && p.age >= 18 && PATHS[r.path] && !(h && h.text === PATHS[r.path].said)) rows.push(row('🧭', esc(PATHS[r.path].said)));
       if (r.path === 'crew') rows.push(row('🦊', 'Works for Sal'));
       if (r.dream) rows.push(row('✨', `Became ${esc(r.hope[0].replace(/, like .*$/, ''))}, as ${p.sex === 'm' ? 'he' : 'she'} always said`, 'done'));
-      if (p.age < 5 && r.care) rows.push(row('🧸', { nursery: 'At the Bayview Nursery three days a week', gran: 'With Gran three days a week', home: 'At home with you' }[r.care] || ''));
+      // (Gran or Grandad: whichever of your parents has them.)
+      const g = r.care === 'gran' ? (r.gran != null && life.person(r.gran)) || life.s.people.find((q) => q.kind === 'parent' && q.bond >= 40) : null;
+      if (p.age < 5 && r.care) rows.push(row('🧸', { nursery: 'At the Bayview Nursery three days a week', gran: `With ${g && g.sex === 'm' ? 'Grandad' : 'Gran'} three days a week`, home: 'At home with you' }[r.care] || ''));
     }
     if (p.kind === 'parent' && r.care) {
       const c = CARE[r.care], half = r.care !== 'with' && life.siblings().some((q) => q.bond >= 50);

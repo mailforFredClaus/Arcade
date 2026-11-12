@@ -958,7 +958,7 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
     const s = L.s, an = s.annals;
     if (!an) return;
     const He = s.sex === 'f' ? 'She' : 'He', lived = L.annalsLived().slice(0, 3), n = new Set(an.mayors).size;
-    const mayors = `${['', '', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'][n] || n} mayors come and go`;
+    const mayors = `${['', '', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty'][n] || n} mayors come and go`;
     if (lived.length) out.push(`${He} lived through ${list(lived)}${n >= 3 ? `, and saw ${mayors}` : ''}.`);
     else if (n >= 3) out.push(`${He} saw ${mayors}.`);
     if (an.n.ribbon) out.push(`${He} cut the ribbon on ${an.n.ribbon}, and kept the scissors.`);

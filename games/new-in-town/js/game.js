@@ -1184,7 +1184,8 @@ function showStart() {
   const offered = Life.chapOffer(nx, Math.random);
   const sex = nx && nx.sex ? nx.sex : 'm';
   draft = {
-    name: nx && nx.name ? nx.name : '', sex, into: sex === 'm' ? 'f' : 'm',
+    // (An heir who is married already falls for whoever they married, to begin with.)
+    name: nx && nx.name ? nx.name : '', sex, into: (nx && nx.carry && nx.carry.wed && nx.carry.wed.sex) || (sex === 'm' ? 'f' : 'm'),
     look: nx && nx.look ? { ...nx.look, beard: false } : { skin: rand(LOOKS.skin.length), hair: rand(LOOKS.hair.length), top: rand(LOOKS.top.length), style: LOOKS[sex][rand(LOOKS[sex].length)], beard: false },
     bg: 'allrounder', dreams: [], offered, heir: null,
   };
@@ -1319,8 +1320,9 @@ function showEnd() {
 
 function afterEnd(keep, i = 0) {
   if (!keep) save.next = null;
-  // (Carrying on as somebody other than the one the will names: they come with what the will gave them.)
-  else if (i && life) save.next = life.chapNextLife(i);
+  // (Carrying on as somebody other than the one the will names: they come with what the will gave them.
+  // And a save left on this screen from before the will kept its details: the next life is made again.)
+  else if (life && (i || !save.next || !save.next.carry)) save.next = life.chapNextLife(i);
   save.counted = false;
   save.fresh = false;
   life = null;
