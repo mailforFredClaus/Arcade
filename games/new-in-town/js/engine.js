@@ -42,6 +42,7 @@ const SHADY_SECS = ['Light fingers', 'Vices', 'Under the counter', 'Under the pi
 // What the later parts of the town (the files listed in mods.js) hang their
 // rules on. Each is a list of functions, called at its moment:
 //   load(L)                    whenever a life is opened, new or saved: fill in anything missing from s
+//   ready(L)                   just after every load hook has run (for what needs every part's state)
 //   season(L, lines, jailed)   the turn of the season, after the bills (push [what, dollars] to lines)
 //   late(L, jailed)            the turn of the season, just before a card may be drawn
 //   year(L)                    a birthday
@@ -59,7 +60,7 @@ const SHADY_SECS = ['Light fingers', 'Vices', 'Under the counter', 'Under the pi
 //                              for now (chapters.js turns it into a last illness, so that the end is seen coming)
 //   died(L)                    the life has just ended (chapters.js carries out the will)
 //   obit(L, o)                 add to or change the obituary's summing-up (chapters.js: the heir and what the will gave)
-export const HOOKS = { load: [], season: [], late: [], year: [], mood: [], time: [], income: [], bills: [], worth: [], acted: [], chose: [], luck: [], epitaph: [], seize: [], noted: [], reprieve: [], died: [], obit: [] };
+export const HOOKS = { load: [], ready: [], season: [], late: [], year: [], mood: [], time: [], income: [], bills: [], worth: [], acted: [], chose: [], luck: [], epitaph: [], seize: [], noted: [], reprieve: [], died: [], obit: [] };
 const spared = (L, cause) => HOOKS.reprieve.some((f) => f(L, cause));
 const hookSum = (list, ...args) => list.reduce((a, f) => a + (f(...args) || 0), 0);
 // Cards from elsewhere join the deck.
@@ -797,6 +798,8 @@ export class Life {
     if (!state.cur) this.restock();
     if (!state.board) this.pinUp();
     for (const f of HOOKS.load) f(this);
+    // (Then, once every part has its state, anything that needs the whole life to be there.)
+    for (const f of HOOKS.ready) f(this);
   }
 
   // name, sex ('m' or 'f'), into: who you fall for ('m', 'f' or 'b' for both),

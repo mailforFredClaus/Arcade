@@ -545,6 +545,8 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
 
   // ---- remembering ----
 
+  // (Where the first chapter starts from: once every part has its state, since it counts what you are worth.)
+  hooks.ready.push((L) => { if (!L.s.chap.snap) L.s.chap.snap = snapNow(L); });
   hooks.load.push((L) => {
     const s = L.s, was = !!s.chap;
     if (!s.chap) s.chap = blank();
@@ -552,7 +554,6 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     for (const k of Object.keys(b)) if (C[k] === undefined) C[k] = b[k];
     for (const k of ['will', 'memo', 'old', 'n']) for (const [q, v] of Object.entries(b[k])) if (C[k][q] === undefined) C[k][q] = v;
     if (!C.start) C.start = { how: 'train', age: 18 };
-    if (!C.snap) C.snap = snapNow(L);
     if (!was && s.t > 0) {
       // (A life already under way when the chapters began: its first chapter is counted from the train.)
       C.snap = { t: 0, age: 18, worth: s.hist && s.hist.length && s.age < 118 ? s.hist[0] : 1500, home: 'hostel', owned: false, shifts: 0, retired: false, job: null, biz: null, pt: null };
