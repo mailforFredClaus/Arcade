@@ -51,7 +51,8 @@ const SHADY_SECS = ['Light fingers', 'Vices', 'Under the counter', 'Under the pi
 //   worth(L)                   dollars owned that the rest of the sums do not know about
 //   acted(L, id, x, y)         after any action has been done
 //   chose(L, id, x, i, win)    after any card has been answered (i: the option, win: if it came off)
-export const HOOKS = { load: [], season: [], late: [], year: [], mood: [], time: [], income: [], bills: [], worth: [], acted: [], chose: [] };
+//   seize(L)                   the bailiffs are in: give up something of yours as [what, dollars] (or null)
+export const HOOKS = { load: [], season: [], late: [], year: [], mood: [], time: [], income: [], bills: [], worth: [], acted: [], chose: [], seize: [] };
 const hookSum = (list, ...args) => list.reduce((a, f) => a + (f(...args) || 0), 0);
 // Cards from elsewhere join the deck.
 export function addEvents(list) {
@@ -683,12 +684,12 @@ def('exam', {
 
 def('buy', {
   time: 0, cost: (L, id) => L.itemPrice(id),
-  why: (L, id) => (L.s.items[id] ? 'You have one.' : id === 'car' && L.s.items.sportscar ? 'You have something faster.' : null),
+  // (Cars are bought from Dobbs & Daughter now: see motor.js.)
+  why: (L, id) => (!ITEMS[id] ? 'Nothing like that in the shops.' : L.s.items[id] ? 'You have one.' : null),
   run(L, id) {
     const s = L.s, it = ITEMS[id];
     s.items[id] = 1;
-    if (id === 'sportscar') L.joy(8);
-    if (id === 'bike' || id === 'car' || id === 'sportscar') { const was = L.timeMaxWithout(id); s.time += L.timeMax() - was; }
+    if (id === 'bike') { const was = L.timeMaxWithout(id); s.time += L.timeMax() - was; }
     s.use[`got_${id}`] = 1;
     return `You buy the ${it.name.toLowerCase()}. ${it.blurb}`;
   },
@@ -1598,7 +1599,9 @@ export class Life {
       sold.push(`the ${this.propSaid(e)}`);
     }
     if (!settle() && s.biz) { s.cash += Math.round(this.bizWorth() * 0.8); sold.push(`your ${this.bizName().toLowerCase()}`); s.biz = null; }
-    for (const id of ['boat', 'sportscar', 'watch', 'car', 'piano']) {
+    // (A car is sold by the newer parts of town that own it: see motor.js.)
+    for (const f of HOOKS.seize) { while (!settle()) { const got = f(this); if (!got) break; s.cash += got[1]; sold.push(got[0]); } }
+    for (const id of ['boat', 'watch', 'piano']) {
       if (settle()) break;
       if (s.items[id]) { s.cash += Math.round(ITEMS[id].price * 0.5); delete s.items[id]; sold.push(`the ${ITEMS[id].name.toLowerCase()}`); }
     }

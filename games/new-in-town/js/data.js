@@ -322,8 +322,8 @@ export const INSURANCE = {
 
 export const ITEMS = {
   bike: { name: 'Bicycle', icon: '🚲', price: 400, at: 'highstreet', sec: 'Getting about', blurb: 'One more block of time every season.' },
-  car: { name: 'Second-hand hatchback', icon: '🚗', price: 9000, at: 'highstreet', sec: 'Getting about', blurb: 'Two more blocks of time every season. Costs $300 a season to run.' },
-  sportscar: { name: 'Sports car', icon: '🏎️', price: 85000, at: 'highstreet', sec: 'Getting about', blurb: 'Two more blocks of time, heads turn (Charm grows faster), and it cheers you up. Costs $1,200 a season to run.' },
+  // (Cars are sold, mended and learned in at Dobbs & Daughter up the hill: see motor.js. Owning
+  // one that goes still sets s.items.car, or s.items.sportscar, for the rest of the game.)
   phone: { name: 'Phone', icon: '📱', price: 600, at: 'highstreet', sec: 'Handy', blurb: 'Friends drift away more slowly, and you can try the dating app.' },
   laptop: { name: 'Laptop', icon: '💻', price: 1400, at: 'highstreet', sec: 'Handy', blurb: 'Take freelance gigs, and write a novel at home.' },
   books: { name: 'Shelf of good books', icon: '📚', price: 450, at: 'highstreet', sec: 'Handy', blurb: 'Smarts grows a little faster.' },

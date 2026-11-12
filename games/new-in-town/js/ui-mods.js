@@ -3,4 +3,6 @@
 // screen's kit and gives back what it adds: see "the newer parts of town" in
 // game.js.
 
-export const SCREENS = [];
+import motor from './motor-ui.js';
+
+export const SCREENS = [motor];

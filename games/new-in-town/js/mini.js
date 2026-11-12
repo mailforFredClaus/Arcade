@@ -429,7 +429,8 @@ export function playMini(o, done) {
       const q = clamp(score, 0, 1), g = grade(q);
       sfx(g >= 2 ? 'win' : g ? 'chime' : 'lose');
       root.classList.add('done');
-      const banner = el('div', 'mini-end', `<i>${'<b>★</b>'.repeat(g)}${'<s>★</s>'.repeat(3 - g)}</i><b>${GRADE_WORD[g]}</b>`);
+      // (A game that is not a shift may name its four marks itself: words.)
+      const banner = el('div', 'mini-end', `<i>${'<b>★</b>'.repeat(g)}${'<s>★</s>'.repeat(3 - g)}</i><b>${(def.words || GRADE_WORD)[g]}</b>`);
       root.append(banner);
       setTimeout(() => { banner.remove(); close(q); }, 1150);
     },
