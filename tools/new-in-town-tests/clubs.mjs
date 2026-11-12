@@ -283,17 +283,18 @@ export default async function ({ check, fresh, Life, ACTIONS }) {
     const B = life();
     B.act('clubJoin_book');
     const bk = B.bookOfSeason();
-    check(CLUB_READS.includes(bk) && B.bookOfSeason(B.s.t + 1) !== bk, 'the book club reads a different book each season');
+    // (Each book for two seasons now, so that it can be read in time: see polish.mjs.)
+    check(CLUB_READS.includes(bk) && B.bookOfSeason(B.bookNextAt()) !== bk, 'the book club moves on to a different book');
     const Read = clone(B), Not = clone(B);
     Read.s.clubs.read[bk] = { a: 18, t: 0 };
     Read.act('clubNight_book'); Not.act('clubNight_book');
     check(Read.clubMem('book').st > Not.clubMem('book').st + 4 && Read.clubSkill('book') > Not.clubSkill('book'), 'having read it makes for a better evening');
     // Whoever chooses the books, chooses them.
     const m = B.clubMem('book'); m.r = 3;
-    const pick = CLUB_READS.find((id) => id !== B.bookOfSeason(B.s.t + 1));
+    const pick = CLUB_READS.find((id) => id !== B.bookOfSeason(B.bookNextAt()));
     check(!B.can('bookChoose', pick) && B.can('bookChoose', 'knots'), 'the one who chooses picks novels, not manuals');
     B.act('bookChoose', pick);
-    check(B.bookOfSeason(B.s.t + 1) === pick && B.can('bookChoose', pick), 'next season’s book is yours, once a season');
+    check(B.bookOfSeason(B.bookNextAt()) === pick && B.can('bookChoose', pick), 'the next book is yours, chosen once');
     // Miss Achterberg’s secret.
     const V = life();
     let sent = 0;

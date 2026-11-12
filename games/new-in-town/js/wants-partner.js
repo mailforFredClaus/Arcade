@@ -164,7 +164,7 @@ export const PARTNER_CARDS = [
   // ---- a business of their own ----
   {
     id: 'wantsShop1', icon: '🏪', title: 'A ring binder', ok: at(0),
-    text: (L, x) => { const p = P(L, x), r = rec(L, p); return `${first(p)} has a plan, and it is in a ring binder: ${r.shop.a} in the old chandlery on Harbour Row, to be called ${r.shop.sign}. ${He(p)} has done the sums twice. ${He(p)} is ${money(price(L, 12000))} short.`; },
+    text: (L, x) => { const p = P(L, x), r = rec(L, p); return `${first(p)} has a plan, and it is in a ring binder: ${r.shop.a} in ${r.shop.where || 'the old chandlery on Harbour Row'}, to be called ${r.shop.sign}. ${He(p)} has done the sums twice. ${He(p)} is ${money(price(L, 12000))} short.`; },
     opts: [
       { t: 'Put up all of it', cost: (L) => price(L, 12000), run(L, x) { const p = P(L, x), r = rec(L, p), a = amb(L, x); sup(a, 3); L.bond(p, 10); r.biz = { hp: 55, stake: price(L, 12000) }; next(L, a, 4, 6); L.note(`Put up the money for ${first(p)}’s ${r.shop.a.replace(/^an? /, '')}, ${r.shop.sign}.`); return `${r.shop.sign} opens on a Saturday in the rain. There is a queue anyway, mostly your friends.`; } },
       { t: 'Put up half', cost: (L) => price(L, 6000), run(L, x) { const p = P(L, x), r = rec(L, p), a = amb(L, x); sup(a, 2); L.bond(p, 5); r.biz = { hp: 48, stake: price(L, 6000) }; next(L, a, 4, 6); return `The bank finds the rest, on terms ${first(p)} reads out to you in a funny voice. ${r.shop.sign} opens in the spring.`; } },
@@ -246,7 +246,8 @@ export const PARTNER_CARDS = [
   // ---- a garden ----
   {
     id: 'wantsGarden1', icon: '🌻', title: 'Seed catalogues', ok: at(0),
-    text: (L, x) => { const p = P(L, x); return `${first(p)} has started reading seed catalogues in bed, and sighing at them. ${He(p)} wants a garden: a proper one, with a shed and a bean row, and somewhere to sit on a summer evening.`; },
+    // (In a family that has been through this before, the old garden is part of the argument: see chapFam in chapters.js.)
+    text: (L, x) => { const p = P(L, x), fam = L.chapFam && L.chapFam('wantsGarden1'); return `${first(p)} has started reading seed catalogues in bed, and sighing at them. ${He(p)} wants a garden: a proper one, with a shed and a bean row, and somewhere to sit on a summer evening.${fam ? ` ${He(p)} has heard a great deal about the garden at the old family house, and means to do better.` : ''}`; },
     opts: [
       {
         t: 'Move to a fisherman’s cottage with a garden', show: (L) => !L.s.owned && L.s.home !== 'cottage',

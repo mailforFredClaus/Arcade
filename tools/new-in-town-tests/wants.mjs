@@ -423,6 +423,8 @@ export default function ({ check, fresh, Life, ACTIONS }) {
     check(l.length >= 2 && l.every((q) => q.icon && q.text && !BAD.test(q.text)), `the People tab says who is hoping for what (${l.map((q) => q.text).join(' / ')})`);
     L.s.wants.tales = ['stood behind Dan through a degree', 'looked after an ageing parent at home to the very end'];
     Object.assign(L.s.wants.p[F.kid[26]] || (L.s.wants.p[F.kid[26]] = { been: [] }), { dream: 1, hope: ['a vet', 'medicine'] });
+    // (And is still doing it: the Gazette says so only of a child whose work is what they said at six. See polish.mjs.)
+    L.person(F.kid[26]).job = 'medicine';
     const ep = L.epitaph();
     check(ep.some((t) => /stood behind Dan/.test(t)) && ep.some((t) => /said .* at six/.test(t)) && ep.every((t) => /[.]$/.test(t) && !BAD.test(t)), `the Gazette remembers (${ep.filter((t) => /Dan|six/.test(t)).join(' ')})`);
   }

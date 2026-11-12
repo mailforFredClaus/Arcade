@@ -4,7 +4,7 @@
 // by Mrs Gale on the High Street; and a sheet for the chapters so far.
 
 import { DREAMS, HOMES, GIFTS, CAREERS, ITEMS, low } from './data.js';
-import { CROSS, DUTY, SETTLE, GIFT_YEARS, MEMO, homeSaid } from './chapters.js';
+import { CROSS, DUTY, SETTLE, GIFT_YEARS, MEMO, homeSaid, famRel } from './chapters.js';
 
 const AGES = { 18: 'eighteen', 30: 'thirty', 45: 'forty-five', 60: 'sixty' };
 const first = (p) => p.name.split(' ')[0];
@@ -68,7 +68,7 @@ export default function (kit) {
     if (O.mind && O.mind.on) rows.push(['🧸', 'Minding the grandchildren', O.mind.light ? 'Fridays, and some of the holidays.' : 'Tuesdays and Thursdays: a block of time a season, and worth every minute.']);
     if (O.lunch != null && life.person(O.lunch)) rows.push(['🍺', 'Lunch at the Gull', `With ${esc(life.person(O.lunch).name)}, the first Friday of the month.`]);
     if (O.kid != null && life.person(O.kid)) rows.push(['🏠', 'Family under your roof', `${esc(first(life.person(O.kid)))} and family: a hand about the house, and a block of time more.`]);
-    if (O.adv) rows.push(['🎈', 'One last adventure', `At ${O.adv.age} you ${esc(O.adv.said)}.`]);
+    if (O.adv) rows.push(['🎈', 'One last adventure', `At ${O.adv.age} you ${esc(O.adv.said)}${O.adv.fam ? `, as your ${famRel(O.adv.fam)} had at ${O.adv.fam.age}` : ''}.`]);
     return `<div class="box chap-box"><h3>Later life</h3>${rows.map(([i, b, t]) => `<div class="chap-row"><i>${i}</i><div><b>${b}</b><small>${t}</small></div></div>`).join('')}
       <p class="fine">Health holds up best with exercise, good food and a settled home, and the years are kinder to the healthy. When the end comes, you will see it coming.</p></div>`;
   }

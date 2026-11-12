@@ -42,7 +42,7 @@ export default function (kit) {
       for (const id of ['motorLesson', 'motorTheory', 'motorTest']) if (id !== 'motorTheory' || !m.th) body += actRow(life.look(id));
     } else {
       const pts = life.motorPoints();
-      body += `<div class="item${life.motorBanned() ? '' : ' mine'}"><div class="item-top"><span class="act-ico">🪪</span><div><b>${licWord(life)}</b><small>${m.old ? 'You were driving before you came to Starling Bay.' : `Passed ${m.first ? 'first time' : `at the ${['', 'first', 'second', 'third', 'fourth', 'fifth'][m.tries] || `${m.tries}th`} attempt`}.`}${pts ? ` Points come off three years after you get them; twelve at once means a ban.` : ''}</small></div></div>
+      body += `<div class="item${life.motorBanned() ? '' : ' mine'}"><div class="item-top"><span class="act-ico">🪪</span><div><b>${licWord(life)}</b><small>${m.old ? (life.chapHow && life.chapHow() !== 'train' ? 'You have been driving for years.' : 'You were driving before you came to Starling Bay.') : `Passed ${m.first ? 'first time' : `at the ${['', 'first', 'second', 'third', 'fourth', 'fifth'][m.tries] || `${m.tries}th`} attempt`}.`}${pts ? ` Points come off three years after you get them; twelve at once means a ban.` : ''}</small></div></div>
         ${life.motorBanned() ? `<p class="fine">No driving until the ban is over: the car${c ? ` stays in the yard, and still costs its tax and insurance` : ''}.</p>` : ''}</div>`;
     }
     // The car.

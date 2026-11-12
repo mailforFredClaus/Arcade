@@ -622,7 +622,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       else L.queue('lagMate', { m: q.mate });
       // An old enemy, still on the wing.
       const foe = Object.keys(lag.foes).find((k) => lag.foes[k] > s.t);
-      if (foe) L.queue('lagFoe', { k: foe });
+      if (foe) { lag.foeN = (lag.foeN || 0) + 1; L.queue('lagFoe', { k: foe, n: lag.foeN }); }
       return;
     }
     const m = lag.mates[q.mate];
@@ -1439,7 +1439,9 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     },
     {
       id: 'lagFoe', icon: '🧼', title: 'An old acquaintance', gaol: true, ok: (L, x) => (L.s.heists.lag.foes[x.k] || 0) > L.s.t,
-      text: 'Big Col Mabbott is still on B wing, and he has not forgotten you. He is standing by the showers with a bar of soap in a sock, swinging it gently, like a man waiting for a bus.',
+      // (x.n: how many sentences he has been waiting for you. He gets no less patient.)
+      text: (L, x) => (!x || !(x.n > 1) ? 'Big Col Mabbott is still on B wing, and he has not forgotten you. He is standing by the showers with a bar of soap in a sock, swinging it gently, like a man waiting for a bus.'
+        : ['Big Col Mabbott, again. He has had a haircut and a birthday since last time, and has not changed his mind about you. The sock and the soap are new.', 'Big Col is on the landing when they walk you in, as if he had been told you were coming, which he probably was. He just nods, and goes on nodding.'][x.n % 2]),
       opts: [
         { t: 'Keep out of his way', run(L) { L.behave(4); L.respect(-6); return 'You shower at odd hours and eat with your back to the wall. It works, mostly.'; } },
         { t: 'Settle it, in the showers', check: ['fitness', 55], run(L, x, win) { const lag = L.s.heists.lag; L.behave(-12); if (win) { delete lag.foes[x.k]; L.respect(14); return 'It is short, and it is final. Big Col asks for a transfer to Dartmoor.'; } L.rough(15, 'a beating in Starling Gaol'); return 'The sock is heavier than it looks. You wake up in the infirmary with the shape of a bar of soap on your forehead.'; } },
@@ -1453,7 +1455,10 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
         const open = n <= 1 ? 'They give you back your watch, your shoelaces and $46. The small door in the big gate opens.'
           : n === 2 ? 'Mr Hobbs hands back your watch and your shoelaces and counts out $46, slowly. "Mind how you go," he says. The small door in the big gate opens.'
             : n <= 4 ? 'Your watch, your shoelaces, $46. Mr Hobbs does not say "see you soon" any more. He used to think it was a joke. The small door opens.'
-              : 'Your property bag is waiting on the desk before you reach it: they keep it on a shelf of its own now. The small door opens, and you know exactly how many steps it is to the road.';
+              // (A fifth time out, and a sixth, and after: not the same words every time.)
+              : ['Your property bag is waiting on the desk before you reach it: they keep it on a shelf of its own now. The small door opens, and you know exactly how many steps it is to the road.',
+                'Mr Hobbs has your watch out before you ask for it, and winds it for you. "It loses two minutes a week," he says. "It did last time." The small door opens.',
+                `Out again, the ${['fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth'][n - 5] || `${n}th`} time. The officer on the desk is new, and looks at your file, and then at you, and then at your file. The small door opens.`][n % 3];
         let who = '';
         if (g.who === 'love' && q) who = `${q.name} is leaning on the bonnet of a borrowed car, trying not to cry.`;
         else if (g.who === 'kin' && q) who = `${q.name} is waiting across the road, with a flask and your old coat.`;

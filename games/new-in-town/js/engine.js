@@ -16,7 +16,7 @@
 
 import {
   SEASONS, STATS, STAT_NAME, PLACES, CAREERS, SHIFTS_FOR_RUNG, COURSES, GRADES, STUDENT_RATE, HOMES, UPGRADES, FOOD, INSURANCE, ITEMS, TRIPS,
-  SAVINGS_RATE, LOAN_RATE, STOCKS, HEADLINES, PLOT_RENT, FESTS, JOB_GAMES, PLAY_EVERY, NAMES_M, NAMES_F, PET_NAMES, PETS, BACKGROUNDS, LOOKS,
+  SAVINGS_RATE, LOAN_RATE, STOCKS, HEADLINES, PLOT_RENT, FESTS, JOB_GAMES, jobGame, PLAY_EVERY, NAMES_M, NAMES_F, PET_NAMES, PETS, BACKGROUNDS, LOOKS,
   DREAMS, QUESTS, TROPHIES, RIBBONS, money, cashShort, an, lowJob, many,
 } from './data.js';
 import { EVENTS } from './events.js';
@@ -592,7 +592,7 @@ for (const [id, e] of Object.entries(EFFORT)) {
 const PLAYED = [{ n: 0.6, perf: -4, pay: 0.75 }, { n: 1, perf: 1, pay: 1 }, { n: 1.2, perf: 3, pay: 1.25 }, { n: 1.4, perf: 5, pay: 1.5 }];
 def('workPlay', {
   place: (L) => (L.s.job ? CAREERS[L.s.job.c].place : null), sec: 'Work', time: 2,
-  icon: (L) => JOB_GAMES[L.s.job.c].icon, title: (L) => JOB_GAMES[L.s.job.c].title,
+  icon: (L) => JOB_GAMES[L.s.job.c].icon, title: (L) => jobGame(L.s.job.c, L.s.job.r).title,
   desc: (L) => (L.playDue() ? `${L.watcher()} is watching today: make a mess of it and it will be remembered. Done well, it pays up to half as much again and counts for more.` : 'Play the shift. Done well, it pays up to half as much again and counts for more towards promotion; done badly, less.'),
   show: (L) => !!L.s.job,
   why: (L, x) => (x === undefined || (typeof x === 'number' && x >= 0 && x <= 1) ? null : 'Roll your sleeves up.'),
@@ -601,7 +601,7 @@ def('workPlay', {
     s.n.played = (s.n.played || 0) + 1;
     if (g === 3) s.aced[c] = (s.aced[c] || 0) + 1;
     // (A mess made in front of the boss costs twice over.)
-    return L.work({ ...PLAYED[g], perf: PLAYED[g].perf - (watched && g === 0 ? 4 : 0), stress: 1, played: true, said: JOB_GAMES[c].said[g] });
+    return L.work({ ...PLAYED[g], perf: PLAYED[g].perf - (watched && g === 0 ? 4 : 0), stress: 1, played: true, said: jobGame(c, s.job.r).said[g] });
   },
 });
 def('drinks', {
@@ -1076,7 +1076,7 @@ export class Life {
     return this.salYours && this.salYours() ? 'The crew' : 'The boss';
   }
   // What the screen needs to put this job's game on: which, how hard, and how much your skill helps.
-  shiftGame() { const j = this.s.job, k = JOB_GAMES[j.c]; const stat = CAREERS[j.c].stats[0]; return { id: k.game, title: k.title, icon: k.icon, level: j.r, ease: this.s.st[stat] / 100, skill: STAT_NAME[stat] }; }
+  shiftGame() { const j = this.s.job, k = jobGame(j.c, j.r); const stat = CAREERS[j.c].stats[0]; return { id: k.game, title: k.title, icon: k.icon, level: j.r, ease: this.s.st[stat] / 100, skill: STAT_NAME[stat] }; }
   jobTitle() { const j = this.s.job; return j ? CAREERS[j.c].rungs[j.r].title : ''; }
   // The best grade you hold in any course that belongs to a career.
   gradeFor(c) {
@@ -1375,8 +1375,10 @@ export class Life {
     while (s.pend.length && stale(s.pend[0])) s.pend.shift();
     if (!s.pend.length || s.dead) return null;
     const { id, x } = s.pend[0], e = EVENT[id];
+    // (again: what a card says the second time it is drawn in a life, and after, if it has words for that.)
+    const again = e.again && (s.seen[id] || 0) >= 2;
     return {
-      id, icon: val(e.icon, this, x), title: val(e.title, this, x), text: val(s.gaol && e.inText ? e.inText : e.text, this, x),
+      id, icon: val(e.icon, this, x), title: val(e.title, this, x), text: val(s.gaol && e.inText ? e.inText : again ? e.again : e.text, this, x),
       opts: e.opts.filter((o) => !o.show || o.show(this, x)).map((o) => ({
         t: val(o.t, this, x),
         cost: val(o.cost, this, x) || 0,
@@ -1404,21 +1406,28 @@ export class Life {
   }
   drawEvent() {
     const s = this.s, pool = [];
-    let total = 0;
+    let total = 0, full = 0;
     for (const e of EVENTS) {
       if (!e.w) continue;
       if (e.once && s.seen[e.id]) continue;
       if (s.cd[e.id] != null && s.t - s.cd[e.id] < (e.cd ?? 24)) continue;
       if (!!e.gaol !== !!s.gaol) continue;
       if (e.when && !e.when(this)) continue;
-      pool.push(e); total += e.w;
+      // (A card that has come up before comes up less often each time, so that a long life does not
+      // keep meeting the same stranger: half as often after two showings, a third after four, never
+      // less than a fifth. s.seen counts the showings; an old save's 1 counts as one.)
+      const w = e.w * Math.max(0.2, 1 / (1 + 0.5 * (s.seen[e.id] || 0)));
+      pool.push([e, w]); total += w; full += e.w;
     }
     if (!pool.length) return;
-    let r = this.rnd() * total, e = pool[0];
-    for (const q of pool) { e = q; r -= q.w; if (r < 0) break; }
+    // (Inside, where there are few cards and the years are long, a season when nothing new happens is
+    // likelier the more often it has all happened before: a long stretch is not the same eight cards.)
+    if (s.gaol && total < full && this.rnd() > Math.max(0.35, total / full)) return;
+    let r = this.rnd() * total, e = pool[0][0];
+    for (const [q, w] of pool) { e = q; r -= w; if (r < 0) break; }
     const x = e.ctx ? e.ctx(this) : null;
     if (e.ctx && x == null) return;
-    s.cd[e.id] = s.t; s.seen[e.id] = 1;
+    s.cd[e.id] = s.t; s.seen[e.id] = (s.seen[e.id] || 0) + 1;
     this.queue(e.id, x);
   }
 
@@ -1680,6 +1689,8 @@ export class Life {
       if (again) this.note('Could not pay the bills again. What you owed was written off.');
       else {
         this.note('Declared bankrupt. The debts are wiped, and so is nearly everything else.', 'big');
+        // (A student loan survives it, as it would: said plainly, so that what you are worth makes sense.)
+        if (s.sloan > 0) this.note(`The student loan is the one debt a bankruptcy cannot touch: ${money(s.sloan)} still owing, paid off from your wages as before.`);
         this.queue('bust', sold.join(', '));
       }
     } else {

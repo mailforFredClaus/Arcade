@@ -81,7 +81,9 @@ export function install({ def, A, Life, clamp, hooks }) {
         const end = (this.chapWedEnd && this.chapWedEnd()) || (s.f.divorced ? { how: 'divorced' } : { how: 'widowed' });
         if (s.f.wed) {
           if (end.how === 'widowed') out.push(end.t != null && s.t - end.t < 8 ? `${He} had been widowed only lately.` : `${He} had been a ${m ? 'widower' : 'widow'} for some years.`);
-          else if (!out.some((t) => / married to /.test(t))) out.push(`${He} had been married, and did not speak of it.`);
+          // (If the Gazette has already named the one married to, through the years together, it cannot say it was never spoken of.)
+          else if (out.some((t) => / married to /.test(t))) { /* said already */ } else if (out.some((t) => /stood behind |sailed round the world with /.test(t))) out.push(`${He} had been married, and it did not last.`);
+          else out.push(`${He} had been married, and did not speak of it.`);
         } else if (!kin.length || (kin.length === 1 && s.pet)) out.push(this.friends().length >= 3 ? `${He} never married, and was never short of company.` : `${He} kept ${his} own company.`);
       }
       const worth = this.netWorth();

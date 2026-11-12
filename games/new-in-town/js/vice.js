@@ -137,8 +137,9 @@ export function install({ def, A, Life, clamp }) {
       if (s.shark > 0) {
         s.shark = Math.round(s.shark * 1.1);
         s.sharkT = (s.sharkT || 0) + 1;
-        if (s.sharkT >= 6 && s.sharkT % 3 === 0 && !s.gaol) this.queue('legbreakers');
-      } else s.sharkT = 0;
+        // (sharkN counts the knocks on this debt: the card changes as they go on, and the fifth is the last.)
+        if (s.sharkT >= 6 && s.sharkT % 3 === 0 && !s.gaol) { s.sharkN = (s.sharkN || 0) + 1; this.queue('legbreakers'); }
+      } else { s.sharkT = 0; s.sharkN = 0; }
     },
   });
 
