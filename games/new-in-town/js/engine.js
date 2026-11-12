@@ -16,7 +16,7 @@
 
 import {
   SEASONS, STATS, STAT_NAME, PLACES, CAREERS, SHIFTS_FOR_RUNG, COURSES, GRADES, STUDENT_RATE, HOMES, UPGRADES, FOOD, INSURANCE, ITEMS, TRIPS,
-  SAVINGS_RATE, LOAN_RATE, STOCKS, HEADLINES, PLOT_RENT, FESTS, JOB_GAMES, PLAY_EVERY, NAMES_M, NAMES_F, PET_NAMES, PETS, BACKGROUNDS, LOOKS,
+  SAVINGS_RATE, LOAN_RATE, STOCKS, HEADLINES, PLOT_RENT, FESTS, JOB_GAMES, jobGame, PLAY_EVERY, NAMES_M, NAMES_F, PET_NAMES, PETS, BACKGROUNDS, LOOKS,
   DREAMS, QUESTS, TROPHIES, RIBBONS, money, cashShort, an, lowJob, many,
 } from './data.js';
 import { EVENTS } from './events.js';
@@ -503,7 +503,7 @@ def('folks', {
 });
 
 // -- the casino
-def('slotsOpen', { place: 'casino', sec: 'Games', icon: '🎰', title: 'Play the slots', desc: 'Three diamonds pay 400 to 1.', time: 0, open: 'slots' });
+def('slotsOpen', { place: 'casino', sec: 'Games', icon: '🎰', title: 'Play the slots', desc: (L) => `Three diamonds pay 400 to 1, up to the house limit: ${money(L.houseMax())} over the stake.`, time: 0, open: 'slots' });
 def('hiloOpen', { place: 'casino', sec: 'Games', icon: '🃏', title: 'Higher or Lower', desc: 'Call the next card. Cash out any time.', time: 0, open: 'hilo' });
 const REEL = ['🍒', '🍋', '🔔', '⭐', '7️⃣', '💎'];
 const REEL_ODDS = [0.3, 0.25, 0.18, 0.14, 0.09, 0.04];
@@ -521,7 +521,8 @@ def('slots', {
     let mult = 0;
     if (reels[0] === reels[1] && reels[1] === reels[2]) mult = REEL_PAYS[reels[0]];
     else if (reels.filter((k) => k === 0).length === 2) mult = s.heir === 'rogue' ? 2.5 : 2;
-    const win = bet * mult;
+    // (Nothing the Lucky Gull pays out on one bet goes past the house limit: see pier.js.)
+    const win = Math.min(bet + L.houseMax(), bet * mult);
     s.n.casino += win - bet;
     L.out = { reels: reels.map((k) => REEL[k]), win };
     if (win) { L.cash(win); L.joy(mult >= 15 ? 6 : 0.5); } else L.joy(-0.3);
@@ -537,7 +538,7 @@ def('hiloStart', {
 });
 def('hiloGuess', {
   time: 0,
-  why: (L, dir) => (!L.s.hilo ? 'Place a bet first.' : L.hiloOdds(dir) <= 0 ? 'Nothing beats that.' : null),
+  why: (L, dir) => (!L.s.hilo ? 'Place a bet first.' : L.hiloOdds(dir) <= 0 ? 'Nothing beats that.' : L.s.hilo.pot >= L.s.hilo.bet + L.houseMax() ? 'The pot is at the house limit. Cash it.' : null),
   run(L, dir) {
     const s = L.s, h = s.hilo, next = L.int(1, 13), p = L.hiloOdds(dir);
     const won = dir === 'hi' ? next > h.card : next < h.card;
@@ -546,7 +547,8 @@ def('hiloGuess', {
       L.out = { card: next, lost: true };
       return next === h.card ? 'The same again: the house takes ties. Your stake is gone.' : 'Wrong way. Your stake is gone.';
     }
-    h.pot = Math.round(h.pot * (s.heir === 'rogue' ? 1 : 0.97) / p);
+    // (The house keeps a twentieth of every right call, a little less from a rogue.)
+    h.pot = Math.min(h.bet + L.houseMax(), Math.round(h.pot * (s.heir === 'rogue' ? 0.99 : 0.95) / p));
     h.card = next; h.streak++;
     s.n.streak = Math.max(s.n.streak, h.streak);
     L.out = { card: next };
@@ -592,7 +594,7 @@ for (const [id, e] of Object.entries(EFFORT)) {
 const PLAYED = [{ n: 0.6, perf: -4, pay: 0.75 }, { n: 1, perf: 1, pay: 1 }, { n: 1.2, perf: 3, pay: 1.25 }, { n: 1.4, perf: 5, pay: 1.5 }];
 def('workPlay', {
   place: (L) => (L.s.job ? CAREERS[L.s.job.c].place : null), sec: 'Work', time: 2,
-  icon: (L) => JOB_GAMES[L.s.job.c].icon, title: (L) => JOB_GAMES[L.s.job.c].title,
+  icon: (L) => JOB_GAMES[L.s.job.c].icon, title: (L) => jobGame(L.s.job.c, L.s.job.r).title,
   desc: (L) => (L.playDue() ? `${L.watcher()} is watching today: make a mess of it and it will be remembered. Done well, it pays up to half as much again and counts for more.` : 'Play the shift. Done well, it pays up to half as much again and counts for more towards promotion; done badly, less.'),
   show: (L) => !!L.s.job,
   why: (L, x) => (x === undefined || (typeof x === 'number' && x >= 0 && x <= 1) ? null : 'Roll your sleeves up.'),
@@ -601,7 +603,7 @@ def('workPlay', {
     s.n.played = (s.n.played || 0) + 1;
     if (g === 3) s.aced[c] = (s.aced[c] || 0) + 1;
     // (A mess made in front of the boss costs twice over.)
-    return L.work({ ...PLAYED[g], perf: PLAYED[g].perf - (watched && g === 0 ? 4 : 0), stress: 1, played: true, said: JOB_GAMES[c].said[g] });
+    return L.work({ ...PLAYED[g], perf: PLAYED[g].perf - (watched && g === 0 ? 4 : 0), stress: 1, played: true, said: jobGame(c, s.job.r).said[g] });
   },
 });
 def('drinks', {
@@ -1012,7 +1014,12 @@ export class Life {
     return Math.max(3, t);
   }
 
-  savingsRate() { return SAVINGS_RATE + (this.s.heir === 'tycoon' ? 0.004 : 0) + (this.perk('finance') ? 0.002 : 0); }
+  // (The bank's best rate is for savers, not for fortunes: what is over $500,000 earns half of it,
+  // so the rate quoted for a big balance is what it earns all told.)
+  savingsRate() {
+    const r = SAVINGS_RATE + (this.s.heir === 'tycoon' ? 0.004 : 0) + (this.perk('finance') ? 0.002 : 0), b = this.s.bank, top = 500000;
+    return b > top ? r * (top + 0.5 * (b - top)) / b : r;
+  }
   // For five years after going bankrupt the bank will not lend.
   blacklisted() { return this.s.f.bustAt != null && this.s.t - this.s.f.bustAt < 20; }
   sharesWorth() { const k = this.s.stk; return Object.keys(k.own).reduce((a, sym) => a + k.own[sym] * k.p[sym], 0); }
@@ -1076,7 +1083,7 @@ export class Life {
     return this.salYours && this.salYours() ? 'The crew' : 'The boss';
   }
   // What the screen needs to put this job's game on: which, how hard, and how much your skill helps.
-  shiftGame() { const j = this.s.job, k = JOB_GAMES[j.c]; const stat = CAREERS[j.c].stats[0]; return { id: k.game, title: k.title, icon: k.icon, level: j.r, ease: this.s.st[stat] / 100, skill: STAT_NAME[stat] }; }
+  shiftGame() { const j = this.s.job, k = jobGame(j.c, j.r); const stat = CAREERS[j.c].stats[0]; return { id: k.game, title: k.title, icon: k.icon, level: j.r, ease: this.s.st[stat] / 100, skill: STAT_NAME[stat] }; }
   jobTitle() { const j = this.s.job; return j ? CAREERS[j.c].rungs[j.r].title : ''; }
   // The best grade you hold in any course that belongs to a career.
   gradeFor(c) {
@@ -1375,17 +1382,25 @@ export class Life {
     while (s.pend.length && stale(s.pend[0])) s.pend.shift();
     if (!s.pend.length || s.dead) return null;
     const { id, x } = s.pend[0], e = EVENT[id];
+    // (again: what a card says the second time it is drawn in a life, and after, if it has words for that.)
+    const again = e.again && (s.seen[id] || 0) >= 2;
     return {
-      id, icon: val(e.icon, this, x), title: val(e.title, this, x), text: val(s.gaol && e.inText ? e.inText : e.text, this, x),
-      opts: e.opts.filter((o) => !o.show || o.show(this, x)).map((o) => ({
-        t: val(o.t, this, x),
-        cost: val(o.cost, this, x) || 0,
-        chance: o.check ? this.checkOdds(o.check[0], o.check[1]) : o.odds ? clamp(o.odds(this, x) + this.luck(), 0.02, 0.98) : null,
-        stat: o.check ? o.check[0] : null,
-        why: (o.cost && s.cash + s.bank < val(o.cost, this, x) ? `You need ${money(val(o.cost, this, x))}.` : null) || (o.why ? o.why(this, x) : null),
-      })),
+      id, icon: val(e.icon, this, x), title: val(e.title, this, x), text: val(s.gaol && e.inText ? e.inText : again ? e.again : e.text, this, x),
+      opts: e.opts.filter((o) => !o.show || o.show(this, x)).map((o) => {
+        const chance = o.check ? this.checkOdds(o.check[0], o.check[1]) : o.odds ? clamp(o.odds(this, x) + this.luck(), 0.02, 0.98) : null;
+        return {
+          // (A choice that is nearly hopeless says so in words, not only as a small number: see hopeWord.)
+          t: val(o.t, this, x) + this.hopeWord(chance),
+          cost: val(o.cost, this, x) || 0,
+          chance,
+          stat: o.check ? o.check[0] : null,
+          why: (o.cost && s.cash + s.bank < val(o.cost, this, x) ? `You need ${money(val(o.cost, this, x))}.` : null) || (o.why ? o.why(this, x) : null),
+        };
+      }),
     };
   }
+  // What a choice's odds come to, in words, when they are poor enough to say so.
+  hopeWord(chance) { return chance == null || chance > 0.2 ? '' : chance <= 0.1 ? ' (hardly any chance)' : ' (a long shot)'; }
   choose(i) {
     const s = this.s, v = this.event();
     if (!v) return { ok: false, why: 'Nothing to decide.' };
@@ -1404,21 +1419,28 @@ export class Life {
   }
   drawEvent() {
     const s = this.s, pool = [];
-    let total = 0;
+    let total = 0, full = 0;
     for (const e of EVENTS) {
       if (!e.w) continue;
       if (e.once && s.seen[e.id]) continue;
       if (s.cd[e.id] != null && s.t - s.cd[e.id] < (e.cd ?? 24)) continue;
       if (!!e.gaol !== !!s.gaol) continue;
       if (e.when && !e.when(this)) continue;
-      pool.push(e); total += e.w;
+      // (A card that has come up before comes up less often each time, so that a long life does not
+      // keep meeting the same stranger: half as often after two showings, a third after four, never
+      // less than a fifth. s.seen counts the showings; an old save's 1 counts as one.)
+      const w = e.w * Math.max(0.2, 1 / (1 + 0.5 * (s.seen[e.id] || 0)));
+      pool.push([e, w]); total += w; full += e.w;
     }
     if (!pool.length) return;
-    let r = this.rnd() * total, e = pool[0];
-    for (const q of pool) { e = q; r -= q.w; if (r < 0) break; }
+    // (Inside, where there are few cards and the years are long, a season when nothing new happens is
+    // likelier the more often it has all happened before: a long stretch is not the same eight cards.)
+    if (s.gaol && total < full && this.rnd() > Math.max(0.35, total / full)) return;
+    let r = this.rnd() * total, e = pool[0][0];
+    for (const [q, w] of pool) { e = q; r -= w; if (r < 0) break; }
     const x = e.ctx ? e.ctx(this) : null;
     if (e.ctx && x == null) return;
-    s.cd[e.id] = s.t; s.seen[e.id] = 1;
+    s.cd[e.id] = s.t; s.seen[e.id] = (s.seen[e.id] || 0) + 1;
     this.queue(e.id, x);
   }
 
@@ -1680,6 +1702,8 @@ export class Life {
       if (again) this.note('Could not pay the bills again. What you owed was written off.');
       else {
         this.note('Declared bankrupt. The debts are wiped, and so is nearly everything else.', 'big');
+        // (A student loan survives it, as it would: said plainly, so that what you are worth makes sense.)
+        if (s.sloan > 0) this.note(`The student loan is the one debt a bankruptcy cannot touch: ${money(s.sloan)} still owing, paid off from your wages as before.`);
         this.queue('bust', sold.join(', '));
       }
     } else {

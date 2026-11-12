@@ -77,4 +77,65 @@ export default function ({ check, fresh, Life }) {
     check(!A.event().opts.some((o) => /Sal’s man/.test(o.t)), 'with Sal inside, there is no Sal’s man to borrow from');
   }
 
+  // The house minds a big winner: a word and a limit, then a polite request to go elsewhere.
+  {
+    const L = fresh(); const s = L.s, f = s.flutter;
+    s.cash = 1e6;
+    L.act('slots', 50);
+    s.n.casino = 120000; L.endSeason();
+    check(s.pend.some((q) => q.id === 'flLimit'), 'up a hundred thousand on the house, and the manager wants a word');
+    while (L.event() && L.event().id !== 'flLimit') L.choose(0);
+    L.choose(0);
+    s.time = 6; s.use = {};
+    check(L.flLimit() === 500 && /no more than \$500/.test(L.can('slots', 5000) || '') && !L.can('slots', 500) && /no more than/.test(L.can('raceBet', { i: 0, bet: 5000 }) || ''), 'and then your stakes are kept small');
+    L.act('bjStart', 500);
+    if (L.s.bj) check(/no more than/.test(L.can('bjDouble') || ''), 'doubling a hand is a bigger stake too');
+    L.s.bj = null;
+    // Still up on the house when the limit is over: asked to go elsewhere. (Her books start again from her word.)
+    for (let t = 0; t < 8; t++) { s.pend = []; L.endSeason(); }
+    check(L.flLimit() == null && f.base === 120000, 'the limit lasts two years, and her books on you start afresh');
+    s.time = 6; s.use = {}; s.pend = [];
+    L.act('slots', 50);
+    s.n.casino = f.base + 105000; L.endSeason();
+    while (L.event() && L.event().id !== 'flBan') L.choose(0);
+    check(L.event() && L.event().id === 'flBan', 'up as much again, and the house would rather you went elsewhere');
+    L.choose(0);
+    check(L.flBarred() && f.house && /very politely/.test(L.can('slots', 50) || '') && !L.can('lotto'), 'the pier will not take your money for three years; the newsagent still will');
+    // A small winner is nothing to the house.
+    const W = fresh(); W.s.cash = 5000; W.act('slots', 50); W.s.n.casino = 20000; W.endSeason();
+    check(!W.s.pend.some((q) => q.id === 'flLimit' || q.id === 'flBan'), 'a few thousand up is nothing to the house');
+    // An old save starts with clean books.
+    const O = fresh(); for (const k of ['nets', 'lim', 'house', 'warned', 'base']) delete O.s.flutter[k];
+    const R = new Life(JSON.parse(JSON.stringify(O.s)));
+    check(Array.isArray(R.s.flutter.nets) && R.s.flutter.warned === 0 && R.flLimit() == null, 'a life saved before the house kept books on you starts with clean ones');
+  }
+
+  // The house limit, and an edge that bites: nothing pays more than $100,000 over the stake.
+  {
+    const L = fresh(); const s = L.s;
+    s.cash = 1e9;
+    let best = 0;
+    for (let i = 0; i < 4000; i++) { const r = L.act('slots', 50000); best = Math.max(best, r.out.win); s.flutter.barred = null; s.flutter.lim = null; s.pend = []; }
+    check(best <= 150000 && best > 0, `the slots never pay more than the house limit over the stake (${best})`);
+    s.hilo = { bet: 50000, pot: 140000, card: 2, streak: 2 };
+    L.act('hiloGuess', 'hi');
+    check(!s.hilo || s.hilo.pot <= 150000, 'nor does Higher or Lower');
+    if (s.hilo) check(/house limit/.test(L.can('hiloGuess', 'hi') || '') || s.hilo.pot < 150000, 'and a pot at the limit can only be cashed');
+    s.hilo = null;
+    s.bj = { bet: 50, me: [1, 13], dl: [10, 7] };
+    const c0 = s.cash;
+    L.bjSettle('natural');
+    check(s.cash === c0 + 110, 'a blackjack pays six to five');
+    // A sensible gambler, over thousands of bets at each game, loses: the edge bites.
+    const G = fresh(); G.s.cash = 1e9;
+    const n0 = G.s.n.casino;
+    for (let i = 0; i < 6000; i++) {
+      G.act('hiloStart', 50);
+      for (let j = 0; j < 3 && G.s.hilo; j++) { const hi = G.hiloOdds('hi'), lo = G.hiloOdds('lo'); if (Math.max(hi, lo) < 0.65) break; G.act('hiloGuess', hi >= lo ? 'hi' : 'lo'); }
+      if (G.s.hilo) G.act('hiloCash');
+      G.s.flutter.barred = null; G.s.pend = [];
+    }
+    const edge = -(G.s.n.casino - n0) / (6000 * 50);
+    check(edge > 0.03 && edge < 0.15, `the house keeps a share at Higher or Lower, played sensibly (${(edge * 100).toFixed(1)}%)`);
+  }
 }

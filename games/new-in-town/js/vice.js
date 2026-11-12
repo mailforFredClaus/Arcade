@@ -137,8 +137,9 @@ export function install({ def, A, Life, clamp }) {
       if (s.shark > 0) {
         s.shark = Math.round(s.shark * 1.1);
         s.sharkT = (s.sharkT || 0) + 1;
-        if (s.sharkT >= 6 && s.sharkT % 3 === 0 && !s.gaol) this.queue('legbreakers');
-      } else s.sharkT = 0;
+        // (sharkN counts the knocks on this debt: the card changes as they go on, and the fifth is the last.)
+        if (s.sharkT >= 6 && s.sharkT % 3 === 0 && !s.gaol) { s.sharkN = (s.sharkN || 0) + 1; this.queue('legbreakers'); }
+      } else { s.sharkT = 0; s.sharkN = 0; }
     },
   });
 
@@ -175,7 +176,8 @@ export function install({ def, A, Life, clamp }) {
     run(L) {
       const s = L.s;
       if (L.crime(0.16, 2, 'a crate that is not yours')) return 'You are halfway down the quay with the crate when a torch clicks on.';
-      const pay = Math.min(8000, 2000 + L.int(0, 30) * 100 + s.n.crimes * 100);
+      // (Sal pays a new face a little over an honest shift, and more as he learns to trust you.)
+      const pay = Math.min(8000, 1100 + L.int(0, 12) * 100 + Math.min(45, s.n.crimes) * 120);
       L.cash(pay);
       return `${L.pick(['You drive a van to a lay-by and walk away from it.', 'A crate of "designer" handbags changes hands.', 'You keep watch while some boxes fall off a boat.'])} Sal counts out ${money(pay)}.`;
     },
@@ -185,7 +187,7 @@ export function install({ def, A, Life, clamp }) {
     why: forSal,
     run(L) {
       if (L.crime(0.15, 2, 'a pocketful of mermaid dust')) return 'Your best customer tonight turns out to be a constable in a borrowed anorak.';
-      const pay = Math.round((600 + L.s.st.charm * 14) * (0.8 + L.rnd() * 0.5) / 10) * 10;
+      const pay = Math.round((420 + L.s.st.charm * 12 + Math.min(30, L.s.n.crimes) * 10) * (0.8 + L.rnd() * 0.5) / 10) * 10;
       L.cash(pay); L.gain('charm', 0.6);
       return `${L.pick(['A good night. Everybody is very friendly.', 'You sell out by ten and spend an hour pretending to drink.', 'The darts team is your best customer. It shows.'])} Your cut is ${money(pay)}.`;
     },
@@ -218,7 +220,7 @@ export function install({ def, A, Life, clamp }) {
     why: (L) => (inside(L) ? SHUT : null),
     run(L) {
       if (L.crime(0.28, 2, 'a car with the wrong number plates')) return 'It has a tracker. Of course it has a tracker.';
-      const got = L.int(30, 75) * 100;
+      const got = L.int(18, 40) * 100 + Math.min(30, L.s.n.crimes) * 50;
       L.cash(got); L.s.n.thefts = (L.s.n.thefts || 0) + 1;
       return `Forty seconds with a coat hanger. You deliver it before the owner has finished breakfast: ${money(got)}.`;
     },

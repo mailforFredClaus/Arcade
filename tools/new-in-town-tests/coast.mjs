@@ -266,6 +266,50 @@ export default function ({ check, fresh, Life, ACTIONS }) {
     check(D.event() && D.choose(0).ok, 'Lifeboat Day');
   }
 
+  // ---- the Merrow's leads say what they need, and a player who tries follows them all in years, not decades ----
+  {
+    const L = fresh({ seed: 21 }), s = L.s;
+    s.cash = 1e5; reset(L);
+    L.act('coastStone'); L.choose(0);
+    const m = s.coast.m;
+    for (const key of Object.keys(LEADS)) {
+      const need = L.coastLeadNeeds(key);
+      check(need.steps.length >= 1 && need.steps.every((st) => st.t && /[a-z]/.test(st.t) && !/undefined|NaN/.test(st.t) && st.ok === false), `the notebook says what ${key} needs, and that you do not have it yet`);
+    }
+    check(/harbour/.test(L.coastLeadNeeds('marlow').next) && /reading room/.test(L.coastLeadNeeds('paper').next) && L.coastLeadNeeds('register').next === null && L.coastLeadNeeds('quinn').any, 'and what to do about it now');
+    s.f.marlow = 1; s.coast.reads = 3;
+    check(L.coastLeadNeeds('marlow').steps[0].ok && L.coastLeadNeeds('paper').steps[0].ok && /0 of 3/.test(L.coastLeadNeeds('paper').steps[1].t), 'and ticks off what you have done');
+    s.items.boat = 1; s.n.fish = 30;
+    check(L.coastTrusted() && L.coastLeadNeeds('quinn').steps[1].ok, 'a skipper with a boat of her own and a good many fish landed is one Quinn knows');
+    delete s.items.boat; s.n.fish = 0;
+    // A player who tries: chats to Marlow, reads at the library, joins the lifeboat, looks in at Mr Pym's, goes into the caves.
+    const years = [];
+    for (const seed of [31, 32, 33, 34, 35, 36]) {
+      const P = fresh({ seed, bg: 'athlete' }), p = P.s;
+      p.cash = 2e5; reset(P);
+      P.act('coastStone'); P.choose(0);
+      const pm = p.coast.m;
+      let t = 0;
+      for (; t < 60 && Object.keys(pm.clues).length < 7; t++) {
+        reset(P);
+        const go = (id, x) => { const r = P.act(id, x); let ev, n = 0; while ((ev = P.event()) && n++ < 10) P.choose(ev.opts.findIndex((o) => !o.why)); return r.ok; };
+        if ((p.f.marlow || 0) < 1) go('marlow'); else go('coastPint');
+        if (!P.coastReader()) go('readingRoom'); else go('coastArchive');
+        go('coastRegister');
+        if (P.coastChartUp()) go('coastChart');
+        if (!p.coast.lb) go('coastJoin'); else go('coastTrain');
+        go('coastQuinn');
+        go('coastCaves', 0.6);
+        p.cash = 2e5; p.health = 90;
+        P.endSeason();
+        let ev, n = 0; while ((ev = P.event()) && n++ < 10) P.choose(ev.opts.findIndex((o) => !o.why));
+      }
+      years.push(t / 4);
+    }
+    years.sort((a, b) => a - b);
+    check(years[years.length - 1] <= 10 && years[0] >= 2, `a player who tries follows all seven leads in two to ten years (${years.join(', ')})`);
+  }
+
   // ---- the Merrow, start to finish ----
   {
     const L = fresh(), s = L.s;

@@ -54,7 +54,7 @@ export default function (kit) {
     const life = L();
     const tag = open ? `button class="fk-fav" data-do="open" data-kind="folk_${v.who}"` : 'div class="fk-fav"';
     return `<${tag}><span class="act-ico">${v.icon}</span><span class="fk-fav-main"><b>${esc(v.title)}</b>
-      <small>For ${esc(life.folkName(v.who))}, ${esc(v.where)}${v.due ? `, ${esc(v.due)}` : ''}</small>
+      <small>For ${esc(life.folkName(v.who))}, ${esc(v.where)}${v.due ? `, ${esc(v.due)}` : v.asked ? ` (${esc(v.asked)})` : ''}</small>
       ${FAVOURS[v.id].goal ? `<small class="${v.prog.ready ? 'fk-ok' : ''}">${v.prog.ready ? '✓ Ready to hand over' : esc(v.prog.text)}</small>` : ''}</span>${open ? '<i class="go">›</i>' : ''}</${open ? 'button' : 'div'}>`;
   }
 

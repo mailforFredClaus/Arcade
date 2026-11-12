@@ -390,9 +390,10 @@ export function tales({ perf, credit, bonus, busy, mentor, rival, sack, up, gaz,
         },
         {
           r: 1, icon: '🛏️', title: 'The hostel',
-          text: (L, k) => `The council means to close the hostel by the station, where you slept your first nights in Starling Bay, and sell it for holiday flats. You are writing ${k.M.name}’s speech for the meeting. The party wants it closed.`,
+          // (Only one who came on the train slept there: an heir who grew up in the Bay knows it from the outside. See chapHow in chapters.js.)
+          text: (L, k) => `The council means to close the hostel by the station, ${!L.chapHow || L.chapHow() === 'train' ? 'where you slept your first nights in Starling Bay' : 'where everybody who comes to the Bay with one suitcase sleeps their first nights'}, and sell it for holiday flats. You are writing ${k.M.name}’s speech for the meeting. The party wants it closed.`,
           opts: [
-            { t: 'Write it for the hostel', run(L, k) { L.karma(3); perf(L, -2); mentor(L, k, 4); return `${k.M.first} reads it out word for word, including the bit about your first night and the man in bunk nine. The hostel stays open. The party is not pleased with either of you.`; } },
+            { t: 'Write it for the hostel', run(L, k) { L.karma(3); perf(L, -2); mentor(L, k, 4); return `${k.M.first} reads it out word for word, including ${!L.chapHow || L.chapHow() === 'train' ? 'the bit about your first night and the man in bunk nine' : 'the bit about the man in bunk nine, who has been there since before you were born'}. The hostel stays open. The party is not pleased with either of you.`; } },
             { t: 'Write it for the party', run(L) { perf(L, 4); L.karma(-1); return 'It is a good speech about tourism. The hostel becomes four holiday flats with a hot tub each. You walk the long way round.'; } },
             { t: 'Write it so it says nothing at all', run(L) { perf(L, 2); return 'Nobody can disagree with it, because nobody can find anything in it. The vote is put off until the spring. You have a gift.'; } },
           ],

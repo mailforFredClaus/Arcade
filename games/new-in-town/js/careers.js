@@ -392,7 +392,10 @@ export function install({ A, Life, hooks, addEvents }) {
     if (!best) return;
     const fill = { He: m ? 'He' : 'She', he: m ? 'he' : 'she', his: m ? 'his' : 'her', him: m ? 'him' : 'her' };
     // (A line kept by a save from before: legacy.js says "served as mayor" itself.)
-    out.push(s.careers.st[best].gaz.replace(/^\{He\} served as mayor, and mended/, '{He} mended').replace(/\{(He|he|his|him)\}/g, (_, w) => fill[w]));
+    // (And the wing turned down, in a life that went on to give St Wren's a wing of its own, is said so, not left to argue with legacy.js.)
+    let line = s.careers.st[best].gaz.replace(/^\{He\} served as mayor, and mended/, '{He} mended');
+    if (s.gave && s.gave.wing) line = line.replace(/ turned down a whole new wing for St Wren’s rather than let a rich man jump the queue\./, ' turned down a rich man’s new wing for St Wren’s rather than let him jump the queue, and later paid for one {him}self.');
+    out.push(line.replace(/\{(He|he|his|him)\}/g, (_, w) => fill[w]));
   });
 
   addEvents([...Object.entries(STORIES).flatMap(([c, tale]) => tale.ch.map((ch, i) => chapterCard(c, i, ch))), sendOffCard()]);

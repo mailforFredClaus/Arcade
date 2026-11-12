@@ -47,7 +47,7 @@
 import { TROPHIES, HOMES, money } from './data.js';
 import {
   clamp, first, he, him, his, P, isLove, rec, been, price, fee, young, spareRooms,
-  AMBITIONS, BANDS, INSTRUMENTS, BOATS, SHOPS, HOPES, PATHS, CARE, MILESTONES, EXAM,
+  AMBITIONS, BANDS, INSTRUMENTS, BOATS, SHOPS, PREMISES, HOPES, PATHS, CARE, MILESTONES, EXAM,
 } from './wants-lib.js';
 import { PARTNER_CARDS } from './wants-partner.js';
 import { FAMILY_CARDS, settle, granny } from './wants-family.js';
@@ -56,6 +56,10 @@ export const WANT_CARDS = [...PARTNER_CARDS, ...FAMILY_CARDS];
 const MINE = new Set(WANT_CARDS.map((e) => e.id));
 // One card from here at most every other season, and this often when one is due.
 const GAP = 2, ODDS = 0.6;
+// How long, in seasons, before another friend asks the same kind of thing.
+const KIND_GAP = { loan: 20, ven: 24, best: 10, move: 28, said: 32, night: 24, mend: 12 };
+// What there is to carry, when a friend moves house.
+const MOVING = ['a piano', 'a wardrobe', 'a chest freezer', 'a Welsh dresser', 'a sofa bed', 'a grandfather clock'];
 
 const blank = () => ({ p: {}, next: 0, loans: [], ven: null, mind: null, minded: {}, fNext: 0, tales: [], n: { amb: 0, grad: 0, hopes: 0, speech: 0, patches: 0, cared: 0, ven: 0 }, f: {} });
 const top = (p) => Object.keys(p.st || { smarts: 1 }).sort((a, b) => p.st[b] - p.st[a])[0];
@@ -83,7 +87,8 @@ function draw(L, p, r) {
   const a = pick();
   w[a] = 0;
   const b = pick();
-  r.band = L.pick(BANDS); r.inst = L.pick(INSTRUMENTS); r.boat = L.pick(BOATS); r.shop = { ...(SHOPS[p.trait] || SHOPS.kind) };
+  r.band = L.pick(BANDS); r.inst = L.pick(INSTRUMENTS); r.boat = L.pick(BOATS); const sh = SHOPS[p.trait] || SHOPS.kind;
+  r.shop = { a: sh.a, job: sh.job, sign: L.pick(sh.signs), where: L.pick(PREMISES) };
   return [{ id: a, st: 0, at: s.t + L.int(4, 10), sup: 0, out: null }, { id: b, st: 0, at: null, sup: 0, out: null }];
 }
 // The parents of the person you are with.
@@ -231,10 +236,15 @@ function friendBeats(L, add) {
   const pals = L.friends().filter((q) => q.bond >= 30);
   if (!pals.length) return;
   const f = pals[(t * 7 + pals.length) % pals.length], r = rec(L, f), asked = r.asked || (r.asked = {}), x = { p: f.id };
-  const ask = (id, k, w, more = {}) => add(id, { ...x, ...more }, w, false, () => { asked[k] = 1; W.fNext = t + 3; });
+  // (Each kind of thing is asked once by each friend, and by nobody else for some years after: a life
+  // with twenty friends should not carry twenty pianos up twenty staircases. W.kindT: when each was last asked.)
+  const kindT = W.kindT || (W.kindT = {});
+  const due = (k) => t - (kindT[k] ?? -99) >= (KIND_GAP[k] || 12);
+  const ask = (id, k, w, more = {}) => { if (due(k)) add(id, { ...x, ...more }, w, false, () => { asked[k] = 1; kindT[k] = t; W.fNext = t + 3; }); };
   if (r.fell != null && t - r.fell >= 8) ask('wantsMend', 'mend', 1.2);
   if (r.fell != null) return;
-  if (f.bond >= 35 && !asked.loan && s.cash + s.bank >= 2500) {
+  // (A loan asked for here, or by the old card in events.js, which shares its title: one or the other, now and then.)
+  if (f.bond >= 35 && !asked.loan && s.cash + s.bank >= 2500 && t - (s.cd.loan ?? -99) >= KIND_GAP.loan) {
     const why = L.pick(['The van has failed its MOT, and the work depends on it.', 'The rent is late, and the landlord is not a patient man.', 'The vet’s bill for the dog has come to more than the dog.', 'The boiler has died, and it is February.']);
     ask('wantsLoan', 'loan', 1, { n: price(L, 1500), why });
   }
@@ -243,7 +253,8 @@ function friendBeats(L, add) {
     ask('wantsVenture', 'ven', 0.9, { n: price(L, 5000), what, name });
   }
   if (f.bond >= 55 && !asked.best && !r.best && f.age >= 21 && f.age <= 60) ask('wantsBest', 'best', 1, { name: L.freshName(L.chance(0.5) ? 'm' : 'f').split(' ')[0] });
-  if (!asked.move) ask('wantsMoving', 'move', 0.8);
+  // (Moving house: not once they, or you, are past carrying furniture up stairs.)
+  if (!asked.move && s.age <= 64 && f.age <= 70) ask('wantsMoving', 'move', 0.8, { big: L.pick(MOVING) });
   if (f.bond >= 35 && !asked.said) ask('wantsSaid', 'said', 0.5, { thing: L.pick(['haircut', 'new sweetheart', 'business idea', 'poetry', 'driving']) });
   if (f.bond >= 45 && !asked.night) ask('wantsNight', 'night', 0.8, { why: L.pick([`${f.sex === 'm' ? 'His' : 'Her'} other half has gone, and taken the dog.`, `${f.sex === 'm' ? 'His' : 'Her'} dad has died, very suddenly.`, `${f.sex === 'm' ? 'He' : 'She'} has lost ${f.sex === 'm' ? 'his' : 'her'} job, and has not told anybody.`, `There has been some news from the hospital.`]) });
 }
@@ -636,8 +647,12 @@ export function install({ A, Life, hooks, addEvents }) {
     const m = s.sex !== 'f', He = m ? 'He' : 'She';
     const list = (l) => (l.length < 2 ? l.join('') : `${l.slice(0, -1).join(', ')} and ${l[l.length - 1]}`);
     for (const t of talesSaid(L, W.tales, list)) out.push(`${He} ${t}.`);
-    const made = L.kids().filter((k) => k.age >= 18 && W.p[k.id] && W.p[k.id].dream);
-    if (made.length) out.push(`${list(made.map(first))} grew up to do exactly what ${made.length > 1 ? 'they' : he(made[0])} said ${made.length > 1 ? 'they' : he(made[0])} would at six.`);
+    // (Only those still doing it, by name; and "of the children" when not all of them did, so that it is true of each.)
+    const made = L.kids().filter((k) => k.age >= 18 && W.p[k.id] && W.p[k.id].dream && (!W.p[k.id].hope || W.p[k.id].hope[1] === k.job));
+    if (made.length) {
+      const one = made.length === 1, k0 = made[0], said = `${list(made.map(first))} grew up to do exactly what ${one ? he(k0) : 'they'} said ${one ? he(k0) : 'they'} would at six`;
+      out.push(made.length < L.kids().length ? `Of ${m ? 'his' : 'her'} children, ${said}.` : `${said}.`);
+    }
   });
 
   // A partner who is away (on tour, at sea) cannot be taken out, or try for a baby.

@@ -28,7 +28,7 @@ export function cashShort(n) {
   return money(n);
 }
 
-// The right one of a and an in front of a word, and a job title said mid-sentence (an IT helpdesk).
+// The right one of a and an in front of a word, and a job title said mid-sentence (an IT support assistant).
 // (Numbers too: an 8-year-old, an 11-year-old, an 18-year-old.)
 export const an = (w) => `${/^([aeiou]|8|1[18](?!\d))/i.test(w) ? 'an' : 'a'} ${w}`;
 export const lowJob = (t) => t.toLowerCase().replace(/\bit\b/g, 'IT');
@@ -122,7 +122,7 @@ export const CAREERS = {
     name: 'Tech', entry: { coding: 1, compsci: 2 }, icon: '💻', place: 'labs', stats: ['smarts', 'craft'], stress: 2,
     blurb: 'Turning it off and on again, professionally.',
     rungs: [
-      rung('IT Helpdesk', 1800, { smarts: 25 }),
+      rung('IT Support Assistant', 1800, { smarts: 25 }),
       rung('Junior Developer', 2800, { smarts: 40, edu: 'coding' }),
       rung('Developer', 4300, { smarts: 55 }),
       rung('Senior Engineer', 6800, { smarts: 68, edu: 'compsci' }),
@@ -776,7 +776,7 @@ export const GIFTS = {
     blurb: 'Forty beds, and a roof that does not leak.', perk: 'Hospital visits cost you, and your family, half.',
     plaque: (n) => `The ${n} Wing has forty beds and a view of the sea.`, done: 'A ribbon, a pair of gold scissors, and a matron who shakes your hand as though she means to keep it.' },
   pier: { name: 'Rebuild the pier', icon: '🎡', at: 'casino', cost: 2000000, karma: 20, fame: 15, said: 'its pier',
-    blurb: 'The far end has been shut since the storm of your grandparents’ day.', own: true, perk: 'A seat on the pier company’s board: $6,000 a season for the rest of your life (yours alone: it is not passed on).',
+    blurb: 'The far end has been shut since a storm long before your time: the Lucky Gull is as far as anybody goes.', own: true, perk: 'A seat on the pier company’s board: $6,000 a season for the rest of your life (yours alone: it is not passed on).',
     plaque: (n) => `A stone at the pier gates: "Rebuilt by ${n}, for the town."`, done: 'New ironwork to the very end, a carousel, and lights you can see from the lighthouse. The whole Bay walks out along it on the first night.' },
 };
 
@@ -870,23 +870,30 @@ export const WEATHER = {
 // said: how the shift went, from a shift to forget up to a blinder.
 // After PLAY_EVERY shifts left to look after themselves the boss wants to
 // watch, and the next has to be done by hand.
+// low: for the lower rungs, where the top's words would not fit (a porter does
+// not stitch): [up to this rung, title, said (or the career's own)]. See jobGame.
 export const PLAY_EVERY = 5;
 export const JOB_GAMES = {
-  kitchen: { game: 'pans', icon: '🍳', title: 'Work the pass yourself', said: ['Three burnt, two raw, and the head waiter in tears.', 'Everything goes out, and most of it hot.', 'A clean service. The pass is quiet, which is the highest praise there is.', 'Not a pan out of place all night. The kitchen applauds, which never happens.'] },
+  kitchen: { game: 'pans', icon: '🍳', title: 'Work the pass yourself', low: [[1, 'Mind the pans yourself'], [2, 'Work the stove yourself']], said: ['Three burnt, two raw, and the head waiter in tears.', 'Everything goes out, and most of it hot.', 'A clean service. The pass is quiet, which is the highest praise there is.', 'Not a pan out of place all night. The kitchen applauds, which never happens.'] },
   retail: { game: 'till', icon: '💵', title: 'Take the till yourself', said: ['The till is forty dollars out, and nobody can say which way.', 'The till balances, near enough.', 'Right to the penny, with a queue out of the door.', 'Right to the penny all day, and every customer leaves smiling.'] },
   trades: { game: 'pipes', icon: '🔧', title: 'Plumb it in yourself', said: ['It leaks. It is not supposed to leak.', 'It holds water, which is the main thing.', 'Neat, tight, and done by teatime.', 'Not a drip. The inspector takes a photograph for his own pleasure.'] },
   tech: { game: 'sweep', icon: '🐛', title: 'Hunt the bugs yourself', said: ['You fix one bug and let out four.', 'It runs. Nobody asks how.', 'Clean, and out on the day it was promised.', 'Not one bug left alive. They name the release after you.'] },
-  medicine: { game: 'steady', icon: '🩹', title: 'Do the stitching yourself', said: ['The stitches would shame a sailmaker.', 'It will heal, with a scar to talk about.', 'Neat work. Sister says so, and Sister says very little.', 'Stitches so fine the registrar comes down to admire them.'] },
-  police: { game: 'lineup', icon: '🕵️', title: 'Run the line-up yourself', said: ['You arrest the witness.', 'You get there in the end, by elimination.', 'Picked out first time, all but once.', 'Right every time. The sergeant buys the tea.'] },
+  medicine: { game: 'steady', icon: '🩹', title: 'Do the stitching yourself',
+    low: [[0, 'Steer the beds yourself', ['A trolley into a fire door, and the patient on it wide awake now.', 'Down to X-ray and back, with one wrong turn.', 'Every bed where it should be, on time.', 'Not a bump all shift. Sister says you could steer a bed through a keyhole.']],
+      [2, 'Do the dressings yourself', ['The dressing comes off before you have finished putting it on.', 'It will hold, more or less.', 'Neat work. Sister says so, and Sister says very little.', 'Dressings so neat the registrar comes down to admire them.']]],
+    said: ['The stitches would shame a sailmaker.', 'It will heal, with a scar to talk about.', 'Neat work. Sister says so, and Sister says very little.', 'Stitches so fine the registrar comes down to admire them.'] },
+  police: { game: 'lineup', icon: '🕵️', title: 'Run the line-up yourself', low: [[0, 'Spot the shoplifter yourself', ['You stop the store manager.', 'You get there in the end, after a word with the wrong man.', 'Spotted first time, all but once.', 'Right every time. The manager buys the tea.']]], said: ['You arrest the witness.', 'You get there in the end, by elimination.', 'Picked out first time, all but once.', 'Right every time. The sergeant buys the tea.'] },
   law: { game: 'print', icon: '🔎', title: 'Read the small print yourself', said: ['You sign off a contract that sells your client’s house to his tenant.', 'You catch most of it.', 'Nothing gets past you but the tea trolley.', 'Every change found. The other side’s solicitor stops returning your calls.'] },
   arts: { game: 'tune', icon: '🎸', title: 'Play the set yourself', said: ['You are a bar behind the band all night, and the band notices.', 'It hangs together, mostly.', 'Tight. People dance.', 'Not a note wrong. Somebody at the back shouts for more, and means it.'] },
   sports: { game: 'sprint', icon: '🏃', title: 'Run the race yourself', said: ['Last, and passed by a steward.', 'Third, and blowing.', 'Second, by a vest.', 'First by a street, and the clock agrees.'] },
   teaching: { game: 'marking', icon: '✏️', title: 'Do the marking yourself', said: ['You give full marks to seven eights being fifty-four.', 'Marked, more or less fairly.', 'Marked, and fairly, before the bell.', 'Every book marked, and marked right, with a kind word in each.'] },
-  sea: { game: 'channel', icon: '⛵', title: 'Take the wheel yourself', said: ['You find a rock that is not on the chart. It is now.', 'In, with some new paint needed.', 'In clean, with a story for the Gull.', 'Not a mark on her. The harbourmaster nods, which is his whole vocabulary.'] },
-  finance: { game: 'floor', icon: '📈', title: 'Work the floor yourself', said: ['You buy at the top and sell at the bottom, with great confidence.', 'You end the day about where you began it.', 'Up on the day, and nobody shouting.', 'You call every turn. The floor goes quiet when you pick up the telephone.'] },
+  sea: { game: 'channel', icon: '⛵', title: 'Take the wheel yourself', low: [[1, 'Take a turn at the wheel yourself']], said: ['You find a rock that is not on the chart. It is now.', 'In, with some new paint needed.', 'In clean, with a story for the Gull.', 'Not a mark on her. The harbourmaster nods, which is his whole vocabulary.'] },
+  finance: { game: 'floor', icon: '📈', title: 'Work the floor yourself', low: [[1, 'Watch the markets yourself']], said: ['You buy at the top and sell at the bottom, with great confidence.', 'You end the day about where you began it.', 'Up on the day, and nobody shouting.', 'You call every turn. The floor goes quiet when you pick up the telephone.'] },
   politics: { game: 'room', icon: '🤝', title: 'Work the room yourself', said: ['You shake a tomato, and are hit by a hand.', 'Enough hands shaken to be remembered by some.', 'A good day on the doorsteps.', 'Every hand in the ward, and not a mark on your suit.'] },
-  crew: { game: 'safe', icon: '🔐', title: 'Open the safe yourself', said: ['Forty minutes, and the only thing you open is your knuckles.', 'Open in the end, with the night watchman two doors off.', 'Open in good time. Sal nods.', 'Three numbers, three clicks, ninety seconds. Sal very nearly smiles.'] },
+  crew: { game: 'safe', icon: '🔐', title: 'Open the safe yourself', low: [[1, 'Have a go at the safe yourself']], said: ['Forty minutes, and the only thing you open is your knuckles.', 'Open in the end, with the night watchman two doors off.', 'Open in good time. Sal nods.', 'Three numbers, three clicks, ninety seconds. Sal very nearly smiles.'] },
 };
+// A career's game as it is on rung r: its title and what is said of how it went.
+export const jobGame = (c, r = 0) => { const k = JOB_GAMES[c], low = (k.low || []).find(([upTo]) => r <= upTo); return low ? { ...k, title: low[1], said: low[2] || k.said } : k; };
 
 // ---- the allotment ----------------------------------------------------------------------
 

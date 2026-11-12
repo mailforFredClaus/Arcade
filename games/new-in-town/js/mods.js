@@ -18,6 +18,7 @@ import { install as chapters } from './chapters.js'; // the chapters of a life, 
 import { install as wants } from './wants.js'; // partners, children, parents and friends who want things
 import { install as heists } from './heists.js'; // planned jobs, the detective, Nan Carne's lot, and prison that remembers
 import { install as annals } from './annals.js'; // the town growing old with you: elections, big events, Years in the Bay
+import { install as midlife } from './midlife.js'; // the middle of a life: people to tend, the same again, and things worth wanting
 
 // (The plain things to do up the hill go last, so that each place's own sections come first.)
-export const RULES = [soul, coast, motor, clubs, market, folk, flutter, careers, chapters, wants, heists, annals, hill];
+export const RULES = [soul, coast, motor, clubs, market, folk, flutter, careers, chapters, wants, heists, annals, midlife, hill];

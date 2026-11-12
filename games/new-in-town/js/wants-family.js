@@ -21,6 +21,8 @@ const owe = (L, f, n) => { const r = rec(L, f); r.owe = Math.max(0, (r.owe || 0)
 // A brother or sister who might share the load.
 const sib = (L) => L.siblings().filter((q) => q.bond >= 50).sort((a, b) => b.bond - a.bond)[0] || null;
 const youSaid = (L) => (L.s.sex === 'f' ? 'Mum' : 'Dad');
+// What a friend moving house needs carried (wants.js chooses it).
+const big = (x) => (x && x.big) || 'a piano';
 
 // What a child grown up does, and whether it is what they said they would do at six.
 export function settle(L, p, job) {
@@ -352,13 +354,14 @@ export const FAMILY_CARDS = [
     ],
   },
   {
-    id: 'wantsMoving', icon: '🎹', title: 'There is a piano', ok: pal,
-    text: (L, x) => { const p = P(L, x); return `${first(p)} is moving house on Saturday, and has asked, very casually, whether you have "a strong back and a free morning". There is a piano.`; },
+    // (x.big: what there is to carry, chosen when they ask: see MOVING in wants.js. A piano, in an old save.)
+    id: 'wantsMoving', icon: '📦', title: (L, x) => `There is ${big(x)}`, ok: pal,
+    text: (L, x) => { const p = P(L, x); return `${first(p)} is moving house on Saturday, and has asked, very casually, whether you have "a strong back and a free morning". There is ${big(x)}.`; },
     opts: [
-      { t: 'Lift with your knees', check: ['fitness', 40], run(L, x, win) { const p = P(L, x); owe(L, p, 1); if (win) { L.bond(p, 8); L.gain('fitness', 1); return 'Up two flights, round a corner nobody measured, and into the front room, in one piece. You are given a bacon sandwich and the best seat.'; } L.rough(4, 'a piano'); L.bond(p, 6); return 'The piano makes it. Your back does not, quite. You spend a week on the floor, and ' + first(p) + ' brings you soup every day.'; } },
-      { t: 'Bring the car, and do the boxes', show: (L) => typeof L.motorUsable === 'function' && L.motorUsable(), run(L, x) { const p = P(L, x); busy(L, 1); L.bond(p, 7); owe(L, p, 1); return 'Nine trips, forty boxes, one goldfish in a jam jar on your lap. The piano is somebody else’s problem.'; } },
+      { t: 'Lift with your knees', check: ['fitness', 40], run(L, x, win) { const p = P(L, x), b = big(x).replace(/^an? /, ''); owe(L, p, 1); if (win) { L.bond(p, 8); L.gain('fitness', 1); return L.pick([`Up two flights, round a corner nobody measured, and into the front room, in one piece. You are given a bacon sandwich and the best seat.`, `The ${b} goes in on its side, then on its end, then, after a long discussion, the right way up. A bacon sandwich, and the best seat.`]); } L.rough(4, `a ${b}`); L.bond(p, 6); return `The ${b} makes it. Your back does not, quite. You spend a week on the floor, and ${first(p)} brings you soup every day.`; } },
+      { t: 'Bring the car, and do the boxes', show: (L) => typeof L.motorUsable === 'function' && L.motorUsable(), run(L, x) { const p = P(L, x); busy(L, 1); L.bond(p, 7); owe(L, p, 1); return `Nine trips, forty boxes, one goldfish in a jam jar on your lap. The ${big(x).replace(/^an? /, '')} is somebody else’s problem.`; } },
       { t: 'Send round pizza at lunchtime', cost: 40, run(L, x) { L.bond(P(L, x), 3); return 'The pizza is a great success. You are forgiven, mostly.'; } },
-      { t: 'Have a prior engagement', run(L, x) { L.bond(P(L, x), -4); return 'You hear about the piano for years.'; } },
+      { t: 'Have a prior engagement', run(L, x) { L.bond(P(L, x), -4); return `You hear about the ${big(x).replace(/^an? /, '')} for years.`; } },
     ],
   },
   {
@@ -384,7 +387,7 @@ export const FAMILY_CARDS = [
     id: 'wantsNight', icon: '📞', title: 'Three in the morning', ok: pal,
     text: (L, x) => { const p = P(L, x); return `It is three in the morning, and ${first(p)} is on the phone, not making much sense. ${x.why}`; },
     opts: [
-      { t: 'Go round now', run(L, x) { const p = P(L, x); L.hp(-2); busy(L, 1); L.bond(p, 12); L.karma(2); owe(L, p, 2); been(L, p, `You went round at three in the morning when ${first(p)} needed you.`); return 'Tea, toast, a blanket on the sofa, and talking until the gulls start. You go to work on no sleep, and do not regret it.'; } },
+      { t: 'Go round now', run(L, x) { const p = P(L, x); L.hp(-2); busy(L, 1); L.bond(p, 12); L.karma(2); owe(L, p, 2); been(L, p, `You went round at three in the morning when ${first(p)} needed you.`); return `Tea, toast, a blanket on the sofa, and talking until the gulls start. ${L.s.job && !L.s.gaol ? 'You go to work on no sleep, and do not regret it.' : 'You sleep through most of the next day, and do not regret it.'}`; } },
       { t: 'Talk until it gets light', run(L, x) { const p = P(L, x); L.hp(-1); L.bond(p, 8); owe(L, p, 1); return 'Three hours on the phone. By the end of it you are both laughing about something, which is how you know it will be all right.'; } },
       { t: 'Say you will call in the morning', run(L, x) { const p = P(L, x); L.bond(p, -6); return `By morning ${he(p)} says it is all fine. It does not sound fine.`; } },
     ],

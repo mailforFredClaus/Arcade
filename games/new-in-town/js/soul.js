@@ -42,7 +42,7 @@ export const CHARACTER = {
   romantic: { name: 'Romantic', icon: '🌹', word: 'a romantic', blurb: 'Candles, poems, and flowers on a Tuesday.', does: 'Your sweetheart never feels taken for granted.', hint: 'You catch yourself humming love songs.', known: (p) => `${p.He} kept every letter ${p.he} was ever sent.` },
   loner: { name: 'Loner', icon: '🌫️', word: 'a private soul', blurb: 'Your own company suits you down to the ground.', does: 'Being on your own does not get you down, and quiet pursuits lift you.', hint: 'You have been keeping yourself to yourself.', known: (p) => `${p.He} kept ${p.his} own counsel, and walked the cliffs alone.` },
   joker: { name: 'Joker', icon: '🃏', word: 'a joker', blurb: 'Life is serious. You are not.', does: 'When a gamble goes wrong, you laugh it off.', hint: 'People have started grinning when they see you coming.', known: (p) => `${p.He} could make a room laugh, usually when it least expected to.` },
-  churchgoer: { name: 'Churchgoer', icon: '⛪', word: 'a faithful churchgoer', blurb: 'Sunday mornings at St Brigid’s steady the week.', does: 'A little more peace, and dark spells lift sooner.', hint: 'The Reverend Hollis has started saving you a hymn book.', known: (p) => `${p.He} was in the third pew at St Brigid’s most Sundays, and sang louder than the choir.` },
+  churchgoer: { name: 'Churchgoer', icon: '⛪', word: 'a faithful churchgoer', blurb: 'Sunday mornings at St Brigid’s steady the week.', does: 'A little more peace, and dark spells lift sooner.', hint: 'The Reverend Hollis has started saving you a hymn book.', known: (p, L) => (L && L.s.clubs && (L.s.clubs.m.choir || L.s.clubs.past.choir) ? `${p.He} sang in the choir at St Brigid’s most Sundays for years, and could be heard from the lychgate.` : `${p.He} was in the third pew at St Brigid’s most Sundays, and sang louder than the choir.`) },
 };
 const IDS = Object.keys(CHARACTER);
 // Two that cannot be held at once: the stronger wins.
@@ -77,6 +77,8 @@ export const DEEDS = {
   askout: { romantic: 2, charmer: 1 }, movein: { romantic: 2 }, propose: { romantic: 4 }, match: { romantic: 1 }, winback: { romantic: 2 }, mend: { kind: 3 }, forget: { loner: 3 },
   fest00: { homebody: 1 }, fest01: { sporty: 2 }, fest02: { kind: 2, charmer: 1 }, fest10: { sporty: 2 }, fest12: { charmer: 2 }, fest20: { bookish: 2 }, fest21: { sporty: 1, joker: 1 },
   fest22: { kind: 1, charmer: 1 }, fest30: { churchgoer: 1 }, fest31: { daredevil: 2, sporty: 1 }, fest32: { joker: 3, charmer: 1 },
+  // (A night with one of the clubs says something too: see CLUB_LEAN for what years of them say.)
+  clubNight_choir: { churchgoer: 1.5 }, clubNight_players: { charmer: 1.5 }, clubNight_rovers: { sporty: 1.5 }, clubNight_book: { bookish: 1.5 }, clubNight_sailing: { sporty: 1, daredevil: 0.5 }, clubNight_quiz: { bookish: 1, nightowl: 1 },
   pew: { churchgoer: 2, loner: 1 }, soulService: { churchgoer: 4 }, soulCarols: { churchgoer: 3 }, soulSupper: { churchgoer: 3, charmer: 1 }, soulSoup: { churchgoer: 2, kind: 3 },
   soulVisit: { churchgoer: 2, kind: 3 }, soulJumble: { churchgoer: 2, kind: 1, thrifty: 1 }, soulRoofGive: { churchgoer: 1, kind: 2 }, soulVicar: { churchgoer: 2 }, soulBells: { churchgoer: 3 }, soulGrave: { churchgoer: 1 },
 };
@@ -132,6 +134,31 @@ function blank(L) {
     bells: { best: 0 }, n: { service: 0, vol: 0, bells: 0, visits: 0, through: 0, words: 0 },
     mind: { run: 0, strain: 0, spell: null, last: -99, spare: 2 }, banns: null, f: {},
   };
+}
+
+// ---- long commitments ----
+// What years in each club say about you.
+const CLUB_LEAN = { choir: { churchgoer: 1 }, players: { charmer: 1 }, rovers: { sporty: 1 }, book: { bookish: 1 }, sailing: { sporty: 0.7, daredevil: 0.4 }, quiz: { bookish: 0.7, nightowl: 0.5 } };
+// How much a season of a long commitment counts, at full weight (before PACE).
+const LONG = 4;
+// Everything you might be committed to, and whether you are this season: [key, kept up, what it says].
+function commitments(L, cm) {
+  const s = L.s, S = s.soul, out = [], c = s.clubs;
+  for (const [id, o] of Object.entries(CLUB_LEAN)) { const m = c && c.m && c.m[id]; out.push([`club:${id}`, !!m && m.last != null && s.t - m.last <= 1, o]); }
+  out.push(['crew', !!s.job && !!CAREERS[s.job.c] && !!CAREERS[s.job.c].shady, { daredevil: 1, nightowl: 0.5 }]);
+  // (A life of crime: a crime in the last year, kept up year after year.)
+  const crimes = s.n.crimes || 0;
+  if (crimes > (cm.$crimes ?? crimes)) cm.$crimeT = s.t;
+  cm.$crimes = crimes;
+  out.push(['crime', cm.$crimeT != null && s.t - cm.$crimeT <= 3, { daredevil: 1 }]);
+  out.push(['drink', ((s.habit && s.habit.drink) || 0) >= 25, { nightowl: 1 }]);
+  out.push(['dust', ((s.habit && s.habit.dust) || 0) >= 25, { nightowl: 0.6, daredevil: 0.6 }]);
+  out.push(['tables', !!s.flutter && s.flutter.h >= 25, { daredevil: 1, spender: 0.4 }]);
+  // (Sunday by Sunday: a service this season.)
+  const svc = S.n.service || 0;
+  out.push(['church', svc > (cm.$svc ?? svc), { churchgoer: 1 }]);
+  cm.$svc = svc;
+  return out;
 }
 
 // Adds what a deed says to your leanings.
@@ -327,6 +354,17 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     }
     S.parish = Math.max(0, S.parish - 1);
     S.grief = Math.max(0, Math.round((S.grief - 1) * 100) / 100);
+    // Long commitments say the most about you: years in the choir or on the Rovers' books, on Sal's
+    // payroll, at the tables or in the bottle, Sunday after Sunday at St Brigid's. Each season one is
+    // kept up it counts for more, the longer it has lasted (full weight after three years), so that a few
+    // years of it bring the trait it speaks of. Let go, it is forgotten twice as fast as it was built.
+    // (S.cm: seasons each has been kept up, and what is needed to tell.)
+    const cm = S.cm || (S.cm = {});
+    for (const [k, on, o] of commitments(L, cm)) {
+      cm[k] = on ? (cm[k] || 0) + 1 : Math.max(0, (cm[k] || 0) - 2);
+      if (on) deed(L, o, LONG * Math.min(1, 0.25 + cm[k] / 16));
+      if (!cm[k]) delete cm[k];
+    }
     settle(L);
   });
 
@@ -420,7 +458,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       // (With one trait, its own sentence says it; with more, the list, then the strongest of them.)
       if (now.length > 1) out.push(`${p.He} was ${list(now.map((id) => CHARACTER[id].word))}.`);
       const top = now.slice().sort((a, b) => S.lean[b] - S.lean[a])[0];
-      out.push(CHARACTER[top].known(p));
+      out.push(CHARACTER[top].known(p, L));
     } else {
       const once = Object.keys(S.ever).filter((id) => CHARACTER[id]).sort((a, b) => S.ever[a] - S.ever[b]).slice(0, 3);
       if (once.length) out.push(`In ${p.his} younger days ${p.he} had been ${list(once.map((id) => CHARACTER[id].word))}.`);
@@ -778,6 +816,8 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     {
       id: 'soulDrip', icon: '🪣', title: 'The bucket in the north aisle', w: 3, cd: 16, when: (L) => L.s.age >= 20 && !L.soulRoofDone(),
       text: 'The Reverend Hollis is up a stepladder in St Brigid’s, emptying a bucket into another bucket. "Another tile gone," she says. "The fund thermometer has not moved since Easter."',
+      // (The second time, and after: see again in engine.js. Chosen by the season, not the dice.)
+      again: (L) => ['The bucket in the north aisle has been joined by a second bucket, and a saucepan. The Reverend Hollis is up the stepladder again. "It is always the roof," she says, to the roof.', 'A drip has found the font, which the Reverend Hollis says is at least economical. She is holding the stepladder for the churchwarden, and looks at you hopefully.'][L.s.t % 2],
       opts: [
         { t: 'Put $100 in the tin', cost: 100, run(L) { L.karma(1); L.joy(1); parish(L, 1); L.s.n.given = (L.s.n.given || 0) + 100; return `"Bless you," she says, and means it.${raiseRoof(L, 100)}`; } },
         { t: 'Hold the ladder', run(L) { L.joy(2); parish(L, 2); return 'She hands you the bucket, then the hammer, then her glasses, then the bucket again.'; } },
@@ -799,6 +839,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     {
       id: 'soulQuiz', icon: '❓', title: 'One short', w: 3, cd: 16, when: (L) => L.s.age >= 20,
       text: 'The best team at the Gull’s quiz is one short tonight. Miss Achterberg, the librarian, is their captain, and she is looking at you over her glasses.',
+      again: (L) => ['Miss Achterberg’s quiz team is one short again: somebody’s mother-in-law has come to stay. She catches your eye across the Gull and raises one eyebrow, which from her is an engraved invitation.', 'One short at the Gull’s quiz again, and the picture round is lighthouses. Miss Achterberg slides a pencil across the table towards you without a word.'][L.s.t % 2],
       opts: [
         { t: 'Make up the numbers', check: ['smarts', 40], run(L, x, win) { if (win) { L.cash(100); L.joy(3); return 'You get the one about volcanoes. Your share of the pot is $100.'; } L.joy(1); return 'Second place, by one point, which was the one about volcanoes.'; } },
         { t: ic('bookish', 'Take the literature round on your own'), show: tr('bookish'), run(L) { L.cash(100); L.joy(5); deed(L, { bookish: 1 }); return 'Ten out of ten. Miss Achterberg nods at you, once. From her, that is a medal. Your share of the pot is $100.'; } },
@@ -819,6 +860,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     {
       id: 'soulQueue', icon: '😤', title: 'The queue at the post office', w: 3, cd: 16,
       text: 'A man in a golf umbrella walks straight past the queue at the post office and up to the counter. He is not even sorry.',
+      again: (L) => ['The post office again, and the man with the golf umbrella again, walking straight past the queue as though it were weather. He is still not sorry.', 'The post office again, on pension day: a man in a flat cap walks straight past the whole queue with a breezy “I only want a stamp.” He wants several stamps, and a word about his pension.'][L.s.t % 2],
       opts: [
         { t: 'Let it go', run(L) { L.joy(-1); return 'You let it go. It follows you home anyway.'; } },
         { t: 'Say something', check: ['charm', 45], run(L, x, win) { if (win) { L.joy(2); return 'You point out the queue, politely. He apologises, and goes to the back. The queue looks at you with love.'; } L.joy(-2); return '"I’m in a hurry," he says, as if nobody else could be.'; } },

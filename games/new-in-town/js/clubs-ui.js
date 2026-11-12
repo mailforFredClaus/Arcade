@@ -85,8 +85,10 @@ export default function (kit) {
           ${actRow(life.look('bookRead'))}<div class="picks">${pick('Take it back', 'bookReturn', undefined, null, 'quiet')}</div></div>`;
       }
       if (book) {
-        const a = BOOKS[life.bookOfSeason()], b = BOOKS[life.bookOfSeason(s.t + 1)];
-        body += `<div class="item"><div class="item-top"><span class="act-ico">☕</span><div><b>The book club</b><small>This season: ${esc(a.t)}${c.read[life.bookOfSeason()] ? ' ✓' : ''}. Next season: ${esc(b.t)}${c.read[life.bookOfSeason(s.t + 1)] ? ' ✓' : ''}.</small></div></div>${book.r >= 3 ? '<p class="fine">You choose the books: tap “Choose” on any novel below to make it next season’s.</p>' : ''}</div>`;
+        // (The club meets on each book twice, over two seasons: half of it read will do. See bookOfSeason in clubs.js.)
+        const ia = life.bookOfSeason(), ib = life.bookOfSeason(life.bookNextAt()), a = BOOKS[ia], b = BOOKS[ib], both = life.bookNextAt() - s.t > 1;
+        const mark = (id) => { const p = life.bookPart(id); return p >= 1 ? ' ✓' : p >= 0.5 ? ' (half read)' : ''; };
+        body += `<div class="item"><div class="item-top"><span class="act-ico">☕</span><div><b>The book club</b><small>${both ? 'This season and next' : 'This season'}: ${esc(a.t)}${mark(ia)}. Then: ${esc(b.t)}${mark(ib)}. Half a book read is enough to hold your own.</small></div></div>${book.r >= 3 ? '<p class="fine">You choose the books: tap “Choose” on any novel below to make it the next one.</p>' : ''}</div>`;
       }
       for (const [kind, name] of Object.entries(BOOK_KINDS)) {
         body += `<h3>${name}</h3>`;
