@@ -193,6 +193,8 @@ button { font: inherit; color: inherit; -webkit-appearance: none; appearance: no
 .map-again[hidden] { display: none; }
 .map-go.dot::after { content: ''; display: inline-block; width: 8px; height: 8px; margin-left: 6px; border-radius: 50%; background: var(--coral); vertical-align: 1px; }
 .town .goto { cursor: pointer; }
+.town .pool { fill: #5fd0e0; }
+.town .boarded text { text-anchor: middle; }
 .me.hop { animation: hop .32s; }
 @keyframes hop { 50% { transform: translateY(-9px) scale(1.06); } }
 

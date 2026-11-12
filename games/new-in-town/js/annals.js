@@ -319,6 +319,16 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
     annalsPennOut() { const an = this.s.annals; return !!an && an.penn === 'out' && an.mayor.k !== 'penn'; },
     // The pier is wrecked, and the Lucky Gull boarded up (heists.js asks, for the counting-room job and the pier's protection money).
     annalsPierShut() { return !!this.s.annals && pierShut(this); },
+    // What has changed on the map: drawn by art.js (townSvg's scene).
+    annalsScene() {
+      const an = this.s.annals;
+      if (!an) return {};
+      const mk = ev(this, 'market'), es = ev(this, 'estate');
+      return {
+        wreck: pierShut(this), lido: has(this, 'lido'), barrier: has(this, 'barrier'), carpark: has(this, 'carpark'), bypass: has(this, 'bypass'),
+        market: !!mk && mk.open != null, estate: !!es && es.done != null, line: lineShut(this),
+      };
+    },
     // "spring, year 12": when a season falls.
     // (Before this life began, as an heir's town remembers it: "autumn, 12 years ago".)
     annalsWhen(t) {

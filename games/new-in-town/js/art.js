@@ -110,11 +110,45 @@ function hillBackdrop() {
   return out;
 }
 
+
+// ---- what has changed ---------------------------------------------------------------------
+
+// The town's history, drawn: scene holds what is there now (see annalsScene in annals.js).
+function sceneBay(sc) {
+  let out = '';
+  // The pier, broken by the storm, with the sea through the gaps.
+  if (sc.wreck) out += `<g class="wreck"><rect x="84" y="504" width="28" height="9" class="sea"/><rect x="84" y="522" width="28" height="6" class="sea"/><path d="M86 504l6 4 5-3 6 4 7-4M86 513l7-3 5 3 6-2 6 3" stroke="#8a6142" stroke-width="1.6" fill="none"/></g>`;
+  // The tidal barrier across the harbour mouth.
+  if (sc.barrier) out += `<g class="barrier"><path d="M150 586H400" stroke="#8d897f" stroke-width="7"/><path d="M150 586H400" stroke="#bdb8ad" stroke-width="3"/>${[190, 240, 290, 340].map((x) => `<rect x="${x - 5}" y="577" width="10" height="16" rx="2" fill="#6b7484"/><rect x="${x - 3}" y="574" width="6" height="4" fill="#ffc93c"/>`).join('')}</g>`;
+  // A car park on the green.
+  if (sc.carpark) out += `<g class="carpark"><rect x="151" y="290" width="26" height="58" rx="8" fill="#9aa1ab"/>${[302, 316, 330].map((y) => `<path d="M155 ${y}h18" stroke="#fff" stroke-width="1" stroke-dasharray="4 3"/>`).join('')}<rect x="157" y="306" width="8" height="5" rx="2" fill="#ff6b5e"/><rect x="161" y="334" width="8" height="5" rx="2" fill="#2aa7b8"/></g>`;
+  // The railway closed: a buffer across the line, and grass between the sleepers.
+  if (sc.line) out += `<g class="shutline"><path d="M140 448h22" stroke="#7fbf5c" stroke-width="4" stroke-dasharray="2 2"/><rect x="138" y="440" width="5" height="14" fill="#d94a4a"/></g>`;
+  return out;
+}
+function sceneHill(sc) {
+  let out = '';
+  // The bypass, over the moor at the top.
+  if (sc.bypass) out += `<path d="M-5 78q100-16 205-8t210 4" class="road-edge"/><path d="M-5 78q100-16 205-8t210 4" class="road"/><path d="M-5 78q100-16 205-8t210 4" stroke="#fff" stroke-width="1" stroke-dasharray="6 6" fill="none"/>`;
+  // The new estate: rows of the same house, below the old town.
+  if (sc.estate) {
+    for (let r = 0; r < 2; r++) for (let c = 0; c < 4; c++) {
+      const x = 16 + c * 20 + r * 6, y = 470 + r * 22;
+      out += `<rect x="${x}" y="${y}" width="15" height="11" rx="1" fill="#e9e4da"/><path d="M${x - 1} ${y + 1}l8.500 -6 8.500 6z" fill="#c4473a"/><rect x="${x + 5}" y="${y + 5}" width="4" height="6" fill="#6b4a36"/>`;
+    }
+  }
+  // The supermarket on the ring road, and its car park.
+  if (sc.market) out += `<g class="supermarket"><rect x="18" y="562" width="84" height="30" rx="3" fill="#a9b3bf"/><path d="M28 568h64M28 576h64M28 584h64" stroke="#fff" stroke-width=".8" opacity=".8"/><rect x="30" y="532" width="60" height="26" rx="2" fill="#e9eef3"/><rect x="26" y="528" width="68" height="6" rx="2" fill="#2a8f5a"/><text x="60" y="546" class="sign" style="fill:#2a8f5a;font-size:7px">SUPERSAVE</text><rect x="40" y="549" width="40" height="8" class="win"/></g>`;
+  // The lido on the front.
+  if (sc.lido) out += `<g class="lido"><rect x="300" y="464" width="54" height="30" rx="4" fill="#fbf4e8"/><rect x="304" y="468" width="46" height="22" rx="3" class="pool"/><path d="M308 475h38M308 483h38" stroke="#fff" stroke-width=".9" stroke-dasharray="3 3"/><rect x="296" y="458" width="18" height="10" rx="2" fill="#ff6b5e"/><text x="305" y="465.500" class="sign" style="fill:#fff;font-size:5px">LIDO</text></g>`;
+  return out;
+}
+
 // ---- the map ----------------------------------------------------------------------------
 
 // tier: which home to draw. work: the place you work at (gets a badge).
 // study: true if you're on a course. biz: the place your business is.
-export function townSvg({ area = 'bay', tier = 0, marks = {} } = {}) {
+export function townSvg({ area = 'bay', tier = 0, marks = {}, scene = {} } = {}) {
   const road = (d) => `<path d="${d}" class="road-edge"/><path d="${d}" class="road"/>`;
   let out = `<svg viewBox="0 0 400 600" preserveAspectRatio="xMidYMid slice" class="town" xmlns="http://www.w3.org/2000/svg">`;
   if (area === 'hill') out += hillBackdrop();
@@ -144,6 +178,8 @@ export function townSvg({ area = 'bay', tier = 0, marks = {} } = {}) {
   out += `<rect x="150" y="288" width="100" height="62" rx="26" class="lawn"/>`;
   out += [[28, 96], [118, 78], [286, 82], [372, 92], [130, 186], [270, 190], [26, 282], [118, 298], [282, 292], [374, 290], [128, 396], [272, 400], [30, 396], [372, 392], [156, 304], [244, 300], [238, 344], [26, 470], [374, 468], [150, 476]].map(([x, y], i) => (i % 4 === 3 ? pine(x, y) : tree(x, y, 8 + (i % 3)))).join('');
   }
+  // What the years have changed.
+  out += area === 'hill' ? sceneHill(scene) : sceneBay(scene);
   // The places, each with any badges it has earned: the first goes top right, the next top left, then above.
   const SPOT = [[30, -24], [-30, -24], [0, -46], []];
   for (const [id, p] of Object.entries(PLACES)) {
@@ -159,6 +195,7 @@ export function townSvg({ area = 'bay', tier = 0, marks = {} } = {}) {
       const [x, y] = cls === 'fest' ? SPOT[2] : SPOT[Math.min(k++, 3)];
       if (x != null) out += `<g class="mark ${cls}"><circle cx="${x}" cy="${y}" r="${cls === 'fest' ? 11 : 10}"/><text x="${x}" y="${y + 4}">${e}</text></g>`;
     }
+    if (id === 'casino' && scene.wreck) out += `<g class="boarded"><rect x="-30" y="-4" width="60" height="12" rx="2" fill="#b98a5a" transform="rotate(-8)"/><text x="0" y="5" class="sign" style="fill:#fff;font-size:6.500px" transform="rotate(-8)">CLOSED</text></g>`;
     out += `<rect x="-40" y="-46" width="80" height="88" fill="transparent"/></g>`;
   }
   out += `<g class="flakes">${Array.from({ length: 26 }, (_, i) => `<circle cx="${(i * 67) % 400}" cy="${(i * 131) % 600}" r="${1.200 + (i % 3) * 0.500}"/>`).join('')}</g>`;

@@ -168,10 +168,12 @@ function renderMap() {
   if (ripe) mark('park', '🥕');
   if (s.course) mark('college', '✏️');
   for (const m of MODS) if (m.marks) for (const [id, e] of m.marks(life) || []) mark(id, e);
-  const key = `${area}|${placeTier(s.home)}|${JSON.stringify(marks)}`;
+  // (What the years have done to the town, drawn on its map: see annalsScene.)
+  const scene = life.annalsScene ? life.annalsScene() : {};
+  const key = `${area}|${placeTier(s.home)}|${JSON.stringify(marks)}|${JSON.stringify(scene)}`;
   if (key !== mapKey) {
     mapKey = key;
-    $('mapArt').innerHTML = townSvg({ area, tier: placeTier(s.home), marks });
+    $('mapArt').innerHTML = townSvg({ area, tier: placeTier(s.home), marks, scene });
     $('pTown').classList.toggle('hill', area === 'hill');
     $('mapGo').innerHTML = area === 'bay' ? '⛰️ <b>Up the hill</b>' : '⚓ <b>Down to the bay</b>';
     // (A badge on the other map is worth knowing about.)
