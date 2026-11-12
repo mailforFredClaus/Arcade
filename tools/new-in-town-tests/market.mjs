@@ -251,15 +251,35 @@ export default function ({ check, fresh, Life }) {
     s.mkt.shut = s.t; s.use = {};
     check(L.can('mktTrade', 0.5).includes('inspector'), 'shut by the inspector, no trading');
     s.mkt.shut = -1;
-    // The allotment's harvest, kept for the stall.
+    // The allotment's harvest goes to the stall once you hold a pitch (the default: the old
+    // default, the honesty box, sent it past most players), and can be sent back to the gate.
     s.plot = { beds: [{ c: 'toms', age: 1, care: 2 }, null, null], since: 0 };
-    L.act('mktVeg');
+    check(s.mkt.veg, 'once you hold a pitch, the allotment’s harvest comes to it');
     const c5 = s.cash, earned = s.n.earned, r5 = L.act('reap');
-    check(r5.ok && s.cash === c5 && s.n.earned === earned && s.mkt.stock.veg && s.mkt.stock.veg.n >= 1 && r5.text.includes('your stall'), 'the allotment’s harvest can go to the stall instead of the honesty box');
+    check(r5.ok && s.cash === c5 && s.n.earned === earned && s.mkt.stock.veg && s.mkt.stock.veg.n >= 1 && r5.text.includes('your stall'), 'the allotment’s harvest goes to the stall instead of the honesty box');
     L.act('mktVeg');
+    check(!s.mkt.veg && s.mkt.vegSet, 'or, if you say so, by the gate');
     s.plot.beds[0] = { c: 'toms', age: 1, care: 2 };
     const c6 = s.cash; L.act('reap');
-    check(s.cash > c6, 'or back by the gate, as before');
+    check(s.cash > c6, 'and it is paid for there, as before');
+    // Veg the stall did not sell goes to the honesty box at the turn of the season, not to the rats.
+    const V = farmer({ home: 'cottage' });
+    V.act('mktJoin', 0);
+    V.s.mkt.stock.veg = { n: 12, q: 0.6 };
+    const cv = V.s.cash, rv = V.endSeason();
+    check(!V.s.mkt.stock.veg && rv.lines.some(([w, n]) => /honesty box/.test(w) && n > 12 * 30) && V.s.log.some((e) => /honesty box/.test(e.t)), 'veg the stall did not sell goes on the table by the allotment gate, for less');
+    void cv;
+    // With no money for Priya's fee, a stall with something to sell still opens: she takes it out of the tin.
+    const F = farmer({ home: 'cottage' });
+    F.act('mktJoin', 0);
+    F.s.mkt.stock.jam = { n: 30, q: 0.6 };
+    F.s.cash = 0; F.s.bank = 0; F.s.t = 3; F.s.time = 6;
+    const fr = F.act('mktTrade', 0.6);
+    check(fr.ok && F.s.cash === F.s.mkt.n.take - F.mktFee() && /out of the tin/.test(fr.text), 'no money for the pitch fee: Priya takes it out of the tin');
+    // An old save with a pitch, from before the harvest came to the stall by itself.
+    const O = farmer({ home: 'cottage' }); O.act('mktJoin', 0); O.s.mkt.veg = false; delete O.s.mkt.vegSet;
+    const R = new Life(JSON.parse(JSON.stringify(O.s)));
+    check(R.s.mkt.veg, 'an old save with a pitch sends the harvest to it, unless it had said otherwise');
     // Rename, and give it up.
     const r7 = s.mkt.stall.rep;
     check(L.act('mktRename', 1).ok && s.mkt.stall.name === 'The Good Egg' && s.mkt.stall.rep < r7, 'a new sign costs a little of its name');

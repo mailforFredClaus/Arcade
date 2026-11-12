@@ -1146,17 +1146,23 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
     lido: { name: 'the Lido Fund', open: (L) => L.s.annals.plan.some((w) => w.p === 'lido') },
     line: { name: 'Save Our Line', open: (L) => lineThreat(L) },
   };
+  // What the appeals ask of you: $100, $1,000 or $10,000 of most people, and more of those who
+  // have more (midlife.js says what the town thinks you can afford).
+  Life.prototype.annalsAsks = function () {
+    const m = this.midMeans ? this.midMeans() : 1, k = m >= 6 ? 10 : m >= 3.5 ? 5 : m >= 1.8 ? 2 : 1;
+    return [100, 1000, 10000].map((n) => n * k);
+  };
   def('anGive', {
-    time: 0, per: 1, cost: (L, x) => (x && [100, 1000, 10000].includes(x.n) ? x.n : 0),
-    why: (L, x) => (!x || !APPEALS[x.to] || ![100, 1000, 10000].includes(x.n) ? 'Give what, to what?' : APPEALS[x.to].open(L) ? null : 'That appeal has closed.'),
+    time: 0, per: 1, cost: (L, x) => (x && L.annalsAsks().includes(x.n) ? x.n : 0),
+    why: (L, x) => (!x || !APPEALS[x.to] || !L.annalsAsks().includes(x.n) ? 'Give what, to what?' : APPEALS[x.to].open(L) ? null : 'That appeal has closed.'),
     run(L, x) {
-      const s = L.s, an = s.annals;
+      const s = L.s, an = s.annals, i = L.annalsAsks().indexOf(x.n);
       an.gave[x.to] = (an.gave[x.to] || 0) + x.n;
       s.n.given = (s.n.given || 0) + x.n;
-      L.karma(x.n >= 10000 ? 5 : x.n >= 1000 ? 2 : 0.5); L.joy(1 + Math.log10(x.n) / 2);
+      L.karma([0.5, 2, 5][i]); L.joy(1.5 + i);
       if (x.to === 'pier') { const e = ev(L, 'storm'); e.trust += x.n; e.due = Math.max(s.t + 2, e.due - Math.floor(x.n / 2500)); }
-      if (x.to === 'line') { const e = ev(L, 'line'); if (x.n >= 1000) e.effort += x.n >= 10000 ? 1 : 0.5; }
-      return `${money(x.n)} to ${APPEALS[x.to].name}. ${x.n >= 10000 ? 'Your name goes at the top of the list in the Gazette, in bold.' : x.n >= 1000 ? 'Your name goes on the list in the Gazette.' : 'A sticker for your coat, and a thank-you.'}`;
+      if (x.to === 'line') { const e = ev(L, 'line'); if (i >= 1) e.effort += i >= 2 ? 1 : 0.5; }
+      return `${money(x.n)} to ${APPEALS[x.to].name}. ${i >= 2 ? 'Your name goes at the top of the list in the Gazette, in bold.' : i >= 1 ? 'Your name goes on the list in the Gazette.' : 'A sticker for your coat, and a thank-you.'}`;
     },
   });
   def('anLido', {
@@ -1294,8 +1300,9 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
       id: 'anPierFund', icon: '🎡', title: 'The Pier Trust', ok: (L) => !L.s.gaol && pierShut(L),
       text: 'There is a thermometer on a board outside the Town Hall, painted red at the bottom: the Pier Trust, raising money to mend the pier. The vicar has given her harvest collection, and the Rovers a match’s takings.',
       opts: [
-        { t: 'Give $1,000', cost: 1000, run(L) { give(L, 'pier', 1000); return 'Your name on the list in the Gazette, and the red goes up the thermometer by a whisker.'; } },
-        { t: 'Give $100', cost: 100, run(L) { give(L, 'pier', 100); return 'A sticker for your coat that says I MENDED THE PIER (A BIT).'; } },
+        // (What the appeals ask of you follows what you have: see annalsAsks.)
+        { t: (L) => `Give ${money(L.annalsAsks()[1])}`, cost: (L) => L.annalsAsks()[1], run(L) { give(L, 'pier', L.annalsAsks()[1]); return 'Your name on the list in the Gazette, and the red goes up the thermometer by a whisker.'; } },
+        { t: (L) => `Give ${money(L.annalsAsks()[0])}`, cost: (L) => L.annalsAsks()[0], run(L) { give(L, 'pier', L.annalsAsks()[0]); return 'A sticker for your coat that says I MENDED THE PIER (A BIT).'; } },
         { t: 'Run the sponsored swim', check: ['fitness', 45], run(L, x, win) { if (win) { const e = ev(L, 'storm'); e.due = Math.max(L.s.t + 2, e.due - 1); L.karma(3); L.gain('fitness', 1); return 'Round the end of the broken pier and back, and four thousand dollars in pledges. The Gazette photographs you blue with cold.'; } L.karma(1); return 'You get halfway round, and are fetched back by the lifeboat. You raise four hundred dollars, mostly in sympathy.'; } },
         { t: 'It is not your pier', run() { return 'You walk past the thermometer every day. It goes up slowly without you.'; } },
       ],
@@ -1442,8 +1449,8 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
       id: 'anLidoFund', icon: '🏊', title: 'The Lido Fund', ok: (L) => !L.s.gaol && L.s.annals.plan.some((w) => w.p === 'lido'),
       text: 'The mayor has launched the Lido Fund, to pay for the extras the rates will not: a slide, a café, and changing rooms that do not smell of the sea. Givers will be invited to the opening.',
       opts: [
-        { t: 'Give $5,000', cost: 5000, run(L) { L.s.annals.gave.lido = (L.s.annals.gave.lido || 0) + 5000; L.s.n.given = (L.s.n.given || 0) + 5000; L.karma(4); L.joy(3); return 'Your name will go on a tile by the deep end. You choose the font.'; } },
-        { t: 'Give $500', cost: 500, run(L) { L.s.annals.gave.lido = (L.s.annals.gave.lido || 0) + 500; L.s.n.given = (L.s.n.given || 0) + 500; L.karma(1.5); return 'A certificate, and a promise of free swims in the first summer.'; } },
+        { t: (L) => `Give ${money(L.annalsAsks()[1] * 5)}`, cost: (L) => L.annalsAsks()[1] * 5, run(L) { const n = L.annalsAsks()[1] * 5; L.s.annals.gave.lido = (L.s.annals.gave.lido || 0) + n; L.s.n.given = (L.s.n.given || 0) + n; L.karma(4); L.joy(3); return 'Your name will go on a tile by the deep end. You choose the font.'; } },
+        { t: (L) => `Give ${money(L.annalsAsks()[0] * 5)}`, cost: (L) => L.annalsAsks()[0] * 5, run(L) { const n = L.annalsAsks()[0] * 5; L.s.annals.gave.lido = (L.s.annals.gave.lido || 0) + n; L.s.n.given = (L.s.n.given || 0) + n; L.karma(1.5); return 'A certificate, and a promise of free swims in the first summer.'; } },
         { t: 'Not your sort of thing', run() { return 'You were never much of a swimmer, you tell the woman with the tin.'; } },
       ],
     },
@@ -1532,7 +1539,7 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
     const r = L.annalsRace(), used = new Set(r ? r.c.filter((c) => c.k !== 'you').map((c) => c.plat) : []);
     return Object.keys(PLATS).filter((p) => p !== 'steady' && !used.has(p) && (!PLATS[p].ok || PLATS[p].ok(L))).sort((a, b) => base(L, b) - base(L, a)).slice(0, 3);
   }
-  function give(L, to, n) { const an = L.s.annals; an.gave[to] = (an.gave[to] || 0) + n; L.s.n.given = (L.s.n.given || 0) + n; if (to === 'pier') { const e = ev(L, 'storm'); e.trust += n; e.due = Math.max(L.s.t + 2, e.due - Math.floor(n / 2500)); } if (n) L.karma(n >= 1000 ? 2 : 0.5); }
+  function give(L, to, n) { const an = L.s.annals; an.gave[to] = (an.gave[to] || 0) + n; L.s.n.given = (L.s.n.given || 0) + n; if (to === 'pier') { const e = ev(L, 'storm'); e.trust += n; e.due = Math.max(L.s.t + 2, e.due - Math.floor(n / 2500)); } if (n) L.karma(n >= L.annalsAsks()[1] ? 2 : 0.5); }
   function ribbon(L, what) { const an = L.s.annals; an.n.ribbon = an.n.ribbon ? an.n.ribbon : what; L.note(`Cut the ribbon to open ${what}.`, 'big'); }
   // Somebody the town would put in front of royalty.
   function picked(L) { const s = L.s; return s.karma >= 30 || s.fame >= 30 || L.annalsMayor().k === 'you' || Object.keys(s.gave).length > 0 || (s.annals.gave.pier || 0) >= 1000; }

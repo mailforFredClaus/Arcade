@@ -76,7 +76,7 @@ export default function (kit) {
     if (appeals.length) {
       body += '<h3>The appeals</h3>';
       for (const [to, name, icon] of appeals) body += `<div class="item fund"><div class="item-top"><span class="act-ico">${icon}</span><div><b>${name}</b><small>${(an.gave[to] || 0) ? `You have given ${money(an.gave[to])}.` : 'Every dollar helps, they say, and so does every name on the list.'}</small></div></div>
-        <div class="picks">${[100, 1000, 10000].map((n) => pick(money(n), 'anGive', { to, n }, life.can('anGive', { to, n }))).join('')}</div></div>`;
+        <div class="picks">${life.annalsAsks().map((n) => pick(money(n), 'anGive', { to, n }, life.can('anGive', { to, n }))).join('')}</div></div>`;
     }
     body += '<div class="picks mid"><button class="pick quiet" data-do="open" data-kind="annalsYears">🗂️ Years in the Bay</button></div>';
     return { icon: '🎩', title: race ? 'The election' : 'The council', sub: m.k === 'you' ? 'You hold the chain of office' : life.annalsMayorTitle(m), body };

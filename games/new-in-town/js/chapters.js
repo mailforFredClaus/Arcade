@@ -805,7 +805,9 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     }
     // The town's cards that give money to the children count as gifts made in life.
     // (Putting things in order now gives an amount in proportion to the money, and says so through chapGive itself.)
-    if (id === 'deposit' && i === 0) { const k = L.person(x); if (k) settle(L, k, 5000, false); }
+    const sum = (n) => (L.midPrice ? L.midPrice(n) : n);
+    if (id === 'deposit' && i === 0) { const k = L.person(x); if (k) settle(L, k, sum(5000), false); }
+    if (id === 'midNest' && i === 0 && x) { const k = L.person(x.p); if (k) settle(L, k, x.n, false); }
   });
 
   // What the Gazette has to say.

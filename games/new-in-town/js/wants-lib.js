@@ -31,9 +31,11 @@ export function been(L, p, t) {
 // Money: what things cost grows with what you earn, so a choice still bites
 // at fifty as it did at twenty-five. (Care homes and nurseries charge
 // everybody the same, and only follow prices: see fee.)
+// (And with what you have: a child's wedding or a university fee is sized to a family's means,
+// not only its wages. midMeans is midlife.js's: 1 for most people, up to 6 here for the very rich.)
 export function scale(L) {
   const s = L.s, pay = s.job ? CAREERS[s.job.c].rungs[s.job.r].pay : s.pension || 0;
-  return clamp(pay / 2500, 0.8, 3);
+  return Math.max(clamp(pay / 2500, 0.8, 3), L.midMeans ? Math.min(6, L.midMeans()) : 0);
 }
 export const price = (L, n) => Math.round(n * scale(L) / 50) * 50;
 export const fee = (L, n) => Math.round(n * L.s.idx / 10) * 10;

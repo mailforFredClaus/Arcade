@@ -601,11 +601,12 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'deposit', icon: '🏦', title: 'Mum? Dad?', w: 2, ctx: aKid(22, 45), ok: has, when: (L) => L.s.cash + L.s.bank >= 5000,
-    text: (L, x) => `${P(L, x).name} has found a little flat, and is $5,000 short of the deposit.`,
+    // (What is asked follows what you have: see midPrice in midlife.js.)
+    id: 'deposit', icon: '🏦', title: 'Mum? Dad?', w: 2, ctx: aKid(22, 45), ok: has, when: (L) => L.s.cash + L.s.bank >= L.midPrice(5000),
+    text: (L, x) => `${P(L, x).name} has found a little flat, and is ${money(L.midPrice(5000))} short of the deposit.`,
     opts: [
-      { t: (L, x) => `Give ${him(P(L, x))} the $5,000`, cost: 5000, run(L, x) { const p = P(L, x); L.bond(p, 12); L.joy(4); return `${He(p)} hugs you so hard your glasses come off.`; } },
-      { t: 'Lend half', cost: 2500, run(L, x) { L.bond(P(L, x), 4); return `It helps. ${He(P(L, x))} will pay you back, ${he(P(L, x))} says, and sort of does.`; } },
+      { t: (L, x) => `Give ${him(P(L, x))} the ${money(L.midPrice(5000))}`, cost: (L) => L.midPrice(5000), run(L, x) { const p = P(L, x); L.bond(p, 12); L.joy(4); return `${He(p)} hugs you so hard your glasses come off.`; } },
+      { t: 'Lend half', cost: (L) => L.midPrice(2500), run(L, x) { L.bond(P(L, x), 4); return `It helps. ${He(P(L, x))} will pay you back, ${he(P(L, x))} says, and sort of does.`; } },
       { t: (L, x) => `${He(P(L, x))} must stand on ${his(P(L, x))} own feet`, run(L, x) { const p = P(L, x); L.bond(p, -8); return `${He(p)} says ${he(p)} understands. The flat goes to someone else.`; } },
     ],
   },

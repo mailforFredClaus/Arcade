@@ -51,10 +51,12 @@ export default function (kit) {
     if (m.rival) body += `<div class="cb-note"><b>🎙️ Darren Pike’s podcast</b><p>${esc(`He dug at ${siteSaid(m.rival)} for a week, live, and found a ring pull.`)}</p></div>`;
     const left = keys.filter((key) => m.clues[key] == null);
     if (left.length && m.found == null) {
+      // Each lead says plainly what it needs, how far you have got, and what to do about it now.
       body += '<h3>Leads to follow</h3>';
       body += left.map((key) => {
-        const v = LEADS[key], prog = key === 'marlow' && m.pints ? ` (${m.pints} of 3 evenings)` : (key === 'paper' || key === 'archive') && m.arch ? ` (${m.arch} of 8 boxes)` : key === 'chart' && m.chart && m.chart.t === s.t ? ' It is in his window now.' : key === 'quinn' && L.coastTrusted() ? ' She will see you now.' : '';
-        return `<div class="cb-lead"><i>${v.icon}</i><div><b>${esc(v.name)}</b><small>${esc(v.hint + prog)}</small></div></div>`;
+        const v = LEADS[key], need = L.coastLeadNeeds(key);
+        const steps = need.steps.map((st) => `<li class="${st.ok ? 'ok' : ''}">${st.ok ? '✓' : '○'} ${esc(st.t)}</li>`).join('');
+        return `<div class="cb-lead"><i>${v.icon}</i><div><b>${esc(v.name)}</b><small>${esc(v.hint)}</small>${steps ? `<em>${need.any ? 'Any one of these:' : 'It needs:'}</em><ul class="cb-need">${steps}</ul>` : ''}${need.next ? `<p class="cb-next">➜ ${esc(need.next)}</p>` : ''}</div></div>`;
       }).join('');
     }
     body += `<h3>Where it might be</h3><p class="fine">Tap to rule a place out as you go. Nobody gives you leave to dig until you have followed up four leads, one of them from somebody who knows this coast; a wrong guess costs money, and the council makes you wait a year for the next permit, and longer each time after that.${L.coastMisses() ? ` Holes dug for nothing so far: ${L.coastMisses()}.` : ''}</p>`;
@@ -153,6 +155,12 @@ export default function (kit) {
 .cb-lead i { font-style: normal; font-size: 22px; line-height: 1.1; }
 .cb-lead b { display: block; font-size: 14px; font-weight: 900; }
 .cb-lead small { display: block; font-size: 12.5px; font-weight: 700; color: var(--muted); line-height: 1.35; }
+.cb-lead > div { min-width: 0; }
+.cb-lead em { display: block; margin-top: 6px; font-style: normal; font-size: 11.5px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
+.cb-need { list-style: none; margin: 2px 0 0; padding: 0; }
+.cb-need li { font-size: 13px; font-weight: 700; line-height: 1.35; padding: 2px 0; color: #4d566e; }
+.cb-need li.ok { color: var(--teal-d); }
+.cb-next { margin: 6px 0 0; font-size: 13px; font-weight: 800; color: var(--ink); }
 .cb-site .facts span { font-size: 11.5px; padding: 3px 7px; }
 .cb-site.out { opacity: .5; }
 .cb-site.out .item-top b { text-decoration: line-through; text-decoration-thickness: 2px; }

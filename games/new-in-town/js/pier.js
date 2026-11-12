@@ -8,6 +8,8 @@ import { money } from './data.js';
 const STAKES = [50, 500, 5000, 50000];
 const GULLS = ['Kevin', 'Admiral Beaky', 'Chip Thief', 'Sir Flaps-a-Lot', 'Mrs Higgins', 'The Duchess', 'Salty Pete', 'Greased Lightning', 'Old Stinky', 'Battered Sausage', 'Tuppence', 'Windy Miller', 'Lord Squawk', 'Pasty Bandit'];
 const LOTTO_START = 100000;
+// The most the Lucky Gull pays out on any one bet, over the stake, however much is staked.
+export const HOUSE_MAX = 100000;
 
 // What a hand of cards is worth: aces are 11, or 1 if that would go bust.
 export const handTotal = (cards) => {
@@ -27,8 +29,9 @@ export function install({ def, A, Life, clamp }) {
       else {
         while (how !== 'natural' && handTotal(h.dl) < 17) h.dl.push(this.int(1, 13));
         const me = handTotal(h.me), dl = handTotal(h.dl), dealerNatural = dl === 21 && h.dl.length === 2;
-        if (how === 'natural') { res = dealerNatural ? 'push' : 'natural'; pay = dealerNatural ? h.bet : h.bet * 2.5; }
-        else if (dl > 21 || me > dl) { res = 'win'; pay = h.bet * 2; }
+        // (A blackjack pays six to five at the Lucky Gull: it says so on the felt, in small letters.)
+        if (how === 'natural') { res = dealerNatural ? 'push' : 'natural'; pay = dealerNatural ? h.bet : Math.min(h.bet + this.houseMax(), h.bet * 2.2); }
+        else if (dl > 21 || me > dl) { res = 'win'; pay = Math.min(h.bet + this.houseMax(), h.bet * 2); }
         else if (me === dl && !dealerNatural) { res = 'push'; pay = h.bet; }
         else res = 'lose';
       }
@@ -37,8 +40,10 @@ export function install({ def, A, Life, clamp }) {
       if (pay) this.cash(pay);
       if (res === 'natural') { s.f.natural = 1; this.thrill(3); } else if (res === 'win') { if (h.bet >= 5000) this.thrill(3); } else if (res !== 'push') this.joy(-0.4);
       this.out = { me: h.me, dl: h.dl, res, pay, bet: h.bet };
-      return { bust: 'Bust! The dealer takes your chips without looking up.', natural: `Blackjack! It pays three to two: ${money(pay)}.`, win: `You win ${money(pay)}.`, push: 'A tie. You get your stake back.', lose: `The dealer has ${handTotal(h.dl)}. Your stake is gone.` }[res];
+      return { bust: 'Bust! The dealer takes your chips without looking up.', natural: `Blackjack! It pays six to five: ${money(pay)}.`, win: `You win ${money(pay)}.`, push: 'A tie. You get your stake back.', lose: `The dealer has ${handTotal(h.dl)}. Your stake is gone.` }[res];
     },
+    // The most the house pays out on one bet, over the stake.
+    houseMax() { return HOUSE_MAX; },
     // The lift of a win, which only works once a season.
     thrill(n) { if (!this.s.use.thrill) { this.s.use.thrill = 1; this.joy(n); } },
     // Today's card at the gull races: five birds and what they pay.
@@ -110,7 +115,7 @@ export function install({ def, A, Life, clamp }) {
         while (k < left.length - 1 && r >= card[left[k]].p) r -= card[left[k++]].p;
         order.push(left.splice(k, 1)[0]);
       }
-      const won = order[0] === x.i, pay = won ? Math.round(x.bet * card[x.i].pays) : 0;
+      const won = order[0] === x.i, pay = won ? Math.min(x.bet + L.houseMax(), Math.round(x.bet * card[x.i].pays)) : 0;
       s.n.casino += pay - x.bet;
       if (pay) { L.cash(pay); if (card[x.i].pays >= 6) L.thrill(5); if (card[x.i].pays >= 8) s.f.outsider = 1; } else L.joy(-0.3);
       L.out = { card, order, pick: x.i, pay };
