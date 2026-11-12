@@ -6,5 +6,6 @@
 // ui-mods.js.
 
 import { install as hill } from './hill.js';
+import { install as soul } from './soul.js';
 
-export const RULES = [hill];
+export const RULES = [hill, soul];

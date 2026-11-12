@@ -51,7 +51,9 @@ const SHADY_SECS = ['Light fingers', 'Vices', 'Under the counter', 'Under the pi
 //   worth(L)                   dollars owned that the rest of the sums do not know about
 //   acted(L, id, x, y)         after any action has been done
 //   chose(L, id, x, i, win)    after any card has been answered (i: the option, win: if it came off)
-export const HOOKS = { load: [], season: [], late: [], year: [], mood: [], time: [], income: [], bills: [], worth: [], acted: [], chose: [] };
+//   luck(L)                    a little added to (or taken from) every chance the town offers
+//   epitaph(L, out)            push sentences to the Gazette's obituary (legacy.js)
+export const HOOKS = { load: [], season: [], late: [], year: [], mood: [], time: [], income: [], bills: [], worth: [], acted: [], chose: [], luck: [], epitaph: [] };
 const hookSum = (list, ...args) => list.reduce((a, f) => a + (f(...args) || 0), 0);
 // Cards from elsewhere join the deck.
 export function addEvents(list) {
@@ -1179,7 +1181,7 @@ export class Life {
 
   // ---- odds ----
 
-  luck() { return this.s.heir === 'gambler' ? 0.07 : 0; }
+  luck() { return (this.s.heir === 'gambler' ? 0.07 : 0) + hookSum(HOOKS.luck, this); }
   checkOdds(stat, dc) { return clamp(0.5 + (this.s.st[stat] - dc) / 60 + this.luck(), 0.05, 0.95); }
   mayorOdds() { const s = this.s; return clamp(0.25 + (s.st.charm - 60) / 100 + s.karma / 200 + s.fame / 300 + this.luck(), 0.1, 0.9); }
   pitchOdds() { const s = this.s; return clamp(0.15 + (s.st.smarts - 60) / 100 + s.st.charm / 400 + this.luck(), 0.1, 0.6); }
@@ -1665,7 +1667,7 @@ export class Life {
 
 install({ def, A, Life, clamp });
 installVice({ def, A, Life, clamp });
-for (const add of [installInside, installFeuds, installPier, installFame, installTown, installLegacy, installKin]) add({ def, A, Life, clamp });
+for (const add of [installInside, installFeuds, installPier, installFame, installTown, installLegacy, installKin]) add({ def, A, Life, clamp, hooks: HOOKS });
 for (const add of RULES) add({ def, A, Life, clamp, val, hooks: HOOKS, addEvents });
 
 export { A as ACTIONS, money, cashShort };

@@ -11,7 +11,7 @@
 
 import { GIFTS, SIDELINES, CAREERS, COURSES, FISH, money, an, lowJob } from './data.js';
 
-export function install({ def, A, Life, clamp }) {
+export function install({ def, A, Life, clamp, hooks }) {
   Object.assign(Life.prototype, {
     // Something the town was given, by you or by your family before you.
     gift(id) { return this.s.gifts[id] || null; },
@@ -64,6 +64,8 @@ export function install({ def, A, Life, clamp }) {
       if (s.f.patron || (s.n.sets || 0) >= 1) hobbies.push('could not pass Mr Pym’s window');
       if (Object.keys(s.trips).length >= 6) hobbies.push('had seen a good deal of the world and come back every time');
       if (hobbies.length) out.push(`${He} ${list(hobbies)}.`);
+      // (The newer parts of town have their say: see HOOKS in engine.js.)
+      for (const f of hooks.epitaph) f(this, out);
       // Who is left.
       const kin = [];
       if (spouse) kin.push(`a ${spouse.sex === 'm' ? 'husband' : 'wife'}, ${spouse.name.split(' ')[0]}`);
