@@ -768,8 +768,11 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       if (n > 0) { L.cash(n); L.note(`Your share of what your parent had been left, after duty: ${money(n)}.`, 'big'); L.say('📜', `The will: ${money(n)} comes to you`, 'good'); }
     }
     // The town's cards that give money to the children count as gifts made in life.
-    if (id === 'will' && i === 1 && L.kids().length) { const ks = L.kids(); for (const k of ks) settle(L, k, Math.floor(6000 / ks.length), false); }
-    if (id === 'deposit' && i === 0) { const k = L.person(x); if (k) settle(L, k, 5000, false); }
+    // (The sums follow what you have: midPrice is midlife.js's; a grown child's house is too.)
+    const sum = (n) => (L.midPrice ? L.midPrice(n) : n);
+    if (id === 'will' && i === 1 && L.kids().length) { const ks = L.kids(); for (const k of ks) settle(L, k, Math.floor(sum(6000) / ks.length), false); }
+    if (id === 'deposit' && i === 0) { const k = L.person(x); if (k) settle(L, k, sum(5000), false); }
+    if (id === 'midNest' && i === 0 && x) { const k = L.person(x.p); if (k) settle(L, k, x.n, false); }
   });
 
   // What the Gazette has to say.

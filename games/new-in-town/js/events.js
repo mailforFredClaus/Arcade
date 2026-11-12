@@ -587,11 +587,12 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'deposit', icon: '🏦', title: 'Mum? Dad?', w: 2, ctx: aKid(22, 45), ok: has, when: (L) => L.s.cash + L.s.bank >= 5000,
-    text: (L, x) => `${P(L, x).name} has found a little flat, and is $5,000 short of the deposit.`,
+    // (What is asked follows what you have: see midPrice in midlife.js.)
+    id: 'deposit', icon: '🏦', title: 'Mum? Dad?', w: 2, ctx: aKid(22, 45), ok: has, when: (L) => L.s.cash + L.s.bank >= L.midPrice(5000),
+    text: (L, x) => `${P(L, x).name} has found a little flat, and is ${money(L.midPrice(5000))} short of the deposit.`,
     opts: [
-      { t: (L, x) => `Give ${him(P(L, x))} the $5,000`, cost: 5000, run(L, x) { const p = P(L, x); L.bond(p, 12); L.joy(4); return `${He(p)} hugs you so hard your glasses come off.`; } },
-      { t: 'Lend half', cost: 2500, run(L, x) { L.bond(P(L, x), 4); return `It helps. ${He(P(L, x))} will pay you back, ${he(P(L, x))} says, and sort of does.`; } },
+      { t: (L, x) => `Give ${him(P(L, x))} the ${money(L.midPrice(5000))}`, cost: (L) => L.midPrice(5000), run(L, x) { const p = P(L, x); L.bond(p, 12); L.joy(4); return `${He(p)} hugs you so hard your glasses come off.`; } },
+      { t: 'Lend half', cost: (L) => L.midPrice(2500), run(L, x) { L.bond(P(L, x), 4); return `It helps. ${He(P(L, x))} will pay you back, ${he(P(L, x))} says, and sort of does.`; } },
       { t: (L, x) => `${He(P(L, x))} must stand on ${his(P(L, x))} own feet`, run(L, x) { const p = P(L, x); L.bond(p, -8); return `${He(p)} says ${he(p)} understands. The flat goes to someone else.`; } },
     ],
   },
@@ -682,11 +683,12 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'will', icon: '📜', title: 'Putting things in order', w: 3, once: true, when: (L) => L.s.age >= 60 && L.s.cash + L.s.bank >= 20000,
+    // (The sums follow what you have: see midPrice in midlife.js.)
+    id: 'will', icon: '📜', title: 'Putting things in order', w: 3, once: true, when: (L) => L.s.age >= 60 && L.s.cash + L.s.bank >= L.midPrice(20000),
     text: 'The solicitor uncaps her pen. "And is there anything you would like to do with your money while you are still here to enjoy it?"',
     opts: [
-      { t: 'A new boat for the lifeboat station', cost: 10000, run(L) { L.karma(8); L.s.n.given += 10000; L.joy(5); return 'They name her after you. You launch her with a bottle of the cheap stuff.'; } },
-      { t: 'Something for each of the children', cost: 6000, show: (L) => L.kids().length > 0, run(L) { for (const k of L.kids()) L.bond(k, 8); L.joy(4); return 'They say you should not have. You tell them to hush.'; } },
+      { t: (L) => `A new boat for the lifeboat station: ${money(L.midPrice(10000))}`, cost: (L) => L.midPrice(10000), run(L) { L.karma(8); L.s.n.given += L.midPrice(10000); L.joy(5); return 'They name her after you. You launch her with a bottle of the cheap stuff.'; } },
+      { t: (L) => `Something for each of the children: ${money(L.midPrice(6000))} between them`, cost: (L) => L.midPrice(6000), show: (L) => L.kids().length > 0, run(L) { for (const k of L.kids()) L.bond(k, 8); L.joy(4); return 'They say you should not have. You tell them to hush.'; } },
       { t: 'I plan to live for ever', run(L) { L.joy(2); return '"Very good," says the solicitor, and writes that down.'; } },
     ],
   },

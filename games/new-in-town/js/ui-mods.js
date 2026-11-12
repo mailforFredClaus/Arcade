@@ -15,5 +15,6 @@ import chapters from './chapters-ui.js'; // the chapters of a life, old age, and
 import wants from './wants-ui.js'; // partners, children, parents and friends who want things
 import heists from './heists-ui.js'; // planned jobs, the detective, and the Low road box
 import annals from './annals-ui.js'; // the town growing old with you
+import midlife from './midlife-ui.js'; // the middle of a life
 
-export const SCREENS = [soul, coast, motor, clubs, market, folk, flutter, careers, chapters, wants, heists, annals];
+export const SCREENS = [soul, coast, motor, clubs, market, folk, flutter, careers, chapters, wants, heists, annals, midlife];

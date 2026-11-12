@@ -1014,7 +1014,12 @@ export class Life {
     return Math.max(3, t);
   }
 
-  savingsRate() { return SAVINGS_RATE + (this.s.heir === 'tycoon' ? 0.004 : 0) + (this.perk('finance') ? 0.002 : 0); }
+  // (The bank's best rate is for savers, not for fortunes: what is over $500,000 earns half of it,
+  // so the rate quoted for a big balance is what it earns all told.)
+  savingsRate() {
+    const r = SAVINGS_RATE + (this.s.heir === 'tycoon' ? 0.004 : 0) + (this.perk('finance') ? 0.002 : 0), b = this.s.bank, top = 500000;
+    return b > top ? r * (top + 0.5 * (b - top)) / b : r;
+  }
   // For five years after going bankrupt the bank will not lend.
   blacklisted() { return this.s.f.bustAt != null && this.s.t - this.s.f.bustAt < 20; }
   sharesWorth() { const k = this.s.stk; return Object.keys(k.own).reduce((a, sym) => a + k.own[sym] * k.p[sym], 0); }
