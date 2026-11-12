@@ -137,7 +137,7 @@ function renderPanel() {
   const inside = !!life.s.gaol;
   $('map').hidden = inside; $('gaol').hidden = !inside;
   if (tab === 'town') { if (inside) renderGaol(); else renderMap(); }
-  else if (tab === 'me') $('pMe').innerHTML = meHtml();
+  else if (tab === 'me') { $('pMe').innerHTML = meHtml(); jumpBar($('pMe')); }
   else if (tab === 'people') $('pPeople').innerHTML = peopleHtml();
   else $('pJournal').innerHTML = journalHtml();
 }
@@ -948,6 +948,22 @@ function showBirthday() {
 }
 
 // ---- the Me, People and Journal tabs ----------------------------------------------------
+
+// A row of shortcuts at the top of a long tab, one to each box with a heading.
+function jumpBar(panel) {
+  const heads = [...panel.querySelectorAll(':scope > .box > h3:first-child')];
+  if (heads.length < 6) return;
+  const bar = document.createElement('nav');
+  bar.className = 'jump';
+  heads.forEach((h, i) => {
+    h.parentElement.id = `box${i}`;
+    const b = document.createElement('button');
+    b.textContent = h.textContent.trim().toLowerCase().replace(/^./, (c) => c.toUpperCase());
+    b.addEventListener('click', () => { sfx('tap'); h.parentElement.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+    bar.append(b);
+  });
+  panel.prepend(bar);
+}
 
 function meHtml() {
   const s = life.s, next = life.nextRung(), job = s.job && CAREERS[s.job.c];
