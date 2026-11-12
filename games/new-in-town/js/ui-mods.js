@@ -3,4 +3,6 @@
 // screen's kit and gives back what it adds: see "the newer parts of town" in
 // game.js.
 
-export const SCREENS = [];
+import folk from './folk-ui.js'; // the people of the town
+
+export const SCREENS = [folk];

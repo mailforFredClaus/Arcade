@@ -6,5 +6,6 @@
 // ui-mods.js.
 
 import { install as hill } from './hill.js';
+import { install as folk } from './folk.js'; // the people of the town
 
-export const RULES = [hill];
+export const RULES = [hill, folk];
