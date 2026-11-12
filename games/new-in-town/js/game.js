@@ -102,7 +102,7 @@ function renderTop() {
   $('app').className = `app s${life.season}`;
   $('ava').innerHTML = face(s.look, s.age, s.happy, s.sex);
   // (The age goes with the name, so that the job has the line beneath to itself.)
-  $('whoName').textContent = `${s.name}, ${s.age}`;
+  $('whoName').textContent = `${s.name.split(' ')[0]}, ${s.age}`;
   $('whoSub').textContent = s.gaol ? 'Starling Gaol' : life.jobTitle() || (s.retired ? 'Retired' : s.biz ? `Runs ${an(lowJob(life.bizName()))}` : 'Between jobs');
   $('cash').textContent = cashShort(s.cash);
   $('date').textContent = `${SEASON_ICON[life.season]} ${SEASONS[life.season]}, year ${life.year}${s.wx !== 'fair' ? ` ${life.weather().icon}` : ''}`;
@@ -181,7 +181,7 @@ function renderMap() {
   }
   $('me').innerHTML = face(s.look, s.age, s.happy, s.sex);
   // (Only at the start of a season, before anything else has been done.)
-  $('mapAgain').hidden = !(save.plan && save.plan.length && s.time >= life.timeMax() && !s.gaol && !doneNow.length);
+  $('mapAgain').hidden = !(save.plan && save.plan.length && s.time > 0 && !s.gaol && !doneNow.length);
   placeMe();
   fitMap();
 }
@@ -266,7 +266,20 @@ const SHEET = {
     if (id === 'home') { title = HOMES[s.home].name; sub = `${s.owned ? 'Yours' : `Rent ${money(life.rentOf(s.home))} a season`}. ${HOMES[s.home].blurb}`; }
     const plaques = life.plaques(id).map((t) => `<p class="plaque">🪧 ${esc(t)}</p>`).join('');
     const notes = MODS.map((m) => (m.place ? m.place(life, id) || '' : '')).join('');
-    return { icon: p.icon, title, sub, body: plaques + notes + sections(life.placeActions(id)) };
+    // (Where there are a lot of things to buy, they go behind one row of their own.)
+    let list = life.placeActions(id);
+    const shop = list.filter((a) => a.id === 'buy');
+    if (shop.length >= 6) {
+      const have = shop.filter((a) => a.owned).length;
+      list = list.filter((a) => a.id !== 'buy');
+      list.push({ id: 'shops', open: 'shops', sec: 'The shops', icon: '🛍️', title: 'The shops', desc: `${shop.length} things for sale${have ? `, ${have} of them yours already` : ''}: ${shop.slice(0, 3).map((a) => a.title.toLowerCase()).join(', ')} and more.` });
+    }
+    return { icon: p.icon, title, sub, body: plaques + notes + sections(list) };
+  },
+
+  shops() {
+    const list = life.placeActions(here).filter((a) => a.id === 'buy');
+    return { icon: '🛍️', title: 'The shops', sub: PLACES[here].name, body: sections(list) };
   },
 
   jobs() {
@@ -914,9 +927,10 @@ function nextSeason() {
   if (life.s.dead || life.event()) { pump(); return; }
   closeSheets();
   if (life.s.time >= 3 && !save.restTip && !life.s.gaol) { save.restTip = true; toast('Time you do not use is rest: good for health and mood.', 4200); }
+  const inside = !!life.s.gaol;
   const r = life.endSeason();
   bjShow = null; raceShow = null;
-  if (doneNow.length) save.plan = doneNow;
+  if (doneNow.length && !inside) save.plan = doneNow;
   doneNow = [];
   persist();
   tab = 'town';
@@ -1025,7 +1039,13 @@ function peopleHtml() {
   const s = life.s;
   const card = (p) => `<button class="box person" data-do="person" data-id="${p.id}"><span class="ava">${face(p.look, p.age, p.kind === 'enemy' ? 12 : 40 + p.bond * 0.6, p.sex)}</span>
       <div><b>${esc(p.name)} ${sexMark(p)}</b><small>${relation(p)}, ${p.age}${p.kind === 'friend' && life.fancy(p) && p.single && !life.partner() ? ' · 💗 single' : ''}${p.job && p.kind !== 'parent' && p.age >= 18 ? ` · ${life.jobOf(p)}` : ''}</small><span class="bondbar${p.kind === 'enemy' ? ' grudge' : ''}"><span style="width:${p.kind === 'enemy' ? p.grudge : p.bond}%"></span></span></div><i class="go">›</i></button>`;
-  const group = (title, kinds) => { const l = s.people.filter((p) => kinds.includes(p.kind)).sort((a, b) => b.bond - a.bond); return l.length ? `<h3 class="group">${title}</h3>${l.map(card).join('')}` : ''; };
+  // (A long list shows its first few, the closest, and folds the rest away.)
+  const group = (title, kinds) => {
+    const l = s.people.filter((p) => kinds.includes(p.kind)).sort((a, b) => b.bond - a.bond);
+    if (!l.length) return '';
+    const more = l.length > 7 ? `<details class="more"><summary>${l.length - 5} more</summary>${l.slice(5).map(card).join('')}</details>` : '';
+    return `<h3 class="group">${title}</h3>${(more ? l.slice(0, 5) : l).map(card).join('')}${more}`;
+  };
   let out = '';
   if (s.due) out += `<div class="box warn good">🍼 ${s.due.adopt ? 'A child is coming to live with you soon.' : 'A baby is on the way!'}</div>`;
   const love = group('Your sweetheart', ['partner', 'spouse']);
@@ -1205,6 +1225,8 @@ function renderStart() {
   const seg = (what, v, label, on) => `<button class="seg-btn${on ? ' on' : ''}" data-do="${what}" data-v="${v}">${label}</button>`;
   const ready = d.name.trim() && d.dreams.length === 3;
   const raised = nx && nx.st ? STATS.filter((k) => nx.st[k] >= 35).map((k) => STAT_NAME[k]) : [];
+  // (A grown heir is who they are: not asked about school, or whether a man or a woman.)
+  const grown = !!(nx && nx.carry && nx.carry.how === 'home');
   $('start').innerHTML = `<div class="start-in">
     <div class="start-top"><a class="ico-btn" href="../../index.html" aria-label="Back to the arcade">${ICON.back}</a><button class="ico-btn" data-do="menu" aria-label="Menu">${ICON.gear}</button></div>
     <h1 class="logo"><span>New</span><span>in Town</span></h1>
@@ -1214,11 +1236,11 @@ function renderStart() {
       <div class="namer"><span class="ava big">${face(d.look, (nx && nx.carry && nx.carry.how === 'home' && nx.carry.age) || 18, 70, d.sex)}</span>
         <div><input id="nameIn" type="text" maxlength="16" placeholder="Your name" value="${esc(d.name)}" autocomplete="off" autocapitalize="words" spellcheck="false">
         <div class="picks"><button class="pick quiet" data-do="rname">🎲 Name</button><button class="pick quiet" data-do="rlook">🎲 Look</button><button class="pick quiet" data-do="style">💇 Hair</button>${d.sex === 'm' ? `<button class="pick quiet" data-do="beard">🧔 ${d.look.beard ? 'Shave' : 'Beard'}</button>` : ''}</div></div></div>
-      <div class="row"><span>I am a</span><div class="seg">${seg('sex', 'm', 'Man', d.sex === 'm')}${seg('sex', 'f', 'Woman', d.sex === 'f')}</div></div>
+      ${grown ? '' : `<div class="row"><span>I am a</span><div class="seg">${seg('sex', 'm', 'Man', d.sex === 'm')}${seg('sex', 'f', 'Woman', d.sex === 'f')}</div></div>`}
       <div class="row"><span>I fall for</span><div class="seg">${seg('into', 'f', 'Women', d.into === 'f')}${seg('into', 'm', 'Men', d.into === 'm')}${seg('into', 'b', 'Both', d.into === 'b')}</div></div>
       ${sw('skin', LOOKS.skin)}${sw('hair', LOOKS.hair)}${sw('top', LOOKS.top)}</div>
 
-    <div class="box"><h3>What were you like at school?</h3><div class="grid3">${Object.entries(BACKGROUNDS).map(([id, b]) => `<button class="opt-card${d.bg === id ? ' on' : ''}" data-do="bg" data-id="${id}"><i>${b.icon}</i><b>${b.name}</b><small>${b.blurb}</small></button>`).join('')}</div></div>
+    ${grown ? '' : `<div class="box"><h3>What were you like at school?</h3><div class="grid3">${Object.entries(BACKGROUNDS).map(([id, b]) => `<button class="opt-card${d.bg === id ? ' on' : ''}" data-do="bg" data-id="${id}"><i>${b.icon}</i><b>${b.name}</b><small>${b.blurb}</small></button>`).join('')}</div></div>`}
 
     <div class="box"><h3>What do you dream of? <em>Pick three</em></h3><div class="grid2">${d.offered.map((id) => `<button class="opt-card wide${d.dreams.includes(id) ? ' on' : ''}" data-do="dream" data-id="${id}"><i>${DREAMS[id].icon}</i><b>${DREAMS[id].name}</b><small>${DREAMS[id].desc}</small></button>`).join('')}</div><button class="pick quiet reroll" data-do="dreamsAgain">🎲 Other dreams</button></div>
 
@@ -1244,6 +1266,8 @@ function beginLife() {
   });
   // (A grown child or grandchild starts at their own age, at home, with what the will gave them: chapters.js.)
   life.chapBegin(nx ? nx.carry : null, d.dreams);
+  // (What the journal has so far happened at the age the life begins at, not at eighteen.)
+  for (const e of life.s.log) e.a = life.s.age;
   save.next = null;
   save.counted = false;
   save.yearWorth = life.netWorth();
