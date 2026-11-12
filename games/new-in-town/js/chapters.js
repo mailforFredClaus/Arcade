@@ -62,7 +62,7 @@ export const homeSaid = (kind) => (kind === 'manor' ? 'Starling Manor' : `the ${
 
 // The causes of a natural death, which a last illness can stand in for. (Anything else, a fall, the sea,
 // a beating, ends a life at once, as it always did.) An illness serious enough to kill counts too.
-const NATURAL = new Set(['old age', 'ill health', 'poor health', 'exhaustion', 'overwork', 'heart trouble', 'a failing heart', 'liver disease', 'flu', 'heavy cold', 'a heavy cold', 'a chill', 'the drink', 'mermaid dust']);
+const NATURAL = new Set(['old age', 'ill health', 'poor health', 'exhaustion', 'overwork', 'heart trouble', 'a failing heart', 'heart failure', 'liver disease', 'flu', 'heavy cold', 'a heavy cold', 'a chill', 'the drink', 'mermaid dust']);
 const natural = (L, cause) => !cause || NATURAL.has(cause) || (!!L.s.ill && L.s.ill.name === cause && L.s.ill.sev >= 3);
 // What the last illness turns out to be, where it is not simply what was wrong already.
 const DUSK_AS = { flu: 'pneumonia', 'heavy cold': 'pneumonia', 'a heavy cold': 'pneumonia', 'a chill': 'pneumonia', 'the drink': 'liver disease', 'mermaid dust': 'a failing heart' };

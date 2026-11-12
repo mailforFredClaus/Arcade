@@ -126,7 +126,7 @@ export function install({ def, A, Life, clamp }) {
           // Years of it catch up with the body: an illness that the hospital can treat, if you go.
           const heavy = s.f.heavy || (s.f.heavy = {}), n = (heavy[k] = (heavy[k] || 0) + 1);
           if (n >= 12 && !s.ill && !s.gaol && this.chance(Math.min(0.1, n * 0.003))) {
-            const ill = k === 'drink' ? 'liver disease' : 'a failing heart';
+            const ill = k === 'drink' ? 'liver disease' : 'heart failure';
             this.sicken(ill, n >= 40 ? 3 : 2);
             this.note(`The doctor says it is ${ill}, and that you know why.`, 'bad');
             this.say('🩺', `Years of ${k === 'drink' ? 'drink' : 'dust'}: ${ill}`, 'bad');
