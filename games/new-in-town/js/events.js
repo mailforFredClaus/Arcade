@@ -896,19 +896,21 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'busted', icon: '🚔', title: 'Evening, all',
-    text: (L, x) => `A hand on your collar. "Well now," says the constable, looking at ${x && x.what ? x.what : 'what you are carrying'}. "And what have we here?"`,
+    // (Who arrests you, and what a bribe or a lawyer can do about it, depend on the detective's file in heists.js.)
+    id: 'busted', icon: '🚔', title: (L, x) => (L.lawCollar ? L.lawCollar(x).title : 'Evening, all'),
+    text: (L, x) => (L.lawCollar ? L.lawCollar(x).text : `A hand on your collar. "Well now," says the constable, looking at ${x && x.what ? x.what : 'what you are carrying'}. "And what have we here?"`),
     opts: [
       { t: 'Come quietly', run(L, x) { return L.sentence(sev(x)); } },
       { t: 'Run for it', check: ['fitness', 55], run(L, x, win) { if (win) { L.warm(15); return 'Over the nets, round the ice house, and away. Your heart does not slow down for an hour. They will be looking for you now.'; } L.hp(-6, 'a fall'); return `You make it thirty yards before a lobster pot brings you down. Resisting arrest, on top of the rest. ${L.sentence(sev(x) + 1)}`; } },
-      { t: 'Slip the constable something', cost: (L, x) => 1500 * sev(x), odds: (L) => 0.25 + L.s.st.charm / 250 + (L.perk('police') ? 0.2 : 0), run(L, x, win) { L.karma(-2); if (win) return 'The constable looks at the notes, then at the sea, then at nothing at all. "Mind how you go."'; return `"Attempting to bribe an officer," the constable writes, slowly. ${L.sentence(sev(x) + 1)}`; } },
-      { t: 'Say nothing, and send for a good lawyer', cost: (L, x) => (L.perk('law') ? 2000 : 4000) * sev(x), run(L, x) { return `She costs a fortune and earns it. ${L.sentence(sev(x) - 1)}`; } },
+      { t: (L, x) => `Slip ${L.lawOfficer ? L.lawOfficer(x) : 'the constable'} something`, cost: (L, x) => 1500 * sev(x), odds: (L) => 0.25 + L.s.st.charm / 250 + (L.perk('police') ? 0.2 : 0) + (L.lawBribe ? L.lawBribe() : 0), run(L, x, win) { const who = L.lawOfficer ? L.lawOfficer(x) : 'the constable', Who = who[0].toUpperCase() + who.slice(1); L.karma(-2); if (win) return `${Who} looks at the notes, then at the sea, then at nothing at all. "Mind how you go."`; return `"Attempting to bribe an officer," ${who} writes, slowly. ${L.sentence(sev(x) + 1)}`; } },
+      { t: 'Say nothing, and send for a good lawyer', cost: (L, x) => (L.perk('law') ? 2000 : 4000) * sev(x), odds: (L, x) => (L.briefOdds ? L.briefOdds(sev(x)) : 1), run(L, x, win) { return win ? `She costs a fortune and earns it. ${L.sentence(sev(x) - 1)}` : `She costs a fortune. The magistrate has read your file, all of it. ${L.sentence(sev(x))}`; } },
       { t: 'It was all Sal', check: ['charm', 60], show: (L, x) => sev(x) === 2, run(L, x, win) { L.s.f.salOff = L.s.t + 8; if (win) return 'You are so convincing that the constable gives you a lift home. Sal will not be pleased.'; return `Sal has an alibi, and three witnesses. ${L.sentence(sev(x) + 1)}`; } },
     ],
   },
   {
     id: 'inside', icon: '⛓️', title: 'Starling Gaol',
-    text: (L, x) => `${x.n} season${x.n > 1 ? 's' : ''}. The gate shuts behind you, and a voice from the landing shouts something unrepeatable. You will live every one of them: there is a yard, a library, a workshop, and a great many men with time on their hands. How do you mean to start?`,
+    // (A second sentence, and after, reads differently: see lagInText in heists.js.)
+    text: (L, x) => (L.lagInText ? L.lagInText(x) : `${x.n} season${x.n > 1 ? 's' : ''}. The gate shuts behind you, and a voice from the landing shouts something unrepeatable. You will live every one of them: there is a yard, a library, a workshop, and a great many men with time on their hands. How do you mean to start?`),
     opts: [
       { t: 'Head down, library card out', run(L, x) { L.jail(x.n); L.behave(15); return 'You say "sir" to everybody, including a plumber. The governor makes a small note against your name. The good kind.'; } },
       { t: 'Fall in with the hard cases', run(L, x) { L.jail(x.n); L.respect(20); L.s.gaol.good = Math.min(L.s.gaol.good, 35); L.karma(-3); return 'By lights out you have a nickname, a seat at the back table, and a debt of two cigarettes. It is a start.'; } },
@@ -943,7 +945,8 @@ export const EVENTS = [
   },
   // ---- prison ----
   {
-    id: 'gCellmate', icon: '🛏️', title: 'A new cellmate', gaol: true, w: 4, cd: 6,
+    // (Sent for by heists.js the first time Bernard is your cellmate: cellmates there remember you.)
+    id: 'gCellmate', icon: '🛏️', title: 'A new cellmate', gaol: true, w: 0,
     text: '"Books" Bernard: sixty, mild, in for something involving a pension fund. He takes the bottom bunk without asking and lays out a travelling chess set.',
     opts: [
       { t: 'Let him teach you chess', run(L) { L.gain('smarts', 2.5); L.joy(2); return 'You lose forty games running. The forty-first is a draw, and you think about it for a week.'; } },
@@ -952,7 +955,8 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'gPudding', icon: '🍮', title: 'Treacle sponge', gaol: true, w: 4, cd: 5,
+    // (Nobody tries it on with somebody the landing respects: standing is remembered between sentences now, in heists.js.)
+    id: 'gPudding', icon: '🍮', title: 'Treacle sponge', gaol: true, w: 4, cd: 5, when: (L) => L.s.gaol.rep < 60,
     text: 'A man the size of a wardrobe sits down opposite and puts his spoon in your pudding. The whole table has stopped eating.',
     opts: [
       { t: 'Tell him where to put the spoon', check: ['fitness', 48], run(L, x, win) { L.behave(-6); if (win) { L.respect(12); return 'It is brief. He eats his own pudding from now on, and nobody else’s spoon comes near yours.'; } L.rough(10, 'a beating in Starling Gaol'); L.respect(3); return 'You wake up in the infirmary. Still: you said it, and that was noticed.'; } },

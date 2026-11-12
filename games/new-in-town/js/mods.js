@@ -16,6 +16,7 @@ import { install as flutter } from './flutter.js'; // the gambling habit
 import { install as careers } from './careers.js'; // a story for every career
 import { install as chapters } from './chapters.js'; // the chapters of a life, old age, and the will
 import { install as wants } from './wants.js'; // partners, children, parents and friends who want things
+import { install as heists } from './heists.js'; // planned jobs, the detective, Nan Carne's lot, and prison that remembers
 
 // (The plain things to do up the hill go last, so that each place's own sections come first.)
-export const RULES = [soul, coast, motor, clubs, market, folk, flutter, careers, chapters, wants, hill];
+export const RULES = [soul, coast, motor, clubs, market, folk, flutter, careers, chapters, wants, heists, hill];

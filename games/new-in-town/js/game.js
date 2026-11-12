@@ -983,7 +983,8 @@ function meHtml() {
     <div class="line"><span>🚨 The law</span><b>${life.lawWord()}</b></div>
     <div class="line"><span>Crimes to your name</span><b>${s.n.crimes}</b></div>${s.record ? `<div class="line down"><span>Criminal record</span><b>${s.record} conviction${s.record > 1 ? 's' : ''}</b></div>` : ''}
     ${Object.keys(s.habit).map((k) => `<div class="skill"><i>${k === 'drink' ? '🥃' : '✨'}</i><span>${k === 'drink' ? 'Drink' : 'Dust'}</span><span class="bar"><span style="width:${Math.min(100, s.habit[k])}%;background:${s.habit[k] >= 60 ? 'var(--bad)' : 'var(--sun)'}"></span></span><b>${Math.round(Math.min(100, s.habit[k]))}</b></div>`).join('')}
-    ${life.hooked('drink') || life.hooked('dust') ? '<p class="fine">You are hooked: it costs you health every season, and a season without it is a miserable one. Going without wears it down; the clinic at St Wren’s ends it.</p>' : ''}</div>` : ''}
+    ${life.hooked('drink') || life.hooked('dust') ? '<p class="fine">You are hooked: it costs you health every season, and a season without it is a miserable one. Going without wears it down; the clinic at St Wren’s ends it.</p>' : ''}
+    ${MODS.map((m) => (m.lowRoad ? m.lowRoad(life) || '' : '')).join('')}</div>` : ''}
   <div class="box"><h3>About town</h3>
     <div class="line"><span>${life.eco().icon} Business in the Bay</span><b>${life.eco().name}</b></div>
     ${s.chirp ? `<div class="line"><span>🐤 Chirper</span><b>${many(life.followers())} followers</b></div>` : ''}
@@ -1370,6 +1371,7 @@ const DO = {
 //        it should finish with kit.doAct(actionId, what came of it)
 //   me(life), people(life): boxes of HTML for the Me and People tabs
 //   person(life, p): HTML for someone's own sheet, under what is known about them
+//   lowRoad(life): lines of HTML for the Low road box on the Me tab (shown once there is a crime to your name)
 //   marks(life): [[place, emoji], ...] for badges on the map
 //   css: a stylesheet of its own
 const kit = {
