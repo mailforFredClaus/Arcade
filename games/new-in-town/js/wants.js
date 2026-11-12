@@ -173,6 +173,11 @@ function partnerBeats(L, p, r, add) {
 function childBeats(L, k, r, add) {
   const s = L.s, a = k.age, ms = r.ms || (r.ms = {}), x = { p: k.id };
   const once = (id, w, u = false, go = null) => add(id, x, w, u, () => { ms[id] = 1; if (go) go(); });
+  // (What would have been decided on a birthday, for a child who was already older when this part of town began.)
+  if (r.bully === undefined && a > 7) r.bully = a <= 11 && L.chance(0.5);
+  if (r.crowd === undefined && a > 13) r.crowd = a <= 16 && L.chance(0.4);
+  if (r.backRoll === undefined && a > 23) r.backRoll = a <= 33 && L.chance(0.35);
+  if (r.wedRoll === undefined && a > 24) r.wedRoll = a <= 38 && L.chance(0.7);
   if (r.nick === 1) add('wantsNick', x, 6, true, () => { r.nick = 2; });
   if (a >= 1 && a <= 3 && !ms.wantsNursery) once('wantsNursery', 2.5);
   if (a >= 4 && a <= 5 && !ms.wantsSchool) once('wantsSchool', 3, a === 5 && L.season >= 2);
@@ -513,7 +518,8 @@ export function install({ A, Life, hooks, addEvents }) {
     for (const q of s.people) {
       const R = W.p[q.id];
       if (!R) continue;
-      if (q.kind === 'parent') b += R.ask ? -1 : R.care === 'with' ? 1 : R.care === 'home' ? -0.5 : 0;
+      // (Looking after them yourself is hard, and you are glad you do it.)
+      if (q.kind === 'parent') b += R.ask ? -1 : R.care === 'with' || R.care === 'you' ? 1 : R.care === 'home' ? -0.5 : 0;
       if (q.kind === 'child' && R.back > s.t) b += 1;
     }
     if (W.mind) b += 2;
