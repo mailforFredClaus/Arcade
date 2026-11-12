@@ -31,10 +31,22 @@ const HOUSES = [
   ['Starling Manor', 0.42, 3, 40000, 90000],
 ];
 const BOUTS = [['Wee Dougie', 35, 500, 10], ['The Ox', 60, 3000, 16], ['Mad Agnes', 85, 15000, 24]];
+// The most Sal will let anybody owe him, however it was borrowed (flutter.js asks too).
+const SHARK_MAX = 30000;
+// Where Sal is (salWhere in heists.js): while he is inside, his back room is shut up; once he has
+// retired to Spain, his own errands and his money have gone with him, though the jobs go on.
+const here = (L) => !L.salHere || L.salHere();
+const inside = (L) => !!L.salAway && L.salAway();
+const SHUT = 'Sal is inside, and the ice house is shut up until he is out.';
+const salOff = (L) => (L.s.t < (L.s.f.salOff || 0) ? 'Sal is not speaking to you.' : null);
+// Work for Sal himself: not while he is away, and not for the one who gives out the errands now.
+const forSal = (L) => (L.salYours && L.salYours() ? 'You give out the errands now.' : (!here(L) && L.salGone()) || salOff(L));
 
 export function install({ def, A, Life, clamp }) {
   Object.assign(Life.prototype, {
     warm(d) { this.s.heat = clamp(this.s.heat + d, 0, 100); },
+    // How much more Sal would lend you, with the interest on it.
+    sharkRoom() { return Math.max(0, SHARK_MAX - this.s.shark); },
     // A beating, a bender: it hurts, but it does not kill you outright.
     rough(d, cause) { this.hp(-Math.min(d, Math.max(0, this.s.health - 8)), cause); },
     // The chance a piece of villainy ends with a hand on your collar.
@@ -142,7 +154,7 @@ export function install({ def, A, Life, clamp }) {
       if (take.length && L.chance(0.5)) { const id = L.pick(take); s.items[id] = 1; return `You walk out with ${an(ITEMS[id].name.toLowerCase())} and a hammering heart. Nobody says a word.`; }
       const got = L.int(8, 40) * 10;
       L.cash(got);
-      return `Razors, perfume, a ham. Sal gives you ${money(got)} for the lot.`;
+      return `Razors, perfume, a ham. ${here(L) ? 'Sal' : 'A man in the Gull & Anchor'} gives you ${money(got)} for the lot.`;
     },
   });
   def('dip', {
@@ -156,10 +168,10 @@ export function install({ def, A, Life, clamp }) {
   });
 
   // -- Sal's back room
-  def('salOpen', { place: 'harbour', sec: 'Odd jobs', icon: '🦊', title: 'Sal’s back room', desc: 'Behind the ice house. Work nobody asks questions about.', time: 0, open: 'sal' });
+  def('salOpen', { place: 'harbour', sec: 'Odd jobs', icon: '🦊', title: 'Sal’s back room', desc: (L) => (inside(L) ? 'Behind the ice house, shut up while Sal is inside.' : 'Behind the ice house. Work nobody asks questions about.'), time: 0, open: 'sal' });
   def('errand', {
     place: 'sal', sec: 'Work for Sal', icon: '📦', title: 'Run an errand', desc: (L) => `No questions asked. Good money. About ${Math.round(L.riskOf(0.16) * 100)}% it goes wrong.`, time: 2,
-    why: (L) => (L.s.t < (L.s.f.salOff || 0) ? 'Sal is not speaking to you.' : null),
+    why: forSal,
     run(L) {
       const s = L.s;
       if (L.crime(0.16, 2, 'a crate that is not yours')) return 'You are halfway down the quay with the crate when a torch clicks on.';
@@ -170,7 +182,7 @@ export function install({ def, A, Life, clamp }) {
   });
   def('deal', {
     place: 'sal', sec: 'Work for Sal', icon: '✨', title: 'Sell mermaid dust at the Gull', desc: (L) => `Little paper twists, to people who should know better. About ${Math.round(L.riskOf(0.15) * 100)}% you are caught.`,
-    why: (L) => (L.s.t < (L.s.f.salOff || 0) ? 'Sal is not speaking to you.' : null),
+    why: forSal,
     run(L) {
       if (L.crime(0.15, 2, 'a pocketful of mermaid dust')) return 'Your best customer tonight turns out to be a constable in a borrowed anorak.';
       const pay = Math.round((600 + L.s.st.charm * 14) * (0.8 + L.rnd() * 0.5) / 10) * 10;
@@ -181,14 +193,14 @@ export function install({ def, A, Life, clamp }) {
   def('joinCrew', {
     place: 'sal', sec: 'Work for Sal', icon: '🤝', title: 'Join Sal’s crew', desc: 'A career, of a kind. No pension.',
     show: (L) => !(L.s.job && L.s.job.c === 'crew'),
-    why: (L) => L.applyWhy('crew'),
-    run: (L) => `${A.apply.run(L, 'crew')} "Welcome to the family," says Sal, not smiling.`,
+    why: (L) => (inside(L) ? SHUT : L.applyWhy('crew')),
+    run: (L) => `${A.apply.run(L, 'crew')} "Welcome to the family," says ${here(L) ? 'Sal' : 'whoever has the chair by the stove now'}, not smiling.`,
   });
   HOUSES.forEach(([name, base, sev, lo, hi], i) => {
     def(`burgle${i}`, {
       place: 'sal', sec: 'Jobs', icon: i === 2 ? '🏰' : '🏚️', title: `Burgle ${low(name)}`, time: 2,
       desc: (L) => `Worth ${money(lo)} to ${money(hi)} to the right buyer. About ${Math.round(L.riskOf(base) * 100)}% you are caught.`,
-      why: (L) => (i === 2 && L.owns('manor') ? 'You would be robbing yourself.' : null),
+      why: (L) => (inside(L) ? SHUT : i === 2 && L.owns('manor') ? 'You would be robbing yourself.' : null),
       run(L) {
         L.gain('fitness', 0.6);
         if (L.crime(base, sev, `${i === 2 ? 'the Manor’s' : 'somebody else’s'} silver in a pillowcase`)) return L.pick(['The dog was not in the plans.', 'You are halfway out of the window when the lights come on.', 'A neighbour, a telephone, a blue lamp.']);
@@ -196,13 +208,14 @@ export function install({ def, A, Life, clamp }) {
         L.cash(got); L.s.n.thefts = (L.s.n.thefts || 0) + 1;
         // Now and then there is something too good to fence.
         const kept = L.chance(0.15 + i * 0.1) ? L.gotCurio(L.anyCurio()) : null;
-        return `${L.pick(['In by the scullery, out by the front door like you own the place.', 'Silver, a clock, and a painting of a horse.', 'You leave the fridge as you found it. You are not an animal.'])} Sal’s man gives you ${money(got)}.${kept ? ` You keep back ${kept.a} for yourself.` : ''}`;
+        return `${L.pick(['In by the scullery, out by the front door like you own the place.', 'Silver, a clock, and a painting of a horse.', 'You leave the fridge as you found it. You are not an animal.'])} ${here(L) ? 'Sal’s man' : 'The fence'} gives you ${money(got)}.${kept ? ` You keep back ${kept.a} for yourself.` : ''}`;
       },
     });
   });
   def('twoc', {
     place: 'sal', sec: 'Jobs', icon: '🚗', title: 'Steal a car to order', time: 2,
     desc: (L) => `A list, a colour, a lock-up in the next town. About ${Math.round(L.riskOf(0.28) * 100)}% you are caught.`,
+    why: (L) => (inside(L) ? SHUT : null),
     run(L) {
       if (L.crime(0.28, 2, 'a car with the wrong number plates')) return 'It has a tracker. Of course it has a tracker.';
       const got = L.int(30, 75) * 100;
@@ -214,20 +227,20 @@ export function install({ def, A, Life, clamp }) {
     place: 'sal', sec: 'Jobs', icon: '🌒', title: 'Meet a trawler off the point', time: 2,
     desc: (L) => `Your boat, no lights, forty cases of something French. Worth $9,000 to $18,000. About ${Math.round(L.riskOf(0.17) * 100)}% the customs cutter is waiting.`,
     show: (L) => !!L.s.items.boat,
-    why: (L) => (L.s.wx === 'storm' ? 'Not even Sal would send a boat out in this.' : L.s.t < (L.s.f.salOff || 0) ? 'Sal is not speaking to you.' : null),
+    why: (L) => (inside(L) ? SHUT : L.s.wx === 'storm' ? 'Not even Sal would send a boat out in this.' : salOff(L)),
     run(L) {
       L.gain('fitness', 0.5);
       if (L.crime(0.17, 3, 'forty cases of brandy and no lights showing')) return 'A searchlight comes on dead ahead. The cutter has been sitting there, engines off, all night.';
       const got = L.int(90, 180) * 100;
       L.cash(got); L.s.n.runs = (L.s.n.runs || 0) + 1;
-      return `${L.s.wx === 'fog' ? 'Fog so thick you find the trawler by the smell of its galley.' : L.pick(['Hand over hand in the dark, and not a word spoken.', 'The skipper counts the cases twice, in French.', 'You are back on your mooring before the milk float.'])} Sal counts out ${money(got)}.`;
+      return `${L.s.wx === 'fog' ? 'Fog so thick you find the trawler by the smell of its galley.' : L.pick(['Hand over hand in the dark, and not a word spoken.', 'The skipper counts the cases twice, in French.', 'You are back on your mooring before the milk float.'])} ${here(L) ? `Sal counts out ${money(got)}` : `The man from Kettleby pays ${money(got)}, in a carrier bag`}.`;
     },
   });
   def('torch', {
     place: 'sal', sec: 'Jobs', icon: '🕯️', title: 'An accident with a candle', time: 2,
     desc: (L) => { const e = L.spare(); return e ? `Your ${L.propName(e).toLowerCase()} burns down and the insurance pays out ${money(L.propValue(e))}. About ${Math.round(L.riskOf(0.3) * 100)}% they work it out.` : 'For a property you own, do not live in, and have insured.'; },
     show: (L) => L.s.estate.length > 0,
-    why: (L) => (!L.spare() ? 'You need a property you do not live in.' : !L.s.ins.home ? 'It is not insured. That would just be a fire.' : null),
+    why: (L) => (inside(L) ? SHUT : !L.spare() ? 'You need a property you do not live in.' : !L.s.ins.home ? 'It is not insured. That would just be a fire.' : null),
     run(L) {
       const s = L.s, e = L.spare(), value = L.propValue(e), name = L.propName(e).toLowerCase();
       s.estate.splice(s.estate.indexOf(e), 1);
@@ -242,7 +255,7 @@ export function install({ def, A, Life, clamp }) {
     def(`bout${i}`, {
       place: 'sal', sec: 'The ring', icon: '🥊', title: `Fight ${name}`, per: 1,
       desc: (L) => `Bare knuckles, in the ice house. ${money(prize)} if you win (${Math.round(L.checkOdds('fitness', dc) * 100)}%). It hurts either way.`,
-      why: (L) => (L.s.health < 35 ? 'Not in your state. Sal has standards.' : null),
+      why: (L) => (inside(L) ? SHUT : L.s.health < 35 ? `Not in your state. ${here(L) ? 'Sal has' : 'The ring has'} standards.` : null),
       run(L) {
         const s = L.s;
         L.gain('fitness', 1.2);
@@ -256,7 +269,7 @@ export function install({ def, A, Life, clamp }) {
     def(`shark${amt}`, {
       place: 'sal', sec: 'Sal’s money', icon: '🦈', title: `Borrow ${money(amt)} from Sal`, time: 0,
       desc: 'No forms. 10% a season. Sal sends people round if it drags on.',
-      why: (L) => (L.s.shark + amt > 30000 ? 'Even Sal has limits.' : null),
+      why: (L) => (!here(L) ? L.salGone() : amt > L.sharkRoom() ? 'Even Sal has limits.' : null),
       run(L) { L.s.shark += amt; L.s.cash += amt; return `Sal peels off ${money(amt)} from a roll. "Do not make me come and find you."`; },
     });
   }
@@ -264,7 +277,7 @@ export function install({ def, A, Life, clamp }) {
     place: 'sal', sec: 'Sal’s money', icon: '💸', title: (L) => `Pay Sal back (you owe ${money(L.s.shark)})`, desc: 'All of it, or as much as you have on you.', time: 0,
     show: (L) => L.s.shark > 0,
     why: (L) => (L.s.cash < 1 ? 'You have nothing on you.' : null),
-    run(L) { const s = L.s, n = Math.min(s.cash, s.shark); s.cash -= n; s.shark -= n; return s.shark ? `${money(n)} to Sal. ${money(s.shark)} still owing, and counting.` : 'Sal counts it twice. "Pleasure doing business."'; },
+    run(L) { const s = L.s, n = Math.min(s.cash, s.shark); s.cash -= n; s.shark -= n; return s.shark ? `${money(n)} to ${here(L) ? 'Sal' : 'Sal’s nephew, for his uncle'}. ${money(s.shark)} still owing, and counting.` : here(L) ? 'Sal counts it twice. "Pleasure doing business."' : 'Sal’s nephew counts it twice, for his uncle, and crosses your name out of a little book.'; },
   });
 
   // -- bending the rules at work

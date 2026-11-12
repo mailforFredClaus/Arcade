@@ -307,11 +307,16 @@ export function install({ A, Life, hooks, addEvents }) {
   Life.prototype.careerNext = function (now = false) {
     const L = this, s = L.s, j = s.job;
     if (s.gaol || s.dead || !j || s.pend.length || !STORIES[j.c]) return false;
-    const st = stOf(L, j.c), tale = STORIES[j.c], ch = tale.ch[st.n];
+    const st = stOf(L, j.c), tale = STORIES[j.c];
+    // (A chapter that can no longer happen, as things have turned out, is passed over: Sal's
+    // crew without Sal, once he has gone to Spain.)
+    while (tale.ch[st.n] && tale.ch[st.n].skip && tale.ch[st.n].skip(L)) st.n++;
+    const ch = tale.ch[st.n];
     if (!ch || j.r < (ch.r || 0)) return false;
     if (!now && (st.q < (ch.y ?? Y[st.n]) || s.t - st.at < (ch.gap ?? GAP))) return false;
     if (ch.when && !ch.when(L, ctx(L, { c: j.c, n: st.n }))) return false;
-    if (!now && !L.chance(PACE)) return false;
+    // (A chapter tied to the calendar, like an election, comes as soon as its moment does.)
+    if (!now && !L.chance(ch.pace ?? PACE)) return false;
     // The people in it, the first time.
     if (!st.mn) {
       const sex = L.chance(0.5) ? 'm' : 'f';

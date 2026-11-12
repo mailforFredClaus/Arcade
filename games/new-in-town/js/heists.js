@@ -250,7 +250,7 @@ const blank = () => ({
   hot: 0, washed: 0, flash: 0, // money still to be washed; washed so far; spent loose lately
   sal: 50, // Sal's trust in you
   det: { i: 0, file: 0, met: null, since: null, bond: 0, bent: null, off: 0, lies: 0, rank: 0, nailed: 0, sent: 0, visits: 0 },
-  rival: { stage: 0, side: null, turf: 60, heat: 0, peace: 0, end: null, next: 0, grass: null, back: null, patch: false },
+  rival: { stage: 0, side: null, turf: 60, heat: 0, peace: 0, end: null, next: 0, grass: null, back: null, patch: false, kept: null },
   lag: { n: 0, rep: 0, good: 50, mates: {}, foes: {}, kept: null, gate: null },
   n: { jobs: 0, clean: 0, cased: 0, collared: 0, quiet: 0 },
   f: {}, // milestones
@@ -289,6 +289,11 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
   // A trait from soul.js, if there is one, opens a choice of its own on some cards here.
   const trait = (id) => (L) => !!L.soulHas && L.soulHas(id);
   const list = (l) => (l.length < 2 ? l.join('') : `${l.slice(0, -1).join(', ')} and ${l[l.length - 1]}`);
+  // The pier wrecked by the great storm (annals.js): the Lucky Gull is boarded up, and so is its counting room.
+  const pierShut = (L) => !!L.annalsPierShut && L.annalsPierShut();
+  const GULL_SHUT = 'The Lucky Gull is boarded up until the pier is mended.';
+  // Betty's Café is open, or else it has closed and Betty does the teas in the church hall (folk.js).
+  const cafe = (L) => !(L.s.folk && L.s.folk.p.betty && L.s.folk.p.betty.shut);
 
   Object.assign(Life.prototype, {
     // ---- the detective ----
@@ -371,8 +376,23 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     // ---- Sal ----
     salTrust(d) { const H = this.s.heists; H.sal = clamp(H.sal + d, 0, 100); },
     salWord() { const t = this.s.heists.sal; return t >= 80 ? 'Treats you like family' : t >= 55 ? 'Trusts you' : t >= 35 ? 'Keeps an eye on you' : t >= 15 ? 'Does not trust you' : 'Wants nothing to do with you'; },
-    // Sal is away: put inside at the end of the feud with Nan Carne.
-    salAway() { const r = this.s.heists.rival; return r.back != null && r.back > this.s.t; },
+    // Where Sal is. 'inside': put away at the end of the feud with Nan Carne, until rival.back.
+    // 'spain': retired to a villa with a pool shaped like a fish, for good: the chair by the stove
+    // has been handed on in the crew's story (careers-tales2.js), or you are Boss of the Bay.
+    // 'here': behind the ice house, as ever. Everything that has Sal in it asks this (vice.js,
+    // events.js, feuds.js, flutter.js, the careers story and the rest of this file).
+    salWhere() {
+      const s = this.s, r = s.heists.rival, st = s.careers && s.careers.st && s.careers.st.crew, j = s.job;
+      if (r.back != null && r.back > s.t) return 'inside';
+      if (s.f.kingpin || (st && st.f && st.f.chair) || (j && j.c === 'crew' && j.r === CAREERS.crew.rungs.length - 1)) return 'spain';
+      return 'here';
+    },
+    salHere() { return this.salWhere() === 'here'; },
+    salAway() { return this.salWhere() === 'inside'; },
+    // The back room is yours: you run the crew now that Sal is in Spain.
+    salYours() { const j = this.s.job; return !!j && j.c === 'crew' && j.r === CAREERS.crew.rungs.length - 1 && !this.salAway(); },
+    // Why Sal is not there to ask, if he is not.
+    salGone() { const w = this.salWhere(); return w === 'inside' ? 'Sal is inside, and the ice house is shut up until he is out.' : w === 'spain' ? 'Sal has retired to Spain.' : null; },
     // ---- prison ----
     // A fresh sentence (from jail in inside.js): the landing, Mr Hobbs and Sal remember you.
     lagJail(q, was) {
@@ -384,7 +404,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       }
       q.mate = null;
       // Sal keeps your place for somebody who kept their mouth shut.
-      lag.kept = was && was.c === 'crew' && H.sal >= 45 && !this.salAway() ? { r: was.r, n: was.n, perf: was.perf } : null;
+      lag.kept = was && was.c === 'crew' && H.sal >= 45 && this.salHere() ? { r: was.r, n: was.n, perf: was.perf } : null;
       // What was under the floorboards may not be there when you get back.
       if (H.hot > 0 && this.chance(0.3 + H.det.file / 150)) { this.note(`The police searched the house and found ${money(H.hot)} under the floorboards.`, 'bad'); H.hot = 0; }
       // A job half planned does not wait for you: after a long stretch it is gone, and
@@ -416,7 +436,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       // And across the road, perhaps, a car.
       let also = null;
       const r = H.rival;
-      if (H.sal >= 55 && s.n.crimes >= 10 && !this.salAway() && !(s.t < (s.f.salOff || 0))) also = 'sal';
+      if (H.sal >= 55 && s.n.crimes >= 10 && this.salHere() && !(s.t < (s.f.salOff || 0))) also = 'sal';
       else if (r.stage >= 1 && !r.end && r.side !== 'sal' && this.chance(0.5)) also = 'nan';
       else if (H.det.file >= 50 && H.det.bent == null && this.chance(0.4)) also = 'det';
       lag.gate = { who, pid, also, served: q.served, how };
@@ -449,6 +469,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       if (H.plan) return 'One job at a time.';
       if (s.n.crimes < T.min) return `Sal will not talk about this with anybody who has fewer than ${T.min} crimes behind them (${s.n.crimes} so far).`;
       if (s.t - (H.after[k] ?? -999) < COOL) return 'They have not forgotten the last time. Not yet.';
+      if (k === 'gull' && pierShut(this)) return GULL_SHUT;
       return null;
     },
     heistList() { const s = this.s; return Object.keys(TARGETS).filter((k) => k !== 'merrow' || (s.coast && s.coast.m && s.coast.m.end === 'museum') || s.heists.after.merrow != null); },
@@ -492,10 +513,11 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       const out = [];
       let lad = false;
       for (const c of this.heistCrew()) {
-        if (c.kind === 'me') continue;
+        // (Somebody sent home on the night takes no share of it.)
+        if (c.kind === 'me' || c.out) continue;
         if (c.kind === 'lad') { lad = true; out.push([`One of Sal’s lads (${ROLES[c.r].name.toLowerCase()})`, CUT.lad]); } else out.push([`${c.who.name} (${ROLES[c.r].name.toLowerCase()})`, c.r === 'inside' ? CUT.inside : CUT.friend]);
       }
-      if (lad) out.push(['Sal', CUT.sal]);
+      if (lad && !this.salYours()) out.push(['Sal', CUT.sal]);
       return out;
     },
     // What a part of the crew adds to a part of the night.
@@ -549,7 +571,8 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       if (p.ride === 'own' && !(this.motorUsable && this.motorUsable())) return 'You have no car you can drive.';
       if (p.ride === 'boat' && !s.items.boat) return 'You have no boat.';
       if (p.ride === 'boat' && s.wx === 'storm') return 'Not in a gale. Not in a boat.';
-      if (p.ride === 'hot' && (H.sal < 30 || s.t < (s.f.salOff || 0) || this.salAway())) return 'Sal will not lend you a car.';
+      if (p.k === 'gull' && pierShut(this)) return `${GULL_SHUT} The job will have to wait.`;
+      if (p.ride === 'hot' && !this.salYours() && (H.sal < 30 || s.t < (s.f.salOff || 0) || !this.salHere())) return this.salHere() ? 'Sal will not lend you a car.' : `${this.salGone()} There is no car from the lock-up.`;
       const last = H.jobs.length ? H.jobs[H.jobs.length - 1].t : -999;
       if (s.t - last < JUMPY) return 'The town is still jumpy from the last one. Give it time.';
       return null;
@@ -615,7 +638,9 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
   // Who you share a cell with this time: an old cellmate who is still in, or somebody new.
   function pickMate(L) {
     const s = L.s, lag = s.heists.lag;
-    const known = Object.keys(lag.mates).filter((id) => lag.mates[id].out > s.t);
+    // (An old cellmate who looked you up outside is in your life out there now, not in here.)
+    const outside = (id) => !!lag.mates[id].pid;
+    const known = Object.keys(lag.mates).filter((id) => lag.mates[id].out > s.t && !outside(id));
     let id;
     if (L.salAway() && !lag.mates.sal) { lag.mates.sal = { met: s.t, out: s.heists.rival.back, bond: 20, n: 0 }; id = 'sal'; } else if (known.length) id = L.pick(known);
     else {
@@ -624,8 +649,12 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
         id = L.pick(fresh);
         lag.mates[id] = { met: s.t, out: s.t + MATES[id].long + L.int(-3, 3), bond: 15, n: 0 };
       } else {
-        id = L.pick(Object.keys(MATES));
-        lag.mates[id].out = s.t + L.int(4, 12);
+        const back = Object.keys(MATES).filter((k) => !outside(k));
+        if (back.length) { id = L.pick(back); lag.mates[id].out = s.t + L.int(4, 12); } else {
+          // (Everybody you shared with before is out and doing well: somebody new, who keeps himself to himself.)
+          id = 'stranger';
+          lag.mates.stranger = { met: s.t, out: s.t + L.int(4, 12), bond: 10, n: 0 };
+        }
       }
     }
     const m = lag.mates[id];
@@ -653,6 +682,9 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
   // The job in hand: a crew member who talks to the wrong people, or a target that notices.
   function planTurn(L) {
     const s = L.s, p = s.heists.plan;
+    // (The storm has taken the pier: the counting-room job is put off until it is mended; see heistReady.)
+    if (p.k === 'gull' && pierShut(L) && !p.off) { p.off = s.t; L.note('The storm took the pier, and the Lucky Gull’s counting room with it. The job is off until the pier is mended.'); return; }
+    if (p.off && !pierShut(L)) p.off = null;
     const grass = L.heistCrew().find((c) => c.kind === 'friend' && c.g && !c.known);
     const cased = Object.values(p.know).reduce((a, n) => a + n, 0);
     if (grass && cased >= 2 && L.chance(0.22 + s.st.smarts / 500)) { L.queue('heistGrass', { p: grass.p }); return; }
@@ -662,16 +694,25 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
   // Nan Carne's lot: a feud over years, a card every so often.
   function carneTurn(L) {
     const s = L.s, H = s.heists, r = H.rival;
+    // (A feud with Sal over his patch: with Sal gone to Spain it does not start, and one
+    // under way ends. If the patch is yours now, Nan comes to settle it with you.)
+    if (!r.end && L.salWhere() === 'spain') {
+      if (r.stage === 0) return false;
+      if (L.salYours()) { deal(L, 'carneBoss'); return true; }
+      r.end = 'spain'; r.stage = 4;
+      L.note('With Sal gone to Spain, Nan Carne’s lot lost interest in the harbour, and went home to Kettleby.');
+      return false;
+    }
     if (r.end) {
       if (r.end === 'sal' && r.back != null && r.back <= s.t && !H.f.salHome) { H.f.salHome = 1; L.queue('salHome'); return true; }
       // A truce is only as good as the youngest grandson: years on, it may not hold.
-      if (r.end === 'truce' && !H.f.broke && s.t - (H.cd.carneSitdown || 0) >= 16 && L.chance(0.02)) { H.f.broke = 1; L.queue('carneBreak'); return true; }
-      if (r.end === 'yours' && r.patch) L.lawFile(1);
-      if (r.end === 'yours' && r.patch && L.chance(0.03)) { L.queue('busted', { what: 'an envelope of the pier’s protection money', sev: 2 }); return true; }
+      if (r.end === 'truce' && !H.f.broke && L.salHere() && s.t - (H.cd.carneSitdown || 0) >= 16 && L.chance(0.02)) { H.f.broke = 1; L.queue('carneBreak'); return true; }
+      if (r.end === 'yours' && r.patch && !pierShut(L)) L.lawFile(1);
+      if (r.end === 'yours' && r.patch && !pierShut(L) && L.chance(0.03)) { L.queue('busted', { what: 'an envelope of the pier’s protection money', sev: 2 }); return true; }
       return false;
     }
     if (r.stage === 0) {
-      if (s.n.crimes >= 6 && s.age >= 20 && s.t >= 12 && ((s.job && s.job.c === 'crew') || H.sal >= 55 || s.n.crimes >= 12) && L.chance(0.08)) { r.stage = 1; r.next = s.t + L.int(4, 7); deal(L, 'carneArrive'); return true; }
+      if (L.salHere() && s.n.crimes >= 6 && s.age >= 20 && s.t >= 12 && ((s.job && s.job.c === 'crew') || H.sal >= 55 || s.n.crimes >= 12) && L.chance(0.08)) { r.stage = 1; r.next = s.t + L.int(4, 7); deal(L, 'carneArrive'); return true; }
       return false;
     }
     if (s.t < r.next) return false;
@@ -808,11 +849,18 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       if (!p || p.night) return 'There is no job.';
       if (!ROLES[r] || r === 'inside') return 'Sal’s lads do not work in banks.';
       if (p.crew[r]) return 'Somebody is doing that already.';
+      // (Boss of the Bay: the lads are yours to send, and nobody takes a cut on top.)
+      if (L.salYours()) return null;
       if (L.salAway()) return 'Sal is away, and his lads with him.';
+      if (!L.salHere()) return 'Sal has retired to Spain, and his lads work for somebody else now.';
       if (H.sal < 40 || s.t < (s.f.salOff || 0)) return 'Sal will not lend you his lads.';
       return null;
     },
-    run(L, r) { L.s.heists.plan.crew[r] = { kind: 'lad' }; return `${L.pick(['Sal sends a lad called Mouse, who is six foot four.', 'Sal sends a quiet lad in a flat cap who does not give a name.', 'Sal sends his nephew, with a warning about his nephew.'])} (${ROLES[r].name}. Sal will take his share, and his lad will take one too.)`; },
+    run(L, r) {
+      L.s.heists.plan.crew[r] = { kind: 'lad' };
+      if (L.salYours()) return `${L.pick(['You send for Mouse, who is six foot four.', 'You send for the quiet lad in the flat cap, who still does not give a name.', 'You send for Sal’s nephew, and remember Sal’s warning about him.'])} (${ROLES[r].name}. Your lad will take his share.)`;
+      return `${L.pick(['Sal sends a lad called Mouse, who is six foot four.', 'Sal sends a quiet lad in a flat cap who does not give a name.', 'Sal sends his nephew, with a warning about his nephew.'])} (${ROLES[r].name}. Sal will take his share, and his lad will take one too.)`;
+    },
   });
   def('heistsSelf', {
     time: 0,
@@ -878,10 +926,10 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     return `${how} ${money(got)} comes back clean${rate < 1 ? ` out of ${money(n)}` : ''}.${H.hot ? ` ${money(H.hot)} still to go.` : ''}`;
   };
   def('heistsWashSal', {
-    place: 'sal', sec: 'Sal’s money', icon: '🧺', title: 'Let Sal wash it', time: 0, per: 1,
-    desc: (L) => `Sal can turn up to ${money(60000)} a season into clean money, and keeps three dollars in ten. You have ${money(L.s.heists.hot)} to wash.`,
+    place: 'sal', sec: 'Sal’s money', icon: '🧺', title: (L) => (L.salYours() ? 'Wash it through the crew’s fronts' : 'Let Sal wash it'), time: 0, per: 1,
+    desc: (L) => `${L.salYours() ? 'The fish lorry and the dry cleaner in Kettleby can' : 'Sal can'} turn up to ${money(60000)} a season into clean money, and ${L.salYours() ? 'they cost' : 'keeps'} three dollars in ten. You have ${money(L.s.heists.hot)} to wash.`,
     show: (L) => L.s.heists.hot > 0,
-    why: (L) => (L.salAway() ? 'Sal is away.' : L.s.heists.sal < 40 || L.s.t < (L.s.f.salOff || 0) ? 'Sal will not touch your money.' : null),
+    why: (L) => (L.salYours() ? null : L.salAway() ? 'Sal is away.' : !L.salHere() ? L.salGone() : L.s.heists.sal < 40 || L.s.t < (L.s.f.salOff || 0) ? 'Sal will not touch your money.' : null),
     run(L) { L.salTrust(2); return wash(L, Math.min(60000, L.s.heists.hot), 0.7, L.pick(['A man with a fish lorry takes the bags away. A week later,', 'It goes out through a scampi wholesaler and a dry cleaner in Kettleby, and'])); },
   });
   def('heistsWashChips', {
@@ -929,13 +977,22 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       return `Cash on the desk, a signature, and ${kind === 'rental' ? 'a shop with a flat above' : 'a lock-up'} is yours, with a tenant in it by Friday. ${money(n - price)} of it stays with the cousin.`;
     },
   });
+  // Spending it as it is: quick, and at face value, but every note of it can be asked about. The
+  // more that has been splashed about lately, and the thicker the detective's file, the likelier
+  // somebody does ask; and then the police come looking for the rest of it.
+  const spendRisk = (L) => { const H = L.s.heists; return 0.02 + H.flash / 120000 + H.det.file / 600; };
   def('heistsSpend', {
     place: 'home', sec: 'Under the counter', icon: '🪙', title: 'Dig into the stash', time: 0, per: 2,
-    desc: (L) => `${money(Math.min(10000, L.s.heists.hot))} of it, to spend as it is. Spending money you cannot account for is how most people get caught.`,
+    desc: (L) => `${money(Math.min(10000, L.s.heists.hot))} of it, to spend as it is. Spending money you cannot account for is how most people get caught: about ${Math.round(L.riskOf(spendRisk(L)) * 100)}% somebody asks where it came from, and more, the more you splash about.`,
     show: (L) => L.s.heists.hot > 0,
     run(L) {
-      const H = L.s.heists, n = Math.min(10000, H.hot);
+      const H = L.s.heists, n = Math.min(10000, H.hot), risk = spendRisk(L);
       H.hot -= n; H.flash += n;
+      if (L.crime(risk, 2, 'a roll of notes still in the bank’s wrappers', 2)) {
+        // (And with a warrant, they look under the floorboards.)
+        if (H.hot > 0 && L.chance(0.25 + H.det.file / 200)) { L.note(`The police searched the house and found ${money(H.hot)} under the floorboards.`, 'bad'); H.hot = 0; return 'A shop assistant holds the first note up to the light, and then the second, and then picks up the telephone. By the evening there is a warrant, and the police have the floorboards up.'; }
+        return 'A shop assistant holds the first note up to the light, and then the second, and then picks up the telephone.';
+      }
       L.cash(n);
       return `${money(n)} out of ${L.heistHotWord()}. ${L.pick(['It smells faintly of the drain it came out of.', 'Some of the notes are still in bank wrappers. You take the wrappers off.', 'You will have to be careful where you spend it. You know that.'])}`;
     },
@@ -968,7 +1025,8 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
 
   hooks.worth.push((L) => L.s.heists.hot);
   hooks.bills.push((L, list) => { const d = L.s.heists.det; if (d.bent != null) list.push([`A little something for ${L.lawWho()}`, 1500 * (d.rank + 1)]); });
-  hooks.income.push((L, list) => { const r = L.s.heists.rival; if (r.end === 'yours' && r.patch && !L.s.gaol) list.push(['Your patch on the pier', 2400]); });
+  // (Nothing to protect while the storm has the pier: the stalls are boarded up with the Gull.)
+  hooks.income.push((L, list) => { const r = L.s.heists.rival; if (r.end === 'yours' && r.patch && !L.s.gaol && !pierShut(L)) list.push(['Your patch on the pier', 2400]); });
   hooks.mood.push((L) => { const r = L.s.heists.rival; return r.stage === 3 && !r.end ? -3 : 0; });
 
   // ---- what other things do to Sal's trust, the file and the cells -------------------------
@@ -1026,6 +1084,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     const sev = Math.min(4, T.sev + (w.loud && T.sev < 4 ? 1 : 0));
     const names = [];
     for (const c of L.heistCrew()) {
+      if (c.out) continue; // (Gone home before it went wrong.)
       if (c.kind === 'friend') { L.bond(c.who, -15); H.away[c.p] = s.t + L.int(8, 16); names.push(first(c.who)); }
       if (c.kind === 'lad') L.salTrust(-8);
     }
@@ -1101,6 +1160,25 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       ] },
   ];
   const SNAG = Object.fromEntries(SNAGS.map((sn) => [sn.id, sn]));
+  // The getaway, as it goes by car, by boat or on foot: [got away, caught] each way.
+  const way = (L) => { const rd = plan(L).ride; return rd === 'boat' || rd === 'foot' ? rd : 'car'; };
+  const AWAY = {
+    car: {
+      fast: 'Put your foot down',
+      steady: ['You drive like a vicar, all the way, and nobody looks twice.', 'A routine stop on the coast road. The constable shines a torch into the back and then stands back very carefully.'],
+      quick: ['Round the bends with the lights off and the bags sliding about. Whatever was behind you is not behind you any more.', 'The bend at the bottom of Harbour Hill is sharper than it looks. The hedge stops you; the police car stops behind it.'],
+    },
+    boat: {
+      fast: 'Pull for the open sea',
+      steady: ['You row like somebody out after mackerel, slow and easy, past the harbour light. Nobody on the wall looks twice.', 'The harbour launch, out for no reason at all, comes alongside. The constable shines a torch into the bottom of the boat and then sits down very carefully.'],
+      quick: ['Out past the harbour light with no lights showing, and round the Head in the dark. Whatever was behind you is not behind you any more.', 'You pull straight into the beam of the harbour launch’s searchlight, at the harbour mouth. They tow you in, very politely.'],
+    },
+    foot: {
+      fast: 'Run for it',
+      steady: ['You walk home like somebody off a night shift, bags and all, and nobody looks twice.', 'A constable on a bicycle stops to ask if you need a hand with those bags. You say no too quickly.'],
+      quick: ['Over a wall, down the alley behind the chandlery and along the railway line, the bags banging your knees. Whatever was behind you is not behind you any more.', 'You run round the corner of Net Loft Lane straight into a constable, who sits down hard and does not let go of your ankle.'],
+    },
+  };
 
   addEvents([
     // ---- the night ----
@@ -1133,8 +1211,8 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       id: 'heistOut', icon: (L) => (RIDES[plan(L).ride] || RIDES.foot).icon, title: 'Away', ok: night, log: false,
       text: (L) => { const p = plan(L), rd = p.ride; return `${rd === 'boat' ? 'Down the ladder to the boat, the bags passed hand to hand, the oars muffled with rags.' : rd === 'foot' ? 'Out into the dark on foot, with a bag in each hand and a long way to go.' : `Into the car, the bags in the boot, ${cmd(L, 'wheel') === 'you' ? 'you' : cmd(L, 'wheel') || 'you'} at the wheel.`}${p.night.alarm >= 50 ? ' Somewhere behind you, a siren.' : p.night.alarm >= 25 ? ' Lights are coming on behind you.' : ' The town is fast asleep.'}`; },
       opts: [
-        { t: 'Steady, as if you had every right', odds: (L) => L.heistStage('out', 0.04) - L.luck(), run(L, x, win) { return win ? finish(L, 'You drive like a vicar, all the way, and nobody looks twice.') : bust(L, 'A routine stop on the coast road. The constable shines a torch into the back and then stands back very carefully.'); } },
-        { t: 'Put your foot down', odds: (L) => L.heistStage('out', L.s.heists.plan.ride === 'foot' ? -0.05 : 0.01) - L.luck(), run(L, x, win) { if (win) { plan(L).night.alarm = Math.max(0, plan(L).night.alarm - 15); return finish(L, 'Round the bends with the lights off and the bags sliding about. Whatever was behind you is not behind you any more.'); } return bust(L, 'The bend at the bottom of Harbour Hill is sharper than it looks. The hedge stops you; the police car stops behind it.'); } },
+        { t: 'Steady, as if you had every right', odds: (L) => L.heistStage('out', 0.04) - L.luck(), run(L, x, win) { const w = AWAY[way(L)]; return win ? finish(L, w.steady[0]) : bust(L, w.steady[1]); } },
+        { t: (L) => AWAY[way(L)].fast, odds: (L) => L.heistStage('out', L.s.heists.plan.ride === 'foot' ? -0.05 : 0.01) - L.luck(), run(L, x, win) { const w = AWAY[way(L)]; if (win) { plan(L).night.alarm = Math.max(0, plan(L).night.alarm - 15); return finish(L, w.quick[0]); } return bust(L, w.quick[1]); } },
         { t: 'Split up, and meet at the lock-up', odds: (L) => L.heistStage('out', 0.08) - L.luck(), run(L, x, win) { if (win) { plan(L).night.take *= 0.85; return finish(L, 'Everybody a different way. Everybody turns up at the lock-up by dawn, one of them a bag lighter and swearing blind.'); } return bust(L, 'Everybody a different way, and the police take them one at a time, starting with you.'); } },
       ],
     },
@@ -1155,8 +1233,8 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       ],
     },
     {
-      id: 'heistGrass', icon: '🫖', title: 'A cup of tea at Betty’s', ok: (L, x) => !!plan(L) && !plan(L).night && !L.s.gaol && !!L.person(x.p) && L.heistCrew().some((c) => c.p === x.p && c.g),
-      text: (L, x) => `Through the steamed-up window of Betty’s Café you see ${P(L, x.p).name}, at a corner table, deep in conversation with ${L.lawWho(true)}. Neither of them is drinking their tea.`,
+      id: 'heistGrass', icon: '🫖', title: (L) => (cafe(L) ? 'A cup of tea at Betty’s' : 'A cup of tea in the church hall'), ok: (L, x) => !!plan(L) && !plan(L).night && !L.s.gaol && !!L.person(x.p) && L.heistCrew().some((c) => c.p === x.p && c.g),
+      text: (L, x) => `Through the steamed-up window of ${cafe(L) ? 'Betty’s Café' : 'the church hall, where Betty does the teas now,'} you see ${P(L, x.p).name}, at a corner table, deep in conversation with ${L.lawWho(true)}. Neither of them is drinking their tea.`,
       opts: [
         { t: 'Throw them off the job', run(L, x) { const p = plan(L), q = P(L, x.p); for (const r of Object.keys(p.crew)) if (p.crew[r].p === q.id) delete p.crew[r]; L.bond(q, -30); p.noticed += 20; return `You tell ${q.name} it is off. ${He(q)} goes very white, and does not ask why.`; } },
         { t: 'Feed them the wrong night', check: ['smarts', 50], run(L, x, win) { const p = plan(L), c = L.heistCrew().find((k) => k.p === x.p); p.crew[c.r].known = true; if (win) { p.crew[c.r].g = false; L.s.heists.det.off = L.s.t + 2; L.lawFile(5); return `You tell ${first(P(L, x.p))} the job is next month. ${L.lawWho()} will be sitting in a cold car on the wrong night, and you will be long gone.`; } p.noticed += 30; return `You tell ${first(P(L, x.p))} the job is next month. ${He(P(L, x.p))} does not believe you, and you can see it.`; } },
@@ -1190,13 +1268,14 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     const cuts = L.heistCuts(), shared = cuts.reduce((a, [, c]) => a + c, 0), mine = r100(haul * Math.max(0.2, 1 - shared));
     // (One stumble on the way, and it was not clean: somebody heard something.)
     const clean = nt.alarm < 25;
-    const names = L.heistCrew().filter((c) => c.kind === 'friend').map((c) => first(c.who));
+    const names = L.heistCrew().filter((c) => c.kind === 'friend' && !c.out).map((c) => first(c.who));
     H.hot += mine;
     H.jobs.push({ k: p.k, t: s.t, how: clean ? 'clean' : 'messy', got: mine, crew: names });
     H.after[p.k] = s.t; H.n.jobs++;
     if (clean) H.n.clean++;
     if (names.length >= 3) H.f.firm = 1;
     for (const c of L.heistCrew()) {
+      if (c.out) continue;
       if (c.kind === 'friend') L.bond(c.who, 10);
       if (c.kind === 'lad') L.salTrust(3);
     }
@@ -1212,7 +1291,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     if (p.k === 'merrow') H.f.merrow = 1;
     L.note(`Pulled off a job: ${T.name}. ${clean ? 'Clean.' : 'Not cleanly.'} Your share: ${money(mine)}.`, 'big');
     // A loose mouth on a messy job.
-    const loose = !clean && L.heistCrew().filter((c) => c.kind === 'friend').sort((a, b) => a.who.bond - b.who.bond)[0];
+    const loose = !clean && L.heistCrew().filter((c) => c.kind === 'friend' && !c.out).sort((a, b) => a.who.bond - b.who.bond)[0];
     H.plan = null;
     H.f.last = `${money(haul)} on the kitchen table, all told.${cuts.length ? ` ${cuts.map(([w, c]) => `${w}: ${Math.round(c * 100)}%`).join('; ')}.` : ''} Your share is ${money(mine)}, and every note of it is hot: it will have to be washed before it can be spent, or spent very carefully.${clean ? '' : ' It was not clean, and the police will know whose work it was.'}${p.k === 'merrow' ? ' By Monday there is a very good replica in the case and a notice about cleaning. The museum’s insurers would rather nobody knew.' : ''}`;
     L.queue('heistDone');
@@ -1221,10 +1300,30 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
   }
 
   // ---- the law's cards ----
+  // Where the detective calls on you, and so what there is to buy, or to put an envelope in.
+  // text, then: tea and env, the two choices; paid, took and crowd: how they go, there.
+  const VISITS = [
+    { text: (L) => `${L.lawWho()} is leaning on the harbour wall when you come past, eating chips out of the paper. "Funny thing," ${L.lawShe()} says, not looking up. "Every time something goes missing in this town, somebody saw you in the Gull & Anchor the night before."`,
+      tea: 'Offer to buy the next lot of chips', env: 'Tuck an envelope into the chip paper',
+      paid: (L) => `${L.lawWho()} lets you pay, and watches you count the change.`, took: (L) => `${L.lawWho()} looks at the chip paper for a long time. Then ${L.lawShe()} screws it up, envelope and all, and puts it in ${L.lawHer()} coat.`, crowd: () => 'the whole quay' },
+    { text: (L) => `A knock at your door at eight in the morning: ${L.lawWho()}, with a warrant ${L.lawShe()} does not use and a question ${L.lawShe()} does. Where were you on Thursday night?`,
+      tea: 'Ask them in for a cup of tea', env: 'Put an envelope in their hand on the doorstep',
+      paid: (L) => `${L.lawWho()} comes in, and watches you make the tea, and looks at everything in your kitchen while it brews.`, took: (L) => `${L.lawWho()} weighs it in ${L.lawHer()} hand on the doorstep for a long time. Then it goes into ${L.lawHer()} coat.`, crowd: () => 'the whole street' },
+    { text: (L) => `${L.lawWho()} sits down next to you on the bench in Pebble Park and feeds the ducks a whole sandwich, crust by crust, without a word. Then ${L.lawShe()} waits for you to say something.`,
+      tea: 'Offer to buy the tea at the kiosk', env: 'Leave an envelope on the bench between you',
+      paid: (L) => `${L.lawWho()} lets you pay, and watches you count the change.`, took: (L) => `${L.lawWho()} looks at the ducks for a long time. When ${L.lawShe()} gets up, the envelope is not on the bench any more.`, crowd: () => 'the whole park' },
+    { text: (L) => `You find ${L.lawWho()} in the Gull & Anchor, in your seat, with two pints. One of them is for you. "Sit down," ${L.lawShe()} says. "I am off duty. That is the worst kind of me."`,
+      tea: 'Buy the next round', env: 'Slip an envelope under the beer mat',
+      paid: (L) => `${L.lawWho()} lets you pay, and watches you count the change.`, took: (L) => `${L.lawWho()} finishes ${L.lawHer()} pint, slowly. When ${L.lawShe()} puts it down, the beer mat and the envelope have gone.`, crowd: () => 'the whole pub' },
+    { text: (L) => `${L.lawWho()} is at the next table in ${cafe(L) ? 'Betty’s' : 'the church hall, where Betty does the teas now'}, reading a file. The file has your name on the front, and ${L.lawShe()} is holding it so that you can see.`,
+      tea: 'Offer to buy the tea', env: 'Slip an envelope inside the file',
+      paid: (L) => `${L.lawWho()} lets you pay, and watches you count the change.`, took: (L) => `${L.lawWho()} reads the file for a long time. Then ${L.lawShe()} closes it, envelope and all, and puts it under ${L.lawHer()} arm.`, crowd: (L) => (cafe(L) ? 'the whole café' : 'the whole church hall') },
+  ];
+  const visit = (L) => { const d = L.s.heists.det; return VISITS[(d.visits + L.s.t) % VISITS.length]; };
   addEvents([
     {
       id: 'kittoMeet', icon: '🕵️', title: 'A woman in a raincoat', ok: out,
-      text: (L) => { const k = L.lawDet(); return `Betty’s Café, a wet Tuesday. Somebody in a damp raincoat sits down opposite you without asking, stirs three sugars into a tea you paid for, and puts a card on the table: ${k.rank} ${k.name}, Starling Bay CID. "Nobody special," ${L.lawShe()} says. "I like to put a face to a name, that is all. Yours keeps coming up."`; },
+      text: (L) => { const k = L.lawDet(); return `${cafe(L) ? 'Betty’s Café' : 'The church hall, where Betty does the teas now'}, a wet Tuesday. Somebody in a damp raincoat sits down opposite you without asking, stirs three sugars into a tea you paid for, and puts a card on the table: ${k.rank} ${k.name}, Starling Bay CID. "Nobody special," ${L.lawShe()} says. "I like to put a face to a name, that is all. Yours keeps coming up."`; },
       opts: [
         { t: 'Introduce yourself properly', run(L) { const d = L.s.heists.det; d.met = L.s.t; d.since = L.s.t; d.bond += 6; return `A dry, brief handshake. "Mind how you go," says ${L.lawWho()}, and means it in several ways.`; } },
         { t: 'Ask what name that would be', check: ['charm', 45], run(L, x, win) { const d = L.s.heists.det; d.met = L.s.t; d.since = L.s.t; if (win) { d.bond += 3; L.lawFile(-2); return `${L.lawWho()} laughs, once, as if it had got out without permission. "I like you," ${L.lawShe()} says. "That will make it worse."`; } L.lawFile(3); return `"That one," says ${L.lawWho()}, pointing at you with a teaspoon.`; } },
@@ -1234,20 +1333,13 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     {
       id: 'kittoVisit', icon: '🕵️', title: (L) => L.lawWho(true), ok: (L) => out(L) && L.s.heists.det.met != null,
       text(L) {
-        const s = L.s, d = s.heists.det, k = L.lawDet(), sh = L.lawShe(), Sh = sh === 'she' ? 'She' : 'He';
-        const lines = [
-          `${k.sur} is leaning on the harbour wall when you come past, eating chips out of the paper. "Funny thing," ${sh} says, not looking up. "Every time something goes missing in this town, somebody saw you in the Gull & Anchor the night before."`,
-          `A knock at your door at eight in the morning: ${k.sur}, with a warrant ${sh} does not use and a question ${sh} does. Where were you on Thursday night?`,
-          `${k.sur} sits down next to you on the bench in Pebble Park and feeds the ducks a whole sandwich, crust by crust, without a word. Then ${sh} goes.`,
-          `You find ${k.sur} in the Gull & Anchor, in your seat, with two pints. One of them is for you. "Sit down," ${sh} says. "I am off duty. That is the worst kind of me."`,
-          `${k.sur} is at the next table in Betty’s, reading a file. The file has your name on the front, and ${sh} is holding it so that you can see.`,
-        ];
-        return `${lines[(d.visits + s.t) % lines.length]}${d.bond >= 60 ? ` ${Sh} looks tired. You have known each other a long time now.` : ''}`;
+        const d = L.s.heists.det, Sh = L.lawShe() === 'she' ? 'She' : 'He';
+        return `${visit(L).text(L)}${d.bond >= 60 ? ` ${Sh} looks tired. You have known each other a long time now.` : ''}`;
       },
       opts: [
-        { t: 'Offer to buy the tea', check: ['charm', 50], run(L, x, win) { const d = L.s.heists.det; d.visits++; d.bond = Math.min(100, d.bond + (win ? 8 : 2)); return win ? `You talk about the weather, the Rovers and ${L.lawHer()} terrible back. For half an hour neither of you is anything in particular.` : `${L.lawWho()} lets you pay, and watches you count the change.`; } },
+        { t: (L) => visit(L).tea, check: ['charm', 50], run(L, x, win) { const d = L.s.heists.det, v = visit(L); d.visits++; d.bond = Math.min(100, d.bond + (win ? 8 : 2)); return win ? `You talk about the weather, the Rovers and ${L.lawHer()} terrible back. For half an hour neither of you is anything in particular.` : v.paid(L); } },
         { t: 'Feed a story about somebody else', check: ['smarts', 50], run(L, x, win) { const d = L.s.heists.det; d.visits++; d.lies++; if (win) { d.off = L.s.t + 4; L.lawFile(-10); return `${L.lawWho()} writes it all down: a van, a man from Kettleby, a lock-up behind the station. ${L.lawShe() === 'she' ? 'She' : 'He'} will spend a year on it.`; } L.lawFile(10); d.bond = Math.max(0, d.bond - 5); return `"That is a very good story," says ${L.lawWho()}, "and I have heard it before, from you, about a different man."`; } },
-        { t: 'Slip an envelope inside the newspaper', cost: (L) => 2500 * (L.s.heists.det.rank + 1), odds: (L) => clamp(0.12 + L.s.heists.det.bond / 300 - L.s.heists.det.lies * 0.03, 0.05, 0.5), run(L, x, win) { const d = L.s.heists.det; d.visits++; if (win) { d.bent = L.s.t; L.lawFile(-20); L.karma(-5); return `${L.lawWho()} reads the paper for a long time. Then ${L.lawShe()} folds it, envelope and all, and puts it in ${L.lawHer()} coat. "Mind how you go," ${L.lawShe()} says, and from now on it means something else.`; } L.lawFile(15); d.bond = Math.max(0, d.bond - 20); L.s.n.crimes++; L.queue('busted', { what: 'an envelope full of money, held up for the whole café to see', sev: 2 }); return `${L.lawWho()} takes the envelope out, counts it in front of the whole café, and reaches for ${L.lawHer()} handcuffs.`; } },
+        { t: (L) => visit(L).env, cost: (L) => 2500 * (L.s.heists.det.rank + 1), odds: (L) => clamp(0.12 + L.s.heists.det.bond / 300 - L.s.heists.det.lies * 0.03, 0.05, 0.5), run(L, x, win) { const d = L.s.heists.det, v = visit(L); d.visits++; if (win) { d.bent = L.s.t; L.lawFile(-20); L.karma(-5); return `${v.took(L)} "Mind how you go," ${L.lawShe()} says, and from now on it means something else.`; } L.lawFile(15); d.bond = Math.max(0, d.bond - 20); L.s.n.crimes++; L.queue('busted', { what: `an envelope full of money, held up for ${v.crowd(L)} to see`, sev: 2 }); return `${L.lawWho()} takes the envelope out, counts it in front of ${v.crowd(L)}, and reaches for ${L.lawHer()} handcuffs.`; } },
         { t: 'Give them Nan Carne’s lot', show: (L) => L.s.heists.rival.stage >= 1 && !L.s.heists.rival.end, run(L) { const H = L.s.heists, r = H.rival; H.det.visits++; L.lawFile(-12); H.det.bond = Math.min(100, H.det.bond + 5); r.turf = Math.min(100, r.turf + 12); r.grass = L.s.t; r.heat += 10; return `Names, dates, the minicab office in Kettleby. ${L.lawWho()} writes it all down, and says nothing, and pays for the tea.`; } },
         { t: (L) => `😏 Make ${L.lawHim()} laugh`, show: trait('charmer'), run(L) { const d = L.s.heists.det; d.visits++; d.bond = Math.min(100, d.bond + 12); return `It takes three goes. On the third, ${L.lawWho()} laughs out loud, and then looks cross about it for the rest of the afternoon.`; } },
         { t: 'Say nothing at all', run(L) { L.s.heists.det.visits++; L.lawFile(1); return L.pick(['You sit in silence until one of you gives up. It is not you.', 'Not a word. It is the only thing they cannot write down.']); } },
@@ -1394,9 +1486,15 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       id: 'salHome', icon: '🦊', title: 'Sal comes home', ok: out,
       text: (L) => (L.s.heists.rival.grass === 'you' ? 'Sal is back behind the ice house, thinner, older, with a cardigan he did not have before. He knows who put him away. Everybody knows. He looks at you for a long time across the back room.' : 'Sal is back behind the ice house, thinner, older, with a cardigan he did not have before. The lads have hung bunting. Sal pretends not to see it, and keeps the bunting.'),
       opts: [
-        { t: 'Welcome him home', show: (L) => L.s.heists.rival.grass !== 'you', run(L) { L.salTrust(12); L.joy(3); return '"Good to be back," says Sal, and pours two glasses of something he has been saving. "Now. What have I missed?"'; } },
+        { t: 'Welcome him home', show: (L) => L.s.heists.rival.grass !== 'you', run(L) {
+          const s = L.s, r = s.heists.rival, k = r.kept;
+          L.salTrust(12); L.joy(3); r.kept = null;
+          const back = !!k && !s.job && !s.gaol && !(s.careers && L.careerBarred && L.careerBarred('crew'));
+          if (back) { s.job = { c: 'crew', r: k.r, n: k.n, perf: k.perf, raise: 0 }; s.worked.crew = Math.max(s.worked.crew ?? 0, k.r); s.retired = false; if (s.careers) s.careers.job = { c: 'crew', r: k.r }; }
+          return `"Good to be back," says Sal, and pours two glasses of something he has been saving. "Now. What have I missed?"${back ? ` Your old chair is where you left it: you are ${CAREERS.crew.rungs[k.r].title.toLowerCase()} again.` : ''}`;
+        } },
         { t: 'Say you are sorry', show: (L) => L.s.heists.rival.grass === 'you', check: ['charm', 70], run(L, x, win) { if (win) { L.salTrust(-10); return '"Sorry," says Sal, as if he were tasting the word. "Well. It is a start." You are not forgiven. You are, for now, not anything worse.'; } L.s.heists.sal = 0; L.s.f.salOff = L.s.t + 40; return '"Get out," says Sal, quite quietly. You will not be welcome behind the ice house for a long, long time.'; } },
-        { t: 'Stay away from the harbour', run(L) { if (L.s.heists.rival.grass === 'you') { L.s.heists.sal = 0; L.s.f.salOff = L.s.t + 40; } return 'You find other places to be. The harbour can manage without you.'; } },
+        { t: 'Stay away from the harbour', run(L) { L.s.heists.rival.kept = null; if (L.s.heists.rival.grass === 'you') { L.s.heists.sal = 0; L.s.f.salOff = L.s.t + 40; } return 'You find other places to be. The harbour can manage without you.'; } },
       ],
     },
   ]);
@@ -1406,7 +1504,18 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
   const end = (L, how) => {
     const s = L.s, H = s.heists, r = H.rival;
     r.end = how; r.stage = 4;
-    if (how === 'sal') { r.back = s.t + L.int(16, 24); L.note('Sal went down for a long stretch, and Nan Carne took the pier.', 'big'); }
+    if (how === 'sal') {
+      r.back = s.t + L.int(16, 24); L.note('Sal went down for a long stretch, and Nan Carne took the pier.', 'big');
+      // (With Sal inside, the crew lies low: there is no work in it until he is out, and then
+      // your old chair is waiting, if you were not the one who put him there.)
+      const j = s.job;
+      if (j && j.c === 'crew') {
+        r.kept = r.grass === 'you' ? null : { r: j.r, n: j.n, perf: j.perf };
+        s.job = null;
+        if (s.careers) s.careers.job = null;
+        L.note('With Sal inside, the crew lay low. There was no work in it until he came out.', 'big');
+      }
+    }
     if (how === 'gone') { L.salTrust(15); L.note('Nan Carne’s lot were run out of the Bay.', 'big'); }
     if (how === 'truce') { L.salTrust(8); L.note('Brokered a truce between Sal and Nan Carne.', 'big'); }
     if (how === 'yours') { r.patch = true; L.note('Took over the pier from Nan Carne. It is yours now.', 'big'); }
@@ -1443,7 +1552,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     },
     {
       id: 'carneHit', icon: '🎨', title: 'Nan says hello', ok: out,
-      text: (L) => (L.s.items.car || L.s.items.sportscar ? 'You come out in the morning to find your car painted, all over, the exact pink of Nan Carne’s Rover. On the windscreen, under the wiper: NAN SAYS HELLO.' : 'You come home to find your front door painted the exact pink of Nan Carne’s Rover, and a note through the letterbox: NAN SAYS HELLO.'),
+      text: (L) => (L.s.items.car || L.s.items.sportscar ? 'You come out in the morning to find your car painted, all over, the exact pink of Nan Carne’s Corvan. On the windscreen, under the wiper: NAN SAYS HELLO.' : 'You come home to find your front door painted the exact pink of Nan Carne’s Corvan, and a note through the letterbox: NAN SAYS HELLO.'),
       opts: [
         { t: 'Clean it up and say nothing', run(L) { L.cash(-300); L.joy(-3); return 'Three hundred dollars and two days with a scraper. The pink is still in the cracks.'; } },
         { t: '🌶️ Drive to Kettleby, tonight', show: trait('hothead'), run(L) { const r = rv(L); r.heat += 20; r.turf = Math.min(100, r.turf + 10); L.karma(-3); if (L.crime(0.25, 2, 'a cricket bat and the Carnes’ minicab office')) return 'You make your point very clearly. So does the constable who was parked across the road.'; return 'You say what you came to say, at length, with a cricket bat. Nan’s grandsons will think twice. So will you, in the morning.'; } },
@@ -1464,13 +1573,27 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       text: 'Danny Carne, Nan’s youngest, has been selling on the harbour side of the pier, and one of Sal’s lads has put him in hospital for it. Nan has telephoned Sal, and Sal has hung up on Nan. Your truce lasted longer than anybody thought it would.',
       opts: [
         { t: 'Stand with Sal', run(L) { const r = rv(L); r.end = null; r.stage = 3; r.side = 'sal'; r.wars = 0; L.salTrust(6); return 'You go round to the ice house and sit with Sal while he makes the telephone calls. It is war again.'; } },
-        { t: 'Try to patch it up', check: ['charm', 65], run(L, x, win) { const r = rv(L); if (win) { L.joy(4); return 'A second sit-down at Betty’s, and an apology from somebody who has never apologised before. It holds. For now.'; } r.end = null; r.stage = 3; r.wars = 1; return 'Neither of them will come to Betty’s this time. It is war again, and both of them blame you.'; } },
+        { t: 'Try to patch it up', check: ['charm', 65], run(L, x, win) { const r = rv(L); const at = cafe(L) ? 'Betty’s' : 'the church hall'; if (win) { L.joy(4); return `A second sit-down at ${at}, and an apology from somebody who has never apologised before. It holds. For now.`; } r.end = null; r.stage = 3; r.wars = 1; return `Neither of them will come to ${at} this time. It is war again, and both of them blame you.`; } },
         { t: 'Keep out of it', run(L) { const r = rv(L); r.end = null; r.stage = 3; r.wars = 2; return 'You stay at home with the curtains closed. It will be over by the spring, one way or another.'; } },
       ],
     },
     {
-      id: 'carneSitdown', icon: '☕', title: 'A sit-down at Betty’s', ok: out,
-      text: 'Neutral ground: Betty’s Café, a Sunday afternoon. Sal at one table, Nan Carne at the other, and you between them with the teapot, because both of them asked for you.',
+      // Sal gone to Spain in the middle of it all, and the patch yours: Nan Carne comes to see the new boss.
+      id: 'carneBoss', icon: '👵', title: 'Nan calls on the new boss', ok: (L) => out(L) && !rv(L).end && L.salYours(),
+      text: 'The pink Corvan is parked outside the ice house, and Nan Carne is sitting in Sal’s old chair by the stove with her handbag on her knee. "Sal has gone to Spain, love," she says, "and left you his troubles. I am one of them. Shall we be sensible?"',
+      opts: [
+        { t: 'Shake on it: the pier for Nan, the harbour for you', run(L) { const r = rv(L); r.end = 'truce'; r.stage = 4; L.joy(3); L.note('Made peace with Nan Carne: the pier hers, the harbour yours.', 'big'); return 'She shakes your hand with a grip like a mangle, and pours you a cup of tea from her flask. The pier is hers, the harbour is yours, and nobody need bleed on anybody’s floor.'; } },
+        { t: 'Tell her the Bay is not for sale', check: ['charm', 60], run(L, x, win) {
+          const r = rv(L);
+          if (win) { end(L, 'gone'); L.joy(6); return 'She looks at you for a long time, and then laughs. "You are worse than Sal," she says, and it is a compliment. The pink Corvan goes home to Kettleby, and stays there.'; }
+          r.end = 'truce'; r.stage = 4; L.rough(10, 'the Carne boys'); L.note('Nan Carne took the pier, and left the harbour to you.', 'big');
+          return 'Her grandsons walk you out to the quay, the long way round. By the end of the week the pier is hers anyway, and the harbour is still yours, just.';
+        } },
+      ],
+    },
+    {
+      id: 'carneSitdown', icon: '☕', title: (L) => (cafe(L) ? 'A sit-down at Betty’s' : 'A sit-down in the church hall'), ok: out,
+      text: (L) => `Neutral ground: ${cafe(L) ? 'Betty’s Café' : 'the church hall, with Betty doing the teas'}, a Sunday afternoon. Sal at one table, Nan Carne at the other, and you between them with the teapot, because both of them asked for you.`,
       opts: [
         { t: 'Broker a peace: the pier for Nan, the harbour for Sal', odds: (L) => clamp(L.checkOdds('charm', 60) + rv(L).peace * 0.1 - rv(L).heat / 300, 0.05, 0.9), run(L, x, win) { const r = rv(L); if (win) { end(L, 'truce'); L.joy(6); return 'An hour of very polite argument, two pots of tea and a scone each, and they shake hands across your table. The Bay is split down the middle of the pier. Betty does not charge you.'; } r.stage = 3; r.heat += 15; return 'Nan says "no" very nicely, and Sal knocks the sugar bowl over. It is war, now.'; } },
         { t: 'Let them fight it out', run(L) { const r = rv(L); r.stage = 3; return 'You put the teapot down and leave them to it. Behind you, somebody throws a scone.'; } },
@@ -1528,6 +1651,6 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     heistWashed: { name: 'Clean as a whistle', icon: '🧼', desc: 'Launder $100,000.', test: (L) => !!L.s.heists && L.s.heists.washed >= 1e5 },
     heistKitto: { name: 'First-name terms', icon: '🕵️', desc: 'Become friends with the detective who wants you put away.', test: (L) => !!L.s.heists && L.s.heists.det.bond >= 60 },
     heistBent: { name: 'In your pocket', icon: '💼', desc: 'Have a detective on the take.', test: (L) => !!L.s.heists && L.s.heists.det.bent != null },
-    heistCarne: { name: 'The Bay is quiet', icon: '🏴', desc: 'See the feud with Nan Carne’s lot through to its end.', test: (L) => !!L.s.heists && !!L.s.heists.rival.end },
+    heistCarne: { name: 'The Bay is quiet', icon: '🏴', desc: 'See the feud with Nan Carne’s lot through to its end.', test: (L) => !!L.s.heists && !!L.s.heists.rival.end && L.s.heists.rival.end !== 'spain' },
   });
 }

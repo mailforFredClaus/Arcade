@@ -121,8 +121,8 @@ export default function (kit) {
       if (L.lawBondWord()) out += line('🫖 Between you', esc(L.lawBondWord()));
       out += `<p class="fine">${d.bent != null ? `On your payroll, at ${money(1500 * (d.rank + 1))} a season, for as long as nobody notices.` : 'The file grows with every crime and every arrest, and thins in quiet years. It makes every crime riskier and a lawyer less use, and a thick one means a long stretch.'}</p>`;
     }
-    if (s.n.crimes >= 3 || (s.job && s.job.c === 'crew')) out += line('🦊 Sal', L.salAway() ? 'Inside, for now' : esc(L.salWord()));
-    if (r.stage >= 1) out += line('🏴 Nan Carne’s lot', { truce: 'A truce', gone: 'Gone back to Kettleby', sal: 'Own the pier', yours: 'The pier is yours now' }[r.end] || (r.stage >= 3 ? 'At war with Sal' : r.side === 'nan' ? 'You are on their payroll' : 'Moving in on Sal’s patch'));
+    if (s.n.crimes >= 3 || (s.job && s.job.c === 'crew')) out += line('🦊 Sal', { inside: 'Inside, for now', spain: 'Retired to Spain' }[L.salWhere()] || esc(L.salWord()));
+    if (r.stage >= 1) out += line('🏴 Nan Carne’s lot', { truce: 'A truce', gone: 'Gone back to Kettleby', spain: 'Gone back to Kettleby', sal: 'Own the pier', yours: 'The pier is yours now' }[r.end] || (r.stage >= 3 ? 'At war with Sal' : r.side === 'nan' ? 'You are on their payroll' : 'Moving in on Sal’s patch'));
     if (H.hot > 0) out += line('💰 Hot money', money(H.hot), 'down') + `<p class="fine">Hidden ${esc(L.heistHotWord())}. It needs washing before it can be spent: through Sal, the Lucky Gull’s cage, a business of your own, property, or the bank a little at a time.</p>`;
     if (H.washed) out += line('🧼 Washed so far', money(H.washed));
     if (H.lag.n) {

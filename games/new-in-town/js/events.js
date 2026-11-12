@@ -39,6 +39,13 @@ const credit = (L, n) => { if (L.s.job) L.s.job.n += n; };
 const fire = (L) => { if (L.s.job) { L.note(`Sacked as ${L.jobTitle()}.`, 'big'); L.s.job = null; } };
 // How serious an offence is: 1 petty, 4 the bank.
 const sev = (x) => (x && x.sev) || 2;
+// Sal is about, behind the ice house: not inside, and not retired to Spain (salWhere in heists.js).
+const salHere = (L) => !L.salHere || L.salHere();
+// The mayor, as annals.js has it (Mayor Pennington, or whoever holds the chain now).
+const mayorNow = (L) => (L.annalsMayor ? L.annalsMayor() : { k: 'penn', name: 'Mayor Pennington', sex: 'm', age: 61 });
+const mayorTitle = (L, m = mayorNow(L)) => (L.annalsMayorTitle ? L.annalsMayorTitle(m) : 'Mayor Pennington');
+// The drains story is about whoever held the chain when you found the ledger, and never about you.
+const drainsMayor = (L) => { const m = mayorNow(L); return m.k !== 'you' && !(inJob(L, 'politics') && (L.s.job.r >= 4 || L.s.f.elected)) && m.k === (L.s.f.drainsM || 'penn') ? m : null; };
 const lowest = (L) => STATS.slice().sort((a, b) => L.s.st[a] - L.s.st[b])[0];
 
 export const EVENTS = [
@@ -249,7 +256,7 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'salDeal', icon: '🦊', title: 'Sal has a proposition', w: 1, when: (L) => L.s.n.crimes >= 2 && L.s.cash >= 3000,
+    id: 'salDeal', icon: '🦊', title: 'Sal has a proposition', w: 1, when: (L) => L.s.n.crimes >= 2 && L.s.cash >= 3000 && salHere(L),
     text: '"Three grand buys you a third of a container," says Shady Sal. "What is in it? Opportunity."',
     opts: [
       { t: 'I am in', cost: 3000, odds: () => 0.35, run(L, x, win) { L.karma(-2); if (win) { L.cash(9000); return 'The container is full of trainers. Real ones, even. Your share is $9,000.'; } return 'The container is full of left shoes.'; } },
@@ -777,7 +784,7 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'protection', icon: '🧱', title: 'Nice place you have here', w: 3, cd: 12, when: (L) => !!L.s.biz,
+    id: 'protection', icon: '🧱', title: 'Nice place you have here', w: 3, cd: 12, when: (L) => !!L.s.biz && salHere(L),
     text: (L) => `Two of Sal’s lads admire your ${L.bizName().toLowerCase()}. "Lot of glass. Be a shame if there was an accident. Sal can see that there is not."`,
     opts: [
       { t: 'Pay up', cost: (L) => Math.round(L.bizTake() / 100) * 100, run() { return 'An envelope changes hands. You are, apparently, now insured.'; } },
@@ -904,7 +911,7 @@ export const EVENTS = [
       { t: 'Run for it', check: ['fitness', 55], run(L, x, win) { if (win) { L.warm(15); return 'Over the nets, round the ice house, and away. Your heart does not slow down for an hour. They will be looking for you now.'; } L.hp(-6, 'a fall'); return `You make it thirty yards before a lobster pot brings you down. Resisting arrest, on top of the rest. ${L.sentence(sev(x) + 1)}`; } },
       { t: (L, x) => `Slip ${L.lawOfficer ? L.lawOfficer(x) : 'the constable'} something`, cost: (L, x) => 1500 * sev(x), odds: (L) => 0.25 + L.s.st.charm / 250 + (L.perk('police') ? 0.2 : 0) + (L.lawBribe ? L.lawBribe() : 0), run(L, x, win) { const who = L.lawOfficer ? L.lawOfficer(x) : 'the constable', Who = who[0].toUpperCase() + who.slice(1); L.karma(-2); if (win) return `${Who} looks at the notes, then at the sea, then at nothing at all. "Mind how you go."`; return `"Attempting to bribe an officer," ${who} writes, slowly. ${L.sentence(sev(x) + 1)}`; } },
       { t: 'Say nothing, and send for a good lawyer', cost: (L, x) => (L.perk('law') ? 2000 : 4000) * sev(x), odds: (L, x) => (L.briefOdds ? L.briefOdds(sev(x)) : 1), run(L, x, win) { return win ? `She costs a fortune and earns it. ${L.sentence(sev(x) - 1)}` : `She costs a fortune. The magistrate has read your file, all of it. ${L.sentence(sev(x))}`; } },
-      { t: 'It was all Sal', check: ['charm', 60], show: (L, x) => sev(x) === 2, run(L, x, win) { L.s.f.salOff = L.s.t + 8; if (win) return 'You are so convincing that the constable gives you a lift home. Sal will not be pleased.'; return `Sal has an alibi, and three witnesses. ${L.sentence(sev(x) + 1)}`; } },
+      { t: 'It was all Sal', check: ['charm', 60], show: (L, x) => sev(x) === 2 && salHere(L), run(L, x, win) { L.s.f.salOff = L.s.t + 8; if (win) return 'You are so convincing that the constable gives you a lift home. Sal will not be pleased.'; return `Sal has an alibi, and three witnesses. ${L.sentence(sev(x) + 1)}`; } },
     ],
   },
   {
@@ -1007,7 +1014,7 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'gParcel', icon: '🎂', title: 'A cake from outside', gaol: true, w: 3, cd: 10, when: (L) => L.s.n.crimes >= 5,
+    id: 'gParcel', icon: '🎂', title: 'A cake from outside', gaol: true, w: 3, cd: 10, when: (L) => L.s.n.crimes >= 5 && salHere(L),
     text: 'A fruit cake, already cut open by the gate staff and put back together. They missed the bottom. Under the marzipan: $500 and a note. "Keep your mouth shut. S."',
     opts: [
       { t: 'Keep it', run(L) { L.cash(500); return 'You eat the cake, too. It is not a good cake.'; } },
@@ -1179,7 +1186,7 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'alibi', icon: '🃏', title: 'A game of cribbage', w: 3, cd: 30, when: (L) => L.s.n.crimes >= 3,
+    id: 'alibi', icon: '🃏', title: 'A game of cribbage', w: 3, cd: 30, when: (L) => L.s.n.crimes >= 3 && salHere(L),
     text: 'Sal would like it known, should anybody ask, that he was playing cribbage with you all of Tuesday night.',
     opts: [
       { t: 'And he won, as usual', run(L) { L.karma(-4); L.cash(1500); L.warm(8); L.s.f.salOff = 0; return 'A constable does ask. You describe the game in detail. There is $1,500 in your coat pocket the next time you put it on.'; } },
@@ -1275,25 +1282,26 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'drains1', icon: '📒', title: 'The drains account', w: 3, once: true, when: (L) => L.s.age >= 26 && (L.s.st.smarts >= 45 || inJob(L, 'finance', 'law', 'politics')),
-    text: 'Doing somebody a favour at the Town Hall, you turn up the wrong ledger. Forty thousand dollars for drains, last year, paid to a firm at the address of the mayor’s brother-in-law. There are no new drains.',
+    id: 'drains1', icon: '📒', title: 'The drains account', w: 3, once: true,
+    when: (L) => L.s.age >= 26 && (L.s.st.smarts >= 45 || inJob(L, 'finance', 'law', 'politics')) && mayorNow(L).k !== 'you' && !(inJob(L, 'politics') && (L.s.job.r >= 4 || L.s.f.elected)),
+    text: (L) => `Doing somebody a favour at the Town Hall, you turn up the wrong ledger. Forty thousand dollars for drains, last year, paid to a firm at the address of ${mayorTitle(L)}’s brother-in-law. There are no new drains.`,
     opts: [
-      { t: 'Copy the page', run(L) { L.s.f.drains = 1; return 'It takes two minutes with a pencil. You put the ledger back exactly as it was, one page lighter in your conscience and one heavier in your pocket.'; } },
+      { t: 'Copy the page', run(L) { L.s.f.drains = 1; L.s.f.drainsM = mayorNow(L).k; return 'It takes two minutes with a pencil. You put the ledger back exactly as it was, one page lighter in your conscience and one heavier in your pocket.'; } },
       { t: 'Put it back and forget it', run(L) { L.s.f.drains = -1; return 'It is none of your business. You say so to yourself several times on the way home.'; } },
     ],
   },
   {
-    id: 'drains2', icon: '🎩', title: 'The mayor would like a word', w: 8, once: true, when: (L) => L.s.f.drains === 1,
-    text: 'The mayor’s office has a carpet you sink into. "I am told," he says, pouring two glasses, "that you take an interest in drains."',
+    id: 'drains2', icon: '🎩', title: 'The mayor would like a word', w: 8, once: true, when: (L) => L.s.f.drains === 1 && !!drainsMayor(L),
+    text: (L) => { const m = mayorNow(L); return `${mayorTitle(L, m)}’s office has a carpet you sink into. "I am told," ${he(m)} says, pouring two glasses, "that you take an interest in drains."`; },
     opts: [
-      { t: 'Take what he offers, and lose the page', run(L) { L.s.f.drains = -1; L.cash(8000); L.karma(-8); return 'An envelope, and a hand on your shoulder all the way to the door. $8,000. The drains remain a mystery.'; } },
-      { t: 'Take the page to the Gazette', run(L) { L.s.f.drains = 2; L.karma(8); L.fame(4); if (L.enemies().length < 3) L.foe({ name: 'Mayor Pennington', sex: 'm', age: 61, grudge: 85, hard: 25 }); L.note('Took the story of the mayor’s drains to the Gazette.', 'big'); return 'It is on the front page by Friday, under a photograph of a hole in the road. The mayor says he will sue. He does not.'; } },
+      { t: (L) => `Take what ${he(mayorNow(L))} offers, and lose the page`, run(L) { L.s.f.drains = -1; L.cash(8000); L.karma(-8); return 'An envelope, and a hand on your shoulder all the way to the door. $8,000. The drains remain a mystery.'; } },
+      { t: 'Take the page to the Gazette', run(L) { const m = mayorNow(L), age = L.annalsAge ? L.annalsAge(m) : 61; L.s.f.drains = 2; L.karma(8); L.fame(4); if (L.enemies().length < 3) L.foe({ name: m.k === 'penn' ? 'Mayor Pennington' : m.name, sex: m.sex, age, grudge: 85, hard: 25 }); L.note('Took the story of the mayor’s drains to the Gazette.', 'big'); return `It is on the front page by Friday, under a photograph of a hole in the road. ${mayorTitle(L, m)} says ${he(m)} will sue. ${He(m)} does not.`; } },
       { t: 'Ask what a friend of the mayor might expect', show: (L) => inJob(L, 'politics'), run(L) { L.s.f.drains = -1; L.karma(-5); L.s.job.perf = Math.min(100, L.s.job.perf + 25); L.s.job.n += 4; return 'A friend of the mayor, it turns out, can expect to get on. You get on.'; } },
     ],
   },
   {
-    id: 'drains3', icon: '🗳️', title: 'A vacancy', w: 8, once: true, when: (L) => L.s.f.drains === 2,
-    text: 'The mayor has resigned "to spend more time with his family", who are not said to be pleased. People keep stopping you in the street to say that somebody honest ought to stand for the council.',
+    id: 'drains3', icon: '🗳️', title: 'A vacancy', w: 8, once: true, when: (L) => L.s.f.drains === 2 && (!L.s.annals || !!L.s.annals.drained),
+    text: (L) => { const d = (L.s.annals && L.s.annals.drained) || { n: 'Mayor Pennington', sex: 'm' }; return `${d.n} has resigned "to spend more time with ${his(d)} family", who are not said to be pleased. People keep stopping you in the street to say that somebody honest ought to stand for the council.`; },
     opts: [
       { t: 'Stand', check: ['charm', 50], run(L, x, win) { L.s.f.drains = 3; if (win) { L.fame(5); L.karma(3); L.joy(8); if (inJob(L, 'politics')) { L.s.job.perf = 100; L.s.job.n += 6; } L.note('Elected to the council on the strength of the drains.', 'big'); return 'You win by a street. Your first act is to ask where the drains are. They are found, in the end, on a drawing.'; } L.joy(-3); return 'You lose to a man who promises a second ice cream van. That is democracy.'; } },
       { t: 'It ought to be somebody else', run(L) { L.s.f.drains = 3; L.karma(1); return 'It is the woman from the chemist’s, and she is very good. You are thanked in her speech, which is plenty.'; } },
