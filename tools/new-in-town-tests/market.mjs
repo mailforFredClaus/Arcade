@@ -413,10 +413,12 @@ export default function ({ check, fresh, Life }) {
 // sheets. (The ones that take no time are offered now and then, not every
 // time, so that they do not crowd out everything else a random life might do.)
 export function moves(L) {
-  const s = L.s, m = s.mkt, out = [];
-  if (!m.stall) out.push(['mktJoin', Math.floor(L.rnd() * STALL_NAMES.length)]);
-  else if (L.rnd() < 0.25) out.push(L.pick([['mktPrice', { g: L.pick(GOOD_IDS), lvl: Math.floor(L.rnd() * 3) }], ['mktOut', L.pick(GOOD_IDS)], ['mktVeg'], ['mktRename', Math.floor(L.rnd() * STALL_NAMES.length)], ['mktQuit']]));
-  for (const k of Object.keys(BEASTS)) { out.push(['beastBuy', k], ['beastFetch', k]); if (m.herd[k] && L.rnd() < 0.05) out.push(['beastSell', k]); }
-  if (L.season === 1) for (const c of Object.keys(CLASSES)) out.push(['showEnter', c]);
+  const s = L.s, m = s.mkt;
+  if (L.rnd() < 0.6) return [];
+  const out = [m.stall ? L.pick([['mktPrice', { g: L.pick(GOOD_IDS), lvl: Math.floor(L.rnd() * 3) }], ['mktOut', L.pick(GOOD_IDS)], ['mktVeg'], ['mktRename', Math.floor(L.rnd() * STALL_NAMES.length)], ['mktQuit']]) : ['mktJoin', Math.floor(L.rnd() * STALL_NAMES.length)]];
+  const k = L.pick(Object.keys(BEASTS));
+  out.push(['beastBuy', k], ['beastFetch', k]);
+  if (m.herd[k] && L.rnd() < 0.1) out.push(['beastSell', k]);
+  if (L.season === 1) out.push(['showEnter', L.pick(Object.keys(CLASSES))]);
   return out;
 }
