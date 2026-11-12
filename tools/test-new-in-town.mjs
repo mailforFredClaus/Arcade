@@ -1820,12 +1820,16 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', sibs:
 // Each has a file of checks of its own in tools/new-in-town-tests, handed
 // what it needs: check(ok, what), fresh(options) for a new life with the
 // to-do list out of the way, the Life itself and every action there is.
+// A file may also export moves(L): [[action, x], ...] that are not on any
+// place's list, for the random practice players to try.
+const MOVES = [];
 {
   const { readdirSync } = await import('node:fs');
   const dir = new URL('./new-in-town-tests/', import.meta.url);
   for (const f of readdirSync(dir).filter((n) => n.endsWith('.mjs')).sort()) {
     const mod = await import(new URL(f, dir));
     await mod.default({ check, fresh, Life, ACTIONS, date });
+    if (mod.moves) MOVES.push(mod.moves);
   }
 }
 
@@ -1999,6 +2003,7 @@ function monkey(seed) {
         ['restyle', { k: ['style', 'hair', 'top'][Math.floor(L.rnd() * 3)], v: Math.floor(L.rnd() * 6) }], ['restyle', { k: 'beard' }],
         ...Object.keys(GIFTS).map((id) => ['fund', id]),
         ...Object.keys(s.curios).map((id) => ['curioSell', id]), ...(L.rnd() < 0.1 ? Object.keys(s.items).map((id) => ['pawn', id]) : []), ...Object.keys(CURIO_SETS).flatMap((k) => [['setSell', k], ['setGive', k]])]) if (!L.can(id, x)) opts.push([id, x]);
+      for (const f of MOVES) for (const m of f(L) || []) if (!L.can(m[0], m[1])) opts.push(m);
       if (!opts.length) break;
       const [id, x] = opts[Math.floor(L.rnd() * opts.length)];
       const r = L.act(id, x);
