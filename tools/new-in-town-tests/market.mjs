@@ -3,8 +3,8 @@
 // things at home, the Saturday stall (prices, the crowd, its good name), the
 // Windle Show, the cards, and that none of it can be wrung for money,
 // mood or skill for nothing.
-import { GOODS, GOOD_IDS, LEVELS, BEASTS, ROOM, PADDOCK, PADDOCK_SKILL, CLASSES, PLACINGS, STALL_NAMES, PITCH_COST, WORK, SHOPPERS, TWISTS, stallCustomer, askMark } from '../../games/new-in-town/js/market.js';
-import { HOMES, TROPHIES, CROPS } from '../../games/new-in-town/js/data.js';
+import { GOODS, GOOD_IDS, BEASTS, ROOM, PADDOCK, PADDOCK_SKILL, CLASSES, STALL_NAMES, PITCH_COST, WORK, SHOPPERS, stallCustomer, askMark } from '../../games/new-in-town/js/market.js';
+import { HOMES, TROPHIES } from '../../games/new-in-town/js/data.js';
 import { EVENTS } from '../../games/new-in-town/js/events.js';
 
 const MINE = ['mktFox', 'mktSwarm', 'mktRival', 'mktInspect', 'mktChef', 'mktGoat', 'mktBroody', 'mktPath', 'mktTruffle', 'mktCoach', 'mktMind', 'mktPoorly'];
@@ -12,7 +12,7 @@ const MINE = ['mktFox', 'mktSwarm', 'mktRival', 'mktInspect', 'mktChef', 'mktGoa
 // A seeded stand-in for Math.random, for the queue game's logic.
 const seeded = (seed) => () => { seed = (seed * 1103515245 + 12345) >>> 0; return seed / 4294967296; };
 
-export default function ({ check, fresh, Life, ACTIONS }) {
+export default function ({ check, fresh, Life }) {
   // A life set up for the farm: a home with a garden, money, and Farming to spare.
   const farmer = (o = {}) => {
     const L = fresh({ seed: o.seed || 21 });
@@ -125,11 +125,9 @@ export default function ({ check, fresh, Life, ACTIONS }) {
     check((c.mkt.herd.hens ? c.mkt.herd.hens.n : 0) < n && c.log.some((e) => e.t.includes('Nobody had been to see to them')), 'left alone, some die');
     // Moving to a home with no room.
     c.mkt.herd.hens = { n: 6, care: 80, where: 'home', age: 0, fat: 0, since: c.t };
-    const was = c.cash;
     c.cash = 100000;
     C.act('rentHome', 'bedsit');
     check(c.home === 'bedsit' && !c.mkt.herd.hens && c.log.some((e) => e.t.includes('No room for them')), 'move somewhere with no garden and the hens go back to Tom');
-    void was;
   }
   // ---- goats and pigs, and Tom's paddock ----
   {
@@ -158,7 +156,11 @@ export default function ({ check, fresh, Life, ACTIONS }) {
     P.s.plot = { beds: [{ c: 'spuds', age: 0, care: 0 }, null, null], since: P.s.t };
     turn(P);
     check(P.s.plot.beds[0] && P.s.plot.beds[0].care >= 1, 'a pig digs the allotment over');
+    const worth = P.mktBack('pig'), end = P.endSeason();
+    p.pend = []; p.wx = 'fair'; p.time = 20;
+    check(!p.mkt.herd.pig && end.lines.some(([w, n]) => w.includes('pig') && n >= worth) && p.log.some((e) => e.t.includes('took your pig to market')), 'a grown pig goes to market, and does not eat its head off for ever');
     // Prison: Tom keeps an eye.
+    P.act('beastBuy', 'pig');
     p.mkt.herd.pig.care = 50;
     p.gaol = { left: 2, total: 2, served: 0, good: 50, rep: 30 };
     let ok = true;
@@ -264,6 +266,28 @@ export default function ({ check, fresh, Life, ACTIONS }) {
     check(L.act('mktQuit').ok && !s.mkt.stall && !L.act('mktTrade', 0.5).ok, 'the pitch can be given up');
   }
 
+  // ---- Priya, prices, and plants from the square ----
+  {
+    const L = farmer({ home: 'cottage' }), s = L.s;
+    stall(L);
+    check(!!L.can('mktPrice', { g: 'jam', lvl: 1 }) && !!L.can('mktPrice', { g: 'gold', lvl: 0 }) && !!L.can('mktPrice', { g: 'jam', lvl: 5 }), 'a price must be a new one, for a real thing');
+    check(L.act('mktPrice', { g: 'jam', lvl: 2 }).ok && L.mktLevel('jam') === 2, 'jam priced dear');
+    const rep = s.mkt.stall.rep, charm = s.st.charm, r = L.act('mktPriya');
+    check(r.ok && s.mkt.stall.rep > rep && s.st.charm > charm && r.text.includes('Everybody’s after'), 'a word with Priya: a little Charm, a little goodwill, and what is selling');
+    check(!L.act('mktPriya').ok, 'once a season');
+    check(!L.placeActions('market').some((a) => a.id === 'mktPlants'), 'no plants for an allotment you do not have');
+    s.plot = { beds: [{ c: 'garlic', age: 0, care: 0 }, null, null], since: 0 };
+    s.t = 1; // (summer: tomatoes are sown in spring, but these are already on their way)
+    const cash = s.cash;
+    check(L.act('mktPlants').ok && s.plot.beds[1] && s.plot.beds[1].c === 'toms' && s.plot.beds[1].care === 2 && s.cash === cash - 110, 'tomato plants with a head start, even in summer');
+    check(!L.act('mktPlants').ok, 'one tray a season');
+    s.use = {}; s.plot.beds[2] = { c: 'beans', age: 0, care: 0 };
+    check(L.can('mktPlants').includes('taken'), 'and only for an empty bed');
+    // Pitch fee moves with the times.
+    s.eco = 2; const boom = L.mktFee(); s.eco = -2;
+    check(boom > L.mktFee() && L.mktFee() > 0, 'Priya charges more in good times');
+  }
+
   // ---- the Windle Show ----
   {
     const L = farmer({ home: 'cottage', farm: 80 }), s = L.s;
@@ -306,7 +330,6 @@ export default function ({ check, fresh, Life, ACTIONS }) {
     const was = L.mktShowBar('jam');
     s.mkt.firsts.jam = 3;
     check(L.mktShowBar('jam') > was, 'a class you keep winning gets harder');
-    void PLACINGS;
   }
 
   // ---- nothing for nothing ----
@@ -357,7 +380,6 @@ export default function ({ check, fresh, Life, ACTIONS }) {
     check(askMark(1, 1) === 1 && askMark(2, 1) === 0 && askMark(0, 2) < askMark(1, 2) && askMark(1, 2) < 1, 'asking what they will pay is best; less leaves money behind; more and they walk');
     const mean = (f) => a.reduce((s, c) => s + askMark(f(c), c.tier), 0) / a.length;
     check(mean((c) => c.tier) === 1 && mean(() => 0) < 0.85 && mean(() => 2) < 0.5 && mean(() => 1) < 0.9, 'only reading the customers scores full marks');
-    void TWISTS; void LEVELS;
   }
 
   // ---- the cards ----
@@ -385,7 +407,6 @@ export default function ({ check, fresh, Life, ACTIONS }) {
       });
     }
   }
-  void CROPS; void ACTIONS; void GOOD_IDS; void STALL_NAMES;
 }
 
 // For the random players: the things done from the stall, animal and show

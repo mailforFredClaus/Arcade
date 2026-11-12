@@ -18,7 +18,7 @@
 //
 // All of it lives in s.mkt. The screen is market-ui.js.
 
-import { HOMES, CROPS, CURIOS, TROPHIES, money, aCurio } from './data.js';
+import { HOMES, CROPS, TROPHIES, money } from './data.js';
 
 const round10 = (n) => Math.round(n / 10) * 10;
 
@@ -67,10 +67,10 @@ export const STALL_NAMES = ['{n}’s Pantry', 'The Good Egg', 'Hive and Hedgerow
 // feed: each one's food and bedding, a season. makes: what they give, and
 // lay: how much of it, from spring to winter, from one well kept.
 export const BEASTS = {
-  hens: { name: 'Hens', one: 'hen', many: 'hens', icon: '🐔', skill: 15, price: 45, buy: 3, back: 15, feed: 20, makes: 'eggs', lay: [10, 9, 6, 2], blurb: 'Point-of-lay brown hens. Eggs most of the year, fewer in winter.' },
-  bees: { name: 'Bees', one: 'hive', many: 'hives', icon: '🐝', skill: 25, price: 380, buy: 1, back: 120, feed: 40, makes: 'honey', lay: [0, 12, 9, 0], blurb: 'A hive with a colony in it. Honey in summer and autumn, and the allotment does better.' },
-  goat: { name: 'Goats', one: 'goat', many: 'goats', icon: '🐐', skill: 35, price: 450, buy: 1, back: 150, feed: 150, makes: 'milk', lay: [70, 80, 60, 20], blurb: 'A nanny goat in milk. Milk to sell, or to make into cheese. Eats anything.' },
-  pig: { name: 'Pig', one: 'pig', many: 'pigs', icon: '🐖', skill: 45, price: 220, buy: 1, back: 0, feed: 160, makes: null, lay: [0, 0, 0, 0], blurb: 'A weaner to fatten. Worth more each season it is well kept, and it digs the allotment over for you.' },
+  hens: { name: 'Hens', one: 'hen', many: 'hens', keep: 'hens', icon: '🐔', skill: 15, price: 45, buy: 3, back: 15, feed: 20, makes: 'eggs', lay: [10, 9, 6, 2], blurb: 'Point-of-lay brown hens. Eggs most of the year, fewer in winter.' },
+  bees: { name: 'Bees', one: 'hive', many: 'hives', keep: 'bees', icon: '🐝', skill: 25, price: 380, buy: 1, back: 120, feed: 40, makes: 'honey', lay: [0, 12, 9, 0], blurb: 'A hive with a colony in it. Honey in summer and autumn, and the allotment does better.' },
+  goat: { name: 'Goats', one: 'goat', many: 'goats', keep: 'a goat', icon: '🐐', skill: 35, price: 450, buy: 1, back: 150, feed: 150, makes: 'milk', lay: [70, 80, 60, 20], blurb: 'A nanny goat in milk. Milk to sell, or to make into cheese. Eats anything.' },
+  pig: { name: 'Pig', one: 'pig', many: 'pigs', keep: 'a pig', icon: '🐖', skill: 45, price: 220, buy: 1, back: 0, feed: 160, makes: null, lay: [0, 0, 0, 0], blurb: 'A weaner to fatten. Worth more each season it is well kept, and it digs the allotment over for you.' },
 };
 // What each home has room for. A hostel bunk and a bedsit have none; a
 // flat can keep a hive on the roof; anywhere with a garden, hens.
@@ -78,6 +78,8 @@ export const ROOM = { flat: { bees: 1 }, cottage: { hens: 6, bees: 2 }, townhous
 // Tom will keep a goat or a pig in his top paddock for you, once he trusts you to.
 export const PADDOCK = { goat: 2, pig: 1 };
 export const PADDOCK_SKILL = 40, PADDOCK_FEE = 90;
+// A pig is grown after this many seasons, and Tom takes it to market.
+export const PIG_GROWN = 6;
 
 // ---- the farming year -------------------------------------------------------------------------
 
@@ -167,14 +169,20 @@ const sayMany = (k, n) => `${n} ${n === 1 ? k.one : k.many}`;
 const andList = (l) => (l.length > 1 ? `${l.slice(0, -1).join(', ')} and ${l[l.length - 1]}` : l[0] || '');
 // A thing said plainly: eggs, honey, goat’s cheeses, bric-a-brac.
 export const plain = (g) => GOODS[g].many.replace(/^\w+ of /, '');
+const g1 = (g) => plain(g).endsWith('s'); // (eggs and cakes are many; honey and veg are not)
 const careWord = (c) => (c >= 75 ? 'In fine fettle' : c >= 50 ? 'Doing well' : c >= 25 ? 'Wanting attention' : 'Neglected');
 export { careWord };
 
 export function install({ def, A, Life, clamp, hooks, addEvents }) {
   // Farming grows more slowly the more you know, and faster when you are happy (as skills do).
   const farmUp = (L, base) => {
-    const m = L.s.mkt, k = L.s.happy >= 70 ? 1.15 : L.s.happy < 20 ? 0.75 : 1;
+    const m = L.s.mkt, k = L.s.happy >= 70 ? 1.15 : L.s.happy < 20 ? 0.75 : 1, was = m.farm;
     m.farm = clamp(m.farm + base * k * (1 - m.farm / 105) ** 1.6, 0, 100);
+    // (Tom says so when you know enough for something new.)
+    for (const b of Object.values(BEASTS)) {
+      if (was < b.skill && m.farm >= b.skill) { L.note(`Tom Windle reckons you know enough to keep ${b.keep} now.`); L.say(b.icon, `Tom will sell you ${b.keep} now`, 'good'); }
+    }
+    if (was < PADDOCK_SKILL && m.farm >= PADDOCK_SKILL) L.note('Tom Windle says you can keep a goat or a pig in his top paddock, if you have no room at home.');
   };
   const addStock = (L, g, n, q) => {
     if (!(n > 0)) return;
@@ -351,10 +359,10 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
     const s = L.s, m = s.mkt, q = L.season;
     // Whatever was not collected, or sold while it was fresh, is past its best.
     const left = Object.keys(m.ready).filter((g) => m.ready[g].n > 0);
-    if (left.length) L.note(`Nobody collected the ${left.map((g) => GOODS[g].name.toLowerCase()).join(' or the ')}. The rats were grateful.`);
+    if (left.length) L.note(`Nobody collected the ${andList(left.map(plain))}. The rats were grateful.`);
     m.ready = {};
     const off = GOOD_IDS.filter((g) => GOODS[g].fresh && m.stock[g]);
-    if (off.length) { L.note(`The ${off.map((g) => GOODS[g].name.toLowerCase()).join(' and the ')} you did not sell went past ${off.length > 1 ? 'their' : 'its'} best.`); for (const g of off) delete m.stock[g]; }
+    if (off.length) { L.note(`The ${andList(off.map(plain))} you did not sell went past ${off.length > 1 || g1(off[0]) ? 'their' : 'its'} best.`); for (const g of off) delete m.stock[g]; }
     // What the animals gave, and how they fared.
     for (const kind of Object.keys(m.herd)) {
       const h = m.herd[kind], b = BEASTS[kind];
@@ -366,9 +374,16 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
         const qual = clamp(Math.round((0.25 + 0.4 * h.care / 100 + 0.35 * m.farm / 100 + (L.rnd() - 0.5) * 0.1) * 100) / 100, 0.1, 1);
         if (n > 0) m.ready[b.makes] = { n, q: qual };
       }
-      // (A pig puts on what is put into it, for a year or so.)
+      // (A pig puts on what is put into it, for a year or so; then it is only eating.)
       if (kind === 'pig' && h.age < 5) h.fat += Math.round(110 + 1.4 * h.care + m.farm);
       h.age++;
+      if (kind === 'pig' && h.age >= PIG_GROWN) {
+        const pay = L.mktBack('pig') * h.n;
+        L.cash(pay); s.n.earned += pay; lines.push(['Your pig, taken to market by Tom', pay]);
+        L.note(`Tom Windle took your pig to market, fully grown, and brought back ${money(pay)}. “Told you not to name it,” he says.`);
+        delete m.herd.pig;
+        continue;
+      }
       if (jailed) { h.care = Math.max(40, h.care - 20); continue; } // (Tom keeps an eye on them while you are away.)
       if (h.care < 25 && h.where !== 'farm') {
         if (kind === 'hens') {
@@ -625,7 +640,11 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
   def('mktTrade', {
     place: 'market', sec: 'Your stall', icon: '🛎️', title: 'Trade on Saturday', time: 2, per: 2,
     cost: (L) => (L.s.mkt.stall && L.s.mkt.stall.paid !== L.s.t ? L.mktFee() : 0),
-    desc: (L) => { const out = L.mktOnStall(); const n = out.reduce((a, g) => a + L.mktGuess(g).sum, 0); return out.length ? `Serve the queue. Should bring in about ${money(n)}${L.s.mkt.stall.paid !== L.s.t ? `; Priya’s pitch fee is ${money(L.mktFee())} this season` : ''}.` : 'Nothing on the stall to sell.'; },
+    desc: (L) => {
+      const out = L.mktOnStall(), n = out.reduce((a, g) => a + L.mktGuess(g).sum, 0), due = L.s.mkt.stall.paid !== L.s.t;
+      if (!out.length) return 'Nothing on the stall to sell.';
+      return `Serve the queue. Should bring in about ${money(n)}${due ? `; Priya’s pitch fee is ${money(L.mktFee())} this season${n < L.mktFee() * 2 ? ', so it is hardly worth setting up' : ''}` : ''}.`;
+    },
     show: (L) => !!L.s.mkt.stall,
     why: (L, x) => (x !== undefined && !(typeof x === 'number' && x >= 0 && x <= 1) ? 'Roll your sleeves up.' : L.s.mkt.shut === L.s.t ? 'The inspector has shut you until next season.' : !L.mktOnStall().length ? 'Nothing on the stall to sell. Make something, grow something, or collect from your animals.' : null),
     run(L, x) {

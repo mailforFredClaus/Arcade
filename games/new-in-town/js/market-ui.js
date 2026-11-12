@@ -23,7 +23,7 @@ export default function (kit) {
   };
   // What one animal gives in a year, season by season.
   const gives = (b) => {
-    if (!b.makes) return 'Fattens for about a year: Tom gives more for it each season it is well kept. It digs your allotment over while it is about it.';
+    if (!b.makes) return 'Fattens for about a year, and is worth more each season it is well kept; Tom takes it to market when it is grown, or before if you like. It digs your allotment over while it is about it.';
     const k = GOODS[b.makes], l = b.lay.map((n, q) => [n, q]).filter(([n]) => n).map(([n, q], i) => `${n}${i ? '' : ` ${k.many}`} in ${SEASONS[q].toLowerCase()}`);
     return `One ${b.one} kept well gives about ${l.length > 1 ? `${l.slice(0, -1).join(', ')} and ${l[l.length - 1]}` : l[0]}.${b.makes === 'honey' ? ' The allotment does better for them in summer.' : ''}`;
   };
@@ -41,7 +41,7 @@ export default function (kit) {
       }
       const wx = WEATHER[s.wx] || WEATHER.fair, have = GOOD_IDS.filter((g) => L.mktHave(g) > 0);
       let body = `<div class="item mine mkt-sign"><div class="item-top"><span class="act-ico">🧺</span><div><b>${esc(st.name)}</b><small>${st.days} Saturday${st.days === 1 ? '' : 's'} traded · ${money(m.n.take)} taken in all</small></div></div>${bar('📣', 'Its name', st.rep)}</div>
-        <div class="facts"><span>${wx.icon} ${crowd(L)}</span><span class="up">Priya: ${esc(plain(m.hot))} are wanted</span>${m.told ? `<span>Tom: ${esc(plain(m.next))} next season</span>` : ''}${m.rival > 0 ? '<span class="down">A rival across the square</span>' : ''}${m.shut === s.t ? '<span class="down">Shut by the inspector</span>' : ''}</div>`;
+        <div class="facts"><span>${wx.icon} ${crowd(L)}</span><span class="up">Priya: everybody wants ${esc(plain(m.hot))}</span>${m.told ? `<span>Tom: ${esc(plain(m.next))} next season</span>` : ''}${m.rival > 0 ? '<span class="down">A rival across the square</span>' : ''}${m.shut === s.t ? '<span class="down">Shut by the inspector</span>' : ''}</div>`;
       body += actRow(L.look('mktTrade'));
       body += '<h3>What you have to sell</h3>';
       if (!have.length) body += '<div class="item"><p class="sub">Nothing yet. Make jam or bake at home, collect from your animals, keep your allotment’s harvest for the stall, paint in the park or have a clear-out.</p></div>';
@@ -68,7 +68,7 @@ export default function (kit) {
       if (kinds.length) body += actRow(L.look('beastCare')) + (L.mktHasReady() ? actRow(L.look('beastCollect')) : '');
       for (const [kind, b] of Object.entries(BEASTS)) {
         const h = m.herd[kind], n = L.mktBuyN(kind), why = L.can('beastBuy', kind), where = L.mktWhere(kind);
-        body +=`<div class="item${h ? ' mine' : ''}"><div class="item-top"><span class="act-ico">${b.icon}</span><div><b>${b.name}</b><small>${h ? `${many(b, h.n)}, ${h.where === 'farm' ? 'in Tom’s top paddock' : 'at home'} · ${careWord(h.care)}` : esc(b.blurb)}</small></div><div class="quote"><b>${money(b.price)}</b><small>each</small></div></div>
+        body += `<div class="item${h ? ' mine' : ''}"><div class="item-top"><span class="act-ico">${b.icon}</span><div><b>${b.name}</b><small>${h ? `${many(b, h.n)}, ${h.where === 'farm' ? 'in Tom’s top paddock' : 'at home'} · ${careWord(h.care)}` : esc(b.blurb)}</small></div><div class="quote"><b>${money(b.price)}</b><small>each</small></div></div>
           ${h ? bar('🪣', 'Kept', h.care) : ''}
           <div class="facts"><span class="${m.farm >= b.skill ? 'up' : ''}">${m.farm >= b.skill ? '✓' : '○'} Farming ${b.skill}</span><span>Feed ${money(b.feed)} a season each</span>${h ? `<span>Tom would give ${money(L.mktBack(kind) * h.n)}</span>` : ''}${where === 'farm' && !h ? `<span>In Tom’s paddock, ${money(PADDOCK_FEE)} a season</span>` : ''}</div>
           <p class="fine">${esc(gives(b))}</p>
