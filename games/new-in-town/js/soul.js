@@ -416,7 +416,8 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
   if (hooks.epitaph) hooks.epitaph.push((L, out) => {
     const s = L.s, S = s.soul, p = pron(s), now = L.soulTraits();
     if (now.length) {
-      out.push(`${p.He} was ${list(now.map((id) => CHARACTER[id].word))}.`);
+      // (With one trait, its own sentence says it; with more, the list, then the strongest of them.)
+      if (now.length > 1) out.push(`${p.He} was ${list(now.map((id) => CHARACTER[id].word))}.`);
       const top = now.slice().sort((a, b) => S.lean[b] - S.lean[a])[0];
       out.push(CHARACTER[top].known(p));
     } else {

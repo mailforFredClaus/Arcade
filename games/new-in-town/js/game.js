@@ -1220,7 +1220,8 @@ function beginLife() {
   save.counted = false;
   save.yearWorth = life.netWorth();
   save.seenNew = NEWS;
-  tab = 'town'; here = 'station'; area = 'bay'; mapKey = ''; doneNow = []; save.plan = null; slotShow = null; hiloShow = null; bjShow = null; raceShow = null;
+  // (Off the train at the station, or, for one who grew up here, at home.)
+  tab = 'town'; here = life.chapIntro() ? 'home' : 'station'; area = 'bay'; mapKey = ''; doneNow = []; save.plan = null; slotShow = null; hiloShow = null; bjShow = null; raceShow = null;
   persist();
   $('start').hidden = true;
   $('app').hidden = false;
