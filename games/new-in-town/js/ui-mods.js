@@ -10,5 +10,6 @@ import clubs from './clubs-ui.js';
 import market from './market-ui.js'; // Windle Farm and Market Square
 import folk from './folk-ui.js'; // the people of the town
 import flutter from './flutter-ui.js'; // the gambling habit
+import careers from './careers-ui.js'; // a story for every career
 
-export const SCREENS = [soul, coast, motor, clubs, market, folk, flutter];
+export const SCREENS = [soul, coast, motor, clubs, market, folk, flutter, careers];

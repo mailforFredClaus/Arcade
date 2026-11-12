@@ -29,7 +29,10 @@ const close = (p) => ['friend', 'partner', 'spouse', 'parent', 'sibling'].includ
 const aFriend = (L) => { const f = L.friends(); return f.length ? L.pick(f).id : null; };
 const aKid = (lo, hi) => (L) => { const k = L.kids().filter((c) => c.age >= lo && c.age <= hi); return k.length ? L.pick(k).id : null; };
 const aParent = (L) => { const k = L.s.people.filter((p) => p.kind === 'parent'); return k.length ? L.pick(k).id : null; };
-const inJob = (L, ...ids) => !!L.s.job && (!ids.length || ids.includes(L.s.job.c));
+// (careers.js: never from a cell; and the cards about an ordinary workplace, with a boss and
+// a staff party, are for an honest job, not Sal's crew.)
+const inJob = (L, ...ids) => !!L.s.job && !L.s.gaol && (!ids.length || ids.includes(L.s.job.c));
+const honest = (L) => inJob(L) && !CAREERS[L.s.job.c].shady;
 const pay = (L) => (L.s.job ? CAREERS[L.s.job.c].rungs[L.s.job.r].pay : 0);
 const busy = (L, n) => { L.s.time = Math.max(0, L.s.time - n); };
 const credit = (L, n) => { if (L.s.job) L.s.job.n += n; };
@@ -141,7 +144,7 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'jury', icon: '⚖️', title: 'Jury service', w: 1, when: (L) => L.s.age >= 22 && !L.s.record,
+    id: 'jury', icon: '⚖️', title: 'Jury service', w: 1, when: (L) => L.s.age >= 22 && L.s.age <= 75 && !L.s.record, // (careers.js: nobody is summoned past 75)
     text: 'A summons. The Crown versus a man accused of stealing forty lobsters.',
     opts: [
       { t: 'Do your duty', run(L) { busy(L, 2); L.karma(3); L.gain('smarts', 1.5); return 'Two weeks in a stuffy room. Guilty: he had a lobster in his pocket at the time.'; } },
@@ -188,7 +191,7 @@ export const EVENTS = [
     text: 'The hottest week anyone can remember. The tarmac is soft and the beach is full.',
     opts: [
       { t: 'To the beach', run(L) { L.joy(6); L.hp(-1); return 'You swim, doze, and burn your nose.'; } },
-      { t: 'Pick up extra hours while everyone bunks off', show: (L) => inJob(L), run(L) { const n = Math.round(pay(L) / 2); L.cash(n); credit(L, 1); L.joy(-2); return `The boss notices who turned up. ${money(n)} extra.`; } },
+      { t: 'Pick up extra hours while everyone bunks off', show: honest /* (careers.js: was inJob) */, run(L) { const n = Math.round(pay(L) / 2); L.cash(n); credit(L, 1); L.joy(-2); return `The boss notices who turned up. ${money(n)} extra.`; } },
     ],
   },
   {
@@ -310,7 +313,7 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'burnout', icon: '🕯️', title: 'Running on empty', w: 5, cd: 8, when: (L) => inJob(L) && L.s.happy < 24,
+    id: 'burnout', icon: '🕯️', title: 'Running on empty', w: 5, cd: 8, when: (L) => honest(L) && L.s.happy < 24, // (careers.js: nobody walks out on Sal)
     text: 'You stare at the same task for an hour. You cannot remember the last time you laughed.',
     opts: [
       { t: 'Take some leave', run(L) { busy(L, 3); L.joy(14); L.hp(3); return 'You sleep, walk, and stare at the sea. Slowly the colour comes back.'; } },
@@ -329,7 +332,7 @@ export const EVENTS = [
 
   // ---- work ----
   {
-    id: 'credit', icon: '🙋', title: 'That was MY idea', w: 3, when: (L) => inJob(L),
+    id: 'credit', icon: '🙋', title: 'That was MY idea', w: 3, when: honest, // (careers.js: was inJob)
     text: 'In front of everyone, a workmate presents your idea as their own. The boss is delighted.',
     opts: [
       { t: 'Set the record straight', check: ['charm', 45], run(L, x, win) { if (win) { credit(L, 2); L.joy(3); return 'Calmly, with dates. The boss takes note of who really did the work.'; } L.joy(-4); return 'It comes out petty. You wish you had said nothing.'; } },
@@ -338,7 +341,7 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'overtime', icon: '🌙', title: 'A favour', w: 3, when: (L) => inJob(L),
+    id: 'overtime', icon: '🌙', title: 'A favour', w: 3, when: honest, // (careers.js: was inJob)
     text: '"I hate to ask," says the boss, who does not hate to ask, "but could you come in over the weekend? Unpaid, I am afraid."',
     opts: [
       { t: 'Of course', run(L) { busy(L, 2); credit(L, 2); L.joy(-2); return 'It is noticed. It will count when promotions come round.'; } },
@@ -346,7 +349,7 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'mistake', icon: '😬', title: 'Oh no', w: 3, when: (L) => inJob(L),
+    id: 'mistake', icon: '😬', title: 'Oh no', w: 3, when: honest, // (careers.js: was inJob)
     text: 'You have made a mistake at work. A real one. Nobody has spotted it yet.',
     opts: [
       { t: 'Own up', odds: () => 0.7, run(L, x, win) { L.karma(3); if (win) return 'The boss sighs, and helps you fix it. "Thank you for telling me."'; const n = Math.round(pay(L) / 2); L.cash(-n); return `The boss is fair but firm: ${money(n)} docked from your pay.`; } },
@@ -354,7 +357,7 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'poach', icon: '🤝', title: 'A quiet word', w: 2, when: (L) => inJob(L) && L.s.job.r >= 2,
+    id: 'poach', icon: '🤝', title: 'A quiet word', w: 2, when: (L) => honest(L) && L.s.job.r >= 2, // (careers.js: was inJob)
     text: 'A rival outfit takes you to lunch. They would like you to come and work for them.',
     opts: [
       { t: 'Use it to ask for a bonus', check: ['charm', 50], run(L, x, win) { if (win) { const n = pay(L) * 2; L.cash(n); return `Your boss goes pale and finds ${money(n)} from somewhere.`; } L.joy(-2); return '"Then go," says your boss. You do not go. It is awkward.'; } },
@@ -362,7 +365,7 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'party', icon: '🥳', title: 'The works do', w: 2, when: (L) => inJob(L),
+    id: 'party', icon: '🥳', title: 'The works do', w: 2, when: honest, // (careers.js: was inJob)
     text: 'The annual staff party. There is a free bar and a karaoke machine.',
     opts: [
       { t: 'Go all in', odds: () => 0.75, run(L, x, win) { L.gain('charm', 2); if (win) { L.joy(5); credit(L, 1); return 'Your duet with the boss is the stuff of legend.'; } L.joy(-3); return 'You remember nothing after the conga. People keep winking at you.'; } },
@@ -458,7 +461,7 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'cuts', icon: '✂️', title: 'Restructuring', w: 2, when: (L) => inJob(L) && L.s.job.r <= 3 && L.s.t > 12,
+    id: 'cuts', icon: '✂️', title: 'Restructuring', w: 2, when: (L) => honest(L) && L.s.job.r <= 3 && L.s.t > 12, // (careers.js: was inJob)
     text: 'A memo full of words like "synergy". Your job is "at risk".',
     opts: [
       { t: 'Fight for your job', check: ['charm', 50], run(L, x, win) { if (win) { credit(L, 1); return 'You make your case so well that they keep you and lose your manager instead.'; } const n = pay(L) * 2; L.cash(n); fire(L); L.joy(-8); return `It was decided before the meeting began. You leave with ${money(n)}.`; } },
@@ -531,11 +534,11 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'inlaws', icon: '🫖', title: 'The in-laws are coming', w: 2, when: (L) => L.partner()?.kind === 'spouse',
+    id: 'inlaws', icon: '🫖', title: 'The in-laws are coming', w: 2, when: (L) => L.partner()?.kind === 'spouse' && L.partner().age <= 62, // (careers.js: their parents still about)
     text: 'For a fortnight. They have opinions about your curtains.',
     opts: [
       { t: 'Be the perfect host', check: ['charm', 45], run(L, x, win) { const p = L.partner(); L.joy(-2); if (win) { L.bond(p, 8); return 'By the end they are calling you "our favourite".'; } L.bond(p, -2); return 'You smile until your face aches. It is not quite enough.'; } },
-      { t: 'Find a lot to do at work', run(L) { L.bond(L.partner(), -6); return 'You come home each night after they have gone to bed.'; } },
+      { t: (L) => (inJob(L) ? 'Find a lot to do at work' : 'Find a lot to do elsewhere'), /* (careers.js: not everybody has work) */ run(L) { L.bond(L.partner(), -6); return 'You come home each night after they have gone to bed.'; } },
     ],
   },
 
@@ -554,7 +557,7 @@ export const EVENTS = [
     text: (L, x) => `${P(L, x).name} is in the school play. The part is Second Tree. They have been practising standing still for weeks.`,
     opts: [
       { t: 'Front row', run(L, x) { busy(L, 1); L.bond(P(L, x), 8); L.joy(5); return 'The best tree you have ever seen. You tell everyone near you whose tree that is.'; } },
-      { t: 'Work comes first', run(L, x) { L.bond(P(L, x), -7); return `${He(P(L, x))} says it does not matter. ${He(P(L, x))} looked for you from the stage.`; } },
+      { t: (L) => (inJob(L) ? 'Work comes first' : 'Something else comes first'), /* (careers.js: not everybody has work) */ run(L, x) { L.bond(P(L, x), -7); return `${He(P(L, x))} says it does not matter. ${He(P(L, x))} looked for you from the stage.`; } },
     ],
   },
   {
@@ -584,7 +587,7 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'visit', icon: '🧒', title: 'Little visitors', w: 4, cd: 10, when: (L) => !!L.s.f.grand,
+    id: 'visit', icon: '🧒', title: 'Little visitors', w: 4, cd: 10, when: (L) => !!L.s.f.grand && L.grandkids().some((p) => p.age < 14), // (careers.js: while some of them are still little)
     text: 'The grandchildren are here for the weekend. Something is already broken.',
     opts: [
       { t: 'Tell them stories of the old days', run(L) { L.joy(8); return 'They do not believe a word about life before telephones.'; } },
@@ -1071,8 +1074,8 @@ export const EVENTS = [
   },
   // ---- brothers and sisters ----
   {
-    id: 'sibWed', icon: '💒', title: 'Wedding bells', w: 3, cd: 40, when: (L) => L.siblings().some((p) => p.single && p.age >= 20),
-    ctx: (L) => L.pick(L.siblings().filter((p) => p.single && p.age >= 20)).id, ok: (L, x) => has(L, x) && P(L, x).kind === 'sibling',
+    id: 'sibWed', icon: '💒', title: 'Wedding bells', w: 3, cd: 40, when: (L) => L.siblings().some((p) => p.single && p.age >= 20 && p.age <= 60), // (careers.js: and not so old that the dinner service outlives them)
+    ctx: (L) => L.pick(L.siblings().filter((p) => p.single && p.age >= 20 && p.age <= 60)).id, ok: (L, x) => has(L, x) && P(L, x).kind === 'sibling',
     text: (L, x) => `Your ${P(L, x).sex === 'm' ? 'brother' : 'sister'} ${P(L, x).name} is getting married, and wants you to say a few words.`,
     opts: [
       { t: 'Make the speech', check: ['charm', 45], run(L, x, win) { const p = P(L, x); p.single = false; if (win) { L.bond(p, 12); L.joy(6); L.fame(0.5); return `You tell the story about the canoe. ${p.name} cries laughing, and so does everybody’s gran.`; } L.bond(p, 4); L.joy(1); return `You tell the story about the canoe. ${p.name} had hoped you would not.`; } },
@@ -1126,7 +1129,7 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'meetFolks', icon: '🍗', title: 'Sunday lunch', w: 5, cd: 60, when: (L) => { const p = L.partner(); return !!p && p.kind === 'partner' && !p.eng && p.bond >= 40; },
+    id: 'meetFolks', icon: '🍗', title: 'Sunday lunch', w: 5, cd: 60, when: (L) => { const p = L.partner(); return !!p && p.kind === 'partner' && !p.eng && p.bond >= 40 && p.age <= 55; }, // (careers.js: and young enough to have parents living)
     ctx: (L) => L.partner().id, ok: (L, x) => has(L, x) && P(L, x).kind === 'partner',
     text: (L, x) => `${P(L, x).name} wants you to meet ${his(P(L, x))} parents. One o’clock, in ${P(L, x).name.split(' ')[0]}’s words, "and for pity’s sake do not mention the caravan."`,
     opts: [

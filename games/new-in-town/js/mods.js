@@ -13,6 +13,7 @@ import { install as clubs } from './clubs.js';
 import { install as market } from './market.js'; // Windle Farm and Market Square
 import { install as folk } from './folk.js'; // the people of the town
 import { install as flutter } from './flutter.js'; // the gambling habit
+import { install as careers } from './careers.js'; // a story for every career
 
 // (The plain things to do up the hill go last, so that each place's own sections come first.)
-export const RULES = [soul, coast, motor, clubs, market, folk, flutter, hill];
+export const RULES = [soul, coast, motor, clubs, market, folk, flutter, careers, hill];
