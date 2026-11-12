@@ -8,5 +8,6 @@ import coast from './coast-ui.js'; // Gorse Head, Smugglers’ Cove and the Merr
 import motor from './motor-ui.js';
 import clubs from './clubs-ui.js';
 import market from './market-ui.js'; // Windle Farm and Market Square
+import folk from './folk-ui.js'; // the people of the town
 
-export const SCREENS = [soul, coast, motor, clubs, market];
+export const SCREENS = [soul, coast, motor, clubs, market, folk];
