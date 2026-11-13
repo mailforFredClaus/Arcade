@@ -1068,7 +1068,7 @@ function journalHtml() {
   for (let i = s.log.length - 1; i >= 0; i--) {
     const e = s.log[i];
     if (e.a !== age) { if (age !== null) out += '</div>'; age = e.a; out += `<div class="box"><h3>Age ${age}</h3>`; }
-    out += `<p class="entry ${e.k}"><i>${SEASON_ICON[e.q]}</i>${esc(e.t)}</p>`;
+    out += `<p class="entry${e.k ? ` e-${e.k}` : ''}"><i>${SEASON_ICON[e.q]}</i>${esc(e.t)}</p>`;
   }
   return `<div class="box"><button class="btn btn-soft wide" data-do="open" data-kind="gazette">📰 This season’s Gazette</button></div>${out}</div>`;
 }
