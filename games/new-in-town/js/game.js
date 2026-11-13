@@ -145,6 +145,8 @@ function renderPanel() {
 // ---- prison -----------------------------------------------------------------------------
 
 // Inside there is no map: the town tab is the cell, and everything there is to do.
+// (Actions from the newer parts of town join the section of the same name, wherever they were defined.)
+const bySection = (list) => { const secs = [...new Set(list.map((a) => a.sec))]; return secs.flatMap((k) => list.filter((a) => a.sec === k)); };
 function renderGaol() {
   const s = life.s, q = s.gaol, box = $('gaol'), keep = box.scrollTop;
   const bar = (ico, label, v, word, colour) => `<div class="skill"><i>${ico}</i><span>${label}</span><span class="bar"><span style="width:${v}%;background:${colour}"></span></span><b>${Math.round(v)}</b></div><p class="fine">${word}</p>`;
@@ -152,7 +154,8 @@ function renderGaol() {
     ${result && !sheets.length ? `<div class="box said${result.fresh ? ' flash' : ''}"><p>${esc(result.text)}</p><div class="chgs">${chips(result.changes)}</div></div>` : ''}
     <div class="box">${bar('📋', 'Record', q.good, `${life.goodWord()}. This is what the parole board reads.`, 'var(--teal)')}${bar('🥫', 'Standing', q.rep, `${life.repWord()}. This is what keeps you safe on the landing.`, 'var(--coral)')}
       ${q.total >= 3 && q.served * 2 < q.total ? `<p class="fine">The parole board sits once half your time is done: about ${Math.round(life.paroleOdds() * 100)}% they would let you go, as things stand.</p>` : ''}</div>
-    <div class="acts">${sections(life.placeActions('gaol'))}</div>`;
+    ${MODS.map((m) => (m.gaol ? m.gaol(life) || '' : '')).join('') /* (the newer parts of town may add a box of their own here: gaol2-ui.js) */}
+    <div class="acts">${sections(bySection(life.placeActions('gaol')))}</div>`;
   if (result) result.fresh = false;
   box.scrollTop = keep;
 }

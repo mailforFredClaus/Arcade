@@ -1,6 +1,10 @@
 // New in Town: Starling Gaol. A sentence is not skipped: you live it, a
 // season at a time, with less time in each and nowhere to spend it but
 // the yard, the library, the workshop and the landing.
+// (gaol2.js makes a long stretch a part of the story: a prison job, the
+// people on the landing, courses, letters and visits, a release plan for
+// the parole board, and a way over the wall that is a plan, not a button.
+// It takes over at the places marked "gaol2.js" below.)
 //
 // Two things matter inside. Your record with the governor (good) is what
 // a parole board looks at; your standing on the landing (rep) is what
@@ -30,6 +34,8 @@ export function install({ def, A, Life, clamp }) {
       s.gaol = { left: n, total: n, served: 0, good: 50, rep: Math.min(40, (s.worked.crew ?? -1) * 8 + 8), dig: 0, study: 0, sol: false, inSol: false, appeal: false, board: null, tat: false };
       // (heists.js remembers you between sentences: your standing, Mr Hobbs, your cellmate, Sal.)
       if (this.lagJail) this.lagJail(s.gaol, was);
+      // (gaol2.js: a job in the laundry to start with, and who is on the landing this time.)
+      if (this.g2Jail) this.g2Jail(s.gaol, was);
       s.time = Math.min(s.time, this.timeMax());
       this.note(`Sent to Starling Gaol for ${n} season${n > 1 ? 's' : ''}.`, 'big');
     },
@@ -40,10 +46,27 @@ export function install({ def, A, Life, clamp }) {
     extra(n) { const q = this.s.gaol; q.left += n; q.total += n; },
     goodWord() { const g = this.s.gaol.good; return g >= 80 ? 'A model prisoner' : g >= 60 ? 'Well behaved' : g >= 35 ? 'No trouble to speak of' : g >= 15 ? 'A troublemaker' : 'The governor knows your name'; },
     repWord() { const r = this.s.gaol.rep; return r >= 80 ? 'You run the landing' : r >= 55 ? 'Respected' : r >= 30 ? 'Left alone' : r >= 12 ? 'A new face' : 'Fair game'; },
-    // The certificate the education wing would put you in for next.
-    gaolCourse() { return CLASSES.find((id) => !this.hasEdu(id)) || null; },
-    paroleOdds() { const s = this.s, q = s.gaol; return clamp(q.good / 110 + s.st.charm / 500 - Math.min(4, Math.max(0, s.record - 1)) * 0.04 - (s.f.escaped ? 0.15 : 0) + this.luck(), 0.03, 0.92); },
-    breakOdds() { const s = this.s, q = s.gaol; return clamp(0.16 + s.st.fitness / 300 + s.st.smarts / 400 + q.rep / 500 + (s.heir === 'lag' ? 0.12 : 0) + this.luck(), 0.08, 0.85); },
+    // The certificate the education wing would put you in for next (gaol2.js: or the one you chose).
+    gaolCourse() { return (this.g2Course && this.g2Course()) || CLASSES.find((id) => !this.hasEdu(id)) || null; },
+    // How many sittings it takes (gaol2.js: a course by post can take more).
+    gaolSittings() { return this.g2Sittings ? this.g2Sittings(this.gaolCourse()) : STUDY; },
+    // n sittings' worth of study; and when it is enough, the certificate. Returns what to say then, or null.
+    gaolLearn(n = 1) {
+      const s = this.s, q = s.gaol, id = this.gaolCourse();
+      if (!id) return null;
+      q.study += n;
+      if (q.study < this.gaolSittings()) return null;
+      q.study = 0;
+      s.edu[id] = { a: s.age, g: this.g2Grade ? this.g2Grade() : 0 };
+      this.note(`Earned ${COURSES[id].name} in Starling Gaol.`, 'big');
+      this.say(COURSES[id].icon, `Qualified: ${COURSES[id].name}`, 'good');
+      if (this.g2Learnt) this.g2Learnt(id);
+      return 'You pass. The governor shakes your hand, and the certificate does not say where you sat the exam.';
+    },
+    // (gaol2.js: the board reads your plan for outside, and the record of your seasons inside.)
+    paroleOdds() { const s = this.s, q = s.gaol; return clamp(q.good / 110 + s.st.charm / 500 - Math.min(4, Math.max(0, s.record - 1)) * 0.04 - (s.f.escaped ? 0.15 : 0) + (this.g2BoardPlus ? this.g2BoardPlus() : 0) + this.luck(), 0.03, 0.92); },
+    // (gaol2.js: tools, the guards' habits, somebody to go with, and the night itself.)
+    breakOdds() { const s = this.s, q = s.gaol; return clamp(0.16 + s.st.fitness / 300 + s.st.smarts / 400 + q.rep / 500 + (s.heir === 'lag' ? 0.12 : 0) + (this.g2WallPlus ? this.g2WallPlus() : 0) + this.luck(), 0.08, 0.9); },
 
     // The turn of a season, inside.
     gaolSeason() {
@@ -65,12 +88,15 @@ export function install({ def, A, Life, clamp }) {
       const s = this.s, q = s.gaol;
       s.gaol = null;
       if (early) { s.f.licence = s.t + 8; s.f.parole = 1; }
-      if (!s.owned && s.home !== 'hostel') this.downAndOut();
+      // (gaol2.js: unless somebody has kept the place on for you.)
+      if (!s.owned && s.home !== 'hostel' && !(this.g2Housed && this.g2Housed())) this.downAndOut();
       s.cash += 46;
       s.time = this.timeMax();
       this.note(`Walked out of Starling Gaol after ${q.served} season${q.served === 1 ? '' : 's'}${early ? ', on parole' : ''}.`, 'big');
       // (heists.js decides who is waiting at the gate, and has a card of its own for it.)
       this.queue((this.lagFree && this.lagFree(q, early ? 'parole' : 'served')) || 'gateOut', { early });
+      // (gaol2.js: what you arranged for outside, after the gate.)
+      if (this.g2Free) this.g2Free(q, early ? 'parole' : 'served');
     },
     // Over the wall: free, hunted, and with the rest of the sentence still owing.
     breakOut() {
@@ -82,13 +108,16 @@ export function install({ def, A, Life, clamp }) {
       if (!s.owned && s.home !== 'hostel') this.downAndOut();
       s.time = Math.min(s.time, 2);
       this.note('Broke out of Starling Gaol.', 'big');
+      // (gaol2.js: whoever came over the wall with you, and the first night out.)
+      if (this.g2Free) this.g2Free(q, 'wall');
     },
     // A season on the run: they find you, or in the end they stop looking.
     lamSeason() {
       const s = this.s;
       if (!s.run) return;
       if (s.heat < 12) { s.run = null; s.f.lam = 1; this.note('The police have stopped looking for you.', 'big'); this.say('🌫️', 'The trail has gone cold', 'good'); return; }
-      if (this.chance(s.heat / 320)) this.queue('recapture');
+      // (gaol2.js: where you are lying low makes a difference.)
+      if (this.chance(s.heat / 320 * (this.g2LamRisk ? this.g2LamRisk() : 1))) this.queue('recapture');
     },
   });
 
@@ -99,9 +128,12 @@ export function install({ def, A, Life, clamp }) {
   };
 
   // -- the day
+  // (gaol2.js makes this a shift at your prison job, whichever it is: the laundry is where everybody starts.)
   def('gWork', inside({
-    sec: 'The day', icon: '🧺', title: 'Work in the laundry', desc: 'Forty dollars and all the steam you can breathe. The governor notices.',
-    run(L) { L.cash(40); L.behave(3); L.gain('craft', 0.8); return L.pick(['Four hundred sheets. You fold the last one into a swan.', 'The mangle has a name. The name is Doris.', 'Somebody’s socks come back pink. Nobody saw anything.', 'The governor’s shirts, twelve of them, starched until they could stand up on their own and leave.', 'Doris the mangle breaks down, and you mend her with a hairgrip. You are a hero until teatime.', 'Pillowcases all morning. You find a betting slip, a love letter and half a biscuit, and keep quiet about all three.']); },
+    sec: 'Work', icon: (L) => (L.g2JobIcon ? L.g2JobIcon() : '🧺'), title: (L) => (L.g2JobAct ? L.g2JobAct() : 'Work in the laundry'),
+    desc: (L) => (L.g2JobDesc ? L.g2JobDesc() : 'Forty dollars and all the steam you can breathe. The governor notices.'),
+    why: (L) => (L.g2ShiftWhy ? L.g2ShiftWhy() : null),
+    run(L) { if (L.g2Shift) return L.g2Shift(); L.cash(40); L.behave(3); L.gain('craft', 0.8); return L.pick(['Four hundred sheets. You fold the last one into a swan.', 'The mangle has a name. The name is Doris.', 'Somebody’s socks come back pink. Nobody saw anything.', 'The governor’s shirts, twelve of them, starched until they could stand up on their own and leave.', 'Doris the mangle breaks down, and you mend her with a hairgrip. You are a hero until teatime.', 'Pillowcases all morning. You find a betting slip, a love letter and half a biscuit, and keep quiet about all three.']); },
   }));
   def('gYard', inside({
     sec: 'The day', icon: '🏋️', title: 'Hit the yard', desc: 'Fitness. There is very little else to lift in here but weights.',
@@ -113,18 +145,12 @@ export function install({ def, A, Life, clamp }) {
   }));
   def('gStudy', inside({
     sec: 'The day', icon: '🎓',
-    title: (L) => `Study for the ${COURSES[L.gaolCourse()].name} (${L.s.gaol.study}/${STUDY})`,
-    desc: 'The education wing. Free, and you walk out with a real qualification.',
+    title: (L) => `Study for the ${COURSES[L.gaolCourse()].name} (${Math.floor(L.s.gaol.study)}/${L.gaolSittings()})`,
+    desc: (L) => (L.g2CourseDesc ? L.g2CourseDesc() : 'The education wing. Free, and you walk out with a real qualification.'),
     show: (L) => !!L.gaolCourse(),
     run(L) {
-      const s = L.s, q = s.gaol, id = L.gaolCourse();
       L.gain('smarts', 1.5); L.behave(2);
-      if (++q.study < STUDY) return L.pick(['The tutor is patient. The man next to you is asleep.', 'You are, it turns out, quite good at this.', 'Homework, in a cell. At least it is quiet.']);
-      q.study = 0;
-      s.edu[id] = { a: s.age, g: 0 };
-      L.note(`Earned ${COURSES[id].name} in Starling Gaol.`, 'big');
-      L.say(COURSES[id].icon, `Qualified: ${COURSES[id].name}`, 'good');
-      return 'You pass. The governor shakes your hand, and the certificate does not say where you sat the exam.';
+      return L.gaolLearn(1) || L.pick(['The tutor is patient. The man next to you is asleep.', 'You are, it turns out, quite good at this.', 'Homework, in a cell. At least it is quiet.', 'A test paper, marked in green: "Better. Show your working."', 'The tutor brings biscuits on Fridays. Attendance on Fridays is very good.']);
     },
   }));
   def('gLetters', inside({
@@ -243,8 +269,10 @@ export function install({ def, A, Life, clamp }) {
     run(L) {
       const q = L.s.gaol;
       L.gain('smarts', 0.5); L.gain('fitness', 0.5);
-      if (L.chance(0.15)) { q.dig = 0; q.sol = true; L.extra(2); L.behave(-25); return 'A guard leans on the wrong bit of wall and goes through it up to the elbow. Two more seasons, and the block.'; }
+      // (gaol2.js: how likely they are to find it depends on how careful you are, and how much they suspect.)
+      if (L.chance(L.g2DigRisk ? L.g2DigRisk() : 0.15)) { q.dig = 0; q.sol = true; L.extra(2); L.behave(-25); if (L.g2Foiled) L.g2Foiled('dig'); return 'A guard leans on the wrong bit of wall and goes through it up to the elbow. Two more seasons, and the block.'; }
       q.dig++;
+      if (L.g2Dug) L.g2Dug();
       return q.dig >= DIG ? 'It is ready. A grating, a laundry chute, a wall, and forty yards of open ground.' : L.pick(['A mugful of mortar, flushed away a pinch at a time.', 'You know the guards’ rounds better than they do.', 'You make a rope out of sheets, and a dummy out of the rest of the sheets.']);
     },
   }));
@@ -254,9 +282,13 @@ export function install({ def, A, Life, clamp }) {
     show: (L) => L.s.gaol.dig >= DIG,
     run(L) {
       const q = L.s.gaol;
-      if (L.chance(L.breakOdds())) { L.breakOut(); return 'The grating, the chute, the wall. A laundry van is leaving as you land, and you leave with it. Every constable in the bay will have your photograph by morning.'; }
+      // (gaol2.js tells the night from your plan: who came, what you carried, what you knew.)
+      const tale = (won) => (L.g2WallTale ? L.g2WallTale(won) : null);
+      if (L.chance(L.breakOdds())) { const t = tale(true); L.breakOut(); return t || 'The grating, the chute, the wall. A laundry van is leaving as you land, and you leave with it. Every constable in the bay will have your photograph by morning.'; }
+      const t = tale(false);
       q.dig = 0; q.sol = true; q.good = 0; L.s.use.trouble = 1; L.extra(4); L.rough(8, 'a fall from the wall');
-      return 'The sheet rope is four feet too short, and the searchlight is right on time. Four more seasons, and the block.';
+      if (L.g2Foiled) L.g2Foiled('wall');
+      return t || 'The sheet rope is four feet too short, and the searchlight is right on time. Four more seasons, and the block.';
     },
   }));
   def('gComfort', inside({
