@@ -359,9 +359,9 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
       const job = C.job ? ` ${JOBS[C.job.k].boss} has you down as “${this.g2JobTitle()}”, in ${JOBS[C.job.k].name.toLowerCase()}.` : ' No work: behind your door most of the day.';
       const learnt = C.learnt.length ? ` ${C.learnt.map((id) => `A ${COURSES[id].name}`).join(', ')}, passed inside.` : '';
       const ch = C.change >= 50 ? ' A letter from Mrs Abernethy about the work you have done in her group.' : '';
-      const P = C.plan, home = this.g2HomeOk() ? ` Somewhere to go: ${s.owned && !(P.home) ? 'your own home' : P.home.txt}.` : ' Where will you live? You have no answer, and the woman with the pen writes that down.';
-      const work = P.work ? ` Work waiting, at ${P.work.at}${P.work.who ? `, through ${P.work.who}` : ''}.` : ' Work? Nothing lined up.';
-      const vouch = P.vouch ? ` And somebody to speak for you: ${P.vouch.name}.` : '';
+      const P = C.plan, home = this.g2HomeOk() ? ` Somewhere to go: ${s.owned && !(P.home) ? 'your own home' : P.home.txt}.` : ' Where will you live? You have no answer, and somebody writes that down.';
+      const work = P.work ? ` Work waiting at ${P.work.at}.` : ' No work lined up.';
+      const vouch = P.vouch ? ` And ${P.vouch.name} to speak for you.` : '';
       return `${open} ${file}${job}${learnt}${ch}${home}${work}${vouch} ${left}`;
     },
     // When the board sits next, in seasons from now (null if it will not, this sentence).
