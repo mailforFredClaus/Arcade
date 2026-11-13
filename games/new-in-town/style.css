@@ -190,6 +190,9 @@ button { font: inherit; color: inherit; -webkit-appearance: none; appearance: no
 .map-go b { font-weight: 900; }
 .map-go:active { transform: translateY(2px); }
 .map-again { left: auto; right: 2.5%; }
+button.pips { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; }
+.how .line { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid rgba(31, 42, 68, .08); }
+.how .line.total { font-weight: 900; border-bottom: 0; }
 /* A long list of people, folded after the first few. */
 details.more > summary { list-style: none; cursor: pointer; margin: 4px 0 10px; padding: 10px 14px; border-radius: 14px; text-align: center; font: 800 14px var(--font); color: var(--ink); background: rgba(255, 250, 240, .8); }
 details.more > summary::-webkit-details-marker { display: none; }
@@ -407,7 +410,7 @@ summary { font-size: 12.5px; font-weight: 900; color: var(--teal-d); cursor: poi
 .news-item { display: flex; align-items: center; gap: 8px; max-width: 440px; padding: 9px 14px; border-radius: 16px; background: var(--ink); color: #fff; font-size: 14px; font-weight: 800; box-shadow: 0 8px 22px rgba(31, 42, 68, .35); animation: drop .3s cubic-bezier(.2, 1.4, .4, 1); transition: opacity .4s, transform .4s; }
 .news-item i { font-style: normal; font-size: 20px; }
 /* (With a card up, notices go to the foot of the screen, clear of the card.) */
-body:has(#overlay:not([hidden])) .news { top: auto; bottom: calc(var(--safe-bottom) + 16px); }
+body:has(#overlay:not([hidden])) .news, body:has(#sheetBack:not([hidden])) .news { top: auto; bottom: calc(var(--safe-bottom) + 16px); }
 .news-item.k-trophy, .news-item.k-dream { background: linear-gradient(180deg, #ffd65a, #ffb72e); color: #4d3500; }
 .news-item.k-promo, .news-item.k-quest, .news-item.k-good { background: linear-gradient(180deg, #2fb877, #1f9d62); }
 .news-item.k-bad { background: var(--bad); }

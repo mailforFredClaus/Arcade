@@ -1002,6 +1002,21 @@ export class Life {
   perk(c) { return this.s.people.some((p) => p.job === c && p.bond >= 60 && (p.kind === 'friend' || p.kind === 'partner' || p.kind === 'spouse' || p.kind === 'sibling' || ((p.kind === 'child' || p.kind === 'grandchild') && p.age >= 18))); }
 
   timeMax() { return this.timeMaxWithout(null); }
+  // Where a season's blocks of time come from and go: [[what, blocks], ...], adding up to timeMax().
+  // (What the newer parts of town add or take is shown as one line: their hooks give only a number.)
+  timeWhy() {
+    const s = this.s, out = [];
+    if (s.gaol) return [['A season inside', this.gaolTime()]];
+    out.push(['A season', FIRST_TIME]);
+    if (s.items.car || s.items.sportscar) out.push(['Your car', 2]); else if (s.items.bike) out.push([s.wx === 'snow' ? 'Your bicycle (no use in the snow)' : 'Your bicycle', s.wx === 'snow' ? 0 : 1]);
+    if (this.kids().some((k) => k.age < 6)) out.push(['A little one at home', -1]);
+    if (s.age >= 85) out.push(['Your age', -2]); else if (s.age >= 75) out.push(['Your age', -1]);
+    if (s.job && CAREERS[s.job.c].summer && this.season === 1) out.push(['A long summer in your line of work', 1]);
+    if (s.ill && s.ill.sev >= 2) out.push([`Your ${s.ill.name}`, -1]);
+    const rest = this.timeMax() - out.reduce((a, [, n]) => a + n, 0);
+    if (rest) out.push([rest > 0 ? 'Other things in your life' : 'What else your life asks of you (caring, meetings, a low spell…)', rest]);
+    return out.filter(([, n]) => n);
+  }
   timeMaxWithout(skip) {
     const s = this.s, has = (id) => s.items[id] && id !== skip;
     if (s.gaol) return this.gaolTime();
