@@ -948,6 +948,8 @@ export const EVENTS = [
     // (s.n.boards: how many times you have been up before them. The board remembers, and so does the card.)
     id: 'parole', icon: '🪪', title: (L) => ((L.s.n.boards || 0) ? 'Before the board again' : 'The board will see you now'), ok: (L) => !!L.s.gaol,
     text: (L) => {
+      // (gaol2.js has the board read the whole stretch, and the plan for outside, in words of its own.)
+      if (L.g2BoardText) return L.g2BoardText();
       const n = L.s.n.boards || 0, left = `${L.s.gaol.left} season${L.s.gaol.left > 1 ? 's' : ''} left to serve.`;
       if (!n) return `Three people behind a long table, with your file open between them. On it: "${L.goodWord()}." ${left}`;
       if (n < 3) return `The same long table, and two of the same three faces. The chairman finds your name in his notes from last time, and reads them again. The file says "${L.goodWord()}." ${left}`;
