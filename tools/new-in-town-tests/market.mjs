@@ -90,9 +90,10 @@ export default function ({ check, fresh, Life }) {
     const L = farmer({ home: 'hostel', farm: 0 }), s = L.s;
     check(L.can('beastBuy', 'hens').includes('Farming'), 'Tom sells to nobody who has not learned');
     s.mkt.farm = 100;
-    check(!!L.can('beastBuy', 'hens') && !!L.can('beastBuy', 'bees'), 'no animals at all in a hostel bunk');
+    // (Since playtest 4, a few hens can go in the corner of Tom's yard for somebody with no garden.)
+    check(!L.can('beastBuy', 'hens') && L.mktWhere('hens') === 'farm' && !!L.can('beastBuy', 'bees'), 'nothing in a hostel bunk: hens go in the corner of Tom’s yard, and bees nowhere');
     s.home = 'flat';
-    check(!!L.can('beastBuy', 'hens') && !L.can('beastBuy', 'bees'), 'a flat has room for a hive on the roof, not for hens');
+    check(L.mktWhere('hens') === 'farm' && !L.can('beastBuy', 'bees') && L.mktWhere('bees') === 'home', 'a flat has room for a hive on the roof, not for hens');
     L.act('beastBuy', 'bees');
     check(L.s.mkt.herd.bees.n === 1 && !!L.can('beastBuy', 'bees'), 'one hive, and no room for another');
     const C = farmer(), c = C.s;
@@ -127,7 +128,12 @@ export default function ({ check, fresh, Life }) {
     c.mkt.herd.hens = { n: 6, care: 80, where: 'home', age: 0, fat: 0, since: c.t };
     c.cash = 100000;
     C.act('rentHome', 'bedsit');
-    check(c.home === 'bedsit' && !c.mkt.herd.hens && c.log.some((e) => e.t.includes('No room for them')), 'move somewhere with no garden and the hens go back to Tom');
+    check(c.home === 'bedsit' && c.mkt.herd.hens && c.mkt.herd.hens.where === 'farm' && c.mkt.herd.hens.n === 6 && c.log.some((e) => e.t.includes('went up to Tom’s yard')), 'move somewhere with no garden and the hens go up to Tom’s yard');
+    check(C.bills().some(([w, n]) => w.includes('Grazing') && n === 60), 'for a little towards their corn');
+    c.mkt.herd.hens = { n: 8, care: 80, where: 'home', age: 0, fat: 0, since: c.t };
+    c.home = 'townhouse'; c.time = 6;
+    C.act('rentHome', 'bedsit');
+    check(c.mkt.herd.hens.n === 6 && c.mkt.herd.hens.where === 'farm' && c.log.some((e) => e.t.includes('6 of your hens went up') && e.t.includes('went back to Tom')), 'and what Tom has no room for, he buys back');
   }
   // ---- goats and pigs, and Tom's paddock ----
   {

@@ -366,6 +366,7 @@ export function install({ def, A, Life, clamp }) {
       if (young > room) return 'No room for the children there.';
       if (s.due && young + 1 > room) return 'No room there for the little one on the way.';
       if (kind === 'hostel' && this.partner()?.live) return 'Your other half will not live in a hostel.';
+      if (h.lodger && this.partner()?.live) return 'Mrs Pargeter lets the room to one, and says so.';
       if (kind === 'hostel' && s.pet) return 'No pets in the hostel.';
       return null;
     },

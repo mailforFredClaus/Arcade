@@ -4,7 +4,7 @@
 // animals, one for the Windle Show; a box on the Me tab; and badges on the
 // map when there are eggs to collect, a Saturday to trade or a show to enter.
 
-import { GOODS, GOOD_IDS, LEVELS, BEASTS, ROOM, PADDOCK, PADDOCK_SKILL, PADDOCK_FEE, CLASSES, PLACINGS, STALL_NAMES, PITCH_COST, SHOW_FEE, WORK, careWord, plain } from './market.js';
+import { GOODS, GOOD_IDS, LEVELS, BEASTS, ROOM, PADDOCK, PADDOCK_SKILL, PADDOCK_FEE, grazeFee, CLASSES, PLACINGS, STALL_NAMES, PITCH_COST, SHOW_FEE, WORK, careWord, plain } from './market.js';
 import { setStallGoods, setLoad } from './market-games.js';
 import { HOMES, WEATHER, SEASONS, low } from './data.js';
 
@@ -17,7 +17,7 @@ export default function (kit) {
   // What a home has room for, said out loud.
   const roomSaid = (L) => {
     const r = ROOM[L.s.home];
-    if (!r) return `${L.s.home === 'hostel' ? 'A hostel bunk' : 'A bedsit over the chip shop'} has no room for animals.`;
+    if (!r) return `${L.s.home === 'hostel' ? 'A hostel bunk' : L.s.home === 'bedsit' ? 'A bedsit over the chip shop' : `Your ${low(HOMES[L.s.home].name)}`} has no room for animals.`;
     const l = Object.entries(r).map(([k, n]) => many(BEASTS[k], n));
     return `Your ${low(HOMES[L.s.home].name)} has room for ${l.length > 1 ? `${l.slice(0, -1).join(', ')} and ${l[l.length - 1]}` : l[0]}.`;
   };
@@ -64,18 +64,18 @@ export default function (kit) {
     mktBeasts() {
       const L = kit.life, s = L.s, m = s.mkt;
       const kinds = L.mktKinds();
-      let body = `<p class="lead">${kinds.length ? 'See to them at least once a season, or they suffer.' : 'Tom Windle sells animals to people who know what they are doing: work on the farm to learn. They want feeding (a bill every season) and seeing to at least once a season, or they suffer.'} ${esc(roomSaid(L))}${m.farm >= PADDOCK_SKILL ? ` Tom will keep a goat or a pig in his top paddock for ${money(PADDOCK_FEE)} a season.` : ''}</p>
+      let body = `<p class="lead">${kinds.length ? 'See to them at least once a season, or they suffer.' : 'Tom Windle sells animals to people who know what they are doing: work on the farm to learn. They want feeding (a bill every season) and seeing to at least once a season, or they suffer.'} ${esc(roomSaid(L))}${m.farm >= BEASTS.hens.skill && !(ROOM[s.home] || {}).hens ? ` Tom will keep a few hens in the corner of his yard for ${money(grazeFee('hens'))} a season each, towards their corn.` : ''}${m.farm >= PADDOCK_SKILL ? ` He will keep a goat or a pig in his top paddock for ${money(PADDOCK_FEE)} a season.` : ''}</p>
         ${bar('🌾', 'Farming', m.farm)}`;
       if (kinds.length) body += actRow(L.look('beastCare')) + (L.mktHasReady() ? actRow(L.look('beastCollect')) : '');
       for (const [kind, b] of Object.entries(BEASTS)) {
         const h = m.herd[kind], n = L.mktBuyN(kind), why = L.can('beastBuy', kind), where = L.mktWhere(kind);
         body += `<div class="item${h ? ' mine' : ''}"><div class="item-top"><span class="act-ico">${b.icon}</span><div><b>${b.name}</b><small>${h ? `${many(b, h.n)}, ${h.where === 'farm' ? 'in Tom’s top paddock' : 'at home'} · ${careWord(h.care)}` : esc(b.blurb)}</small></div><div class="quote"><b>${money(b.price)}</b><small>each</small></div></div>
           ${h ? bar('🪣', 'Kept', h.care) : ''}
-          <div class="facts"><span class="${m.farm >= b.skill ? 'up' : ''}">${m.farm >= b.skill ? '✓' : '○'} Farming ${b.skill}</span><span>Feed ${money(b.feed)} a season each</span>${h ? `<span>Tom would give ${money(L.mktBack(kind) * h.n)}</span>` : ''}${where === 'farm' && !h ? `<span>In Tom’s paddock, ${money(PADDOCK_FEE)} a season</span>` : ''}</div>
+          <div class="facts"><span class="${m.farm >= b.skill ? 'up' : ''}">${m.farm >= b.skill ? '✓' : '○'} Farming ${b.skill}</span><span>Feed ${money(b.feed)} a season each</span>${h ? `<span>Tom would give ${money(L.mktBack(kind) * h.n)}</span>` : ''}${where === 'farm' && !h ? `<span>${kind === 'hens' ? 'In Tom’s yard' : 'In Tom’s paddock'}, ${money(grazeFee(kind))} a season each</span>` : ''}</div>
           <p class="fine">${esc(gives(b))}</p>
           <div class="picks">${pick(`Buy ${(n || b.buy) > 1 ? n || b.buy : 'one'} · ${money(b.price * (n || b.buy))} ${chip('time', '⏱ 1')}`, 'beastBuy', kind, why)}${h ? pick('Sell to Tom', 'beastSell', kind, null, 'quiet') : ''}${h && h.where === 'farm' && L.mktRoom(kind) >= h.n ? pick(`Bring ${h.n > 1 ? 'them' : 'it'} home`, 'beastFetch', kind, L.can('beastFetch', kind), 'quiet') : ''}${why && !h ? `<span class="note">${esc(why)}</span>` : ''}</div></div>`;
       }
-      body += `<p class="fine">What they give is ready at the turn of each season, to collect at home before the next or it spoils. Moving somewhere without room for them means they go back to Tom${PADDOCK.goat ? ', unless he has room in his paddock for a goat or a pig' : ''}.</p>`;
+      body += `<p class="fine">What they give is ready at the turn of each season, to collect at home before the next or it spoils. Moving somewhere without room for them means they go back to Tom${PADDOCK.goat ? ', unless he has room for them in his yard or his paddock' : ''}.</p>`;
       return { icon: '🐓', title: kinds.length ? 'Your animals' : 'Animals from Tom', sub: `Farming ${Math.floor(m.farm)} · feed ${money(L.mktFeed())} a season`, body };
     },
 

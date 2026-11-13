@@ -289,6 +289,8 @@ export const STUDENT_RATE = 0.01; // a season, on a student loan
 // let it out, as a share of what it's worth.
 export const HOMES = {
   hostel: { name: 'Bunk at the Seagull Hostel', icon: '🛏️', rent: 500, price: null, comfort: 0, kids: 0, tier: 0, blurb: 'Eleven roommates. One of them snores in Morse code.' },
+  // (A cheap room with a kitchen: the use of Mrs Pargeter's, and a corner of her garden for a few hens.)
+  room: { name: 'Room at Mrs Pargeter’s', icon: '🪴', rent: 700, price: null, comfort: 3, kids: 0, tier: 1, lodger: true, blurb: 'A back bedroom, the use of her kitchen, and a corner of the garden for a few hens. In by eleven, and no singing.' },
   bedsit: { name: 'Bedsit over the chip shop', icon: '🍟', rent: 1200, price: null, comfort: 5, kids: 0, tier: 1, blurb: 'Yours alone. Everything you own smells of vinegar.' },
   flat: { name: 'Harbour-view flat', icon: '🏢', rent: 2400, price: 140000, earn: 0.016, comfort: 9, kids: 1, tier: 2, blurb: 'One bedroom and, if you lean out, the sea.' },
   cottage: { name: "Fisherman's cottage", icon: '🏡', rent: 3600, price: 260000, earn: 0.014, comfort: 13, kids: 2, tier: 3, blurb: 'Low beams, a wood stove and a little garden.' },
