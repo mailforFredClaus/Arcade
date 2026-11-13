@@ -231,12 +231,14 @@ export const CAREERS = {
     name: 'Sal\u2019s crew', icon: '🦊', place: 'harbour', stats: ['fitness', 'charm'], stress: 2, shady: true,
     blurb: 'Nobody hands in their notice.',
     rungs: [
-      rung('Lookout', 2200, { crimes: 3 }),
-      rung('Runner', 3400, { fitness: 30, crimes: 8 }),
-      rung('Enforcer', 5600, { fitness: 50, crimes: 15, bad: 10 }),
-      rung('Fixer', 9500, { charm: 50, smarts: 45, crimes: 25, bad: 20 }),
-      rung('Underboss', 17000, { charm: 65, smarts: 60, bad: 35 }),
-      rung('Boss of the Bay', 32000, { charm: 78, smarts: 70, bad: 50 }),
+      // (Better than an honest start, and no papers asked; no better than an honest top, and it all
+      // depends on Sal: see proceeds.js.)
+      rung('Lookout', 1800, { crimes: 3 }),
+      rung('Runner', 2700, { fitness: 30, crimes: 8 }),
+      rung('Enforcer', 4200, { fitness: 50, crimes: 15, bad: 10 }),
+      rung('Fixer', 6800, { charm: 50, smarts: 45, crimes: 25, bad: 20 }),
+      rung('Underboss', 11500, { charm: 65, smarts: 60, bad: 35 }),
+      rung('Boss of the Bay', 21000, { charm: 78, smarts: 70, bad: 50 }),
     ],
   },
   politics: {
