@@ -766,7 +766,7 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
       if (p && p.at != null && s.t - p.at < GAP) continue;
       const card = EV[arc[st]];
       if (card.due && !card.due(L, p || { v: 0, st: 0, f: {} })) continue;
-      add(3, arc[st], { k: id });
+      add(5, arc[st], { k: id });
     }
     const j = C.job, seen = (id) => !!C.seen[id];
     if (j && j.r >= 1 && !C.plan.work && !C.f.offer && L.g2JobOk(JOBS[j.k].out.c)) add(4, 'g2Offer');
@@ -789,7 +789,13 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
     let r = L.rnd() * pool.reduce((a, [w]) => a + w, 0), pick = pool[0];
     for (const it of pool) { pick = it; r -= it[0]; if (r < 0) break; }
     const [, id, x] = pick;
-    if (x && x.k) { const p = meetFolk(L, x.k); p.at = s.t; if (EV[id].dealt) EV[id].dealt(L, p); }
+    if (x && x.k) {
+      const p = meetFolk(L, x.k);
+      // (Somebody known from a sentence before: the first card this time says so.)
+      if (p.met < C.t && !C.f[`saw_${x.k}`]) { C.f[`saw_${x.k}`] = 1; x.again = 1; }
+      p.at = s.t;
+      if (EV[id].dealt) EV[id].dealt(L, p);
+    }
     if (id === 'g2Xmas') C.xmasAt = year(L);
     if (id === 'g2Long') C.long = longAt;
     if (id === 'g2Offer') C.f.offer = 1;
@@ -809,7 +815,7 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
     if (R.hid === 'room') { if (s.cash + s.bank >= 300) L.cash(-300); else R.hid = null; }
     if (s.pend.length) return;
     if (R.n === 2 && !R.said.paper) { R.said.paper = 1; L.queue('g2Lam1'); return; }
-    if (R.n >= 3 && R.mate && !R.said.mate) { R.said.mate = 1; L.queue('g2Lam2'); return; }
+    if (R.n >= 3 && R.mate && !R.said.mate) { R.said.mate = 1; R.mateEnd = L.chance(0.45) ? 'caught' : L.chance(0.6) ? 'spain' : 'back'; L.queue('g2Lam2'); return; }
     if (R.n >= 4 && !R.said.home && (L.partner() || L.kids().length)) { R.said.home = 1; L.queue('g2Lam3'); }
   }
 

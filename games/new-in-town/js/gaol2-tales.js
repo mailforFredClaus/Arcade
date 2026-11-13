@@ -27,11 +27,9 @@ export function gaolTales(h) {
   const folkWarm = (L, id, d) => { if (L.s.folk && L.folkWarm && L.s.folk.p[id]) L.folkWarm(id, d); };
   // (Telling Mr Hobbs things makes enemies who wait for you: Big Col, in heists.js.)
   const grassed = (L) => { const H = L.s.heists; if (H && L.chance(0.5)) H.lag.foes.col = L.s.t + L.int(16, 40); };
-  // Somebody from the landing seen again, a sentence later: a word for it, the first time.
-  const again = (L, id) => {
-    const p = fk(L, id), C = cur(L);
-    if (!p || !C || p.met >= C.t || C.f[`saw_${id}`]) return '';
-    C.f[`saw_${id}`] = 1;
+  // Somebody from the landing seen again, a sentence later: a word for it, the first time (gaol2.js marks the card x.again when it deals it).
+  const again = (x, id) => {
+    if (!x || !x.again) return '';
     return { lenny: 'Lenny the Tin is still on B wing, greyer, and still in the cardigan. ', ossie: 'Ossie is still in the end cell, as if he had never moved, which he has not. ', winston: 'Winston Jory is still here, with more papers. ', jamie: 'Jamie Nance is back, older and harder, with a tattoo he did not have. ', stevie: 'Stevie Rowe is back on B wing, louder than ever. ' }[id] || '';
   };
   const end = (L, id) => { const C = cur(L); if (C) C.here = C.here.filter((k) => k !== id); };
@@ -64,7 +62,7 @@ export function gaolTales(h) {
     // ==== the landing: Lenny the Tin ====
     {
       id: 'g2Len0', icon: '🥫', title: 'The Tin', gaol: true, ok: onLanding,
-      text: (L) => `${again(L, 'lenny')}A man in a cardigan, with a tobacco tin and a little notebook, sits down next to you at dinner: Lenny Truscott, who runs B wing’s tobacco, its canteen sheet and most of its card schools. “An ounce to get you started,” he says. “Two back by Friday. Everybody does it.”`,
+      text: (L, x) => `${again(x, 'lenny')}A man in a cardigan, with a tobacco tin and a little notebook, sits down next to you at dinner: Lenny Truscott, who runs B wing’s tobacco, its canteen sheet and most of its card schools. “An ounce to get you started,” he says. “Two back by Friday. Everybody does it.”`,
       opts: [
         { t: 'Take the ounce', run(L) { const p = warm(L, 'lenny', 6); p.f.tick = 1; p.st = 1; L.respect(3); L.joy(2); return 'You pay back two ounces on Friday, as everybody does. Lenny ticks you off in the notebook, and smiles. “Now we know each other,” he says.'; } },
         { t: 'No thank you, Lenny', run(L) { const p = warm(L, 'lenny', 2); p.st = 1; return 'He writes something in the little notebook. “Polite,” he says. “I like polite. It is rarer in here than tobacco.”'; } },
@@ -74,7 +72,7 @@ export function gaolTales(h) {
     {
       id: 'g2Len1', icon: '🛏️', title: 'Under the mattress', gaol: true, ok: onLanding,
       due: (L, p) => p.v > -25 && (p.f.tick || q(L).rep >= 15),
-      text: (L) => `${again(L, 'lenny')}“There is a spin coming Thursday,” says Lenny, very quietly, over the tea urn. “I need a mattress for a parcel, one night. Eighty dollars, and I do not forget a favour.”${fk(L, 'lenny').f.tick ? ' He taps the notebook. “Not that you owe me one. But you do.”' : ''}`,
+      text: (L, x) => `${again(x, 'lenny')}“There is a spin coming Thursday,” says Lenny, very quietly, over the tea urn. “I need a mattress for a parcel, one night. Eighty dollars, and I do not forget a favour.”${fk(L, 'lenny').f.tick ? ' He taps the notebook. “Not that you owe me one. But you do.”' : ''}`,
       opts: [
         { t: 'Keep it under yours', odds: (L) => clampN(0.7 + cur(L).esc.habits * 0.05 + q(L).rep / 400, 0.5, 0.92), run(L, x, win) {
           const p = fk(L, 'lenny'); p.st = 2;
@@ -89,7 +87,7 @@ export function gaolTales(h) {
     {
       id: 'g2Len2', icon: '📒', title: 'What is owed', gaol: true, ok: onLanding,
       due: (L, p) => p.v > -25,
-      text: (L) => `${again(L, 'lenny')}${here(L, 'jamie') && fk(L, 'jamie') ? '“Jamie Nance owes me eight ounces,” says Lenny, “and has done since Easter.' : '“A lad on the threes owes me eight ounces,” says Lenny, “and has done since Easter.'} I would take it kindly if you collected. You can keep two.”`,
+      text: (L, x) => `${again(x, 'lenny')}${here(L, 'jamie') && fk(L, 'jamie') ? '“Jamie Nance owes me eight ounces,” says Lenny, “and has done since Easter.' : '“A lad on the threes owes me eight ounces,” says Lenny, “and has done since Easter.'} I would take it kindly if you collected. You can keep two.”`,
       opts: [
         { t: 'Lean on him', run(L) { const p = warm(L, 'lenny', 10); p.st = 3; L.karma(-4); L.respect(5); L.cash(100); if (here(L, 'jamie') && fk(L, 'jamie')) { const j = warm(L, 'jamie', -30); j.f.leant = 1; return 'Jamie pays, in the end, in tobacco and a photograph of Kayleigh he has to ask for back. He does not look at you again for a long time.'; } return 'The lad pays, in tobacco and a watch that does not go. You keep two ounces, as agreed, and feel about two inches tall.'; } },
         { t: 'Pay it yourself', cost: 120, run(L) { const p = warm(L, 'lenny', 4); p.st = 3; L.karma(2); if (here(L, 'jamie') && fk(L, 'jamie')) { warm(L, 'jamie', 20); return 'You pay Lenny out of your account. Jamie finds out, as people do in here, and leaves an orange on your bunk without a word.'; } return 'You pay Lenny out of your account. The lad on the threes never knows who to thank, which is as it should be.'; } },
@@ -110,7 +108,7 @@ export function gaolTales(h) {
     // ==== Ossie, and June in Gull Terrace ====
     {
       id: 'g2Oss0', icon: '🐤', title: 'Pip', gaol: true, ok: onLanding,
-      text: (L) => `${again(L, 'ossie')}Ossie Pengelly has the end cell, and has had it since 1981. He is going over to the hospital wing for his chest, and holds out a cage with a small yellow bird in it. “Pip,” he says. “She likes the wireless. Not the news.”`,
+      text: (L, x) => `${again(x, 'ossie')}Ossie Pengelly has the end cell, and has had it since 1981. He is going over to the hospital wing for his chest, and holds out a cage with a small yellow bird in it. “Pip,” he says. “She likes the wireless. Not the news.”`,
       opts: [
         { t: 'Look after her', run(L) { const p = warm(L, 'ossie', 15); p.f.pip = 1; p.st = 1; L.joy(4); return 'Pip sings all week, mostly along to the shipping forecast. When Ossie comes back she flies straight to his finger, and he pretends not to be pleased.'; } },
         { t: 'Ask him how long he has been in', run(L) { const p = warm(L, 'ossie', 6); p.st = 1; L.gain('smarts', 0.5); return 'Since before you were born. The pier had a ballroom then. There was his brother-in-law, a bottle, a step down to the beach in the dark. “Forty years is a long time to be sorry,” he says. “But I am.”'; } },
@@ -119,7 +117,7 @@ export function gaolTales(h) {
     },
     {
       id: 'g2Oss1', icon: '✉️', title: 'A letter for June', gaol: true, ok: onLanding,
-      text: (L) => `${again(L, 'ossie')}Ossie’s hands shake too much to write now. His daughter June lives in Gull Terrace, in the Bay, and has not answered a letter since 1979. He would like to try once more, while there is time, and he would like you to hold the pen.`,
+      text: (L, x) => `${again(x, 'ossie')}Ossie’s hands shake too much to write now. His daughter June lives in Gull Terrace, in the Bay, and has not answered a letter since 1979. He would like to try once more, while there is time, and he would like you to hold the pen.`,
       opts: [
         { t: 'Write it down as he says it', run(L) { const p = warm(L, 'ossie', 10); p.f.letter = 1; p.st = 2; return '“Dear June,” he says, and then nothing for a long time, and then all of it at once. You write as fast as you can. It is not a good letter. It is a true one.'; } },
         { t: 'Help him find the words', check: ['smarts', 45], run(L, x, win) { const p = warm(L, 'ossie', win ? 14 : 8); p.f.letter = win ? 2 : 1; p.st = 2; return win ? 'Three drafts, over three evenings. The third one says he is sorry without asking for anything back, which is the hard part. He signs it “Dad”, and then crosses it out, and then writes it again.' : 'You try. The words come out stiff, the way his did, and in the end he says, “Just put that I am sorry.” You put that he is sorry.'; } },
@@ -129,7 +127,7 @@ export function gaolTales(h) {
     {
       id: 'g2Oss2', icon: '🏘️', title: 'Gull Terrace', gaol: true, ok: onLanding,
       dealt: (L, p) => { p.f.june = L.chance(p.f.letter === 2 ? 0.65 : p.f.letter === 1 ? 0.3 : 0) ? 'wrote' : 'none'; },
-      text: (L) => (fk(L, 'ossie').f.june === 'wrote' ? `${again(L, 'ossie')}A letter for Ossie, in round blue handwriting, with a Bay postmark. He cannot open it. You open it for him. “Dear Dad,” it begins, and he has to sit down on the end of the bunk.` : `${again(L, 'ossie')}No answer from Gull Terrace. Ossie says he did not expect one, and stops listening for the post, which is how you know he did. “When you are out,” he says, “would you take one by hand? She might not open the door. But she might.”`),
+      text: (L, x) => (fk(L, 'ossie').f.june === 'wrote' ? `${again(x, 'ossie')}A letter for Ossie, in round blue handwriting, with a Bay postmark. He cannot open it. You open it for him. “Dear Dad,” it begins, and he has to sit down on the end of the bunk.` : `${again(x, 'ossie')}No answer from Gull Terrace. Ossie says he did not expect one, and stops listening for the post, which is how you know he did. “When you are out,” he says, “would you take one by hand? She might not open the door. But she might.”`),
       opts: [
         { t: 'Read it to him', show: (L) => fk(L, 'ossie').f.june === 'wrote', run(L) { const p = warm(L, 'ossie', 10); p.st = 3; L.joy(5); L.karma(2); return 'She has two boys, it turns out, Ossie’s grandsons, and one of them is called Oswald. Ossie makes you read that bit four times.'; } },
         { t: 'Help him write back', show: (L) => fk(L, 'ossie').f.june === 'wrote', run(L) { const p = warm(L, 'ossie', 12); p.st = 3; L.gain('smarts', 0.5); L.joy(3); return 'Three drafts. The third says what he means, which is mostly “thank you”, eleven different ways.'; } },
@@ -153,7 +151,7 @@ export function gaolTales(h) {
     {
       id: 'g2Win0', icon: '📑', title: 'The 4.15 from Kettleby', gaol: true, ok: onLanding,
       due: (L, p) => !p.f.no || L.s.t - p.f.no >= 12,
-      text: (L) => `${again(L, 'winston')}Winston Jory has a carrier bag of papers, a theory, and nine years of being told to keep his voice down about it. “The 4.15 from Kettleby,” he says. “Ask me about the 4.15.”`,
+      text: (L, x) => `${again(x, 'winston')}Winston Jory has a carrier bag of papers, a theory, and nine years of being told to keep his voice down about it. “The 4.15 from Kettleby,” he says. “Ask me about the 4.15.”`,
       opts: [
         { t: 'Ask him about the 4.15', run(L) { const p = warm(L, 'winston', 10); p.f.listen = 1; p.st = 1; return 'It takes an hour and a half. At the end of it you are not sure he is innocent, but you are sure somebody should look properly, and that nobody has.'; } },
         { t: 'Read his papers properly', show: (L) => (L.g2Job() && L.g2Job().k === 'library') || L.s.st.smarts >= 40, run(L) { const p = warm(L, 'winston', 15); p.f.listen = 1; p.f.work = 1; p.f.q = 1; p.st = 1; L.gain('smarts', 1); return 'You take the first box back to the library and read it from the top, with a pencil. Winston hovers in the doorway all afternoon, pretending to want a western.'; } },
@@ -195,7 +193,7 @@ export function gaolTales(h) {
     // ==== Jamie, who cannot read ====
     {
       id: 'g2Jam0', icon: '🧸', title: 'Kayleigh’s letters', gaol: true, ok: onLanding,
-      text: (L) => `${again(L, 'jamie')}Jamie Nance sits on the end of your bunk with a letter in a pink envelope, holding it the way you would hold something hot. “Read it us,” he says, not looking at you. “I cannot, see. Never could.”`,
+      text: (L, x) => `${again(x, 'jamie')}Jamie Nance sits on the end of your bunk with a letter in a pink envelope, holding it the way you would hold something hot. “Read it us,” he says, not looking at you. “I cannot, see. Never could.”`,
       opts: [
         { t: 'Offer to teach him to read it himself', run(L) { const p = warm(L, 'jamie', 15); p.f.teach = 1; p.st = 1; return 'He laughs, and then he does not. “Go on, then,” he says. “But if you tell anybody.” You do not tell anybody.'; } },
         { t: 'Read it to him', run(L) { const p = warm(L, 'jamie', 10); p.st = 9; L.karma(1); L.joy(2); return 'It is about a hamster called Biscuit, and a tooth, and it ends with eleven kisses. He makes you read the kisses out too, one at a time.'; } },
@@ -217,7 +215,7 @@ export function gaolTales(h) {
     {
       id: 'g2Feud0', icon: '🎱', title: 'The pool table', gaol: true, ok: onLanding,
       due: (L) => here(L, 'reece'),
-      text: (L) => `${again(L, 'stevie')}On B wing there are two sorts of men: the Bay lads, who have the pool table, and the Kettleby lot, who would like it. Stevie Rowe pulls out a chair for you by the pool table. Across the landing, Reece Jago looks up from his chess to see whether you sit in it.`,
+      text: (L, x) => `${again(x, 'stevie')}On B wing there are two sorts of men: the Bay lads, who have the pool table, and the Kettleby lot, who would like it. Stevie Rowe pulls out a chair for you by the pool table. Across the landing, Reece Jago looks up from his chess to see whether you sit in it.`,
       opts: [
         { t: 'Sit with the Bay lads', run(L) { meetFolk(L, 'reece'); warm(L, 'stevie', 15).st = 1; warm(L, 'reece', -15); G(L).feud = 'bay'; L.respect(6); return 'Stevie slaps you on the back and introduces you to everybody, all of whom are cousins. Reece Jago goes back to his chess.'; } },
         { t: 'Sit with the Kettleby lot', run(L) { meetFolk(L, 'reece'); warm(L, 'reece', 15); warm(L, 'stevie', -15).st = 1; G(L).feud = 'kett'; L.respect(6); return 'You walk past Stevie’s chair and sit down by the chessboard. Reece Jago moves a pawn, and nods. The Bay lads remember it.'; } },
@@ -308,7 +306,7 @@ export function gaolTales(h) {
       opts: [
         { t: 'Talk about home', run(L, x) { const p = P(L, x.p), C = cur(L); C.vis[p.id] = (C.vis[p.id] || 0) + 1; G(L).n.visits++; L.bond(p, 7); L.joy(4); return 'The weather, the neighbours, the price of things. Two hours go in twenty minutes, and then the bell.'; } },
         { t: 'Tell the truth about this place', run(L, x) { const p = P(L, x.p), C = cur(L); C.vis[p.id] = (C.vis[p.id] || 0) + 1; G(L).n.visits++; L.bond(p, 11); L.joy(-1); return `${first(p)} puts ${his(p)} hand flat on the table, next to yours, which is as near as the rules allow. Neither of you says anything for a while.`; } },
-        { t: (L, x) => { const p = P(L, x.p), a = askFor(L, p); return a === 'home' ? (p.kind === 'partner' || p.kind === 'spouse' ? (p.live ? 'Ask if they will keep the home going for you' : 'Ask if you can come home to them') : 'Ask if you can stay with them when you are out') : a === 'work' ? `Ask if there might be work where ${he(p)} works` : `Ask ${him(p)} to write to the parole board for you`; },
+        { t: (L, x) => { const p = P(L, x.p), a = askFor(L, p); return a === 'home' ? (p.kind === 'partner' || p.kind === 'spouse' ? (p.live ? `Ask ${him(p)} to keep the home going for you` : `Ask if you can come home to ${him(p)}`) : `Ask if you can stay with ${him(p)} when you are out`) : a === 'work' ? `Ask if there might be work where ${he(p)} works` : `Ask ${him(p)} to write to the parole board for you`; },
           show: (L, x) => !!askFor(L, P(L, x.p)),
           odds: (L, x) => { const p = P(L, x.p), a = askFor(L, p); return a === 'home' ? clampN(0.15 + p.bond / 110 + (p.kind === 'spouse' ? 0.1 : 0), 0.05, 0.92) : a === 'work' ? clampN(0.1 + p.bond / 120 + L.s.st.charm / 300, 0.05, 0.85) : clampN(0.3 + p.bond / 100, 0.1, 0.95); },
           run(L, x, win) {
@@ -338,8 +336,8 @@ export function gaolTales(h) {
         return `${n} writes with all the news of the Bay: who is courting, who has fallen out, and what the Rovers did on Saturday, which was lose.`;
       },
       opts: [
-        { t: 'Ask them to wait for you', show: (L, x) => ['partner', 'spouse'].includes(P(L, x.p).kind), run(L, x) { const p = P(L, x.p); if (p.bond >= 45) { L.bond(p, 6); L.joy(3); return `${first(p)} writes back by return: “Where else would I be?”`; } L.bond(p, -4); return `It is a lot to ask, and ${first(p)} does not answer that part of the letter.`; } },
-        { t: 'Tell them not to wait', show: (L, x) => ['partner', 'spouse'].includes(P(L, x.p).kind), run(L, x) { const p = P(L, x.p); L.joy(-8); L.karma(2); if (L.makeEx) L.makeEx(p, 0); L.note(`Told ${p.name} not to wait.`, 'big'); return `You write that ${he(p)} should go and be happy. ${He(p)} cries, ${he(p)} says, and then, after a while, ${he(p)} does.`; } },
+        { t: (L, x) => `Ask ${him(P(L, x.p))} to wait for you`, show: (L, x) => ['partner', 'spouse'].includes(P(L, x.p).kind), run(L, x) { const p = P(L, x.p); if (p.bond >= 45) { L.bond(p, 6); L.joy(3); return `${first(p)} writes back by return: “Where else would I be?”`; } L.bond(p, -4); return `It is a lot to ask, and ${first(p)} does not answer that part of the letter.`; } },
+        { t: (L, x) => `Tell ${him(P(L, x.p))} not to wait`, show: (L, x) => ['partner', 'spouse'].includes(P(L, x.p).kind), run(L, x) { const p = P(L, x.p); L.joy(-8); L.karma(2); if (L.makeEx) L.makeEx(p, 0); L.note(`Told ${p.name} not to wait.`, 'big'); return `You write that ${he(p)} should go and be happy. ${He(p)} cries, ${he(p)} says, and then, after a while, ${he(p)} does.`; } },
         { t: 'Send a drawing back', show: (L, x) => ['child', 'grandchild'].includes(P(L, x.p).kind) && P(L, x.p).age < 16, run(L, x) { const p = P(L, x.p); L.bond(p, 8); L.joy(3); return `You draw the gulls on the wall, and Pip, and a cake with ${first(p)}’s name on it. It is not a good drawing. It goes on a fridge.`; } },
         { t: 'Tell them about the course', show: (L, x) => P(L, x.p).kind === 'parent' && !!L.gaolCourse(), run(L, x) { const p = P(L, x.p); L.bond(p, 6); return 'The next letter has a newspaper cutting in it about somebody who got a degree in prison. Your mum has underlined “degree”, twice.'; } },
         { t: 'Write back the same night', run(L, x) { const p = P(L, x.p); L.bond(p, 5); L.s.time = Math.max(0, L.s.time - 1); return 'You write back that night, by the light from the landing, and post it before you can think better of any of it.'; } },
@@ -625,7 +623,7 @@ export function gaolTales(h) {
     },
     {
       id: 'g2Lam2', icon: '📮', title: (L) => `${L.g2MateName(G(L).run.mate) || 'Your partner'} from the wall`, ok: (L) => !!L.s.run && !!L.s.gaol2.run && !!L.s.gaol2.run.mate,
-      text: (L) => { const R = G(L).run, n = L.g2MateName(R.mate); if (R.mateEnd == null) R.mateEnd = L.rnd() < 0.45 ? 'caught' : L.rnd() < 0.6 ? 'spain' : 'back'; return R.mateEnd === 'caught' ? `They have picked up ${n} in a bus shelter in Kettleby, the Gazette says, “tired and hungry and asking for a cup of tea”.` : R.mateEnd === 'spain' ? `A postcard, no name on it, from a place in Spain with a lot of vowels. A picture of a donkey, and on the back: “Wish you were here. Glad you are not.” It is ${n}’s handwriting.` : `${n} turns up at dusk, thinner, in somebody else’s coat, wanting money. “Just to get across the water,” he says. “I would do the same for you.”`; },
+      text: (L) => { const R = G(L).run, n = L.g2MateName(R.mate); return R.mateEnd === 'caught' ? `They have picked up ${n} in a bus shelter in Kettleby, the Gazette says, “tired and hungry and asking for a cup of tea”.` : R.mateEnd === 'spain' ? `A postcard, no name on it, from a place in Spain with a lot of vowels. A picture of a donkey, and on the back: “Wish you were here. Glad you are not.” It is ${n}’s handwriting.` : `${n} turns up at dusk, thinner, in somebody else’s coat, wanting money. “Just to get across the water,” he says. “I would do the same for you.”`; },
       opts: [
         { t: 'Hope he keeps his mouth shut', show: (L) => G(L).run.mateEnd === 'caught', run(L) { const R = G(L).run, bond = R.mate && L.s.gaol2.folk[R.mate] ? L.s.gaol2.folk[R.mate].v : L.s.heists && L.s.heists.lag.mates[R.mate] ? L.s.heists.lag.mates[R.mate].bond : 30; if (L.chance(clampN(0.35 + bond / 100, 0.2, 0.95))) return 'He does. Not a word, for three days, to anybody. You owe him, and you know it.'; L.warm(25); R.hid = null; return 'He does not. By the end of the week they know where you have been sleeping, and you are sleeping somewhere else, if you are sleeping.'; } },
         { t: 'Keep the postcard', show: (L) => G(L).run.mateEnd === 'spain', run(L) { L.joy(3); return 'You keep it in your wallet. On the bad nights, you look at the donkey.'; } },
