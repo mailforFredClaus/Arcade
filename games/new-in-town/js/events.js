@@ -47,6 +47,25 @@ const mayorTitle = (L, m = mayorNow(L)) => (L.annalsMayorTitle ? L.annalsMayorTi
 // The drains story is about whoever held the chain when you found the ledger, and never about you.
 const drainsMayor = (L) => { const m = mayorNow(L); return m.k !== 'you' && !(inJob(L, 'politics') && (L.s.job.r >= 4 || L.s.f.elected)) && m.k === (L.s.f.drainsM || 'penn') ? m : null; };
 const lowest = (L) => STATS.slice().sort((a, b) => L.s.st[a] - L.s.st[b])[0];
+// A pet's name the family has not given before (chapGiveName in chapters.js); first: the first free one, in order.
+const petName = (L, list, first = false) => (L.chapGiveName ? L.chapGiveName('pet', list, first) : first ? list[0] : L.pick(list));
+const STRAYS = ['Scraps', 'Bosun', 'Rags', 'Sixpence', 'Tatters'];
+const AUNT_CATS = ['Admiral', 'Commodore', 'Duchess', 'Bishop'];
+// (Shown on the card and then given, so chosen without the dice: the first the family has not used.)
+const auntCat = (L) => (L.chapNameFree ? L.chapNameFree('pet', AUNT_CATS)[0] : null) || AUNT_CATS[0];
+// Where a pet is buried: a garden if there is one, and not the same words every time.
+function petGrave(L, n, kind) {
+  const s = L.s, garden = ['cottage', 'townhouse', 'villa', 'manor'].includes(s.home);
+  const lines = garden
+    ? [`You bury ${n} at the bottom of the garden, under the apple tree.`, `You bury ${n} by the back wall, where the sun comes round in the afternoon and ${n} always slept.`, `${n} goes under the roses, with ${kind === 'cat' ? 'a favourite mouse, knitted' : 'the chewed ball'}. You plant something blue on top.`]
+    : [`There is no garden, so you carry ${n} up to Gorse Head in a blanket, and dig a place in the gorse, looking out to sea.`, `Tom Windle lets you bury ${n} in the corner of his top field, under the thorn tree, and leans on his spade afterwards and says nothing, kindly.`, `${n}’s ashes go off the end of the harbour wall on a still morning. A gull comes to look, and then has the decency to leave.`];
+  return lines[((s.n.pets = (s.n.pets || 0) + 1) + s.t) % lines.length];
+}
+// The crisis cards of the middle of a life share one cooldown (midlife.js): none within n seasons of the last;
+// crisis() records what one bought or began, and had() whether a crisis has bought it already.
+const crisisOk = (L, n) => !L.midCrisisAgo || L.midCrisisAgo() >= n;
+const crisis = (L, what) => { if (L.midCrisis) L.midCrisis(what); if (L.midFresh) L.midFresh(2); };
+const had = (L, what) => !!L.midHad && L.midHad(what);
 // What the solicitor suggests, in proportion to what there is in the bank (Putting things in order):
 // a boat for the lifeboat, three in every hundred; for the children, two in every hundred between them.
 const thou = (n) => Math.round(n / 1000) * 1000;
@@ -114,7 +133,7 @@ export const EVENTS = [
     text: 'A wet, hopeful dog has been following you along the beach for half an hour.',
     opts: [
       { t: 'Find its owner', run(L) { L.karma(4); if (L.chance(0.5)) { L.cash(100); return 'Posters, phone calls, and at last a tearful reunion. They insist on giving you $100.'; } return 'Posters, phone calls, and at last a tearful reunion.'; } },
-      { t: 'Take it home', show: (L) => !L.s.pet && L.s.home !== 'hostel', run(L) { const name = L.pick(['Lucky', 'Driftwood', 'Sandy', 'Tide']); L.s.pet = { kind: 'dog', name, age: 3, since: L.s.t }; L.joy(8); L.karma(-1); return `Nobody comes looking. You call the dog ${name}.`; } },
+      { t: 'Take it home', show: (L) => !L.s.pet && L.s.home !== 'hostel', run(L) { const name = petName(L, ['Lucky', 'Driftwood', 'Sandy', 'Tide', 'Shrimp', 'Flotsam']); L.s.pet = { kind: 'dog', name, age: 3, since: L.s.t }; L.joy(8); L.karma(-1); return `Nobody comes looking. You call the dog ${name}.`; } },
       { t: 'Keep walking', run(L) { L.joy(-1); return 'It watches you go.'; } },
     ],
   },
@@ -236,10 +255,10 @@ export const EVENTS = [
   },
   {
     id: 'aunt', icon: '📜', title: 'Great-Aunt Hester', w: 1, once: true, when: (L) => L.s.age >= 24 && L.s.age <= 55,
-    text: 'A solicitor’s letter. A great-aunt you met twice has died and left you $8,000, "and my companion, Admiral".',
+    text: (L) => `A solicitor’s letter. A great-aunt you met twice has died and left you $8,000, "and my companion, ${auntCat(L)}".`,
     opts: [
-      { t: 'Take the money and the cat', show: (L) => !L.s.pet && L.s.home !== 'hostel', run(L) { L.cash(8000); L.s.pet = { kind: 'cat', name: 'Admiral', age: 6, since: L.s.t }; L.joy(5); return 'Admiral inspects your home and finds it adequate.'; } },
-      { t: 'Take the money', run(L) { L.cash(8000); return 'Admiral goes to a cousin. You raise a glass to Hester.'; } },
+      { t: 'Take the money and the cat', show: (L) => !L.s.pet && L.s.home !== 'hostel', run(L) { const n = auntCat(L); if (L.chapNameUse) L.chapNameUse('pet', n); L.cash(8000); L.s.pet = { kind: 'cat', name: n, age: 6, since: L.s.t }; L.joy(5); return `${n} inspects your home and finds it adequate.`; } },
+      { t: 'Take the money', run(L) { L.cash(8000); return `${auntCat(L)} goes to a cousin. You raise a glass to Hester.`; } },
     ],
   },
   {
@@ -931,7 +950,7 @@ export const EVENTS = [
       { t: 'Run for it', check: ['fitness', 55], run(L, x, win) { if (win) { L.warm(15); return 'Over the nets, round the ice house, and away. Your heart does not slow down for an hour. They will be looking for you now.'; } L.hp(-6, 'a fall'); return `You make it thirty yards before a lobster pot brings you down. Resisting arrest, on top of the rest. ${L.sentence(sev(x) + 1)}`; } },
       { t: (L, x) => `Slip ${L.lawOfficer ? L.lawOfficer(x) : 'the constable'} something`, cost: (L, x) => 1500 * sev(x), odds: (L) => 0.25 + L.s.st.charm / 250 + (L.perk('police') ? 0.2 : 0) + (L.lawBribe ? L.lawBribe() : 0), run(L, x, win) { const who = L.lawOfficer ? L.lawOfficer(x) : 'the constable', Who = who[0].toUpperCase() + who.slice(1); L.karma(-2); if (win) return `${Who} looks at the notes, then at the sea, then at nothing at all. "Mind how you go."`; return `"Attempting to bribe an officer," ${who} writes, slowly. ${L.sentence(sev(x) + 1)}`; } },
       { t: 'Say nothing, and send for a good lawyer', cost: (L, x) => (L.perk('law') ? 2000 : 4000) * sev(x), odds: (L, x) => (L.briefOdds ? L.briefOdds(sev(x)) : 1), run(L, x, win) { return win ? `She costs a fortune and earns it. ${L.sentence(sev(x) - 1)}` : `She costs a fortune. The magistrate has read your file, all of it. ${L.sentence(sev(x))}`; } },
-      { t: 'It was all Sal', check: ['charm', 60], show: (L, x) => sev(x) === 2 && salHere(L), run(L, x, win) { L.s.f.salOff = L.s.t + 8; if (win) return 'You are so convincing that the constable gives you a lift home. Sal will not be pleased.'; return `Sal has an alibi, and three witnesses. ${L.sentence(sev(x) + 1)}`; } },
+      { t: 'It was all Sal', check: ['charm', 60], show: (L, x) => sev(x) === 2 && salHere(L), run(L, x, win) { L.s.f.salOff = L.s.t + 8; if (win) return L.lawCaught && L.lawCaught(x) ? `You are so convincing that ${L.lawWho(true)} gives you a lift home, and does not say one word the whole way. Sal will not be pleased.` : 'You are so convincing that the constable gives you a lift home. Sal will not be pleased.'; return `Sal has an alibi, and three witnesses. ${L.sentence(sev(x) + 1)}`; } },
     ],
   },
   {
@@ -1284,7 +1303,7 @@ export const EVENTS = [
     id: 'stray3', icon: '🐕', title: 'Nobody’s dog', w: 8, once: true, when: (L) => L.s.f.stray === 2 && !L.s.pet && L.s.home !== 'hostel',
     text: 'The shelter has had the brown dog for a month and nobody has asked for it. It has, they say, made up its mind about where it lives, and it sits by their door facing your street.',
     opts: [
-      { t: 'Bring it home', run(L) { const s = L.s; s.pet = { kind: 'dog', name: 'Scraps', age: 3, since: s.t }; s.f.stray = 3; L.joy(12); L.karma(2); L.note('Scraps, the brown dog from the quay, came to live with you.', 'big'); return 'It walks in as if it had only been out for the paper, turns round three times on your best chair, and sleeps for a day and a half. You call it Scraps.'; } },
+      { t: 'Bring it home', run(L) { const s = L.s, n = petName(L, STRAYS, true); s.pet = { kind: 'dog', name: n, age: 3, since: s.t }; s.f.stray = 3; L.joy(12); L.karma(2); L.note(`${n}, the brown dog from the quay, came to live with you.`, 'big'); return `It walks in as if it had only been out for the paper, turns round three times on your best chair, and sleeps for a day and a half. You call it ${n}.`; } },
       { t: 'Find it a good home', run(L) { L.s.f.stray = -1; L.karma(3); return 'The lighthouse keeper takes it. You see it sometimes on the rocks, barking at the sea, and it always stops to look at you.'; } },
     ],
   },
@@ -1482,13 +1501,15 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'midlife', icon: '🏍️', title: 'Is this it?', w: 5, once: true, when: (L) => L.s.age >= 40 && L.s.age <= 52,
+    // (The middle of a life has three cards that ask this: this one, Fifty and midlife.js's The same week again.
+    // They share one cooldown, so that a life meets one of them at a time; see midCrisisAgo.)
+    id: 'midlife', icon: '🏍️', title: 'Is this it?', w: 5, once: true, when: (L) => L.s.age >= 40 && L.s.age <= 52 && L.s.age !== 50 && crisisOk(L, 16),
     text: 'You catch sight of yourself in the window of the chemist’s and, for a moment, do not know who it is.',
     opts: [
-      { t: 'Buy a motorbike', cost: 6000, run(L) { L.joy(12); L.gain('charm', 1.5); if (L.chance(0.2)) { L.rough(12, 'a motorbike'); return 'It is magnificent for five weeks. Then there is a patch of wet leaves on the cliff road. You sell it from a hospital bed.'; } return 'It is loud, it is red, and it is the best idea you have had in twenty years. Everybody says so, except everybody.'; } },
-      { t: 'Take up the saxophone', cost: 800, run(L) { L.gain('craft', 4); L.joy(7); return 'The first month is hard on the street. By the third, somebody opens a window to listen.'; } },
-      { t: 'Enter the Bay marathon', check: ['fitness', 50], run(L, x, win) { L.gain('fitness', 3); if (win) { L.joy(10); L.fame(1); return 'Four hours and nine minutes. You cry at the finish, and again when you try the stairs.'; } L.joy(2); return 'You get as far as the lighthouse, and a bus brings you back. Next year.'; } },
-      { t: 'Have a quiet word with yourself', run(L) { L.gain('smarts', 1.5); L.joy(3); return 'You go home, put the kettle on, and count what you have. It comes to more than you thought.'; } },
+      { t: 'Buy a motorbike', cost: 6000, show: (L) => !had(L, 'car'), run(L) { crisis(L, 'bike'); L.joy(12); L.gain('charm', 1.5); if (L.chance(0.2)) { L.rough(12, 'a motorbike'); return 'It is magnificent for five weeks. Then there is a patch of wet leaves on the cliff road. You sell it from a hospital bed.'; } return 'It is loud, it is red, and it is the best idea you have had in twenty years. Everybody says so, except everybody.'; } },
+      { t: 'Take up the saxophone', cost: 800, run(L) { crisis(L, 'sax'); L.gain('craft', 4); L.joy(7); return 'The first month is hard on the street. By the third, somebody opens a window to listen.'; } },
+      { t: 'Enter the Coast Marathon', check: ['fitness', 50], show: (L) => !L.s.mid || L.s.mid.done.run == null, run(L, x, win) { crisis(L, 'run'); L.gain('fitness', 3); if (win) { if (L.s.mid) L.s.mid.done.run = L.s.age; L.joy(10); L.fame(1); return 'Four hours and nine minutes. You cry at the finish, and again when you try the stairs.'; } L.joy(2); return 'You get as far as the lighthouse, and a bus brings you back. Next year.'; } },
+      { t: 'Have a quiet word with yourself', run(L) { crisis(L, null); L.gain('smarts', 1.5); L.joy(3); return 'You go home, put the kettle on, and count what you have. It comes to more than you thought.'; } },
     ],
   },
   {
@@ -1582,7 +1603,7 @@ export const EVENTS = [
   {
     id: 'parentDies', icon: '🕊️', title: 'A phone call in the night', ok: has,
     text: (L, x) => `${P(L, x).name} has died, peacefully, at ${P(L, x).age}.`,
-    opts: [{ t: 'Goodbye', run(L, x) { const p = P(L, x), sibs = L.siblings().length, n = Math.round((3000 + p.bond * 120) / (1 + sibs) / 100) * 100; L.s.people.splice(L.s.people.indexOf(p), 1); L.joy(-16); L.cash(n); for (const q of L.siblings()) L.bond(q, 4); return `The funeral is on a bright, windy day. ${He(p)} left you ${money(n)}${sibs ? ', your share,' : ''} and ${his(p)} good watch.`; } }],
+    opts: [{ t: 'Goodbye', run(L, x) { const p = P(L, x), sibs = L.siblings().length, n = Math.round((3000 + p.bond * 120) / (1 + sibs) / 100) * 100; L.s.people.splice(L.s.people.indexOf(p), 1); L.s.f.parGone = L.s.t; L.joy(-16); L.cash(n); for (const q of L.siblings()) L.bond(q, 4); return `The funeral is on a bright, windy day. ${He(p)} left you ${money(n)}${sibs ? ', your share,' : ''} and ${his(p)} good watch.`; } }],
   },
   {
     id: 'spouseDies', icon: '🕊️', title: 'The empty chair', ok: mine,
@@ -1594,7 +1615,7 @@ export const EVENTS = [
     id: 'petDies', icon: '🐾', title: 'A good friend', ok: (L) => !!L.s.pet,
     text: (L) => `${L.s.pet.name} the ${PETS[L.s.pet.kind].name} has died, old and well loved.`,
     inText: (L) => `Word comes from outside: ${L.s.pet.name} the ${PETS[L.s.pet.kind].name} has died, old and well loved.`,
-    opts: [{ t: 'Goodbye, old friend', run(L) { const n = L.s.pet.name; L.s.pet = null; L.joy(-14); return L.s.gaol ? `A neighbour buried ${n} under an apple tree, and sent you the collar.` : `You bury ${n} at the bottom of the garden, under the apple tree.`; } }],
+    opts: [{ t: 'Goodbye, old friend', run(L) { const s = L.s, n = s.pet.name, kind = s.pet.kind; s.pet = null; L.joy(-14); if (s.gaol) return `A neighbour buried ${n} under an apple tree, and sent you the collar.`; return petGrave(L, n, kind); } }],
   },
   {
     id: 'sportsRetire', icon: '🦵', title: 'Time, gentlemen', ok: (L) => inJob(L, 'sports'),
@@ -1611,11 +1632,12 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'birthday50', icon: '🏍️', title: 'Fifty', free: true,
-    text: 'Half a century. You catch sight of yourself in a shop window and wonder who that is.',
+    // (Fifty comes to everybody; but a life that has just had its crisis is not offered another, nor a second red one.)
+    id: 'birthday50', icon: '🎂', title: 'Fifty', free: true,
+    text: (L) => `Half a century. ${L.s.job && !L.s.gaol ? 'The cake at work has candles shaped like a 5 and a 0, and somebody has put them in the wrong way round.' : 'A cake with candles shaped like a 5 and a 0, and more cards on the mantelpiece than you expected.'} ${crisisOk(L, 8) ? 'Somebody asks what you are going to do with the next fifty.' : 'After the year or two you have had, a quiet birthday suits you very well.'}`,
     opts: [
-      { t: 'Buy a motorbike', cost: 9000, run(L) { L.joy(14); L.gain('charm', 1); return 'It is red and ridiculous and you adore it.'; } },
-      { t: 'Learn something completely new', run(L) { const k = lowest(L); L.gain(k, 6); L.joy(5); return `It is never too late. Your ${STAT_NAME[k]} surprises everybody, you most of all.`; } },
+      { t: 'Buy a motorbike', cost: 9000, show: (L) => crisisOk(L, 8) && !had(L, 'bike') && !had(L, 'car'), run(L) { crisis(L, 'bike'); L.joy(14); L.gain('charm', 1); return 'It is red and ridiculous and you adore it.'; } },
+      { t: 'Learn something completely new', run(L) { crisis(L, 'learn'); const k = lowest(L); L.gain(k, 6); L.joy(5); return `It is never too late. Your ${STAT_NAME[k]} surprises everybody, you most of all.`; } },
       { t: 'Count your blessings', run(L) { L.joy(8); L.karma(2); return 'There are more of them than you thought.'; } },
     ],
   },

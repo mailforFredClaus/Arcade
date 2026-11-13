@@ -109,7 +109,7 @@ export default function (kit) {
   function pastJobs(L) {
     const H = L.s.heists;
     if (!H.jobs.length) return '';
-    return `<h3>Jobs done</h3>${H.jobs.slice().reverse().map((j) => `<div class="line"><span>${TARGETS[j.k].icon} ${esc(TARGETS[j.k].name)}, year ${Math.floor(j.t / 4) + 1}</span><b class="${j.how === 'bust' ? 'down' : 'up'}">${j.how === 'bust' ? 'Caught' : `${j.how === 'clean' ? 'Clean' : 'Messy'}: ${cashShort(j.got)}`}</b></div>`).join('')}`;
+    return `<h3>Jobs done</h3>${H.jobs.slice().reverse().map((j) => `<div class="line"><span>${TARGETS[j.k].icon} ${esc(TARGETS[j.k].name)}, year ${L.yearOf(j.t)}</span><b class="${j.how === 'bust' ? 'down' : 'up'}">${j.how === 'bust' ? 'Caught' : `${j.how === 'clean' ? 'Clean' : 'Messy'}: ${cashShort(j.got)}`}</b></div>`).join('')}`;
   }
 
   // ---- the Low road box on the Me tab ----
@@ -124,7 +124,7 @@ export default function (kit) {
       out += `<p class="fine">${d.bent != null ? `On your payroll, at ${money(1500 * (d.rank + 1))} a season, for as long as nobody notices.` : 'The file grows with every crime and every arrest, and thins in quiet years. It makes every crime riskier and a lawyer less use, and a thick one means a long stretch.'}</p>`;
     }
     if (s.n.crimes >= 3 || (s.job && s.job.c === 'crew')) out += line('🦊 Sal', { inside: 'Inside, for now', spain: 'Retired to Spain' }[L.salWhere()] || esc(L.salWord()));
-    if (r.stage >= 1) out += line('🏴 Nan Carne’s lot', { truce: 'A truce', gone: 'Gone back to Kettleby', spain: 'Gone back to Kettleby', sal: 'Own the pier', yours: 'The pier is yours now' }[r.end] || (r.stage >= 3 ? 'At war with Sal' : r.side === 'nan' ? 'You are on their payroll' : 'Moving in on Sal’s patch'));
+    if (r.stage >= 1) out += line('🏴 Nan Carne’s lot', { truce: 'A truce', gone: 'Gone back to Kettleby', spain: 'Gone back to Kettleby', apart: 'Settled without you', sal: 'Own the pier', yours: r.patch ? 'The pier is yours now' : 'The pier was yours once' }[r.end] || (r.stage >= 3 ? 'At war with Sal' : r.side === 'nan' ? 'You are on their payroll' : 'Moving in on Sal’s patch'));
     if (H.hot > 0) out += line('💰 Hot money', money(H.hot), 'down') + `<p class="fine">Hidden ${esc(L.heistHotWord())}. It needs washing before it can be spent: through Sal, the Lucky Gull’s cage, a business of your own, property, or the bank a little at a time.</p>`;
     if (H.washed) out += line('🧼 Washed so far', money(H.washed));
     if (H.lag.n) {

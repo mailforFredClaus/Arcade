@@ -10,7 +10,7 @@ export default function (kit) {
   const { esc, money, actRow, pick, chip } = kit;
   const L = () => kit.life;
   const ago = (n) => (n <= 0 ? 'this season' : n === 1 ? 'last season' : n < 8 ? `${n} seasons ago` : `${Math.floor(n / 4)} years ago`);
-  const bar = (icon, label, v, of, word) => `<div class="skill"><i>${icon}</i><span>${esc(label)}</span><span class="bar"><span style="width:${Math.round((v / of) * 100)}%"></span></span><b>${esc(word)}</b></div>`;
+  const bar = (icon, label, v, of, word, cls = '') => `<div class="skill${cls ? ` ${cls}` : ''}"><i>${icon}</i><span>${esc(label)}</span><span class="bar"><span style="width:${Math.round((v / of) * 100)}%"></span></span><b>${esc(word)}</b></div>`;
   const busyWith = (life) => {
     const m = life.s.mid;
     return !!m && (life.midSeat() || life.midAway() || !!m.trust || m.lent.length > 0 || !!m.plan);
@@ -45,8 +45,8 @@ export default function (kit) {
     if (m.trust) {
       const t = m.trust, k = CAUSES[t.cause];
       body += `<div class="item mine"><div class="item-top"><span class="act-ico">${k.icon}</span><div><b>${esc(t.name)}</b><small>For ${esc(k.name)}, ${t.n ? `for ${t.n} year${t.n === 1 ? '' : 's'}` : 'from the spring'}. ${money(t.fund)} left in the fund, of ${money(t.start)}.</small></div></div>
-        ${bar('🪙', 'Fund', t.fund, Math.max(t.fund, t.start), kit.cashShort(t.fund))}
-        <p class="fine">Each year it spends a little of its fund on what it is for. Chair the trustees now and then: a trust nobody watches is a temptation to its treasurer.</p></div>${actRow(life.look('midChair'))}${actRow(life.look('midTopUp'))}`;
+        ${bar('🪙', 'Fund', t.fund, Math.max(t.fund, t.start), kit.cashShort(t.fund), 'mid-fund')}
+        <p class="fine">Each year it spends a little of its fund on what it is for. Chair the trustees now and then: a trust nobody watches is a temptation to its treasurer.${life.midChairDue() >= 3 ? ` <b>Nobody has taken the chair for ${life.midChairDue() >= 8 ? `${Math.floor(life.midChairDue() / 4)} years` : life.midChairDue() >= 4 ? 'a year' : 'three seasons'}.</b>` : ''}</p></div>${actRow(life.look('midChair'))}${actRow(life.look('midTopUp'))}`;
     } else {
       const cost = life.midTrustCost();
       body += `<div class="item"><p class="sub">${esc(life.midTrustName())}, endowed with ${money(cost)}: a fund that spends a little each year on something the town needs, with your name on it for as long as the money lasts. For:</p><div class="picks">${Object.entries(CAUSES).map(([id, c]) => pick(`${c.icon} ${esc(c.short)}`, 'midFound', id, life.can('midFound', id))).join('')}</div></div>`;
@@ -68,7 +68,11 @@ export default function (kit) {
       if (drift.length) out += `<p class="fine">Drifting for want of your time: ${drift.map((p) => `<button class="mid-who" data-do="person" data-id="${p.id}">${esc(p.name.split(' ')[0])}</button>`).join(', ')}. A present or a party keeps people warm; only time together keeps them close.</p>`;
       if (life.midSeat()) out += `<div class="line"><span>🏛️ Councillor, the harbour ward</span><b>${m.seat.until - s.t} season${m.seat.until - s.t === 1 ? '' : 's'} left</b></div>`;
       if (life.midAway()) out += `<div class="line"><span>🧳 A year out</span><b>back in ${m.sab.until - s.t}</b></div>`;
-      if (m.trust) out += `<div class="line"><span>${CAUSES[m.trust.cause].icon} ${esc(m.trust.name)}</span><b>${money(m.trust.fund)}</b></div>`;
+      if (m.trust) {
+        out += `<div class="line"><span>${CAUSES[m.trust.cause].icon} ${esc(m.trust.name)}</span><b>${money(m.trust.fund)}</b></div>`;
+        // (A trust nobody chairs tempts its treasurer: say so before it does.)
+        if (life.midChairDue() >= 3) out += `<p class="fine mid-due">📑 The trustees have not seen you for ${life.midChairDue() >= 8 ? `${Math.floor(life.midChairDue() / 4)} years` : life.midChairDue() >= 4 ? 'a year' : 'three seasons'}. Chair a meeting at the Town Hall before the treasurer gets ideas.</p>`;
+      }
       for (const l of m.lent) { const p = life.person(l.p); if (p) out += `<div class="line"><span>📒 ${esc(p.name.split(' ')[0])} owes you, for the house</span><b>${money(l.left)}</b></div>`; }
       if (m.plan) out += `<div class="line"><span>${m.plan.id === 'run' ? '🏃 Training for the Coast Marathon' : '🎸 Rehearsing with the band'}</span><b>${Math.min(4, m.plan.n)} of 4</b></div>`;
       out += '<div class="picks"><button class="pick quiet" data-do="open" data-kind="midPlans">🧭 What you could take on</button></div></div>';
@@ -76,7 +80,7 @@ export default function (kit) {
     },
     person(life, p) {
       const m = life.s.mid;
-      if (!m || REST[p.kind] == null || (p.kind === 'child' && p.age < 18)) return '';
+      if (!m || REST[p.kind] == null || ((p.kind === 'child' || p.kind === 'grandchild') && p.age < 18)) return '';
       const n = life.midSince(p), drifting = life.midDrifting(p);
       return `<p class="fine mid-last">${p.bond >= CLOSE ? '🫂 Close. ' : ''}Last time together: ${ago(n)}.${drifting ? ' Drifting for want of your time: a present keeps a friendship warm, but only time together keeps anybody close.' : ''}</p>`;
     },
@@ -85,6 +89,9 @@ export default function (kit) {
 .mid-who { font: inherit; font-weight: 800; color: var(--teal-d); background: none; border: 0; padding: 0; min-height: 32px; text-decoration: underline; text-underline-offset: 3px; }
 .mid-last { margin: 6px 0 0; }
 .mid-bar { display: block; margin: 2px 0 4px; }
+.mid-fund > span:nth-child(2) { width: auto; flex: 0 0 auto; }
+.mid-fund b { width: auto; min-width: 26px; flex: 0 0 auto; white-space: nowrap; }
+.mid-due { color: var(--bad); font-weight: 700; }
 `,
   };
 }
