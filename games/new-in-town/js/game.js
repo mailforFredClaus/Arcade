@@ -145,6 +145,8 @@ function renderPanel() {
 // ---- prison -----------------------------------------------------------------------------
 
 // Inside there is no map: the town tab is the cell, and everything there is to do.
+// (Actions from the newer parts of town join the section of the same name, wherever they were defined.)
+const bySection = (list) => { const secs = [...new Set(list.map((a) => a.sec))]; return secs.flatMap((k) => list.filter((a) => a.sec === k)); };
 function renderGaol() {
   const s = life.s, q = s.gaol, box = $('gaol'), keep = box.scrollTop;
   const bar = (ico, label, v, word, colour) => `<div class="skill"><i>${ico}</i><span>${label}</span><span class="bar"><span style="width:${v}%;background:${colour}"></span></span><b>${Math.round(v)}</b></div><p class="fine">${word}</p>`;
@@ -152,7 +154,8 @@ function renderGaol() {
     ${result && !sheets.length ? `<div class="box said${result.fresh ? ' flash' : ''}"><p>${esc(result.text)}</p><div class="chgs">${chips(result.changes)}</div></div>` : ''}
     <div class="box">${bar('📋', 'Record', q.good, `${life.goodWord()}. This is what the parole board reads.`, 'var(--teal)')}${bar('🥫', 'Standing', q.rep, `${life.repWord()}. This is what keeps you safe on the landing.`, 'var(--coral)')}
       ${q.total >= 3 && q.served * 2 < q.total ? `<p class="fine">The parole board sits once half your time is done: about ${Math.round(life.paroleOdds() * 100)}% they would let you go, as things stand.</p>` : ''}</div>
-    <div class="acts">${sections(life.placeActions('gaol'))}</div>`;
+    ${MODS.map((m) => (m.gaol ? m.gaol(life) || '' : '')).join('') /* (the newer parts of town may add a box of their own here: gaol2-ui.js) */}
+    <div class="acts">${sections(bySection(life.placeActions('gaol')))}</div>`;
   if (result) result.fresh = false;
   box.scrollTop = keep;
 }
@@ -1106,7 +1109,7 @@ function showMenu() {
 }
 
 // Shown once to a life that was begun before the town grew.
-const NEWS = 6;
+const NEWS = 7;
 function showNew() {
   const was = save.seenNew || 0;
   save.seenNew = NEWS;
@@ -1127,7 +1130,8 @@ function showNew() {
   // (For those who saw the last card: what has come since.)
   const since = `<p><b>🗺️ The years show on the map.</b> A storm-wrecked pier, a tidal barrier, a lido, a supermarket, a new estate: once they happen, you can see them.</p>
     <p><b>⏳ The middle years.</b> People drift unless you give them your time, the same week again starts to tell after forty, and there is more to take on: a council seat, a year out, a trust in your name, a child’s first house.</p>
-    <p><b>🃏 Fewer repeats.</b> Cards seen many times come up less, an heir does not relive the family’s stories, and the townsfolk remember a family born here.</p>`;
+    <p><b>🃏 Fewer repeats.</b> Cards seen many times come up less, an heir does not relive the family’s stories, and the townsfolk remember a family born here.</p>
+    <p><b>⛓️ Prison is a life of its own.</b> A job inside to rise in, a landing of people with stories, courses by post, letters and visits, parole you prepare for, and a way over the wall you plan.</p>`;
   if (was >= 5) {
     ui.show(`<div class="ev-ico">🗺️</div><h2>New in Starling Bay</h2><div class="how">${since}</div>
       <div class="actions"><button class="btn btn-primary" data-action="evDone">Show me</button></div>`);
@@ -1171,7 +1175,7 @@ function showHow() {
     <p><b>People.</b> Friends are made all over town, and everyone has things they love doing. For romance, chat someone up at the pub, try the dating app, or ask out a friend who is single. Close friends in the right jobs do you favours.</p>
     <p><b>Life happens.</b> Cards turn up with choices. A percentage shows your chance where a skill decides it.</p>
     <p><b>Or go bad.</b> Pick pockets at the station, lift from the shops, drink and brawl at the pub, bend the rules at work. Sal’s back room at the harbour has worse: burglary, bare-knuckle fights, his crew, the bank. The law takes an interest.</p>
-    <p><b>Get caught</b> and you may go to Starling Gaol, and live every season of it: keep a clean record for parole, or earn your standing on the landing, or dig.</p>
+    <p><b>Get caught</b> and you may go to Starling Gaol, and live every season of it: a job inside, the people on the landing, courses, letters and visits, a plan for parole, or a plan for the wall.</p>
     <p><b>The town has more in it.</b> An allotment at the park, where the seasons decide what grows. Mr Pym’s curios on the High Street, to collect and trade. Chirper on your phone. Blackjack and the gull races on the pier. Good years and slumps: the Gazette has the news.</p>
     <p><b>Money is for something.</b> The mayor’s appeal at the Town Hall lists what the town needs. What you give carries your name, and is still there, and still useful, for an heir.</p>
     <p><b>At the end</b> your life earns a ribbon, and each ribbon unlocks an heirloom that a later life can carry. Your heir inherits a share of what you leave.</p></div>
@@ -1430,6 +1434,7 @@ const DO = {
 //   act: { actionId() }, run instead when that action is tapped (to play something first, say);
 //        it should finish with kit.doAct(actionId, what came of it)
 //   me(life), people(life): boxes of HTML for the Me and People tabs
+//   gaol(life): a box of HTML for the prison screen
 //   person(life, p): HTML for someone's own sheet, under what is known about them
 //   lowRoad(life): lines of HTML for the Low road box on the Me tab (shown once there is a crime to your name)
 //   marks(life): [[place, emoji], ...] for badges on the map
