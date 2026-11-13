@@ -873,7 +873,8 @@ function showNews(list) {
   nextNews();
 }
 function nextNews() {
-  while (newsQueue.length && $('news').children.length < 3) {
+  // (Two at a time, so that they never pile up over what you are reading.)
+  while (newsQueue.length && $('news').children.length < 2) {
     const n = newsQueue.shift();
     const el = document.createElement('div');
     el.className = `news-item k-${n.kind}`;
@@ -1383,6 +1384,17 @@ const DO = {
     doAct(el.dataset.id, el.dataset.x === undefined ? undefined : JSON.parse(el.dataset.x));
   },
   routine() { sameAgain(); },
+  // Where the season's time goes.
+  timeWhy() {
+    if (!life || ui.isOpen()) return;
+    sfx('tap');
+    const why = life.timeWhy(), s = life.s;
+    ui.show(`<div class="ev-ico">⏱️</div><h2>Your time this season</h2>
+      <div class="how">${why.map(([what, n]) => `<div class="line"><span>${esc(what)}</span><b>${n > 0 ? '+' : '−'}${Math.abs(n)}</b></div>`).join('')}
+      <div class="line total"><span>Blocks this season</span><b>${life.timeMax()}</b></div>
+      <p class="fine">${s.time} left to spend. Time you do not use is rest, good for health and mood.</p></div>
+      <div class="actions"><button class="btn btn-primary" data-action="evDone">Right</button></div>`);
+  },
   area(el) {
     if (busy || !life || life.s.dead || life.s.gaol) return;
     area = el.dataset.area || (area === 'bay' ? 'hill' : 'bay');
