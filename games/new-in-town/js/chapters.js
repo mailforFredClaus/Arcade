@@ -419,6 +419,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       for (const id of FAM_ONCE) if (C.fam[id]) s.seen[id] = s.seen[id] || 1;
       // And the townsfolk know the family: born here, you know them, and they know you (folk.js).
       if (s.folk && carry.folk && this.folkTakeOn) this.folkTakeOn(carry.folk, carry.how, carry.called);
+      if (s.away && carry.away && this.awayTakeOn) this.awayTakeOn(carry.away);
       // What came in the will is in the bank.
       const inherited = Math.max(0, Math.round(carry.money || 0));
       s.cash = Math.max(0, s.cash - inherited);
@@ -672,6 +673,9 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     const carry = { ...c, said: leftSaid(c) };
     // (The town goes on as this life left it: its mayor, what was built, its shops and its regulars: annals.js.)
     if (this.annalsHandOn) carry.town = this.annalsHandOn(c);
+    // (The family's holidays go on: the caravan park they always went to, and the tradition, see away.js. Not a
+    // place of their own away: that is in the will as money already, through what it is worth.)
+    if (this.awayCarry) carry.away = { ...this.awayCarry(), own: null };
     // (And its calendar runs on: the heir's first spring is the spring this life ended in, or the one after it, or after the years
     // away of one who comes back at eighteen; annalsHandOn counts the town's seasons from the same spring.)
     carry.y0 = (this.s.y0 || 0) + Math.ceil(this.s.t / 4) + (c.how === 'back' ? (c.gap || 0) : 0);
