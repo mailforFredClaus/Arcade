@@ -103,7 +103,7 @@ function renderTop() {
   $('ava').innerHTML = face(s.look, s.age, s.happy, s.sex);
   // (The age goes with the name, so that the job has the line beneath to itself.)
   $('whoName').textContent = `${s.name.split(' ')[0]}, ${s.age}`;
-  $('whoSub').textContent = s.gaol ? 'Starling Gaol' : life.jobTitle() || (s.retired ? 'Retired' : s.biz ? `Runs ${an(lowJob(life.bizName()))}` : 'Between jobs');
+  $('whoSub').textContent = s.gaol ? 'Starling Gaol' : life.jobTitle() || (s.retired ? 'Retired' : s.biz ? `Runs ${life.firmCalled ? life.firmCalled() : an(lowJob(life.bizName()))}` : 'Between jobs'); // (firm.js: the business by its name)
   $('cash').textContent = cashShort(s.cash);
   $('date').textContent = `${SEASON_ICON[life.season]} ${SEASONS[life.season]}, year ${life.year}${s.wx !== 'fair' ? ` ${life.weather().icon}` : ''}`;
   meter('mHealth', s.health, life.healthCap());
@@ -1006,7 +1006,8 @@ function meHtml() {
       ${life.playDue() ? `<p class="sub">👀 ${life.watcher()} wants to watch your next shift: it has to be done by hand.</p>` : ''}
       ${next ? `<p class="sub">Next: <b>${next.title}</b> (${money(next.pay)} a shift)</p><div class="needs">${needChips(next.list)}</div>` : '<p class="sub">You are at the very top. 🏆</p>'}`
     : s.retired ? `<p class="sub">Retired, on a pension of ${money(s.pension)} a season.</p>` : s.biz ? '<p class="sub">No job: you work for yourself.</p>' : '<p class="sub">Between jobs. The Town Hall has a job board, and the harbour always wants crates unloading.</p>'}
-    ${s.biz ? `<div class="line"><span>${BUSINESSES[s.biz.type].icon} Your ${life.bizName().toLowerCase()}, ${PLACES[BUSINESSES[s.biz.type].place].name}</span><b>${s.biz.mgr ? 'Has a manager' : 'Run by you'}</b></div>
+    ${s.biz && MODS.some((m) => m.work) ? MODS.map((m) => (m.work ? m.work(life) || '' : '')).join('') /* (the business, by firm-ui.js) */ : ''}
+    ${s.biz && !MODS.some((m) => m.work) ? `<div class="line"><span>${BUSINESSES[s.biz.type].icon} Your ${life.bizName().toLowerCase()}, ${PLACES[BUSINESSES[s.biz.type].place].name}</span><b>${s.biz.mgr ? 'Has a manager' : 'Run by you'}</b></div>
       <div class="skill"><i>📣</i><span>Its name</span><span class="bar"><span style="width:${s.biz.rep}%"></span></span><b>${Math.round(s.biz.rep)}</b></div>
       <p class="fine">Worth ${money(life.bizWorth())}. A spell of work in it brings in about ${money(life.bizTake())}${life.bizIdle() ? `; without you it makes ${money(life.bizIdle())} a season` : ''}.</p>` : ''}</div>
   <div class="box"><h3>Study</h3>${s.course ? `<div class="line"><span>${COURSES[s.course.id].icon} ${COURSES[s.course.id].name}</span><b>${s.course.exam ? 'Exam to sit' : `${s.course.p} of ${COURSES[s.course.id].classes}`}</b></div><p class="fine">Heading for ${life.gradeWord(life.examMark())}.</p>` : ''}
@@ -1111,7 +1112,7 @@ function showMenu() {
 }
 
 // Shown once to a life that was begun before the town grew.
-const NEWS = 8;
+const NEWS = 9;
 function showNew() {
   const was = save.seenNew || 0;
   save.seenNew = NEWS;
@@ -1140,8 +1141,9 @@ function showNew() {
     <p><b>🕶️ Crime pays less, and remembers.</b> Smaller takes, a street that talks, money from crime that can be confiscated, and Sal’s trust deciding your place in the crew.</p>
     <p><b>⏱️ Where the time goes.</b> Tap the time pips at the top to see why a season has the time it has.</p>
     <p><b>🧾 A family’s town.</b> Heirs keep the family name, the calendar runs on across the generations, and the stories, shouts and anniversaries vary more.</p>`;
+  const firm = `<p><b>🏪 A business worth running.</b> Give it a name, take on staff with natures and stories of their own, set prices, quality and hours in the office, see off rivals or buy them out, and decide what to do with the year’s accounts. It can grow to a second premises, a board, or go under.</p>`;
   if (was >= 5) {
-    ui.show(`<div class="ev-ico">🗺️</div><h2>New in Starling Bay</h2><div class="how">${latest}${was >= 7 ? '' : since}</div>
+    ui.show(`<div class="ev-ico">🗺️</div><h2>New in Starling Bay</h2><div class="how">${firm}${was >= 8 ? '' : latest}${was >= 7 ? '' : since}</div>
       <div class="actions"><button class="btn btn-primary" data-action="evDone">Show me</button></div>`);
     return;
   }
@@ -1456,6 +1458,7 @@ const DO = {
 //   gaol(life): a box of HTML for the prison screen
 //   person(life, p): HTML for someone's own sheet, under what is known about them
 //   lowRoad(life): lines of HTML for the Low road box on the Me tab (shown once there is a crime to your name)
+//   work(life): the business's lines in the Work box on the Me tab, in place of the plain ones (firm-ui.js)
 //   marks(life): [[place, emoji], ...] for badges on the map
 //   place(life, id): HTML to show at the top of a place's sheet (how it has changed, say)
 //   css: a stylesheet of its own
