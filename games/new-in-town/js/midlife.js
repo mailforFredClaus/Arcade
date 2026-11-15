@@ -92,8 +92,11 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
     // From what you are worth: 1 up to about $150,000, 2 at $600,000, 3 at $1.35M, 4 at $2.4M ... up to 8.
     midCalcMeans() { return Math.round(clamp((Math.max(0, this.netWorth()) / 150000) ** 0.5, 1, 8) * 100) / 100; },
     midMeans() { return (this.s.mid && this.s.mid.means) || 1; },
+    // What somebody of your means spends, against what most people would: it rises faster than the
+    // means themselves (twice the means, two and a half times the spending), up to ten times.
+    midSpend() { return Math.min(10, this.midMeans() ** 1.35); },
     // A sum the town would ask of somebody of ordinary means, asked of you.
-    midPrice(n) { return round(n * this.midMeans(), n >= 1000 ? 500 : 50); },
+    midPrice(n) { return round(n * this.midSpend(), n >= 1000 ? 500 : 50); },
 
     // ---- people ----
     midClose() { return this.s.people.filter((p) => REST[p.kind] != null && !(p.kind === 'child' && p.age < 18) && p.bond >= CLOSE); },

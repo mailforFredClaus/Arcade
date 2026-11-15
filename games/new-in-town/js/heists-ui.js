@@ -127,6 +127,9 @@ export default function (kit) {
     if (r.stage >= 1) out += line('🏴 Nan Carne’s lot', { truce: 'A truce', gone: 'Gone back to Kettleby', spain: 'Gone back to Kettleby', sal: 'Own the pier', yours: 'The pier is yours now' }[r.end] || (r.stage >= 3 ? 'At war with Sal' : r.side === 'nan' ? 'You are on their payroll' : 'Moving in on Sal’s patch'));
     if (H.hot > 0) out += line('💰 Hot money', money(H.hot), 'down') + `<p class="fine">Hidden ${esc(L.heistHotWord())}. It needs washing before it can be spent: through Sal, the Lucky Gull’s cage, a business of your own, property, or the bank a little at a time.</p>`;
     if (H.washed) out += line('🧼 Washed so far', money(H.washed));
+    // (What a court could trace to crime, of what you have: see proceeds.js.)
+    const trace = L.proTraceable ? L.proTraceable() : 0;
+    if (trace >= 2000) out += line('🧾 Traceable to crime', money(trace), 'down') + '<p class="fine">What crime has paid you lately, as a court would see it. Sent down for anything serious, it may be taken back. It fades as it is spent and mixed in with the rest.</p>';
     if (H.lag.n) {
       const q = s.gaol, m = q && q.mate;
       out += line('⛓️ Sentences served', `${H.lag.n}${H.lag.n > 1 ? '; they remember you inside' : ''}`);

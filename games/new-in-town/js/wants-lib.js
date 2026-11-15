@@ -32,13 +32,16 @@ export function been(L, p, t) {
 // at fifty as it did at twenty-five. (Care homes and nurseries charge
 // everybody the same, and only follow prices: see fee.)
 // (And with what you have: a child's wedding or a university fee is sized to a family's means,
-// not only its wages. midMeans is midlife.js's: 1 for most people, up to 6 here for the very rich.)
+// not only its wages. midSpend is midlife.js's: 1 for most people, up to 6 here for the very rich.)
 export function scale(L) {
   const s = L.s, pay = s.job ? CAREERS[s.job.c].rungs[s.job.r].pay : s.pension || 0;
-  return Math.max(clamp(pay / 2500, 0.8, 3), L.midMeans ? Math.min(6, L.midMeans()) : 0);
+  return Math.max(clamp(pay / 2500, 0.8, 3), L.midSpend ? Math.min(6, L.midSpend()) : 0);
 }
 export const price = (L, n) => Math.round(n * scale(L) / 50) * 50;
 export const fee = (L, n) => Math.round(n * L.s.idx / 10) * 10;
+// Care for a parent follows prices, and what a family can afford: the agency with the good carers,
+// the room at Seaview House with the view of the bay (up to five times the plain one).
+export const care = (L, n) => Math.round(n * L.s.idx * clamp(L.midSpend ? L.midSpend() : 1, 1, 5) / 10) * 10;
 
 // Time taken out of the season you are about to have.
 export const busy = (L, n) => { L.s.time = Math.max(0, L.s.time - n); };

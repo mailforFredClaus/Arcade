@@ -46,7 +46,7 @@
 
 import { TROPHIES, HOMES, money } from './data.js';
 import {
-  clamp, first, he, him, his, P, isLove, rec, been, price, fee, young, spareRooms,
+  clamp, first, he, him, his, P, isLove, rec, been, price, fee, care, young, spareRooms,
   AMBITIONS, BANDS, INSTRUMENTS, BOATS, SHOPS, PREMISES, HOPES, PATHS, CARE, MILESTONES, EXAM,
 } from './wants-lib.js';
 import { PARTNER_CARDS } from './wants-partner.js';
@@ -615,7 +615,7 @@ export function install({ A, Life, hooks, addEvents }) {
       const R = W.p[q.id];
       if (!R) continue;
       if (q.kind === 'parent' && R.care && CARE[R.care].cost) {
-        const n = fee(L, CARE[R.care].cost) / (R.care !== 'with' && halves(L) ? 2 : 1);
+        const n = care(L, CARE[R.care].cost) / (R.care !== 'with' && halves(L) ? 2 : 1);
         out.push([{ carer: `A carer for ${first(q)}`, home: `Seaview House, for ${first(q)}`, with: `${first(q)}’s keep` }[R.care] + (R.care !== 'with' && halves(L) ? ' (your half)' : ''), Math.round(n)]);
       }
       if (q.kind === 'child' && q.age < 5 && R.care === 'nursery') out.push([`Bayview Nursery, for ${first(q)}`, fee(L, 600)]);

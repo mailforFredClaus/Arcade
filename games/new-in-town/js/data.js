@@ -231,12 +231,14 @@ export const CAREERS = {
     name: 'Sal\u2019s crew', icon: '🦊', place: 'harbour', stats: ['fitness', 'charm'], stress: 2, shady: true,
     blurb: 'Nobody hands in their notice.',
     rungs: [
-      rung('Lookout', 2200, { crimes: 3 }),
-      rung('Runner', 3400, { fitness: 30, crimes: 8 }),
-      rung('Enforcer', 5600, { fitness: 50, crimes: 15, bad: 10 }),
-      rung('Fixer', 9500, { charm: 50, smarts: 45, crimes: 25, bad: 20 }),
-      rung('Underboss', 17000, { charm: 65, smarts: 60, bad: 35 }),
-      rung('Boss of the Bay', 32000, { charm: 78, smarts: 70, bad: 50 }),
+      // (Better than an honest start, and no papers asked; no better than an honest top, and it all
+      // depends on Sal: see proceeds.js.)
+      rung('Lookout', 1800, { crimes: 3 }),
+      rung('Runner', 2700, { fitness: 30, crimes: 8 }),
+      rung('Enforcer', 4200, { fitness: 50, crimes: 15, bad: 10 }),
+      rung('Fixer', 6800, { charm: 50, smarts: 45, crimes: 25, bad: 20 }),
+      rung('Underboss', 11500, { charm: 65, smarts: 60, bad: 35 }),
+      rung('Boss of the Bay', 21000, { charm: 78, smarts: 70, bad: 50 }),
     ],
   },
   politics: {
@@ -287,6 +289,8 @@ export const STUDENT_RATE = 0.01; // a season, on a student loan
 // let it out, as a share of what it's worth.
 export const HOMES = {
   hostel: { name: 'Bunk at the Seagull Hostel', icon: '🛏️', rent: 500, price: null, comfort: 0, kids: 0, tier: 0, blurb: 'Eleven roommates. One of them snores in Morse code.' },
+  // (A cheap room with a kitchen: the use of Mrs Pargeter's, and a corner of her garden for a few hens.)
+  room: { name: 'Room at Mrs Pargeter’s', icon: '🪴', rent: 700, price: null, comfort: 3, kids: 0, tier: 1, lodger: true, blurb: 'A back bedroom, the use of her kitchen, and a corner of the garden for a few hens. In by eleven, and no singing.' },
   bedsit: { name: 'Bedsit over the chip shop', icon: '🍟', rent: 1200, price: null, comfort: 5, kids: 0, tier: 1, blurb: 'Yours alone. Everything you own smells of vinegar.' },
   flat: { name: 'Harbour-view flat', icon: '🏢', rent: 2400, price: 140000, earn: 0.016, comfort: 9, kids: 1, tier: 2, blurb: 'One bedroom and, if you lean out, the sea.' },
   cottage: { name: "Fisherman's cottage", icon: '🏡', rent: 3600, price: 260000, earn: 0.014, comfort: 13, kids: 2, tier: 3, blurb: 'Low beams, a wood stove and a little garden.' },

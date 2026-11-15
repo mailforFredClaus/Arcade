@@ -928,10 +928,11 @@ export const EVENTS = [
     text: (L, x) => (L.lawCollar ? L.lawCollar(x).text : `A hand on your collar. "Well now," says the constable, looking at ${x && x.what ? x.what : 'what you are carrying'}. "And what have we here?"`),
     opts: [
       { t: 'Come quietly', run(L, x) { return L.sentence(sev(x)); } },
-      { t: 'Run for it', check: ['fitness', 55], run(L, x, win) { if (win) { L.warm(15); return 'Over the nets, round the ice house, and away. Your heart does not slow down for an hour. They will be looking for you now.'; } L.hp(-6, 'a fall'); return `You make it thirty yards before a lobster pot brings you down. Resisting arrest, on top of the rest. ${L.sentence(sev(x) + 1)}`; } },
+      // (Each run, and each time it is said to be all Sal's doing, makes the next one harder: see proceeds.js.)
+      { t: 'Run for it', check: (L) => ['fitness', L.proRunDc ? L.proRunDc() : 55], run(L, x, win) { if (win) { L.warm(15); return 'Over the nets, round the ice house, and away. Your heart does not slow down for an hour. They will be looking for you now.'; } L.hp(-6, 'a fall'); return `You make it thirty yards before a lobster pot brings you down. Resisting arrest, on top of the rest. ${L.sentence(sev(x) + 1)}`; } },
       { t: (L, x) => `Slip ${L.lawOfficer ? L.lawOfficer(x) : 'the constable'} something`, cost: (L, x) => 1500 * sev(x), odds: (L) => 0.25 + L.s.st.charm / 250 + (L.perk('police') ? 0.2 : 0) + (L.lawBribe ? L.lawBribe() : 0), run(L, x, win) { const who = L.lawOfficer ? L.lawOfficer(x) : 'the constable', Who = who[0].toUpperCase() + who.slice(1); L.karma(-2); if (win) return `${Who} looks at the notes, then at the sea, then at nothing at all. "Mind how you go."`; return `"Attempting to bribe an officer," ${who} writes, slowly. ${L.sentence(sev(x) + 1)}`; } },
       { t: 'Say nothing, and send for a good lawyer', cost: (L, x) => (L.perk('law') ? 2000 : 4000) * sev(x), odds: (L, x) => (L.briefOdds ? L.briefOdds(sev(x)) : 1), run(L, x, win) { return win ? `She costs a fortune and earns it. ${L.sentence(sev(x) - 1)}` : `She costs a fortune. The magistrate has read your file, all of it. ${L.sentence(sev(x))}`; } },
-      { t: 'It was all Sal', check: ['charm', 60], show: (L, x) => sev(x) === 2 && salHere(L), run(L, x, win) { L.s.f.salOff = L.s.t + 8; if (win) return 'You are so convincing that the constable gives you a lift home. Sal will not be pleased.'; return `Sal has an alibi, and three witnesses. ${L.sentence(sev(x) + 1)}`; } },
+      { t: 'It was all Sal', check: (L) => ['charm', L.proBlameDc ? L.proBlameDc() : 60], show: (L, x) => sev(x) === 2 && salHere(L), run(L, x, win) { L.s.f.salOff = L.s.t + 8; if (win) return 'You are so convincing that the constable gives you a lift home. Sal will not be pleased.'; return `Sal has an alibi, and three witnesses. ${L.sentence(sev(x) + 1)}`; } },
     ],
   },
   {
@@ -1569,8 +1570,9 @@ export const EVENTS = [
     text: (L, x) => `${P(L, x).name} is eighteen today, with a place at college in the city. It costs a fortune.`,
     inText: (L, x) => `A letter from outside: ${P(L, x).name} is eighteen, with a place at college in the city. It costs a fortune.`,
     opts: [
-      { t: (L, x) => `Pay ${his(P(L, x))} way`, cost: (L) => Math.round(20000 * (L.s.gifts.scholarship ? 0.75 : 1)), run(L, x) { const p = P(L, x); L.bond(p, 15); L.joy(6); if (p.st) p.st.smarts = Math.min(100, p.st.smarts + 10); return L.s.gaol ? `${He(p)} writes from the city every week. You read each letter until it comes apart at the folds.` : 'You wave from the platform until the train is out of sight, then cry in the car park.'; } },
-      { t: 'Help a little', cost: 5000, run(L, x) { L.bond(P(L, x), 5); L.joy(3); return `${He(P(L, x))} will work evenings to make up the rest, and be proud of that, later.`; } },
+      // (A family of means sends its children somewhere that costs what it can afford: see midSpend in midlife.js.)
+      { t: (L, x) => `Pay ${his(P(L, x))} way`, cost: (L) => Math.round(20000 * Math.min(4, L.midSpend ? L.midSpend() : 1) * (L.s.gifts.scholarship ? 0.75 : 1) / 100) * 100, run(L, x) { const p = P(L, x); L.bond(p, 15); L.joy(6); if (p.st) p.st.smarts = Math.min(100, p.st.smarts + 10); return L.s.gaol ? `${He(p)} writes from the city every week. You read each letter until it comes apart at the folds.` : 'You wave from the platform until the train is out of sight, then cry in the car park.'; } },
+      { t: 'Help a little', cost: (L) => Math.round(5000 * Math.min(4, L.midSpend ? L.midSpend() : 1) / 100) * 100, run(L, x) { L.bond(P(L, x), 5); L.joy(3); return `${He(P(L, x))} will work evenings to make up the rest, and be proud of that, later.`; } },
       { t: (L, x) => `${He(P(L, x))} can make ${his(P(L, x))} own way, like you did`, run(L, x) { const p = P(L, x); L.bond(p, -8); return `${He(p)} gets a job on the boats instead, and says it is fine.`; } },
     ],
   },

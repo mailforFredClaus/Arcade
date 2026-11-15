@@ -25,11 +25,16 @@ const GRAFT = {
   finance: ['Trade on what you should not know', 'You buy on Monday what the papers print on Friday.'],
   politics: ['Sell a planning permission', 'A car park where the meadow was.'],
 };
+// (What a fence will give for it, which is a long way short of what it is worth. A street that has been
+// burgled lately keeps its curtains open and its dog in: see alert, below.)
 const HOUSES = [
-  ['A terrace on Net Loft Lane', 0.2, 2, 1000, 3000],
-  ['A villa on the cliff road', 0.3, 2, 8000, 20000],
-  ['Starling Manor', 0.42, 3, 40000, 90000],
+  ['A terrace on Net Loft Lane', 0.2, 2, 800, 2500],
+  ['A villa on the cliff road', 0.3, 2, 4000, 11000],
+  ['Starling Manor', 0.42, 3, 20000, 55000],
 ];
+// How much more likely a burglary is to end in a cell for each one done lately (s.f.alert, which
+// fades by a half each season): the town talks, the alarm man is busy, the dogs are kept in.
+const ALERT = 0.04;
 const BOUTS = [['Wee Dougie', 35, 500, 10], ['The Ox', 60, 3000, 16], ['Mad Agnes', 85, 15000, 24]];
 // The most Sal will let anybody owe him, however it was borrowed (flutter.js asks too).
 const SHARK_MAX = 30000;
@@ -40,7 +45,10 @@ const inside = (L) => !!L.salAway && L.salAway();
 const SHUT = 'Sal is inside, and the ice house is shut up until he is out.';
 const salOff = (L) => (L.s.t < (L.s.f.salOff || 0) ? 'Sal is not speaking to you.' : null);
 // Work for Sal himself: not while he is away, and not for the one who gives out the errands now.
-const forSal = (L) => (L.salYours && L.salYours() ? 'You give out the errands now.' : (!here(L) && L.salGone()) || salOff(L));
+const forSal = (L) => (L.salYours && L.salYours() ? 'You give out the errands now.' : (!here(L) && L.salGone()) || salOff(L) || (L.s.heists && L.s.heists.sal < 15 ? 'Sal has nothing for you. He has made that very clear.' : null));
+// Who buys what you have taken: Sal's man, while Sal will deal with you; otherwise a fence in Kettleby,
+// who knows you have nowhere else to go, and pays like it.
+const fence = (L) => (here(L) && !salOff(L) && !(L.s.heists && L.s.heists.sal < 15) ? { who: 'Sal’s man', cut: 1 } : { who: here(L) ? 'A fence in Kettleby' : 'The fence', cut: here(L) ? 0.6 : 1 });
 
 export function install({ def, A, Life, clamp }) {
   Object.assign(Life.prototype, {
@@ -116,6 +124,8 @@ export function install({ def, A, Life, clamp }) {
     viceSeason() {
       const s = this.s;
       this.warm(-8);
+      // (A street forgets a burglary, slowly.)
+      if (s.f.alert) s.f.alert = s.f.alert >= 0.2 ? Math.round(s.f.alert * 50) / 100 : 0;
       for (const k of Object.keys(s.habit)) {
         // (Going without wears a habit down, but hurts while it lasts.)
         const was = s.habit[k];
@@ -176,8 +186,8 @@ export function install({ def, A, Life, clamp }) {
     run(L) {
       const s = L.s;
       if (L.crime(0.16, 2, 'a crate that is not yours')) return 'You are halfway down the quay with the crate when a torch clicks on.';
-      // (Sal pays a new face a little over an honest shift, and more as he learns to trust you.)
-      const pay = Math.min(8000, 1100 + L.int(0, 12) * 100 + Math.min(45, s.n.crimes) * 120);
+      // (Sal pays a new face a little over an honest shift, and a bit more as he learns to trust you.)
+      const pay = Math.min(5000, 1100 + L.int(0, 12) * 100 + Math.min(40, s.n.crimes) * 60);
       L.cash(pay);
       return `${L.pick(['You drive a van to a lay-by and walk away from it.', 'A crate of "designer" handbags changes hands.', 'You keep watch while some boxes fall off a boat.'])} Sal counts out ${money(pay)}.`;
     },
@@ -200,17 +210,19 @@ export function install({ def, A, Life, clamp }) {
   });
   HOUSES.forEach(([name, base, sev, lo, hi], i) => {
     def(`burgle${i}`, {
-      place: 'sal', sec: 'Jobs', icon: i === 2 ? '🏰' : '🏚️', title: `Burgle ${low(name)}`, time: 2,
-      desc: (L) => `Worth ${money(lo)} to ${money(hi)} to the right buyer. About ${Math.round(L.riskOf(base) * 100)}% you are caught.`,
+      place: 'sal', sec: 'Jobs', icon: i === 2 ? '🏰' : '🏚️', title: `Burgle ${low(name)}`, time: 2, per: 1,
+      desc: (L) => { const f = fence(L), a = L.s.f.alert || 0; return `${f.cut < 1 ? `${f.who} would give ${money(lo * f.cut)} to ${money(hi * f.cut)}` : `Worth ${money(lo)} to ${money(hi)} to the right buyer`}. About ${Math.round(L.riskOf(base + ALERT * a) * 100)}% you are caught${a >= 1.5 ? ': the town is still talking about the last one' : ''}.`; },
       why: (L) => (inside(L) ? SHUT : i === 2 && L.owns('manor') ? 'You would be robbing yourself.' : null),
       run(L) {
+        const s = L.s, a = s.f.alert || 0, f = fence(L);
         L.gain('fitness', 0.6);
-        if (L.crime(base, sev, `${i === 2 ? 'the Manor’s' : 'somebody else’s'} silver in a pillowcase`)) return L.pick(['The dog was not in the plans.', 'You are halfway out of the window when the lights come on.', 'A neighbour, a telephone, a blue lamp.']);
-        const got = L.int(lo / 100, hi / 100) * 100;
-        L.cash(got); L.s.n.thefts = (L.s.n.thefts || 0) + 1;
+        s.f.alert = a + 1;
+        if (L.crime(base + ALERT * a, sev, `${i === 2 ? 'the Manor’s' : 'somebody else’s'} silver in a pillowcase`)) return L.pick(['The dog was not in the plans.', 'You are halfway out of the window when the lights come on.', 'A neighbour, a telephone, a blue lamp.', 'The new alarm on the side of the house is not a dummy, as it turns out.']);
+        const got = Math.round(L.int(lo / 100, hi / 100) * 100 * f.cut / 100) * 100;
+        L.cash(got); s.n.thefts = (s.n.thefts || 0) + 1;
         // Now and then there is something too good to fence.
         const kept = L.chance(0.15 + i * 0.1) ? L.gotCurio(L.anyCurio()) : null;
-        return `${L.pick(['In by the scullery, out by the front door like you own the place.', 'Silver, a clock, and a painting of a horse.', 'You leave the fridge as you found it. You are not an animal.'])} ${here(L) ? 'Sal’s man' : 'The fence'} gives you ${money(got)}.${kept ? ` You keep back ${kept.a} for yourself.` : ''}`;
+        return `${L.pick(['In by the scullery, out by the front door like you own the place.', 'Silver, a clock, and a painting of a horse.', 'You leave the fridge as you found it. You are not an animal.', 'Up the drainpipe, in at the landing window, and back down with a jewellery box under your arm.'])} ${f.who} gives you ${money(got)}${f.cut < 1 ? ', and not a penny more' : ''}.${kept ? ` You keep back ${kept.a} for yourself.` : ''}`;
       },
     });
   });

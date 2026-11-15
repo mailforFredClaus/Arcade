@@ -1403,13 +1403,15 @@ export class Life {
     return {
       id, icon: val(e.icon, this, x), title: val(e.title, this, x), text: val(s.gaol && e.inText ? e.inText : again ? e.again : e.text, this, x),
       opts: e.opts.filter((o) => !o.show || o.show(this, x)).map((o) => {
-        const chance = o.check ? this.checkOdds(o.check[0], o.check[1]) : o.odds ? clamp(o.odds(this, x) + this.luck(), 0.02, 0.98) : null;
+        // (A check may be worked out from the life: [stat, how hard], or a function giving one.)
+        const ck = val(o.check, this, x);
+        const chance = ck ? this.checkOdds(ck[0], ck[1]) : o.odds ? clamp(o.odds(this, x) + this.luck(), 0.02, 0.98) : null;
         return {
           // (A choice that is nearly hopeless says so in words, not only as a small number: see hopeWord.)
           t: val(o.t, this, x) + this.hopeWord(chance),
           cost: val(o.cost, this, x) || 0,
           chance,
-          stat: o.check ? o.check[0] : null,
+          stat: ck ? ck[0] : null,
           why: (o.cost && s.cash + s.bank < val(o.cost, this, x) ? `You need ${money(val(o.cost, this, x))}.` : null) || (o.why ? o.why(this, x) : null),
         };
       }),

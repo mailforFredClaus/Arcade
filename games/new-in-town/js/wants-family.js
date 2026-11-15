@@ -7,7 +7,7 @@
 
 import { money } from './data.js';
 import {
-  clamp, he, He, him, his, His, first, P, rec, been, price, fee, busy, perf, grow, young, tr, ti, trait, spareRooms,
+  clamp, he, He, him, his, His, first, P, rec, been, price, fee, care, busy, perf, grow, young, tr, ti, trait, spareRooms,
   HOPES, PATHS, EXAM, CARE, GRADUATE,
 } from './wants-lib.js';
 
@@ -237,8 +237,8 @@ export const FAMILY_CARDS = [
     },
     opts: [
       { t: (L, x) => (rec(L, P(L, x)).need >= 2 ? 'Look after them yourself' : 'Go round every day yourself'), run(L, x) { const p = P(L, x); setCare(L, p, 'you'); L.bond(p, 6); return rec(L, p).need >= 2 ? `You are there every morning and every evening, and on the phone in between. It takes most of what you have. ${first(p)} knows.` : `Shopping, pills, a hot dinner, and the crossword done together. An hour a day, more on Sundays. ${first(p)} grumbles, and looks forward to it.`; } },
-      { t: (L) => `A carer to come in (${money(fee(L, CARE.carer.cost))} a season)`, why: (L, x) => (rec(L, P(L, x)).need >= 2 ? 'It needs more than a carer now.' : null), run(L, x) { const p = P(L, x); setCare(L, p, 'carer'); L.bond(p, 2); return `A carer called Wendy comes in twice a day. ${first(p)} pretends to resent her, and saves her the best biscuits.`; } },
-      { t: (L) => `Seaview House (${money(fee(L, CARE.home.cost))} a season)`, run(L, x) { const p = P(L, x); setCare(L, p, 'home'); L.bond(p, -6); return `A room with a view of the bay, a hairdresser on Tuesdays and bingo on Fridays. ${first(p)} hates it for a month, and then, rather to ${his(p)} own surprise, does not.`; } },
+      { t: (L) => `A carer to come in (${money(care(L, CARE.carer.cost))} a season)`, why: (L, x) => (rec(L, P(L, x)).need >= 2 ? 'It needs more than a carer now.' : null), run(L, x) { const p = P(L, x); setCare(L, p, 'carer'); L.bond(p, 2); return `A carer called Wendy comes in twice a day. ${first(p)} pretends to resent her, and saves her the best biscuits.`; } },
+      { t: (L) => `Seaview House (${money(care(L, CARE.home.cost))} a season)`, run(L, x) { const p = P(L, x); setCare(L, p, 'home'); L.bond(p, -6); return `A room with a view of the bay, a hairdresser on Tuesdays and bingo on Fridays. ${first(p)} hates it for a month, and then, rather to ${his(p)} own surprise, does not.`; } },
       { t: 'Move them in with you', why: (L, x) => (spareRooms(L) < 1 ? 'You would need a spare room.' : null), run(L, x) { const p = P(L, x), pt = L.partner(); setCare(L, p, 'with'); L.bond(p, 10); if (pt && pt.kind !== 'parent') L.bond(pt, -4); L.note(`${first(p)} came to live with you.`); return `${first(p)} arrives with a suitcase, a clock and a lifetime of opinions about how you load the dishwasher.${pt ? ` ${first(pt)} is very good about it, mostly.` : ''}`; } },
       { t: (L) => `Ask ${first(sib(L))} to take a turn`, show: (L) => !!sib(L), odds: () => 0.5, run(L, x, win) { const p = P(L, x), q = sib(L); if (win) { setCare(L, p, 'sib'); L.bond(q, -3); return `${first(q)} takes ${first(p)} in for now. "Your turn next," ${he(q)} says, and means it.`; } L.bond(q, -8); rec(L, p).ask = 1; return `${first(q)} cannot, and says why at length. You will have to think again, next season.`; } },
     ],
