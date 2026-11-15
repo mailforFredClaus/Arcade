@@ -546,22 +546,27 @@ export const DREAMS = {
 // ---- the to-do list ---------------------------------------------------------------------
 
 // A guide through the first few years, one step at a time.
+// (stale: the to-do no longer fits the life, and is passed over quietly, with no reward: see engine.js.
+// The whole list is for getting started; a life past forty-five, or worth $150,000, has started.)
+const gotOn = (L) => L.s.age >= 45 || L.netWorth() >= 150000;
+const means = (L) => L.s.cash + L.s.bank;
 export const QUESTS = [
-  { text: 'Find work: the Town Hall has a job board', test: (L) => !!L.s.job || L.s.n.shifts > 0, cash: 100 },
-  { text: 'Work a shift (your workplace is marked on the map)', test: (L) => L.s.n.shifts > 0, cash: 100 },
+  { text: 'Find work: the Town Hall has a job board', test: (L) => !!L.s.job || L.s.n.shifts > 0, cash: 100, stale: (L) => gotOn(L) || L.s.age >= 25 },
+  { text: 'Work a shift (your workplace is marked on the map)', test: (L) => L.s.n.shifts > 0, cash: 100, stale: (L) => gotOn(L) || L.s.age >= 25 },
   { text: 'Out of time? Tap Next to move on a season', test: (L) => L.s.t > 0, cash: 100 },
-  { text: 'Train any skill to 25: try the library, gym, pub or studios', test: (L) => STATS.some((k) => L.s.st[k] >= 25), cash: 200 },
-  { text: 'Buy a bicycle on the High Street for more time', test: (L) => L.s.items.bike || L.s.items.car || L.s.items.sportscar, cash: 100 },
-  { text: 'Get to know someone: chat to people at the pub or the park', test: (L) => L.s.people.some((p) => p.kind !== 'parent'), cash: 150 },
-  { text: 'Move out of the hostel (Home, then Move house)', test: (L) => L.s.home !== 'hostel', cash: 300 },
-  { text: 'Earn a promotion (Me shows what the next step needs)', test: (L) => !!L.s.f.promoted, cash: 400 },
-  { text: 'Put $2,000 into savings at the bank', test: (L) => L.s.bank >= 2000, cash: 200 },
-  { text: 'Finish a course at the college', test: (L) => Object.keys(L.s.edu).length > 0, cash: 500 },
-  { text: 'Take a holiday from the station', test: (L) => Object.keys(L.s.trips).length > 0, cash: 300 },
-  { text: 'With a phone, post something on Chirper (it is at home)', test: (L) => !!L.s.chirp && L.s.chirp.posts > 0, cash: 150 },
-  { text: 'Find a curio: Mr Pym on the High Street sells them, and the beach gives them up', test: (L) => Object.keys(L.s.curSeen).length > 0, cash: 200 },
-  { text: 'Take an allotment at the park and sow something', test: (L) => (!!L.s.plot && L.s.plot.beds.some(Boolean)) || Object.keys(L.s.grown).length > 0, cash: 150 },
-  { text: 'Bring in a harvest from your allotment', test: (L) => Object.keys(L.s.grown).length > 0, cash: 250 },
+  { text: 'Train any skill to 25: try the library, gym, pub or studios', test: (L) => STATS.some((k) => L.s.st[k] >= 25), cash: 200, stale: gotOn },
+  { text: 'Buy a bicycle on the High Street for more time', test: (L) => L.s.items.bike || L.s.items.car || L.s.items.sportscar, cash: 100, stale: (L) => gotOn(L) || means(L) >= 20000 },
+  { text: 'Get to know someone: chat to people at the pub or the park', test: (L) => L.s.people.some((p) => p.kind !== 'parent'), cash: 150, stale: gotOn },
+  { text: 'Move out of the hostel (Home, then Move house)', test: (L) => L.s.home !== 'hostel', cash: 300, stale: gotOn },
+  { text: 'Earn a promotion (Me shows what the next step needs)', test: (L) => !!L.s.f.promoted, cash: 400,
+    stale: (L) => gotOn(L) || L.s.retired || (!L.s.job && L.s.age >= 30) || (!!L.s.job && !!CAREERS[L.s.job.c] && L.s.job.r >= CAREERS[L.s.job.c].rungs.length - 1) },
+  { text: 'Put $2,000 into savings at the bank', test: (L) => L.s.bank >= 2000, cash: 200, stale: (L) => gotOn(L) || means(L) >= 50000 },
+  { text: 'Finish a course at the college', test: (L) => Object.keys(L.s.edu).length > 0, cash: 500, stale: gotOn },
+  { text: 'Take a holiday from the station', test: (L) => Object.keys(L.s.trips).length > 0, cash: 300, stale: gotOn },
+  { text: 'With a phone, post something on Chirper (it is at home)', test: (L) => !!L.s.chirp && L.s.chirp.posts > 0, cash: 150, stale: gotOn },
+  { text: 'Find a curio: Mr Pym on the High Street sells them, and the beach gives them up', test: (L) => Object.keys(L.s.curSeen).length > 0, cash: 200, stale: gotOn },
+  { text: 'Take an allotment at the park and sow something', test: (L) => (!!L.s.plot && L.s.plot.beds.some(Boolean)) || Object.keys(L.s.grown).length > 0, cash: 150, stale: gotOn },
+  { text: 'Bring in a harvest from your allotment', test: (L) => Object.keys(L.s.grown).length > 0, cash: 250, stale: gotOn },
   { text: 'Make one of your dreams come true', test: (L) => Object.keys(L.s.dreamDone).length > 0, cash: 1000 },
 ];
 

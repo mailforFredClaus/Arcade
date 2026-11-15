@@ -655,7 +655,8 @@ const SHEET = {
       if (p.kind === 'friend' && life.fancy(p)) facts.push(p.single ? '<span class="up">💗 Single</span>' : '<span>Spoken for</span>');
       const loves = (p.likes || []).filter((a) => p.known[a]);
       if (loves.length) facts.push(`<span>Loves ${loves.map((a) => OUTINGS[a].icon).join(' ')}</span>`);
-      if ((p.kind === 'partner' || p.kind === 'spouse') && p.bond >= 50) facts.push(`<span>${p.wish ? 'Wants children' : 'Does not want children'}</span>`);
+      // (Only while it is still a question: before fifty, and with no children of your own yet.)
+      if ((p.kind === 'partner' || p.kind === 'spouse') && p.bond >= 50 && p.age < 50 && !life.kids().length) facts.push(`<span>${p.wish ? 'Wants children' : 'Does not want children'}</span>`);
     }
     const foe = p.kind === 'enemy';
     const perk = p.job && !['parent', 'ex', 'enemy'].includes(p.kind) && p.age >= 18 ? `<p class="fine">${life.perk(p.job) && p.bond >= 60 ? '✓ ' : ''}Someone close in ${CAREERS[p.job].name.toLowerCase()} (60 bond) gets you ${PERKS[p.job]}.</p>` : '';

@@ -83,20 +83,21 @@ export const AMBITIONS = {
   sail: { icon: '⛵', name: 'Round the world', cards: ['wantsSail1', 'wantsSail2', 'wantsSail3'], hope: [() => 'To sail round the world', () => 'A summer at sea, first', () => 'The big voyage'] },
   garden: { icon: '🌻', name: 'A garden', cards: ['wantsGarden1', 'wantsGarden2'], hope: [() => 'Somewhere with a garden', () => 'To make something of the garden'] },
 };
-export const BANDS = ['The Undertow', 'Low Tide Lights', 'Gull Patrol', 'The Breakwaters', 'Saltmarsh Radio', 'The Harbour Lights'];
+// (Names a family has given in the town are not given again by the next of it: chapGiveName in chapters.js.)
+export const BANDS = ['The Undertow', 'Low Tide Lights', 'Gull Patrol', 'The Breakwaters', 'Saltmarsh Radio', 'The Harbour Lights', 'The Spring Tides', 'Kettleby Nights', 'The Lugworms'];
 export const INSTRUMENTS = ['the bass', 'the drums', 'the keyboards', 'the fiddle', 'lead guitar'];
-export const BOATS = ['Kittiwake', 'Second Wind', 'Merry Dancer', 'Curlew', 'Lark'];
+export const BOATS = ['Kittiwake', 'Second Wind', 'Merry Dancer', 'Curlew', 'Lark', 'Halcyon', 'Morwenna', 'Fair Weather'];
 // A business of their own, after the sort of person they are.
 // (sign: the name in an old save; signs: the names one might choose, drawn in wants.js.)
 export const SHOPS = {
-  kind: { a: 'a bakery', sign: 'Crumbs', signs: ['Crumbs', 'The Daily Loaf', 'Rise & Shine', 'Flour Power', 'The Warm Oven'], job: 'kitchen' },
-  bookish: { a: 'a secondhand bookshop', sign: 'Spine & Tide', signs: ['Spine & Tide', 'Dog-Eared', 'The Turned Page', 'Marginalia', 'Second Chapter'], job: 'retail' },
-  sporty: { a: 'a bike shop', sign: 'Freewheel', signs: ['Freewheel', 'Spokes', 'Chain Reaction', 'The Bike Shed', 'Uphill Cycles'], job: 'retail' },
-  arty: { a: 'a pottery with a little gallery', sign: 'Kiln Cottage', signs: ['Kiln Cottage', 'Wet Clay', 'The Glaze Room', 'Throw & Fire', 'Slipware'], job: 'arts' },
-  witty: { a: 'a café with music on Fridays', sign: 'The Blue Kettle', signs: ['The Blue Kettle', 'The Tin Whistle', 'Spoons', 'The Crooked Cup', 'Steam & Strings'], job: 'kitchen' },
+  kind: { a: 'a bakery', sign: 'Crumbs', signs: ['Crumbs', 'The Daily Loaf', 'Rise & Shine', 'Flour Power', 'The Warm Oven', 'Bread & Butter', 'The Harbour Bakehouse'], job: 'kitchen' },
+  bookish: { a: 'a secondhand bookshop', sign: 'Spine & Tide', signs: ['Spine & Tide', 'Dog-Eared', 'The Turned Page', 'Marginalia', 'Second Chapter', 'The Reading Room', 'Foxed & Faded'], job: 'retail' },
+  sporty: { a: 'a bike shop', sign: 'Freewheel', signs: ['Freewheel', 'Spokes', 'Chain Reaction', 'The Bike Shed', 'Uphill Cycles', 'Two Wheels', 'Pedal & Spoke'], job: 'retail' },
+  arty: { a: 'a pottery with a little gallery', sign: 'Kiln Cottage', signs: ['Kiln Cottage', 'Wet Clay', 'The Glaze Room', 'Throw & Fire', 'Slipware', 'The Potting Shed', 'Fired Up'], job: 'arts' },
+  witty: { a: 'a café with music on Fridays', sign: 'The Blue Kettle', signs: ['The Blue Kettle', 'The Tin Whistle', 'Spoons', 'The Crooked Cup', 'Steam & Strings', 'The Singing Kettle', 'Brew & Banjo'], job: 'kitchen' },
 };
 // Where a partner's business might open. (The first, in an old save.)
-export const PREMISES = ['the old chandlery on Harbour Row', 'the empty shop by the station', 'the old bank on Fore Street', 'what used to be the post office', 'the corner unit on Chapel Street', 'the old net loft on the quay'];
+export const PREMISES = ['the old chandlery on Harbour Row', 'the empty shop by the station', 'the old bank on Fore Street', 'what used to be the post office', 'the corner unit on Chapel Street', 'the old net loft on the quay', 'the old ship’s chandler’s on Quay Street', 'the empty bakery on Chapel Row', 'the old Co-op by the bus station'];
 // What a partner who goes back to study comes out as.
 export const DEGREE_JOB = { bookish: 'law', sporty: 'teaching', witty: 'politics', arty: 'teaching', kind: 'medicine' };
 

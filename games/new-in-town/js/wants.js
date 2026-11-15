@@ -87,8 +87,10 @@ function draw(L, p, r) {
   const a = pick();
   w[a] = 0;
   const b = pick();
-  r.band = L.pick(BANDS); r.inst = L.pick(INSTRUMENTS); r.boat = L.pick(BOATS); const sh = SHOPS[p.trait] || SHOPS.kind;
-  r.shop = { a: sh.a, job: sh.job, sign: L.pick(sh.signs), where: L.pick(PREMISES) };
+  // (Never a band, a boat, a shop or a shopfront the family has had in the town before: chapGiveName in chapters.js.)
+  const nm = (kind, list) => (L.chapGiveName ? L.chapGiveName(kind, list) : L.pick(list));
+  r.band = nm('band', BANDS); r.inst = L.pick(INSTRUMENTS); r.boat = nm('boat', BOATS); const sh = SHOPS[p.trait] || SHOPS.kind;
+  r.shop = { a: sh.a, job: sh.job, sign: nm('shop', sh.signs), where: nm('where', PREMISES) };
   return [{ id: a, st: 0, at: s.t + L.int(4, 10), sup: 0, out: null }, { id: b, st: 0, at: null, sup: 0, out: null }];
 }
 // The parents of the person you are with.

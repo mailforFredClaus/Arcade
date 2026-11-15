@@ -109,7 +109,7 @@ GAMES.bells = {
 
 export default function (kit) {
   const { esc, money, pick, chip, sections } = kit;
-  const when = (t) => `${SEASONS[t % 4]}, year ${Math.floor(t / 4) + 1}`;
+  const when = (t) => `${SEASONS[((t % 4) + 4) % 4]}, year ${kit.life.yearOf(t)}`;
   const dots = (v) => { const n = clamp(Math.floor(v / GAIN * 5), 0, 5); return `<span class="soul-dots" aria-label="${n} of 5">${'●'.repeat(n)}${'○'.repeat(5 - n)}</span>`; };
 
   // What helps, as ticks for this season.
