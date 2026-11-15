@@ -8,6 +8,7 @@ const SHORT = {
   home: 'Home', college: 'College', hospital: 'Hospital', studios: 'Studios', townhall: 'Town Hall', bank: 'Bank', gym: 'Gym',
   park: 'Park', highstreet: 'High Street', pub: 'Gull & Anchor', station: 'Station', labs: 'Labs', casino: 'Lucky Gull', harbour: 'Harbour',
   church: 'St Brigid’s', library: 'Library', theatre: 'Pavilion', ground: 'Rovers', market: 'Market', farm: 'Windle Farm', headland: 'Gorse Head', cove: 'The Cove', garage: 'Garage',
+  observatory: 'Observatory', stones: 'The Gossips', quarry: 'Blackrake', reservoir: 'Fennick Water', camp: 'Curlew Camp', wood: 'Hollowell Wood', halt: 'Sallow Halt', village: 'Moor End', hall: 'Haverleigh',
 };
 
 // ---- small parts ------------------------------------------------------------------------
@@ -80,6 +81,23 @@ Object.assign(BUILD, {
   garage: () => `${block(56, 28, '#e9e4da', '#5a5f6b', { flat: true })}<rect x="-24" y="-17" width="48" height="8" rx="1.500" fill="#1f2a44"/><text x="0" y="-11.200" class="sign" style="fill:#ffc93c;font-size:5.400px">DOBBS &amp; DAUGHTER</text><rect x="-22" y="-5" width="24" height="23" fill="#8d97a6"/><path d="M-22 -1h24M-22 3h24M-22 7h24M-22 11h24M-22 15h24" stroke="#6b7484" stroke-width=".8"/>${win(8, -4, 14, 9)}<rect x="30" y="-6" width="8" height="24" rx="2" fill="#d94a4a"/><rect x="31.500" y="-3" width="5" height="5" rx="1" fill="#fff"/><path d="M38 2q5 0 5 6v6" stroke="#1f2a44" stroke-width="1.200" fill="none"/>`,
 });
 
+// Out on the moor.
+const stone = (x, y, h, c = '#b3ada2') => `<path d="M${x - 3.500} ${y}v-${h - 3}q0-3.500 3.500-3.500t3.500 3.500v${h - 3}z" fill="${c}"/><path d="M${x + 1.500} ${y}v-${h - 3.500}q1.800 .500 2 3v${h - 3}z" fill="rgba(0,0,0,.14)"/>`;
+Object.assign(BUILD, {
+  observatory: () => `<g transform="translate(-24 0)">${block(22, 16, '#d8d0bf', '#5d6175', { pitch: 8, over: 2 })}${win(-6, 5, 5, 6)}</g><rect x="-12" y="-8" width="30" height="26" rx="2" fill="#e9e4da"/><rect x="-12" y="16" width="30" height="2" fill="rgba(0,0,0,.12)"/><path d="M-15 -7a18 17 0 0 1 36 0z" fill="#f7f6f0"/>${snow('M-13 -9a16 15 0 0 1 32 0')}<path d="M0 -24h6l1 17h-8z" fill="#3d4a6b"/><path d="M5 -18 19 -33" stroke="#5a5f6b" stroke-width="4" stroke-linecap="round"/><rect x="-15" y="-9" width="36" height="3" rx="1.500" fill="#c9c2b2"/>${door(-2, 6, 8, 12, '#3d4a6b')}${win(9, 0, 5, 6)}<circle cx="28" cy="-40" r="1.600" class="twinkle"/><circle cx="-30" cy="-30" r="1.200" class="twinkle t2"/>`,
+  stones: () => {
+    const ring = Array.from({ length: 11 }, (_, i) => { const a = Math.PI * 2 * i / 11 - Math.PI / 2; return [Math.cos(a) * 31, Math.sin(a) * 9 + 6]; }).sort((p, q) => p[1] - q[1]);
+    return `<ellipse cx="0" cy="8" rx="38" ry="12" class="heath-hi"/>${ring.map(([x, y]) => stone(x, y, 9 + (y + 3) * 0.6, y < 4 ? '#c4beb3' : '#b3ada2')).join('')}${stone(34, -10, 22, '#a59f94')}<path d="M-26 -26q4-3 8 0" stroke="#1f2a44" stroke-width="1.100" fill="none" stroke-linecap="round"/>`;
+  },
+  quarry: () => `<path d="M-42 18v-30h12v-8h16v-10h18v8h16v-4h22v44z" fill="#bdb6a8"/><path d="M-42 -12h12v-8h16v-10h18v8h16v-4h22" stroke="#8d877c" stroke-width="2" fill="none"/>${snow('M-42 -12h12v-8h16v-10h18v8h16v-4h22')}<path d="M-36 2h20M-8 -8h14M18 -4h10" stroke="#a49d90" stroke-width="1.400"/><path d="M-40 18q9-16 20 0z" fill="#8d877c"/><path d="M-28 14 6 -10" stroke="#5a5148" stroke-width="3"/><path d="M-28 14 6 -10" stroke="#ffc93c" stroke-width="1" stroke-dasharray="2 3"/><rect x="8" y="0" width="22" height="18" rx="1.500" fill="#e0a43a"/><path d="M6 1h26l-3-5h-20z" fill="#7a5a2a"/>${win(12, 4, 6, 5)}<rect x="21" y="7" width="6" height="11" fill="#6b4a36"/><g transform="translate(34 6)"><rect x="-2" y="2" width="12" height="7" rx="1" fill="#ffc93c"/><path d="M-3 2l4-6h7l2 6z" fill="#e0a43a"/><circle cx="1" cy="10" r="2.500" fill="#1f2a44"/><circle cx="8" cy="10" r="2.500" fill="#1f2a44"/></g><path d="M-4 -30v-12" stroke="#6b4a36" stroke-width="1.400"/><path d="M-4 -42h9l-3 3 3 3h-9z" fill="#d94a4a" class="flag"/>`,
+  reservoir: () => `<g transform="translate(-20 0)"><path d="M-14 4v-14l14-9 14 9v14z" fill="#e8eef4"/><path d="M-17 -9l17-11 17 11" stroke="#2a6f6f" stroke-width="3" fill="none" stroke-linejoin="round"/>${snow('M-15 -10l15-10 15 10')}${win(-9, -5, 6, 6)}${door(3, -6, 7, 10, '#2a6f6f')}</g><path d="M-36 6h44" stroke="#8a6142" stroke-width="4"/><path d="M-32 6v8M-20 6v8M-8 6v8M4 6v8" stroke="#6b4a36" stroke-width="1.600"/>${boat(22, 6, '#ffc93c', 'bob2')}<path d="M-38 12q10 4 20 0" class="wave"/>`,
+  camp: () => `<g transform="translate(-22 0)">${block(28, 22, '#cfc6b4', '#5d6175', { pitch: 10, over: 3 })}${win(-10, -1, 5, 6)}${door(2, 4, 7, 14, '#7a5a3a')}<rect x="-10" y="-14" width="20" height="6" rx="1" fill="#fbf1dc"/><text x="0" y="-9.400" class="sign" style="font-size:4.600px;fill:#6b4a36">HOSTEL</text></g>${[[6, 12, '#ff7a2a'], [22, 4, '#2aa7b8'], [34, 14, '#5fbf6a']].map(([x, y, c]) => `<path d="M${x - 8} ${y + 4}l8-14 8 14z" fill="${c}"/><path d="M${x} ${y - 10}v14" stroke="rgba(0,0,0,.25)" stroke-width="1"/><path d="M${x - 2} ${y + 4}l2-6 2 6z" fill="rgba(0,0,0,.3)"/>`).join('')}<g transform="translate(20 15)"><path d="M-5 3h10M-4 4l8-3M-4 1l8 3" stroke="#6b4a36" stroke-width="1.400"/><path d="M0 2q-4-4 0-9q4 5 0 9z" class="flame"/><path d="M0 2q-2-2 0-5q2 3 0 5z" fill="#ffe27a"/></g>`,
+  wood: () => `${tree(-28, 2, 12)}${tree(-8, -10, 15)}${tree(16, -4, 14)}${tree(34, 6, 10)}<g transform="translate(-6 12)"><ellipse cx="0" cy="3" rx="9" ry="3.500" fill="#3a352e"/><path d="M-7 3q7-9 14 0" fill="#5a5148"/><g class="smoke"><circle cx="0" cy="-8" r="3"/><circle cx="3" cy="-14" r="4"/></g></g><g transform="translate(14 14)"><rect x="-1" y="0" width="2" height="4" fill="#fff"/><path d="M-4 1a4 4 0 0 1 8 0z" fill="#d94a4a"/><circle cx="-1.500" cy="-1" r=".800" fill="#fff"/><circle cx="1.600" cy="-.400" r=".700" fill="#fff"/></g>`,
+  halt: () => `<path d="M-44 14h88" stroke="#8a7f72" stroke-width="5"/><path d="M-44 14h88" stroke="#5a5148" stroke-width="5" stroke-dasharray="2 5"/><rect x="-34" y="4" width="54" height="6" rx="1" fill="#d9d0bd"/><rect x="-26" y="-14" width="30" height="18" rx="1.500" fill="#2a6f4f"/><path d="M-30 -14h38l-4-6h-30z" fill="#a8483c"/>${snow('M-29 -15h36')}${win(-21, -9, 7, 7)}${door(-10, -10, 8, 14, '#1f4a36')}<rect x="-20" y="-24" width="20" height="5" rx="1" fill="#fbf1dc"/><text x="-10" y="-20.200" class="sign" style="font-size:3.600px;fill:#2a6f4f">SALLOW HALT</text><path d="M30 12v-34" stroke="#5a5148" stroke-width="1.800"/><rect x="30" y="-22" width="12" height="3.500" rx="1" fill="#d94a4a" class="signal"/><circle cx="29" cy="-14" r="1.600" class="lamp"/>`,
+  village: () => `<g transform="translate(-24 2)">${block(22, 18, '#d8d0bf', '#5d6175', { pitch: 10, over: 2 })}${win(-7, 0, 5, 6)}${door(2, 4, 6, 12, '#7a2a3a')}</g>${block(26, 24, '#efe6d2', '#5b3d2e', { pitch: 12, over: 3 })}${win(-10, -2, 6, 6)}${win(4, -2, 6, 6)}${door(-3, 6, 7, 12, '#2a6f4f')}<path d="M13 -4h7v2" stroke="#5b3d2e" stroke-width="1.500" fill="none"/><rect x="16" y="-2" width="9" height="10" rx="1.500" fill="#2a6f4f" class="swing"/><circle cx="20.500" cy="3" r="2.200" fill="#ffc93c" class="swing"/><g transform="translate(30 4)">${block(18, 14, '#e6dfcf', '#6b6f80', { pitch: 8, over: 2 })}<rect x="-4" y="2" width="8" height="5" class="win"/></g><rect x="40" y="8" width="5" height="10" rx="2" fill="#d94a4a"/><rect x="40" y="10" width="5" height="1.200" fill="#1f2a44"/>`,
+  hall: () => `<path d="M-40 18v-26h14v26zM26 18v-26h14v26z" fill="#e3d6bd"/><path d="M-42 -8l9-8 9 8zM24 -8l9-8 9 8z" fill="#5a4a7a"/>${snow('M-41 -9l8-7 8 7M25 -9l8-7 8 7')}<rect x="-26" y="-18" width="52" height="36" rx="1.500" fill="#efe4cc"/><rect x="-26" y="16" width="52" height="2" fill="rgba(0,0,0,.12)"/><rect x="-28" y="-21" width="56" height="4" rx="1" fill="#cdbf9f"/><path d="M-12 -21 0 -31 12 -21z" fill="#e3d6bd" stroke="#cdbf9f" stroke-width="1.200"/><rect x="-3" y="-42" width="6" height="10" fill="#e3d6bd"/><path d="M-5 -42a5 5 0 0 1 10 0z" fill="#5a8a6a"/><path d="M0 -47v-4" stroke="#6b4a36" stroke-width="1"/>${[-12, -2].map((y) => [-22, -14, 9, 17].map((x) => win(x, y, 5, 7)).join('')).join('')}${win(-36, -2, 6, 7)}${win(30, -2, 6, 7)}${door(-4, 4, 8, 14, '#5a4a7a')}<path d="M-8 18h16" stroke="#cdbf9f" stroke-width="2"/><path d="M-44 20h28M16 20h28" stroke="#3f7a4a" stroke-width="4" stroke-linecap="round"/>`,
+});
+
 // The old town up the hill: farmland and moor at the top, the sea and the
 // cliffs to the right, and the road down to the bay at the bottom.
 function hillBackdrop() {
@@ -105,8 +123,51 @@ function hillBackdrop() {
   const roof = (x, y, c) => `<rect x="${x}" y="${y}" width="22" height="16" rx="1.500" fill="#f3e2c4"/><path d="M${x - 2} ${y + 1}l13-10 13 10z" fill="${c}"/>${win(x + 4, y + 5, 5, 6)}${win(x + 13, y + 5, 5, 6)}`;
   out += [[96, 430, '#b5654a'], [122, 438, '#7a5a8c'], [148, 430, '#5d7391'], [230, 432, '#5d7391'], [256, 440, '#b5654a'], [282, 432, '#7a5a8c'], [110, 496, '#7a5a8c'], [140, 504, '#b5654a'], [244, 500, '#b5654a'], [272, 494, '#5d7391']].map(([x, y, c]) => roof(x, y, c)).join('');
   out += [[30, 96], [128, 96], [262, 92], [30, 196], [128, 196], [262, 196], [30, 300], [128, 304], [262, 300], [28, 420], [40, 520], [330, 440], [318, 530], [176, 470], [218, 560]].map(([x, y], i) => (i % 3 === 2 ? pine(x, y) : tree(x, y, 8 + (i % 3)))).join('');
-  // The signpost down to the bay.
-  out += `<g class="goto" data-do="area" data-area="bay" role="button" aria-label="Down to the bay"><rect x="160" y="540" width="72" height="44" fill="transparent"/><path d="M196 584v-34" stroke="#8a6142" stroke-width="3"/><path d="M168 550h52l8 8-8 8h-52z" fill="#fbf1dc" stroke="#8a6142" stroke-width="1.500"/><text x="194" y="561" class="sign" style="font-size:8px;fill:#6b4a36">THE BAY ↓</text></g>`;
+  // (The way down to the bay is a button at the foot of the map now, and the way out to the moor one at the top: see AREAS in game.js.)
+  // A gate in the wall at the top, where the moor road leaves the old town.
+  out += `<path d="M120 74h-40M272 70h48" stroke="#a49d90" stroke-width="3" stroke-linecap="round"/><path d="M186 72h-6M206 72h6" stroke="#8a6142" stroke-width="3"/>`;
+  return out;
+}
+
+// Out on the moor: the observatory, the stones and the quarry along the top, Fennick Water and
+// its viaduct down the left, the wood, Curlew Camp, Moor End and Haverleigh Hall, and the moor
+// road winding back down to the old town at the bottom.
+function moorBackdrop() {
+  const road = (d) => `<path d="${d}" class="road-edge"/><path d="${d}" class="road"/>`;
+  const wall = (d) => `<path d="${d}" class="drystone"/>`;
+  let out = `<rect width="400" height="80" class="sky"/><circle cx="330" cy="30" r="11" class="sun"/>${cloud(110, 26, 0.8, 'c1')}${cloud(260, 14, 0.6, 'c2')}`;
+  out += '<path d="M150 40q4-3 8 0q4-3 8 0M232 52q3-2 6 0q3-2 6 0" stroke="#1f2a44" stroke-width="1.200" fill="none" stroke-linecap="round"/>';
+  out += `<path d="M0 60q50-26 120-14t120-18 160 16v40H0z" class="hill-far"/>`;
+  out += `<path d="M0 64q80-20 170-4t130-10 100 4v546H0z" class="heath"/>`;
+  // Heather and bracken, in patches.
+  out += [[150, 80, 34, 9], [262, 170, 30, 10], [36, 330, 26, 9], [140, 300, 22, 7], [276, 290, 30, 8], [120, 440, 40, 10], [330, 450, 36, 11], [40, 470, 30, 9], [300, 540, 34, 9], [92, 556, 30, 8], [250, 410, 22, 6], [356, 190, 20, 7]]
+    .map(([x, y, rx, ry], i) => `<ellipse cx="${x}" cy="${y}" rx="${rx}" ry="${ry}" class="${i % 3 === 1 ? 'bracken' : 'heather'}"/>`).join('');
+  // The high ground the stones stand on, and the hill under the observatory.
+  out += '<path d="M130 136q66-50 132 0z" class="heath-hi"/><path d="M8 140q60-62 124 0z" class="heath-hi"/>';
+  // Blackrake: the cut in the hillside, top right.
+  out += '<path d="M268 140v-58q30-14 60-8t72 0v66z" fill="#c9c3b6"/><path d="M276 136v-44h30v-10h40v-6h54M276 112h40v-12h40v-8h44" stroke="#a49d90" stroke-width="2" fill="none"/>';
+  // Fennick Water, down the left, with its dam and the gill below it.
+  out += '<path d="M0 168q60-12 112 6t32 66q-6 44-56 56l-88 4z" class="sea mlake"/><path d="M14 196q20-4 40 0M58 276q18-4 34 0M100 214q12-2 22 2" class="wave"/>';
+  out += '<path d="M80 296q36-4 66-26" stroke="#bdb8ad" stroke-width="7" fill="none" stroke-linecap="round"/><path d="M80 296q36-4 66-26" stroke="#8d897f" stroke-width="2" fill="none"/>';
+  out += '<path d="M112 296q-6 30 12 54t-10 70q-14 40 4 80t-20 100" class="gill"/>';
+  // Dry-stone walls across the moor, with gaps for the gates.
+  out += wall('M0 154q30-4 54 2M90 160q40-6 80 0') + wall('M226 188q30 6 64 0M160 300q30-8 56 2') + wall('M238 300q40 6 84-4M346 300q20 4 54 0') + wall('M0 412q60-10 120 2M150 418q30 6 30 6M270 420q60-10 130 2') + wall('M210 500q50-8 110 4M0 520q40 8 70 0');
+  // The old railway, over the viaduct at Sallow Gill, and away down towards the town.
+  out += '<path d="M0 356H134q16 0 16 26V600" class="rail-bed"/><path d="M0 356H134q16 0 16 26V600" class="rail"/>';
+  out += `<g class="viaduct">${[90, 106, 122].map((x) => `<path d="M${x} 360v24h4a6 8 0 0 1 12 0v-24z"/>`).join('')}<rect x="86" y="352" width="54" height="8" rx="1"/></g>`;
+  // Roads, and the moor road winding down to the old town.
+  out += road('M70 140H322');
+  out += road('M196 128V368');
+  out += road('M100 256H322');
+  out += road('M322 140V368');
+  out += road('M70 368H322');
+  out += road('M196 368q0 40 30 60t-6 64q-30 30 -20 60t16 50');
+  // A cattle grid, a finger post and the sheep, who own the place.
+  out += '<path d="M200 470h26" stroke="#5a5148" stroke-width="5" stroke-dasharray="1.500 2"/>';
+  out += `<g class="sheep">${[[150, 196], [262, 160], [118, 420], [286, 470], [44, 440], [340, 520], [140, 520], [372, 404], [60, 160]].map(([x, y]) => `<ellipse cx="${x}" cy="${y}" rx="5" ry="3.500" fill="#fff"/><circle cx="${x + 4.500}" cy="${y - 1.500}" r="2" fill="#3a352e"/>`).join('')}</g>`;
+  out += [[22, 384], [372, 380], [256, 552], [52, 580], [330, 580]].map(([x, y], i) => (i % 2 ? pine(x, y, 18) : tree(x, y, 8))).join('');
+  // A ruined barn, below Moor End.
+  out += '<path d="M300 488v-16l10-8 10 6v18z" fill="#b3ada2"/><path d="M306 488v-8h6v8z" fill="#6b6359"/>';
   return out;
 }
 
@@ -144,14 +205,28 @@ function sceneHill(sc) {
   return out;
 }
 
+// The moor as the years leave it: the drowned church of Fennick showing in a drought, the heather
+// alight in a hot summer, a comet in the sky (the scene from moor-ui.js says which).
+function sceneMoor(sc) {
+  let out = '';
+  if (sc.moorDry) out += '<g class="drought"><path d="M2 172q58-10 106 6t30 60q-6 40-52 52l-84 4z" class="mud"/><path d="M14 190q56-6 94 8t26 54q-6 30-48 42l-84 2z" class="sea mlake"/><g transform="translate(116 206)"><path d="M-5 14v-16l5-14 5 14v16z" fill="#8d877c"/><path d="M-2 -2h4v6h-4z" fill="#3a352e"/><path d="M0 -16v-5M-2 -19h4" stroke="#6b6359" stroke-width="1"/></g></g>';
+  if (sc.moorFire) out += `<g class="moorfire">${[[356, 196], [372, 214], [342, 222]].map(([x, y], i) => `<path d="M${x} ${y}q-6-6 0-14q6 8 0 14z" class="flame f${i}"/>`).join('')}<g class="smoke big"><circle cx="356" cy="176" r="6"/><circle cx="364" cy="160" r="8"/><circle cx="352" cy="142" r="9"/></g></g>`;
+  if (sc.moorComet) out += '<g class="comet"><path d="M246 30l-46 18" stroke="url(#cometTail)" stroke-width="3" stroke-linecap="round"/><circle cx="247" cy="29.500" r="3" fill="#fff"/><defs><linearGradient id="cometTail" x1="1" x2="0"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs></g>';
+  return out;
+}
+
 // ---- the map ----------------------------------------------------------------------------
+
+// Each map but the bay has a backdrop of its own, and each its own changes over the years.
+const BACKDROP = { hill: hillBackdrop, moor: moorBackdrop };
+const SCENE = { bay: sceneBay, hill: sceneHill, moor: sceneMoor };
 
 // tier: which home to draw. work: the place you work at (gets a badge).
 // study: true if you're on a course. biz: the place your business is.
 export function townSvg({ area = 'bay', tier = 0, marks = {}, scene = {} } = {}) {
   const road = (d) => `<path d="${d}" class="road-edge"/><path d="${d}" class="road"/>`;
   let out = `<svg viewBox="0 0 400 600" preserveAspectRatio="xMidYMid slice" class="town" xmlns="http://www.w3.org/2000/svg">`;
-  if (area === 'hill') out += hillBackdrop();
+  if (BACKDROP[area]) out += BACKDROP[area]();
   else {
   // Sky, far hills, the green, the sand and the sea.
   out += `<rect width="400" height="80" class="sky"/><circle cx="330" cy="26" r="13" class="sun"/>${cloud(70, 24, 1, 'c1')}${cloud(250, 16, 0.7, 'c2')}`;
@@ -179,7 +254,7 @@ export function townSvg({ area = 'bay', tier = 0, marks = {}, scene = {} } = {})
   out += [[28, 96], [118, 78], [286, 82], [372, 92], [130, 186], [270, 190], [26, 282], [118, 298], [282, 292], [374, 290], [128, 396], [272, 400], [30, 396], [372, 392], [156, 304], [244, 300], [238, 344], [26, 470], [374, 468], [150, 476]].map(([x, y], i) => (i % 4 === 3 ? pine(x, y) : tree(x, y, 8 + (i % 3)))).join('');
   }
   // What the years have changed.
-  out += area === 'hill' ? sceneHill(scene) : sceneBay(scene);
+  out += (SCENE[area] || sceneBay)(scene);
   // The places, each with any badges it has earned: the first goes top right, the next top left, then above.
   const SPOT = [[30, -24], [-30, -24], [0, -46], []];
   for (const [id, p] of Object.entries(PLACES)) {
