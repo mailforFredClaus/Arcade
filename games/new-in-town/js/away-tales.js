@@ -151,7 +151,7 @@ export function tripCards(H) {
       },
       opts: [
         { t: 'Sit it out: cards, cocoa and a torch', run(L, tr) { if (tr.who.length) { bondAll(L, tr, 2); H.mem(tr, 'the night of the storm', 3); return 'Rummy by torchlight until the wind drops. Everybody remembers it as the best night of the week.'; } L.joy(1); H.mem(tr, 'the night of the storm', 2); return 'You read by torchlight until the wind drops, warm and dry and very pleased with yourself.'; } },
-        { t: 'Pack up and go home early', run(L, tr) { tr.cut = true; tr.q -= 1; return 'You are home by lunchtime, damp and relieved. It was not really a holiday, but it was something.'; } },
+        { t: (L, tr) => (tr.k === 'cruise' ? 'Get off at the next port, and fly home' : 'Pack up and go home early'), run(L, tr) { tr.cut = true; tr.q -= 1; return tr.k === 'cruise' ? 'You walk down the gangway at the next port, green and unsteady, and are home two days later. It was not really a holiday, but it was something.' : 'You are home by lunchtime, damp and relieved. It was not really a holiday, but it was something.'; } },
         { t: 'Go out in it', check: ['fitness', 45], run(L, tr, c, win) { if (win) { tr.q += 2; H.mem(tr, `the storm at ${short(tr)}`, 4); return 'You stand in it with the whole sky going mad, and laugh until you are hoarse.'; } L.hp(-3, 'a soaking'); tr.q -= 1; return 'You come back soaked to the bone, with a cold that lasts a month.'; } },
       ],
     },

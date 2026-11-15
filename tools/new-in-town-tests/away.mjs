@@ -380,7 +380,8 @@ export default function ({ check, fresh, Life }) {
 // booking, and, for the rich, a place away.
 export function moves(L) {
   const s = L.s, A = s.away;
-  if (!A || s.gaol || s.time < 2) return [];
+  // (A holiday every year or so, as people take them: not a trip every season the dice allow.)
+  if (!A || s.gaol || s.time < 2 || s.t - A.last < 3) return [];
   const ks = ['tent', 'caravan', 'coach', 'walk', 'city', 'sun', 'cruise', 'far', 'gap', 'own'], ws = ['solo', 'pair', 'family', 'friends', 'parent', 'clan'];
   const k = ks[(s.t * 7 + s.time) % ks.length], w = ws[(s.t + s.time * 3) % ws.length];
   const out = [['trip', { k, w, c: (s.t >> 2) % 2 }]];
