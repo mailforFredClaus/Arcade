@@ -79,6 +79,7 @@ export class Brain {
     this.campUntil = 0;
     this.coverUntil = 0;
     this.goHead = false;
+    this.sector = -1;
     this.fleeX = this.fleeZ = 0;
     this.fleeUntil = 0;
     // Which way round it goes this life: 0 the north side, 1 the middle,
@@ -101,6 +102,13 @@ export class Brain {
     inp.fire = inp.reload = inp.nade = inp.sprint = inp.crouch = inp.ads = false;
     inp.slot = -1;
     this.wx = this.wz = 0; // which way to walk, in the world
+    // Advance: the fight has moved on to the next sector, so think again about where to go.
+    if (m.type === 'adv' && this.sector !== m.sector) {
+      this.sector = m.sector;
+      this.waitUntil = 0;
+      this.repathAt = 0;
+      if (this.mode === 'roam') this.path = null;
+    }
     if ((m.tick + s.id * 3) % 7 === 0) this.perceive();
     if ((m.tick + s.id * 5) % 12 === 0) this.watchForNades();
     if (this.target && !this.target.alive) { this.target = null; this.visible = false; }
@@ -535,6 +543,28 @@ export class Brain {
     const s = this.s, m = this.m, w = this.w, r = m.rng, map = m.map;
     this.perch = null;
     let node = -1;
+    // Advance: mostly, to an objective. Attackers to one that isn't theirs
+    // yet; defenders to one that is being taken, or to stand guard.
+    if (m.type === 'adv' && r.next() < 0.85) {
+      const mine = s.team === m.attack;
+      let obj = null, top = -Infinity;
+      for (const o of m.objectives()) {
+        const want = mine ? (o.own ? 0.2 : 1.6) : (o.own || o.p > 0.02 || o.a > 0 ? 1.6 : 0.9);
+        const score = want + r.next() - Math.hypot(o.x - s.x, o.z - s.z) / 70;
+        if (score > top) { top = score; obj = o; }
+      }
+      // Somewhere in it; the long guns and bows a little way off.
+      const id = s.weapons[0].gun.id, wide = id === 'sniper' || id === 'bow' ? 11 : 4.3;
+      for (let k = 0; k < 6 && node < 0; k++) {
+        const n = w.nodeAt(obj.x + (r.next() * 2 - 1) * wide, obj.y + 0.6, obj.z + (r.next() * 2 - 1) * wide);
+        if (n >= 0 && Math.abs(w.nodeY[n] - obj.y) < 2.5) node = n;
+      }
+      if (node >= 0) {
+        this.goTo(node, 30, true);
+        if (this.path) return;
+        node = -1;
+      }
+    }
     if ((s.weapons[0].gun.id === 'sniper' && r.next() < 0.75) || (s.weapons[0].gun.id === 'bow' && s.weapons[0].mag > 0 && r.next() < 0.4)) {
       let best = null, bestD = Infinity;
       for (const p of map.perches) {

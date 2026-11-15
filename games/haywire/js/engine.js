@@ -17,6 +17,10 @@ export const WALK = 4.7, SPRINT = 1.42, CROUCH = 0.5;
 export const RADIUS = 0.32, TALL = 1.8, TALL_CROUCH = 1.25, EYE = 1.62, EYE_CROUCH = 1.05;
 export const RESPAWN = 5, REGEN_DELAY = 4.5, REGEN = 34;
 export const NADE_FUSE = 2.7, NADE_REACH = 6.5, NADE_DAMAGE = 170;
+// Advance, the attack-and-defend game. The attackers have so many lives
+// between them (TICKETS) and get some back for each sector they take. An
+// objective is anyone's who has more robots within OBJ_REACH metres of it.
+export const TICKETS = 110, SECTOR_BONUS = 30, OBJ_REACH = 5.5, ADVANCE_TIME = 1200;
 const RAD = Math.PI / 180;
 
 // dmg: for each hit. head: how much more a head shot does. rate: seconds
@@ -69,10 +73,11 @@ export const OLD_CLASSES = [
 ];
 // The two ways to play: with guns, or with the old arms. side: what
 // everyone carries as well; pot: the grenade is a fire pot that bursts
-// where it lands.
+// where it lands; defWait: how many seconds a scrapped defender is out for
+// in Advance (set so that an attack gets through about half the time).
 export const MODES = [
-  { id: 'guns', name: 'Firefight', classes: CLASSES, side: 'pistol', pot: false, what: 'Rifles, shotguns and grenades.' },
-  { id: 'old', name: 'Old Iron', classes: OLD_CLASSES, side: 'knife', pot: true, what: 'Swords, bows, pikes and axes. No guns.' },
+  { id: 'guns', name: 'Firefight', classes: CLASSES, side: 'pistol', pot: false, defWait: 12, what: 'Rifles, shotguns and grenades.' },
+  { id: 'old', name: 'Old Iron', classes: OLD_CLASSES, side: 'knife', pot: true, defWait: 6, what: 'Swords, bows, pikes and axes. No guns.' },
 ];
 
 export const NAMES = [
@@ -103,9 +108,31 @@ export class Match {
     this.mode = MODES[opts.mode ?? 0];
     this.classes = this.mode.classes;
     this.shots = []; // arrows and thrown things in the air
-    this.size = opts.size ?? 8;
-    this.scoreLimit = opts.scoreLimit ?? 50;
-    this.timeLimit = opts.timeLimit ?? 600;
+    // 'tdm': team deathmatch. 'adv': Advance, one team attacking through the sectors.
+    this.type = opts.type === 'adv' ? 'adv' : 'tdm';
+    const adv = this.type === 'adv';
+    this.size = opts.size ?? (adv ? 12 : 8);
+    this.scoreLimit = adv ? Infinity : opts.scoreLimit ?? 50;
+    this.timeLimit = opts.timeLimit ?? (adv ? ADVANCE_TIME : 600);
+    if (adv) {
+      this.attack = opts.attack ? 1 : 0; // which team attacks
+      this.tickets = this.ticketsAtStart = opts.tickets ?? TICKETS;
+      this.sector = 0;
+      this.defWait = opts.defWait ?? this.mode.defWait;
+      // (If orange attacks, everything is turned half a turn.)
+      const turn = (x, z) => (this.attack ? [map.W - x, map.H - z] : [x, z]);
+      this.sectors = map.advance.sectors.map((objs) => objs.map((o) => {
+        const [x, z] = turn(o.x, o.z);
+        // p runs from 0 (the defenders') to 1 (the attackers'); a and d count who is at it.
+        return { name: o.name, what: o.what, x, y: o.y, z, own: false, p: 0, a: 0, d: 0 };
+      }));
+      const sets = map.advance.spawns;
+      this.spawnSets = [
+        sets.map((set) => set.map(([x, z]) => turn(x, z))),
+        // The defenders: behind the sector being fought for.
+        sets.map((_, k) => sets[sets.length - 1 - k].map(([x, z]) => turn(map.W - x, map.H - z))),
+      ];
+    }
     this.time = 0;
     this.tick = 0;
     this.scores = [0, 0];
@@ -156,13 +183,15 @@ export class Match {
     if (this.tick % 8 === 0) {
       for (const s of this.soldiers) if (s.human && s.alive) this.look(s);
     }
-    if (!this.over && this.time >= this.timeLimit) this.finish();
+    if (this.type === 'adv' && !this.over) this.stepAdvance(dt);
+    // (Out of time, the defenders have held.)
+    if (!this.over && this.time >= this.timeLimit) this.finish(this.type === 'adv' ? 1 - this.attack : undefined);
   }
 
-  finish() {
+  finish(winner) {
     if (this.over) return;
     this.over = true;
-    this.winner = this.scores[0] === this.scores[1] ? -1 : this.scores[0] > this.scores[1] ? 0 : 1;
+    this.winner = winner !== undefined ? winner : this.scores[0] === this.scores[1] ? -1 : this.scores[0] > this.scores[1] ? 0 : 1;
     this.events.push({ e: 'over', winner: this.winner });
   }
 
@@ -177,13 +206,58 @@ export class Match {
     return out;
   }
 
+  // ---- Advance: the objectives -------------------------------------------------------------
+
+  // The objectives being fought over now.
+  objectives() { return this.sectors[Math.min(this.sector, this.sectors.length - 1)]; }
+
+  stepAdvance(dt) {
+    let all = true;
+    for (const o of this.objectives()) {
+      let a = 0, d = 0;
+      for (const s of this.soldiers) {
+        if (!s.alive || Math.abs(s.y - o.y) > 3 || Math.hypot(s.x - o.x, s.z - o.z) > OBJ_REACH) continue;
+        if (s.team === this.attack) a++; else d++;
+      }
+      o.a = a;
+      o.d = d;
+      // Whoever has more robots at it pulls it their way, faster with more of them.
+      if (a !== d) o.p = clamp(o.p + Math.sign(a - d) * (0.065 + 0.03 * Math.min(3, Math.abs(a - d))) * dt, 0, 1);
+      else if (a === 0) o.p = o.own ? Math.min(1, o.p + 0.03 * dt) : Math.max(0, o.p - 0.03 * dt);
+      const took = !o.own && o.p >= 1, lost = o.own && o.p <= 0;
+      if (took || lost) {
+        o.own = took;
+        for (const s of this.soldiers) {
+          if (s.alive && (s.team === this.attack) === took && Math.hypot(s.x - o.x, s.z - o.z) <= OBJ_REACH) s.score += 150;
+        }
+        this.events.push({ e: took ? 'taken' : 'lost', name: o.name });
+      }
+      if (!o.own) all = false;
+    }
+    if (!all) return;
+    // The whole sector is theirs: on to the next, with some lives back.
+    this.events.push({ e: 'sector', n: this.sector });
+    this.sector++;
+    if (this.sector >= this.sectors.length) this.finish(this.attack);
+    else {
+      this.tickets += SECTOR_BONUS;
+      // The defenders who are out come back quickly, to make a stand at the next one.
+      for (const s of this.soldiers) if (!s.alive && s.team !== this.attack) s.respawnT = Math.min(s.respawnT, 2.5);
+    }
+  }
+
   // ---- coming into the yard ---------------------------------------------------------------
 
   spawn(s) {
     const map = this.map, w = this.world;
     let best = null, bestScore = -Infinity;
-    for (let side = 0; side < 2; side++) {
-      for (const p of map.spawns[side]) {
+    // Team deathmatch: anywhere, but better at your own end. Advance: behind your own lines.
+    const adv = this.type === 'adv';
+    const places = adv
+      ? [this.spawnSets[s.team === this.attack ? 0 : 1][Math.min(this.sector, this.sectors.length - 1)].map(([x, z]) => ({ x, z, yaw: 0 }))]
+      : map.spawns;
+    for (let side = 0; side < places.length; side++) {
+      for (const p of places[side]) {
         let near = 99, seen = false, taken = false;
         for (const e of this.soldiers) {
           if (!e.alive || e === s) continue;
@@ -193,8 +267,16 @@ export class Match {
           if (d < near) near = d;
           if (!seen && d < 45 && w.sees(p.x, 1.6, p.z, e.x, this.eyeY(e), e.z)) seen = true;
         }
-        const score = Math.min(near, 45) + (side === s.team ? 25 : 0) - (seen ? 30 : 0) - (near < 10 ? 100 : 0) - (taken ? 200 : 0) + this.rng.next() * 6;
+        const score = Math.min(near, 45) + (!adv && side === s.team ? 25 : 0) - (seen ? 30 : 0) - (near < 10 ? 100 : 0) - (taken ? 200 : 0) + this.rng.next() * 6;
         if (score > bestScore) { bestScore = score; best = p; }
+      }
+    }
+    if (adv) {
+      // Facing the nearest objective.
+      let near = Infinity;
+      for (const o of this.objectives()) {
+        const d = Math.hypot(o.x - best.x, o.z - best.z);
+        if (d < near) { near = d; best.yaw = Math.atan2(o.x - best.x, -(o.z - best.z)); }
       }
     }
     if (s.nextCls >= 0) s.cls = s.nextCls;
@@ -588,7 +670,14 @@ export class Match {
     e.alive = false;
     e.hp = 0;
     e.deaths++;
-    e.respawnT = RESPAWN;
+    // (In Advance the defenders are out for longer, so that an attack can break through.)
+    // (The player, defending, is not kept waiting quite so long.)
+    e.respawnT = this.type === 'adv' && e.team !== this.attack ? (e.human ? Math.min(this.defWait, 7) : this.defWait) : RESPAWN;
+    // Each attacker scrapped is one of their lives gone; with none left, the defenders have won.
+    if (this.type === 'adv' && e.team === this.attack && !this.over && --this.tickets <= 0) {
+      this.tickets = 0;
+      this.finish(1 - this.attack);
+    }
     e.streak = 0;
     const own = by === e;
     if (!own) {

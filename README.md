@@ -281,7 +281,7 @@ A life begun in the first version of the game carries on in this one: it is aske
 
 ## Haywire
 
-A first-person shooter for the computer: it needs a mouse and a keyboard, so it doesn't play on the phone. Team deathmatch in a factory yard, eight robots a side. You and seven blue robots against the orange ones that have gone haywire, all of them played by the game. Every robot your team scraps is a point, and the first team to the target (50, 75 or 100) wins, or whoever is ahead after ten minutes.
+A first-person shooter for the computer: it needs a mouse and a keyboard, so it doesn't play on the phone. Two kinds of match (team deathmatch, and Advance, which is attack and defence) with two sets of weapons (guns, or swords and bows). What follows is team deathmatch with guns, in a factory yard, eight robots a side. You and seven blue robots against the orange ones that have gone haywire, all of them played by the game. Every robot your team scraps is a point, and the first team to the target (50, 75 or 100) wins, or whoever is ahead after ten minutes.
 
 | | |
 |---|---|
@@ -300,6 +300,12 @@ A first-person shooter for the computer: it needs a mouse and a keyboard, so it 
 | **Esc** | Pause, settings, and a change of class |
 
 - **Classes:** pick one before the match and again whenever you've been scrapped (keys 1 to 5). Assault has the Riveter, a rifle good at any range. Runner is faster, with the Buzzer, a submachine gun that is deadly up close. Breacher has the Scatterjack, a shotgun for doorways. Gunner is heavier, with thicker plating and the Hammer, a machine gun that holds eighty rounds. Marksman has the Longbolt, a scoped rifle: one shot to the head from anywhere. Everyone carries a Spark pistol, which never runs out, and one or two grenades.
+- **Advance:** a second kind of match, picked on the menu, for either set of weapons: attack and defence, twelve robots a side, and you choose which side you're on.
+  - The yard is three sectors, each with two objectives, A and B. The attackers take an objective by having more robots at it than the defenders (the more, the faster); the defenders win it back the same way.
+  - Holding both at once takes the sector. The fight then moves on to the next one, both teams come in further along, and the attack gets 30 lives back.
+  - The attack starts with 110 lives, and every attacker scrapped costs one. Take all three sectors and the attack has won; run out of lives, or of the twenty minutes, and the defence has.
+  - Scrapped defenders are out for longer than attackers (twelve seconds with guns, six in Old Iron), which is what lets an attack break through: between bots it does about half the time.
+  - Each objective has a beam of light on it and a marker on screen and on the radar, in the colour of whoever holds it.
 - **Old Iron:** a second mode, picked on the menu, with the same yard and the same match but no guns. Its five classes are below; everyone also carries a dagger (**Q**), and **G** throws a fire pot that bursts where it lands.
   - **Knight:** a longsword, and a shield on the right button that stops blades and arrows from the front.
   - **Archer:** a longbow. Hold the left button to draw and let go to loose: the further it is drawn, the faster and harder the arrow. Arrows drop, so aim a little high at range; the right button looks closer.
@@ -312,7 +318,7 @@ A first-person shooter for the computer: it needs a mouse and a keyboard, so it 
 - **The bots** play by your rules. They see only what is in front of them, take time to react, swing their aim round and miss, more so on the move. They keep to one of the three ways across for a life, hold a spot for a while, hunt for whoever they have just lost sight of, back off to mend, throw grenades and run from them. Marksmen hold the windows and roofs. Easy, Normal and Hard change how fast they react and how well they aim; your own team is always Normal.
 - **On screen:** the radar shows your team in blue, and the others in red where one was last seen or heard. The list at the top right says who scrapped whom. After the match you get the scores for everyone, and your points go towards your rank.
 
-`node tools/test-haywire.mjs` checks that the yard is the same from both ends and that every corner of it can be walked to, checks the rules one at a time (moving, the guns, reloading, mending, grenades, assists, the end of a match, and the old arms: reach, shields, the bow's draw, throwing), and then has the bots play a dozen whole matches in each mode. They must finish every one, with nobody stuck or outside the yard, the two teams must come out about even, hard bots must beat easy ones, and the same match must play out the same way twice.
+`node tools/test-haywire.mjs` checks that the yard is the same from both ends and that every corner of it can be walked to, checks the rules one at a time (moving, the guns, reloading, mending, grenades, assists, the end of a match, the old arms: reach, shields, the bow's draw, throwing; and Advance: taking and holding an objective, a sector falling, lives, and where each side comes in), and then has the bots play a dozen whole matches of each kind in each mode. They must finish every one, with nobody stuck or outside the yard, the two teams must come out about even, hard bots must beat easy ones, and the same match must play out the same way twice. In Advance the attack must get through in some matches and not in others.
 
 ## Files
 

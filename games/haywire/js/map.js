@@ -249,7 +249,25 @@ export function buildMap() {
     return cost;
   });
 
-  return { world: w, W, H, spawns, spots, perches, lamps, laneCost, name: 'Foundry Yard', sun: norm([-0.42, 0.74, 0.52]) };
+  // For the attack-and-defend game: three sectors of two objectives each,
+  // from the west end to the east, and where the attackers come in while
+  // they fight for the second and third (for the first, their base). The
+  // defenders' places are the same ones turned round; and if it is orange
+  // that attacks, all of it is turned round.
+  const advance = {
+    sectors: [
+      [{ name: 'A', what: 'the warehouse', x: 31.5, y: 0, z: 9.5 }, { name: 'B', what: 'the workshop', x: 24.5, y: 0, z: 53.5 }],
+      [{ name: 'A', what: 'the north crossing', x: 44.5, y: 0, z: 23.5 }, { name: 'B', what: 'the south crossing', x: 43.5, y: 0, z: 40.5 }],
+      [{ name: 'A', what: 'the workshop', x: 63.5, y: 0, z: 10.5 }, { name: 'B', what: 'the warehouse', x: 56.5, y: 0, z: 54.5 }],
+    ],
+    spawns: [
+      spawns[0].map((p) => [p.x, p.z]),
+      [[22.5, 26.5], [21.5, 38.5], [17.5, 14.5], [17.5, 46.5], [27.5, 20.5], [28.5, 44.5], [18.5, 31.5], [32.5, 29.5]],
+      [[36.5, 25.5], [34.5, 41.5], [40.5, 36.5], [38.5, 21.5], [40.5, 16.5], [33.5, 45.5], [41.5, 45.5], [28.5, 34.5]],
+    ],
+  };
+
+  return { world: w, W, H, spawns, spots, perches, lamps, laneCost, advance, name: 'Foundry Yard', sun: norm([-0.42, 0.74, 0.52]) };
 }
 
 function norm(v) {
