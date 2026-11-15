@@ -1129,7 +1129,7 @@ function showMenu() {
 }
 
 // Shown once to a life that was begun before the town grew.
-const NEWS = 9;
+const NEWS = 10;
 function showNew() {
   const was = save.seenNew || 0;
   save.seenNew = NEWS;
@@ -1159,8 +1159,9 @@ function showNew() {
     <p><b>⏱️ Where the time goes.</b> Tap the time pips at the top to see why a season has the time it has.</p>
     <p><b>🧾 A family’s town.</b> Heirs keep the family name, the calendar runs on across the generations, and the stories, shouts and anniversaries vary more.</p>`;
   const firm = `<p><b>🏪 A business worth running.</b> Give it a name, take on staff with natures and stories of their own, set prices, quality and hours in the office, see off rivals or buy them out, and decide what to do with the year’s accounts. It can grow to a second premises, a board, or go under.</p>`;
+  const moor = `<p><b>🥾 Out to the moor.</b> A third map beyond Windle Farm (“Out to the moor”, at the top of the old town): walks, fossils and the stars, the quarry, the Askwiths of Haverleigh Hall, the drowned village under Fennick Water, and the Curlew Award for the young. Getting up there takes time unless you drive.</p>`;
   if (was >= 5) {
-    ui.show(`<div class="ev-ico">🗺️</div><h2>New in Starling Bay</h2><div class="how">${firm}${was >= 8 ? '' : latest}${was >= 7 ? '' : since}</div>
+    ui.show(`<div class="ev-ico">🥾</div><h2>New in Starling Bay</h2><div class="how">${moor}${was >= 9 ? '' : firm}${was >= 8 ? '' : latest}${was >= 7 ? '' : since}</div>
       <div class="actions"><button class="btn btn-primary" data-action="evDone">Show me</button></div>`);
     return;
   }
