@@ -296,6 +296,7 @@ A first-person shooter for the computer: it needs a mouse and a keyboard, so it 
 | **Q**, **1** and **2**, or the wheel | Swap between your main gun and the pistol |
 | **G** | Throw a grenade |
 | **Tab** (hold) | Scores |
+| **F** | Fill the screen |
 | **Esc** | Pause, settings, and a change of class |
 
 - **Classes:** pick one before the match and again whenever you've been scrapped (keys 1 to 5). Assault has the Riveter, a rifle good at any range. Runner is faster, with the Buzzer, a submachine gun that is deadly up close. Breacher has the Scatterjack, a shotgun for doorways. Gunner is heavier, with thicker plating and the Hammer, a machine gun that holds eighty rounds. Marksman has the Longbolt, a scoped rifle: one shot to the head from anywhere. Everyone carries a Spark pistol, which never runs out, and one or two grenades.

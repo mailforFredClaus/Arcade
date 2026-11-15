@@ -73,10 +73,13 @@ function load() {
   showTitle();
 }
 
+// How sharp the picture is drawn: as sharp as the screen, but no more than
+// 1440 lines, and less on a machine that can't keep up (see frame()).
+let sharp = 1, slow = 0, quick = 0;
 function layout() {
   W = innerWidth;
   H = innerHeight;
-  R.resize(W, H, Math.min(window.devicePixelRatio || 1, 2));
+  R.resize(W, H, Math.min(window.devicePixelRatio || 1, 2, 1440 / H) * sharp);
 }
 
 // ---- matches --------------------------------------------------------------------------
@@ -202,7 +205,13 @@ document.addEventListener('mouseup', (e) => {
   if (e.button === 2) mouse.ads = false;
 });
 document.addEventListener('contextmenu', (e) => e.preventDefault());
-document.addEventListener('wheel', () => { if (locked && me && me.alive) wantSlot = 1 - me.slot; }, { passive: true });
+let wheelAt = 0;
+document.addEventListener('wheel', () => {
+  // (One turn of the wheel is one swap, however many clicks it sends.)
+  const now = performance.now();
+  if (locked && me && me.alive && now - wheelAt > 300) wantSlot = 1 - me.slot;
+  wheelAt = now;
+}, { passive: true });
 
 window.addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -219,6 +228,7 @@ window.addEventListener('keydown', (e) => {
   }
   if (e.code === 'KeyQ' && me && me.alive) wantSlot = 1 - me.slot;
   if (e.code === 'KeyP') showPause();
+  if (e.code === 'KeyF') fullScreen();
 });
 window.addEventListener('keyup', (e) => {
   keys.delete(e.code);
@@ -242,6 +252,13 @@ function feedInput() {
   inp.slot = wantSlot;
   inp.cls = wantCls;
   wantSlot = wantCls = -1;
+}
+
+function fullScreen() {
+  try {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen().catch(() => {});
+  } catch { /* not allowed here */ }
 }
 
 function pickClass(n) {
@@ -730,7 +747,14 @@ function frame(now) {
   const t0 = performance.now();
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
-  const running = (phase === 'play' && !ui.isOpen()) || phase === 'title' || (phase === 'over' && !match.over);
+  // (The match waits while a card is up, or the mouse isn't held by the game.)
+  const running = (phase === 'play' && !ui.isOpen() && (locked || force)) || phase === 'title';
+  // Too slow for a while: draw the picture a little less sharp.
+  if (running && dt > 0.024) slow++; else if (running && dt < 0.019) quick++;
+  if (slow + quick >= 120) {
+    if (slow > 80 && sharp > 0.5) { sharp = Math.max(0.5, sharp * 0.85); layout(); }
+    slow = quick = 0;
+  }
   if (running) {
     acc += dt;
     let n = 0;
@@ -834,7 +858,7 @@ function showHow() {
       <p><b>W A S D</b> to move, the <b>mouse</b> to aim, <b>left button</b> to fire. Hold the <b>right button</b> to look down the sights: slower, but much more accurate.</p>
       <p><b>Shift</b> sprints, <b>C</b> crouches (steadier, and smaller), <b>Space</b> jumps onto crates. <b>R</b> reloads, <b>Q</b> or <b>1</b> and <b>2</b> swap to the pistol and back, <b>G</b> throws a grenade.</p>
       <p><b>Head shots</b> do more. Your plating mends itself when nothing has hit you for a few seconds, so get behind something.</p>
-      <p>The <b>radar</b> shows your team in blue, and the others in red wherever one was last seen or heard. Hold <b>Tab</b> for the scores, and press <b>Esc</b> to pause.</p>
+      <p>The <b>radar</b> shows your team in blue, and the others in red wherever one was last seen or heard. Hold <b>Tab</b> for the scores, press <b>F</b> to fill the screen, and <b>Esc</b> to pause.</p>
     </div>
     <div class="actions"><button class="btn btn-primary" data-action="${phase === 'play' ? 'pause' : 'close'}">Got it</button></div>`);
 }
