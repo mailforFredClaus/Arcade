@@ -20,5 +20,6 @@ import gaol2 from './gaol2-ui.js'; // a stretch in Starling Gaol
 import comfort from './comfort-ui.js'; // money for the comfortable
 import firm from './firm-ui.js'; // a business worth running: the office
 import moor from './moor-ui.js'; // Starling Moor, the third map
+import away from './away-ui.js'; // going away: holidays, the family caravan, a place of your own away
 
-export const SCREENS = [soul, coast, motor, clubs, market, folk, flutter, careers, chapters, wants, heists, annals, midlife, comfort, gaol2, firm, moor];
+export const SCREENS = [soul, coast, motor, clubs, market, folk, flutter, careers, chapters, wants, heists, annals, midlife, comfort, gaol2, firm, moor, away];
