@@ -538,6 +538,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     place: 'stones', sec: 'The Gossips', icon: '🪨', title: 'Sit inside the circle', desc: 'Nineteen stones, and a quiet that is not quite empty. Good for the mood, more so if you like your own company.', per: 1,
     run(L) {
       const s = L.s, loner = L.soulHas && L.soulHas('loner'), church = L.soulHas && L.soulHas('churchgoer');
+      s.moor.n.stones = (s.moor.n.stones || 0) + 1;
       L.joy(5 + (loner ? 3 : 0)); L.hp(1);
       if (L.season === 1 && s.moor.f.midY !== L.year && !s.pend.some((e) => e.id === 'moorMidsummer')) { s.moor.f.midY = L.year; L.queue('moorMidsummer'); }
       if (s.wx === 'fog') return 'In the fog the stones come and go like people at a party. You count them and get twenty. You count again and get nineteen, and decide to leave it at that.';
@@ -548,7 +549,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
   mdef('moorDowse', {
     place: 'stones', sec: 'The Gossips', icon: '🪄', title: 'Dowse with the Order of the Long Shadow',
     desc: (L) => `Barnaby Cole and his friends, two bent coat hangers each, and an open mind. ${L.s.moor.dowse >= 30 ? 'You have a feel for it now.' : 'You may have a feel for it, or not.'}`,
-    per: 1,
+    per: 1, show: (L) => (L.s.moor.n.stones || 0) > 0 || L.s.moor.dowse > 0, // (Barnaby asks you along once he has seen you at the stones.)
     run(L) {
       const s = L.s, m = s.moor, was = m.dowse;
       m.dowse = Math.min(100, m.dowse + 7 + s.st.smarts / 25);
@@ -591,7 +592,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
   });
   mdef('moorCharcoal', {
     place: 'wood', sec: 'Hollowell Wood', icon: '🔥', title: 'Help Abel at the charcoal kiln', desc: 'A day and a night minding the burn with Abel Ruddock. Craft, a little pay, and he may teach you the mushrooms.',
-    time: 2, per: 1,
+    time: 2, per: 1, show: (L) => L.s.moor.n.forage > 0 || L.s.moor.folk.abel >= 0, // (Abel lets you near the kiln once he has seen you in the wood.)
     run(L) {
       const s = L.s, first = s.moor.folk.abel < 0;
       L.moorWarm('abel', 5);
@@ -703,6 +704,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
   });
   mdef('moorCricket', {
     place: 'village', sec: 'The fête', icon: '🏏', title: 'Play in the match on the green', desc: 'Moor End against the Haverleigh XI, once a summer. Fitness, nerve, and tea at the interval.', time: 2, per: 1,
+    show: (L) => L.moorMet('nance'), // (The village picks its own: somebody who drinks at the Drovers.)
     why: (L) => (L.season !== 1 ? 'The match is in summer, when the green is not a bog.' : L.s.age >= 70 ? 'You umpire now, which is to say you hold the jumpers.' : null),
     run(L) {
       const s = L.s, c = s.moor.cricket, good = L.chance(L.checkOdds('fitness', 40)), runs = good ? L.int(18, 64) : L.int(0, 12), win = L.chance(good ? 0.6 : 0.4);
@@ -826,18 +828,26 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     for (const k of ['hall', 'quarry', 'drown', 'n', 'cricket', 'fete', 'drove', 'gifts']) for (const [q, v] of Object.entries(b[k])) if (m[k][q] === undefined) m[k][q] = v;
     for (const id of MOOR_FOLK_IDS) if (m.folk[id] == null) m.folk[id] = -1;
     // The comet comes once in a life, some years off: an autumn, decided by the seed (and not by the dice, which are the life's own).
+    if (m.key == null) m.key = Math.imul((s.rng ^ 0x5bd1e995) >>> 0, 2246822519) >>> 0;
     if (m.comet == null) { const h = Math.imul((s.rng ^ 0x9e3779b9) >>> 0, 2654435761) >>> 0; m.comet = s.t + 12 + (h % 140); m.comet += (2 - (m.comet % 4) + 4) % 4; }
   });
 
+  // The moor's own weather, as it were: blasting days, droughts and fires, settled by the season and the life's
+  // key rather than by the life's dice, so that the moor coming into a life does not change its luck elsewhere.
+  const roll = (L, salt) => {
+    let h = (Math.imul(L.s.moor.key ^ (L.s.t * 0x9e3779b1), 0x85ebca6b) ^ Math.imul(salt, 0xc2b2ae35)) >>> 0;
+    h = Math.imul(h ^ (h >>> 13), 0x27d4eb2f) >>> 0;
+    return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+  };
   // The turn of the season (the new season's weather is known by now).
   hooks.late.push((L, jailed) => {
     const s = L.s, m = s.moor, q = L.season;
-    if (L.chance(0.33)) m.blast = s.t;
+    if (roll(L, 1) < 0.33) m.blast = s.t;
     if (q === 1 && s.wx === 'hot') {
       // A drought: the water goes down and Fennick comes up. (Every hot summer has a fair chance; one is overdue when you are looking for it.)
       const due = m.drown.on != null && m.drown.clues.spire == null && s.t - m.drown.on >= 12;
-      if (L.chance(due ? 1 : 0.45)) m.dry = s.t;
-      if (L.chance(0.3)) { m.fire = s.t; if (!jailed && m.n.trips > 0) L.queue('moorFire'); }
+      if (due || roll(L, 2) < 0.45) m.dry = s.t;
+      if (roll(L, 3) < 0.3) { m.fire = s.t; if (!jailed && m.n.trips > 0) L.queue('moorFire'); }
     }
     if (jailed) return;
     if (s.t === m.comet) L.queue('moorComet');
