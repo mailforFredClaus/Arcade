@@ -32,6 +32,8 @@
       <div class="clock"><b id="clock">10:00</b><span id="limit">First to 75</span></div>
       <div class="side orange"><b id="scoreOrange">0</b><span>HAYWIRE</span><u><i id="barOrange"></i></u></div>
     </div>
+    <div class="objs" id="objs"></div>
+    <div id="marks"></div>
     <canvas class="radar" id="radar" width="360" height="360"></canvas>
     <div class="feed" id="feed"></div>
     <div class="pops" id="pops"></div>
@@ -64,11 +66,13 @@
     </div>
     <div class="panel">
       <h1 class="logo">HAY<span>WIRE</span></h1>
-      <p class="tag">Team deathmatch &middot; Foundry Yard &middot; 8 against 8</p>
+      <p class="tag" id="tagLine">Team deathmatch &middot; Foundry Yard &middot; 8 against 8</p>
       <div class="rowpick"><span>Mode</span><div class="seg" id="modeSeg"></div></div>
+      <div class="rowpick"><span>Game</span><div class="seg" id="typeSeg"></div></div>
       <div class="pick" id="classPick"></div>
       <div class="rowpick"><span>Bots</span><div class="seg" id="skillSeg"></div></div>
-      <div class="rowpick"><span>First to</span><div class="seg" id="limitSeg"></div></div>
+      <div class="rowpick" id="limitRow"><span>First to</span><div class="seg" id="limitSeg"></div></div>
+      <div class="rowpick" id="sideRow"><span>Side</span><div class="seg" id="sideSeg"></div></div>
       <button class="play" id="playBtn">Play</button>
       <div class="career" id="career"></div>
       <p class="keys" id="keysLine"><b>W A S D</b> move &middot; <b>Mouse</b> aim &middot; <b>Left</b> fire &middot; <b>Right</b> sights &middot; <b>Shift</b> sprint &middot; <b>C</b> crouch and stand &middot; <b>Space</b> jump &middot; <b>R</b> reload &middot; <b>G</b> grenade &middot; <b>Q</b> swap &middot; <b>Tab</b> scores &middot; <b>F</b> full screen</p>
