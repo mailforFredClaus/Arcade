@@ -29,7 +29,7 @@ export const GUNS = {
   rifle: { name: 'Riveter', auto: true, pellets: 1, dmg: 26, head: 1.5, rate: 0.098, mag: 30, reserve: 180, reload: 2.0, hip: 2.6, ads: 0.22, adsTime: 0.2, adsMove: 0.62, zoom: 1.35, kickUp: 0.55, kickSide: 0.22, bloom: 0.28, near: 25, far: 60, min: 0.7, weight: 1 },
   smg: { name: 'Buzzer', auto: true, pellets: 1, dmg: 25, head: 1.4, rate: 0.068, mag: 32, reserve: 192, reload: 1.6, hip: 2.0, ads: 0.55, adsTime: 0.15, adsMove: 0.8, zoom: 1.2, kickUp: 0.42, kickSide: 0.3, bloom: 0.22, near: 12, far: 32, min: 0.5, weight: 1 },
   shotgun: { name: 'Scatterjack', auto: false, pellets: 8, dmg: 15, head: 1.2, rate: 0.8, mag: 6, reserve: 36, reload: 0.5, shell: 0.45, hip: 3.6, ads: 2.9, adsTime: 0.2, adsMove: 0.7, zoom: 1.15, kickUp: 3.2, kickSide: 0.8, bloom: 0, near: 7, far: 22, min: 0.2, weight: 1 },
-  lmg: { name: 'Hammer', auto: true, pellets: 1, dmg: 24, head: 1.5, rate: 0.118, mag: 80, reserve: 240, reload: 3.6, hip: 3.4, ads: 0.4, adsTime: 0.34, adsMove: 0.45, zoom: 1.3, kickUp: 0.48, kickSide: 0.3, bloom: 0.22, near: 30, far: 70, min: 0.75, weight: 0.96 },
+  lmg: { name: 'Hammer', auto: true, pellets: 1, dmg: 24, head: 1.5, rate: 0.132, mag: 80, reserve: 240, reload: 3.6, hip: 3.4, ads: 0.4, adsTime: 0.34, adsMove: 0.45, zoom: 1.3, kickUp: 0.48, kickSide: 0.3, bloom: 0.22, near: 30, far: 70, min: 0.75, weight: 0.96 },
   sniper: { name: 'Longbolt', auto: false, pellets: 1, dmg: 85, head: 2, rate: 1.15, mag: 5, reserve: 30, reload: 2.6, hip: 7, ads: 0.03, adsTime: 0.3, adsMove: 0.4, zoom: 4.2, kickUp: 3.5, kickSide: 0.6, bloom: 0, near: 100, far: 200, min: 1, weight: 1 },
   pistol: { name: 'Spark', auto: false, pellets: 1, dmg: 24, head: 1.5, rate: 0.14, mag: 12, reserve: Infinity, reload: 1.3, hip: 1.6, ads: 0.35, adsTime: 0.12, adsMove: 0.85, zoom: 1.15, kickUp: 1.1, kickSide: 0.35, bloom: 0.5, near: 12, far: 35, min: 0.5, weight: 1 },
 };
@@ -90,7 +90,7 @@ export class Match {
           yaw: 0, pitch: 0, grounded: true, crouching: false, crouchK: 0, sprinting: false, sprintOut: 0, ads: 0,
           hp: 0, maxHp: 100, hurtAt: -99, hurtBy: -1, protect: 0, dmgFrom: new Map(),
           weapons: [], slot: 0, cool: 0, reloadT: 0, swapT: 0, throwT: 0, nadeCount: 0, bloom: 0, kp: 0, ky: 0,
-          fireHeld: false, nadeHeld: false, jumpHeld: false, lastShot: -99, stride: 0,
+          fireHeld: false, pull: 0, nadeHeld: false, jumpHeld: false, lastShot: -99, stride: 0,
           knownT: -99, kx: 0, ky2: 0, kz: 0, // when and where the other team last knew it to be
           kills: 0, deaths: 0, assists: 0, score: 0, streak: 0, best: 0, heads: 0, shots: 0, hits: 0,
           in: emptyInput(), bot: null,
@@ -124,6 +124,7 @@ export class Match {
   }
 
   finish() {
+    if (this.over) return;
     this.over = true;
     this.winner = this.scores[0] === this.scores[1] ? -1 : this.scores[0] > this.scores[1] ? 0 : 1;
     this.events.push({ e: 'over', winner: this.winner });
@@ -173,6 +174,7 @@ export class Match {
     s.protect = 1.5;
     s.dmgFrom.clear();
     s.weapons = [cls.gun, 'pistol'].map((id) => ({ gun: GUNS[id], mag: GUNS[id].mag, reserve: GUNS[id].reserve }));
+    s.pull = 0;
     s.slot = 0; s.cool = 0.3; s.reloadT = 0; s.swapT = 0; s.throwT = 0; s.bloom = 0; s.kp = s.ky = 0;
     s.nadeCount = cls.nades;
     s.streak = 0;
@@ -260,8 +262,12 @@ export class Match {
       this.events.push({ e: 'swap', id: s.id });
     }
     const wp = s.weapons[s.slot], gun = wp.gun;
-    const pulled = inp.fire && (gun.auto || !s.fireHeld);
+    const pressed = inp.fire && !s.fireHeld;
     s.fireHeld = inp.fire;
+    // A single-shot gun fires once for each press; a press made a moment
+    // too soon (still bringing the gun up from a sprint, say) is remembered.
+    if (pressed) s.pull = 0.2; else if (s.pull > 0) s.pull -= dt;
+    const pulled = gun.auto ? inp.fire : s.pull > 0;
 
     if (s.reloadT > 0) {
       s.reloadT -= dt;
@@ -271,13 +277,13 @@ export class Match {
           wp.mag++;
           wp.reserve--;
           this.events.push({ e: 'shell', id: s.id });
-          if (wp.mag < gun.mag && wp.reserve > 0 && !(pulled || inp.fire)) s.reloadT = gun.shell;
+          if (wp.mag < gun.mag && wp.reserve > 0 && !inp.fire) s.reloadT = gun.shell;
         } else {
           const take = Math.min(gun.mag - wp.mag, wp.reserve);
           wp.mag += take;
           wp.reserve -= take;
         }
-      } else if (gun.shell && pulled && wp.mag > 0) s.reloadT = 0;
+      } else if (gun.shell && pressed && wp.mag > 0) s.reloadT = 0;
     }
     if (s.reloadT <= 0 && s.swapT <= 0 && s.throwT <= 0 && wp.reserve > 0 && wp.mag < gun.mag && (inp.reload || wp.mag === 0)) {
       s.reloadT = gun.reload;
@@ -287,6 +293,7 @@ export class Match {
     if (wp.mag === 0 && wp.reserve <= 0 && s.slot === 0 && s.swapT <= 0) { s.slot = 1; s.swapT = 0.4; }
 
     if (pulled && s.cool <= 0 && s.reloadT <= 0 && s.swapT <= 0 && s.throwT <= 0 && s.sprintOut <= 0) {
+      s.pull = 0;
       if (wp.mag > 0) this.fire(s, wp);
       else if (!gun.auto) this.events.push({ e: 'dry', id: s.id });
     }
@@ -310,7 +317,8 @@ export class Match {
   fire(s, wp) {
     const gun = wp.gun, rng = this.rng, w = this.world;
     wp.mag--;
-    s.cool = gun.rate;
+    // (Counted from when the gun was ready, not from this step, so it keeps its true rate.)
+    s.cool = Math.max(s.cool, -STEP) + gun.rate;
     s.lastShot = this.time;
     s.protect = 0;
     s.shots++;
@@ -412,7 +420,7 @@ export class Match {
       by.best = Math.max(by.best, by.streak);
       by.score += 100 + (head ? 25 : 0);
       if (head) by.heads++;
-      this.scores[by.team]++;
+      if (!this.over) this.scores[by.team]++;
       for (const [id, dmg] of e.dmgFrom) {
         const a = this.soldiers[id];
         if (a !== by && a.team !== e.team && dmg >= 25) { a.assists++; a.score += 40; }

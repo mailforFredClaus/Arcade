@@ -8,6 +8,12 @@ import { pose } from './models.js';
 const sparks = [], smoke = [], tracers = [], marks = [], debris = [], lights = [], glows = [];
 const rnd = (a = 1) => (Math.random() * 2 - 1) * a;
 
+// Marks stay until there are too many; then the oldest go.
+function mark(m) {
+  if (marks.length >= 160) marks.shift();
+  marks.push(m);
+}
+
 export function fxReset() {
   for (const list of [sparks, smoke, tracers, marks, debris, lights, glows]) list.length = 0;
 }
@@ -41,8 +47,7 @@ export const fx = {
   impact(x, y, z, n) {
     fx.sparks(x, y, z, 4, [1, 0.8, 0.45], 3.5, n);
     fx.puff(x + n[0] * 0.08, y + n[1] * 0.08, z + n[2] * 0.08, 0.14, 0.55, 0.4, 0.3);
-    if (marks.length > 140) marks.shift();
-    marks.push({ x, y, z, n, size: 0.05 + Math.random() * 0.03, a: 0.75 });
+    mark({ x, y, z, n, size: 0.05 + Math.random() * 0.03, a: 0.75 });
   },
 
   // A robot comes apart: each piece goes its own way.
@@ -64,7 +69,7 @@ export const fx = {
     fx.light(s.x, cy, s.z, 8, glow[0] * 2.5, glow[1] * 2.5, glow[2] * 2.5, 0.2);
     for (let k = 0; k < 5; k++) fx.puff(s.x + rnd(0.3), cy + rnd(0.5), s.z + rnd(0.3), 0.5, 0.22, 1.3, 0.9);
     const g = match.world.groundAt(s.x, s.z, s.y + 0.3);
-    if (g > -9) marks.push({ x: s.x, y: g, z: s.z, n: [0, 1, 0], size: 0.7, a: 0.5 });
+    if (g > -9) mark({ x: s.x, y: g, z: s.z, n: [0, 1, 0], size: 0.7, a: 0.5 });
   },
 
   boom(x, y, z) {
@@ -73,7 +78,7 @@ export const fx = {
     fx.glow(x, y + 0.6, z, 2.0, [1, 0.5, 0.15], 0.3);
     fx.sparks(x, y + 0.2, z, 40, [1, 0.75, 0.35], 11);
     for (let k = 0; k < 12; k++) fx.puff(x + rnd(1.1), y + 0.3 + Math.random() * 1.2, z + rnd(1.1), 1.0 + Math.random() * 0.8, 0.12 + Math.random() * 0.2, 2.2, 1.3);
-    marks.push({ x, y: y - 0.05, z, n: [0, 1, 0], size: 1.9, a: 0.6 });
+    mark({ x, y: y - 0.05, z, n: [0, 1, 0], size: 1.9, a: 0.6 });
   },
 };
 

@@ -336,7 +336,7 @@ void main() {
     light += uLCol[i] * (a * a * (0.35 + 0.65 * max(dot(n, d / max(l, 1e-4)), 0.0)));
   }
   // Models have no baked light of their own: give them some shape.
-  light *= mix(1.0, 0.62 + 0.38 * (n.y * 0.5 + 0.5) + 0.25 * pow(1.0 - max(dot(n, v), 0.0), 3.0), uFlat);
+  light *= mix(1.0, 0.62 + 0.38 * (n.y * 0.5 + 0.5) + 0.25 * pow(1.0 - clamp(dot(n, v), 0.0, 1.0), 3.0), uFlat);
   vec3 col = c * light + c * uEmit;
   col += uSunCol * (uGloss * sun * pow(max(dot(n, normalize(uSunDir + v)), 0.0), 40.0));
   // Haze with distance.

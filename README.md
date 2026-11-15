@@ -290,7 +290,7 @@ A first-person shooter for the computer: it needs a mouse and a keyboard, so it 
 | **Left button** | Fire |
 | **Right button** (hold) | Look down the sights: slower, but far more accurate |
 | **Shift** | Sprint (forwards, gun down) |
-| **C** (hold) | Crouch: steadier, and a smaller target |
+| **C** | Crouch, and **C** again to stand: steadier, and a smaller target. Sprinting or jumping stands you up too |
 | **Space** | Jump: enough to get onto a crate |
 | **R** | Reload |
 | **Q**, **1** and **2**, or the wheel | Swap between your main gun and the pistol |

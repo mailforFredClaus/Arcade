@@ -523,6 +523,8 @@ export class Brain {
       for (let j = Math.min(p.length - 1, this.pi + 4); j > this.pi; j--) {
         if (this.clearWalk(p, this.pi, j)) { this.ahead = j; break; }
       }
+      // (The points cut past are done with.)
+      this.pi = this.ahead;
     }
     const n = p[this.ahead], dx = w.nodeX(n) - s.x, dz = w.nodeZ(n) - s.z, d = Math.hypot(dx, dz) || 1;
     this.wx = dx / d;
@@ -531,7 +533,7 @@ export class Brain {
     const next = p[this.pi], up = w.nodeY[next] - s.y;
     if (up > STEP_UP && s.grounded && Math.hypot(w.nodeX(next) - s.x, w.nodeZ(next) - s.z) < 1.3) inp.jump = !s.jumpHeld;
     // Fallen a long way off the path: plan again.
-    if (Math.hypot(w.nodeX(next) - s.x, w.nodeZ(next) - s.z) > 5) this.repathAt = 0;
+    if (Math.hypot(w.nodeX(next) - s.x, w.nodeZ(next) - s.z) > 9) this.repathAt = 0;
     return true;
   }
 

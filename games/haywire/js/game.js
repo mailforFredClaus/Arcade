@@ -75,7 +75,7 @@ function load() {
 
 // How sharp the picture is drawn: as sharp as the screen, but no more than
 // 1440 lines, and less on a machine that can't keep up (see frame()).
-let sharp = 1, slow = 0, quick = 0;
+let sharp = 1, slow = 0, quick = 0, spent = 0, wasSpent = 0, settled = false;
 function layout() {
   W = innerWidth;
   H = innerHeight;
@@ -103,6 +103,8 @@ function attract() {
 }
 
 function start() {
+  clearTimeout(overTimer);
+  crouchOn = false;
   newMatch({ human: true, cls: save.cls, skill: [1, save.skill], scoreLimit: save.limit, timeLimit: 600 });
   phase = 'play';
   $('title').hidden = true;
@@ -116,6 +118,7 @@ function start() {
 }
 
 function toTitle() {
+  clearTimeout(overTimer);
   phase = 'title';
   release();
   attract();
@@ -126,7 +129,10 @@ function toTitle() {
   showTitle();
 }
 
+let overTimer = 0;
 function finish() {
+  // (Not if the player has left the match in the meantime.)
+  if (phase !== 'play' || !me) return;
   phase = 'over';
   release();
   const won = match.winner === 0, drew = match.winner < 0;
@@ -161,10 +167,14 @@ function finish() {
 const keys = new Set();
 const mouse = { fire: false, ads: false };
 let wantSlot = -1, wantCls = -1;
+let crouchOn = false; // C goes down and C comes up again; sprinting or jumping stands you up too
 const fine = matchMedia('(pointer: fine)').matches;
 
+let asking = 0; // when the game last asked to hold the mouse
 function grab() {
-  if (document.pointerLockElement === canvas) return;
+  // (Asking twice at once makes some browsers drop the first.)
+  if (document.pointerLockElement === canvas || performance.now() - asking < 400) return;
+  asking = performance.now();
   try {
     const p = canvas.requestPointerLock({ unadjustedMovement: true });
     if (p && p.catch) p.catch(() => { try { const q = canvas.requestPointerLock(); if (q && q.catch) q.catch(() => {}); } catch { /* no pointer lock */ } });
@@ -177,11 +187,14 @@ function release() {
 }
 
 document.addEventListener('pointerlockchange', () => {
+  const was = locked;
   locked = document.pointerLockElement === canvas;
   if (!locked) {
     keys.clear();
     mouse.fire = mouse.ads = false;
-    if (phase === 'play' && !ui.isOpen()) showPause();
+    $('board').hidden = true;
+    // Only when the mouse was held and has been let go (Esc): that pauses.
+    if (was && phase === 'play' && !ui.isOpen()) showPause();
   }
 });
 canvas.addEventListener('click', () => { if (phase === 'play' && !ui.isOpen() && !locked) grab(); });
@@ -215,7 +228,10 @@ document.addEventListener('wheel', () => {
 
 window.addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
-  if (phase === 'play' && e.code === 'Tab') { e.preventDefault(); $('board').hidden = false; boardAt = 0; }
+  if (phase === 'play' && e.code === 'Tab') {
+    e.preventDefault();
+    if (!e.repeat) { $('board').hidden = false; boardAt = 0; }
+  }
   if (phase !== 'play' || ui.isOpen()) return;
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
   if (e.repeat) return;
@@ -227,6 +243,7 @@ window.addEventListener('keydown', (e) => {
     else if (n < 2) wantSlot = n;
   }
   if (e.code === 'KeyQ' && me && me.alive) wantSlot = 1 - me.slot;
+  if (e.code === 'KeyC' && me && me.alive) crouchOn = !crouchOn;
   if (e.code === 'KeyP') showPause();
   if (e.code === 'KeyF') fullScreen();
 });
@@ -234,7 +251,7 @@ window.addEventListener('keyup', (e) => {
   keys.delete(e.code);
   if (e.code === 'Tab') $('board').hidden = true;
 });
-window.addEventListener('blur', () => { keys.clear(); mouse.fire = mouse.ads = false; });
+window.addEventListener('blur', () => { keys.clear(); mouse.fire = mouse.ads = false; $('board').hidden = true; });
 
 function feedInput() {
   const inp = me.in, on = locked || force;
@@ -243,8 +260,9 @@ function feedInput() {
   inp.yaw = view.yaw;
   inp.pitch = view.pitch;
   inp.jump = on && keys.has('Space');
-  inp.crouch = on && keys.has('KeyC');
   inp.sprint = on && (keys.has('ShiftLeft') || keys.has('ShiftRight'));
+  if (inp.jump || (inp.sprint && inp.mz > 0) || !me.alive) crouchOn = false;
+  inp.crouch = crouchOn;
   inp.ads = on && mouse.ads;
   inp.fire = on && mouse.fire;
   inp.reload = on && keys.has('KeyR');
@@ -375,6 +393,7 @@ function onEvent(ev) {
       if (s === me) {
         view.yaw = me.yaw;
         view.pitch = 0;
+        crouchOn = false;
         cam.dead = null;
         cam.y = match.eyeY(me);
         $('down').hidden = true;
@@ -391,7 +410,7 @@ function onEvent(ev) {
     case 'jump': if (s === me) sfx('hop', 0, 0.25); break;
     case 'land': if (s === me) { hand.dip = Math.min(1, ev.v / 9); sfx('foot', 2, 0.6); } break;
     case 'foot': if (s === me) sfx('foot', (Math.random() * 2) | 0, me.sprinting ? 0.5 : 0.3); else sound('foot', 0, s.x, s.y, s.z, 0.45, 14); break;
-    case 'over': if (phase === 'play') setTimeout(finish, 900); break;
+    case 'over': if (phase === 'play') { clearTimeout(overTimer); overTimer = setTimeout(finish, 900); } break;
     default:
   }
 }
@@ -402,12 +421,18 @@ const shown = { hp: -1, mag: -1, reserve: -1, nades: -1, s0: -1, s1: -1, clock: 
 let hurtShow = 0, shownAssists = 0, boardAt = 0;
 const fromShow = [];
 
-function hitMark(kind) {
+// The cross that flashes when a shot lands: once a frame, however many
+// pellets hit, for the best of them (0 a hit, 1 the head, 2 scrapped).
+let marked = -1;
+function hitMark(kind) { marked = Math.max(marked, kind); }
+function showMark() {
+  if (marked < 0) return;
   const el = $('mark');
   el.className = 'mark';
   void el.offsetWidth;
-  el.className = kind === 2 ? 'mark kill' : 'mark hit';
-  sfx('hitmark', kind, 0.9);
+  el.className = marked === 2 ? 'mark kill' : 'mark hit';
+  sfx('hitmark', marked, 0.9);
+  marked = -1;
 }
 
 function pop(html, cls = '') {
@@ -442,7 +467,8 @@ function boardHtml() {
 }
 
 function updateHud(now, dt) {
-  if (phase !== 'play' && phase !== 'over') return;
+  if ((phase !== 'play' && phase !== 'over') || !me) return;
+  showMark();
   const set = (key, v, id, text = v) => { if (shown[key] !== v) { shown[key] = v; $(id).textContent = text; return true; } return false; };
   if (set('s0', match.scores[0], 'scoreBlue')) $('barBlue').style.width = `${(100 * match.scores[0]) / match.scoreLimit}%`;
   if (set('s1', match.scores[1], 'scoreOrange')) $('barOrange').style.width = `${(100 * match.scores[1]) / match.scoreLimit}%`;
@@ -724,10 +750,11 @@ function drawHands(now, dt) {
   const reload = me.reloadT > 0 ? Math.sin(Math.PI * clamp(1 - me.reloadT / (g.shell ? g.shell : g.reload), 0, 1)) : 0;
   const down = Math.max(reload * 0.8, clamp(me.swapT / 0.4, 0, 1), clamp(me.throwT / 0.65, 0, 1) * 1.1);
   const SIZE = 0.8;
-  const x = 0.2 * hip + bobX + hand.swayX * hip - run * 0.03;
-  const y = lerp(-info.sight * SIZE, -0.2, hip) + bobY + hand.swayY * hip - down * 0.22 - hand.dip * 0.05 - run * 0.02 + hand.kick * 0.006 * hip;
-  const z = lerp(-0.3, -0.46, hip) + hand.kick * 0.035 + run * 0.04;
-  const local = M.chain(M.move(x, y, z), M.rotY(-0.04 * hip - run * 0.6), M.rotX(hand.kick * (0.035 + 0.03 * hip) - down * 0.7 - run * 0.16), M.rotZ(-run * 0.22 + down * 0.3), M.scale(SIZE));
+  // Sprinting, the gun comes in to the middle, held low with the barrel up a little, and swings with each stride.
+  const x = 0.2 * hip * (1 - 0.82 * run) + bobX * (1 + 2 * run) + hand.swayX * hip;
+  const y = lerp(-info.sight * SIZE, -0.2, hip) + bobY * (1 + run) + hand.swayY * hip - down * 0.22 - hand.dip * 0.05 - run * 0.07 + hand.kick * 0.006 * hip;
+  const z = lerp(-0.3, -0.46, hip) + hand.kick * 0.035 + run * 0.05;
+  const local = M.chain(M.move(x, y, z), M.rotY(-0.04 * hip * (1 - run)), M.rotX(hand.kick * (0.035 + 0.03 * hip) - down * 0.7 + run * 0.2), M.rotZ(run * 0.1 + down * 0.3), M.scale(SIZE));
   const model = M.mul(M.rigidInverse(cam.view), local);
   const light = v.light;
   R.beginHands(M.perspective(1.0, W / H, 0.02, 10), cam.view);
@@ -750,10 +777,16 @@ function frame(now) {
   // (The match waits while a card is up, or the mouse isn't held by the game.)
   const running = (phase === 'play' && !ui.isOpen() && (locked || force)) || phase === 'title';
   // Too slow for a while: draw the picture a little less sharp.
-  if (running && dt > 0.024) slow++; else if (running && dt < 0.019) quick++;
-  if (slow + quick >= 120) {
-    if (slow > 80 && sharp > 0.5) { sharp = Math.max(0.5, sharp * 0.85); layout(); }
-    slow = quick = 0;
+  // (If that doesn't help, the screen itself is the limit: put it back and leave it.)
+  if (running && !settled) {
+    if (dt > 0.024) slow++; else quick++;
+    spent += dt;
+    if (slow + quick >= 120) {
+      if (wasSpent && spent > wasSpent * 0.93) { sharp = Math.min(1, sharp / 0.85); settled = true; layout(); }
+      else if (slow > 80 && sharp > 0.5) { sharp = Math.max(0.5, sharp * 0.85); wasSpent = spent; layout(); }
+      else wasSpent = 0;
+      slow = quick = spent = 0;
+    }
   }
   if (running) {
     acc += dt;
@@ -856,7 +889,7 @@ function showHow() {
     <div class="how">
       <p><b>Scrap the haywire robots.</b> Every one your team scraps is a point; the first team to the target wins.</p>
       <p><b>W A S D</b> to move, the <b>mouse</b> to aim, <b>left button</b> to fire. Hold the <b>right button</b> to look down the sights: slower, but much more accurate.</p>
-      <p><b>Shift</b> sprints, <b>C</b> crouches (steadier, and smaller), <b>Space</b> jumps onto crates. <b>R</b> reloads, <b>Q</b> or <b>1</b> and <b>2</b> swap to the pistol and back, <b>G</b> throws a grenade.</p>
+      <p><b>Shift</b> sprints, <b>C</b> crouches and <b>C</b> again stands (crouched you are steadier, and smaller), <b>Space</b> jumps onto crates. <b>R</b> reloads, <b>Q</b> or <b>1</b> and <b>2</b> swap to the pistol and back, <b>G</b> throws a grenade.</p>
       <p><b>Head shots</b> do more. Your plating mends itself when nothing has hit you for a few seconds, so get behind something.</p>
       <p>The <b>radar</b> shows your team in blue, and the others in red wherever one was last seen or heard. Hold <b>Tab</b> for the scores, press <b>F</b> to fill the screen, and <b>Esc</b> to pause.</p>
     </div>
@@ -887,7 +920,7 @@ $('card').addEventListener('click', (e) => {
   showPause();
 });
 // A card closed some other way (Esc, a click outside) carries the match on.
-$('overlay').addEventListener('click', () => { if (!ui.isOpen() && phase === 'play') { last = performance.now(); grab(); } });
+$('overlay').addEventListener('click', (e) => { if (e.target === $('overlay') && !ui.isOpen() && phase === 'play') { last = performance.now(); grab(); } });
 
 // ---- start ----------------------------------------------------------------------------
 
