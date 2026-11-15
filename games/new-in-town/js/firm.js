@@ -192,7 +192,7 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
       const sex = o.sex || (this.chance(0.5) ? 'm' : 'f');
       let nat = o.nat;
       if (!nat) { let x = this.rnd() * NATURE_W.reduce((a, [, w]) => a + w, 0); for (const [k, w] of NATURE_W) { x -= w; if (x < 0) { nat = k; break; } } nat = nat || 'steady'; }
-      const skill = o.skill ?? clamp(Math.round(40 + this.gauss() * 12 + { prickly: 18, late: -6, cousin: -8, grafter: 4 }[nat] || 0), 15, 90);
+      const skill = o.skill ?? clamp(Math.round(42 + this.gauss() * 12 + ({ prickly: 18, late: -6, cousin: -8, grafter: 4 }[nat] || 0)), 15, 90);
       const age = o.age ?? clamp(Math.round(18 + this.rnd() * 40), 18, 60);
       return {
         id: Fm.sid++, name: o.name || this.firmFreshName(sex, nat === 'cousin' ? surname(s.name) : null), sex, age, look: o.look || this.randomLook(sex), nat, skill: Math.round(skill),
@@ -243,7 +243,7 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
       const sex = o.sex || (this.chance(0.5) ? 'm' : 'f');
       const who = o.who || this.firmFreshName(sex);
       const name = o.name || this.firmNames(b.type, 1)[0];
-      s.firm.used.push(name);
+      useName(this, name);
       c.rival = { name, who, sex, kind: o.kind || this.pick(Object.keys(RIVAL_KINDS)), str: o.str ?? this.int(35, 55), at: s.t, from: o.from || 'new', beat: s.t, war: false, known: false };
       return c.rival;
     },
@@ -286,6 +286,8 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
   // Names nobody in this family, or this town, may use again.
   function firmTaken(L) {
     const s = L.s, out = new Set([...TAKEN, ...(s.firm ? s.firm.used : [])].map((x) => x.toLowerCase()));
+    // (Every name the family has given in the town, in this life or one before: chapGiveName in chapters.js.)
+    if (s.chap && s.chap.names) for (const l of Object.values(s.chap.names)) for (const n of l || []) out.add(String(n).toLowerCase());
     if (s.mkt && s.mkt.stall && s.mkt.stall.name) out.add(s.mkt.stall.name.toLowerCase());
     if (s.wants) for (const r of Object.values(s.wants.p || {})) if (r && r.shop && r.shop.sign) out.add(r.shop.sign.toLowerCase());
     if (s.annals && s.annals.shops) for (const x of s.annals.shops) if (x.n) out.add(x.n.toLowerCase());
@@ -315,7 +317,7 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
       c.named = true;
     }
     Fm.cur = c;
-    if (name && !Fm.used.includes(name)) Fm.used.push(name);
+    if (name) useName(L, name);
     return c;
   }
   // A business that came by another road (Betty's, the will, an old save): give it a name and people.
@@ -330,6 +332,13 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
     if (b.mgr) { if (!c.staff.length) c.staff.push(L.firmMakeStaff({ nat: 'steady', skill: 55, age: L.int(30, 55) })); c.mgr = c.staff.reduce((a, q) => (q.skill > a.skill ? q : a)).id; }
     if (b.lvl >= 3) c.board = { mood: 60, t: s.t, who: pickN(L, DIRECTORS, 3) };
     return c;
+  }
+  // A name given: never again in this family (chapters.js carries the list to whoever comes next).
+  function useName(L, name) {
+    const Fm = L.s.firm;
+    if (!Fm.used.includes(name)) Fm.used.push(name);
+    if (Fm.used.length > 60) Fm.used.shift();
+    if (L.chapNameUse) L.chapNameUse('firm', name);
   }
   const pickN = (L, list, n) => { const pool = list.slice(), out = []; while (out.length < n && pool.length) out.push(pool.splice(Math.floor(L.rnd() * pool.length), 1)[0]); return out; };
   // The business has gone, one way or another: into the record of the past.
@@ -397,7 +406,7 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
       const mine = (b.rep - 40) / 6 + (c.price === 0 ? 2 : c.price === 2 ? -1 : 0) + (c.qual === 2 ? 1.5 : c.qual === 0 ? -1 : 0) + c.fit * 0.3;
       R.str = clamp(R.str + RIVAL_KINDS[R.kind].pull * 1.5 - mine + (L.rnd() * 6 - 3), 0, 100);
       if (R.str <= 0) L.firmRivalEnd('off');
-    } else if (s.t - c.rivalT >= 16 && b.rep >= 35 && L.chance(0.012 + b.rep / 3000 + b.lvl * 0.004)) {
+    } else if (s.t - c.rivalT >= 16 && b.rep >= 35 && L.chance((0.012 + b.rep / 3000 + b.lvl * 0.004) * (b.lvl ? 1 : 0.35))) {
       L.firmRivalOpen();
       queueOnce(L, 'firmRival', null);
     }
@@ -407,7 +416,7 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
     // What can go wrong, by how it is run. (One thing a season at most.)
     if (!jailed && s.t - c.riskT >= 2) {
       const T = TRADES[b.type], food = b.type === 'food';
-      const inspect = (food ? 0.05 : 0.025) * [2.5, 1, 0.5][c.qual] * [0.9, 1, 1.2][c.hours];
+      const inspect = (food ? 0.05 : 0.025) * (b.lvl ? 1 : 0.4) * [2.5, 1, 0.5][c.qual] * [0.9, 1, 1.2][c.hours];
       const ill = [0.035, 0.01, 0.003][c.qual] * (food ? 1.5 : 1);
       const avg = L.firmMorale();
       let risk = null;
@@ -462,8 +471,8 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
     // (What the chain offers and what the board wants are settled only if their card is the one that comes up.)
     if (b.lvl >= 2 && b.rep >= 55 && s.t - c.chainT >= 28) {
       add('firmChain', () => {
-        const free = CHAINS.filter((n) => !s.firm.used.includes(n)), chain = free.length ? L.pick(free) : `${L.pick(CHAINS)} ${L.pick(['Holdings', 'Leisure', 'Retail'])}`;
-        s.firm.used.push(chain); c.chainT = s.t;
+        const taken = firmTaken(L), free = CHAINS.filter((n) => !taken.has(n.toLowerCase())), chain = free.length ? L.pick(free) : `${L.pick(CHAINS)} ${L.pick(['Holdings', 'Leisure', 'Retail'])}`;
+        useName(L, chain); c.chainT = s.t;
         return { chain, offer: round100(L.bizWorth() * (1.25 + b.rep / 250)) };
       }, 0.7);
     }
@@ -565,9 +574,12 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
   });
   function nameIt(L, name) {
     const s = L.s, c = L.firmOf(), Fm = s.firm;
+    // (The name it went by until now was only on the envelope.)
     Fm.used = Fm.used.filter((x) => x !== c.name);
+    const N = s.chap && s.chap.names && s.chap.names.firm;
+    if (N && N.includes(c.name)) N.splice(N.indexOf(c.name), 1);
     c.name = name; c.named = true;
-    if (!Fm.used.includes(name)) Fm.used.push(name);
+    useName(L, name);
     L.note(`Went into business: ${an(lowJob(L.bizName()))}, ${name}, ${L.firmAt()}.`, 'big');
     return `The signwriter comes on Tuesday. By Wednesday it says ${name} over the door, in letters you can read from the harbour.`;
   }
@@ -643,6 +655,9 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
       if (w) return w;
       if (L.blacklisted()) return 'The bank remembers your bankruptcy.';
       if (c.till < 0) return 'Not with the business overdrawn.';
+      // (Past a stall, the bank wants a year's accounts that would carry the debt.)
+      const last = c.years[c.years.length - 1], carry = round100((c.loan + lent) * (LOAN_RATE + LOAN_PAY) * 4 * 0.3);
+      if (s.biz.lvl >= 1 && (!last || last.p < carry)) return `The bank wants to see a year’s profit of ${money(carry)} first.`;
       return c.loan + lent > L.firmLimit() ? 'The bank will not lend the business that much.' : null;
     },
     run(L) {
@@ -845,7 +860,6 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
     if (c && !s.job && o.title && o.title.startsWith('Ran ')) o.title = `Ran ${c.name}`;
     // What goes with the heir: the names the family has used, and the business as it stands.
     for (const k of o.carry || []) {
-      k.firmUsed = Fm ? Fm.used.slice() : [];
       if (k.biz && c) k.firm = carryOf(L, c, k);
     }
   });
@@ -865,7 +879,6 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
       const s = this.s;
       if (!s.firm) s.firm = blank();
       const Fm = s.firm;
-      if (carry && Array.isArray(carry.firmUsed)) for (const n of carry.firmUsed) if (!Fm.used.includes(n)) Fm.used.push(n);
       if (s.biz && carry && carry.firm) {
         const d = carry.firm, gap = carry.gap || 0, ids = {};
         Fm.cur = null;

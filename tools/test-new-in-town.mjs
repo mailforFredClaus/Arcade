@@ -682,20 +682,20 @@ const fresh = (o = {}) => { const L = Life.create({ seed: 7, name: 'Test', sibs:
   s.biz.at = s.t - 8;
   const take = L.bizTake();
   L.act('bizGrow');
-  check(s.biz.lvl === 1 && L.bizName() === 'Café' && s.cash === 20000 && L.bizIdle() > 0, 'with a name and the money it grows into a café, which earns a little without you');
+  check(s.biz.lvl === 1 && L.bizName() === 'Café' && s.cash === 20000, 'with a name and the money it grows into a café');
   check(L.bizTake() > take * 1.5, 'and takes more');
-  const idle = L.bizIdle();
+  // (Without you it earns what its staff make of it, into its own till, and a manager is one of them: firm.js,
+  // and new-in-town-tests/firm.mjs.)
   L.act('bizMgr');
-  check(s.biz.mgr && L.bizIdle() > idle * 2.5 && L.income().some(([w]) => w.startsWith('Takings')), 'a manager makes it earn properly without you');
+  check(s.biz.mgr && !!L.firmMgr() && L.bizIdle() === 0, 'a manager is one of the staff, and runs it without you');
   s.use = {}; s.pend = [];
-  const before = s.cash;
-  const lines = L.endSeason().lines;
-  check(lines.some(([w, n]) => w.startsWith('Takings') && n > 0) && s.cash > before - 5000, 'the takings arrive each season');
+  L.endSeason();
+  check(L.firmOf().last.take > 0, 'the takings come in each season, into its own till');
   s.pend = [];
-  const worth = L.bizWorth(), c2 = s.cash;
-  check(L.netWorth() >= c2 + worth - 1, 'the business counts towards what you are worth');
+  const worth = L.bizWorth(), c2 = s.cash, till = L.firmTill() - L.firmLoan();
+  check(L.netWorth() >= c2 + worth + till - 1, 'the business and its till count towards what you are worth');
   L.act('bizSell');
-  check(!s.biz && s.cash === c2 + worth, 'and it can be sold');
+  check(!s.biz && s.cash === c2 + worth + till, 'and it can be sold, with its till');
   const F = fresh({ heir: 'founder' });
   check(F.bizCost(0) === 2000 && F.bizCost(1) === 30000, 'the old shop sign halves the cost of starting out');
 }

@@ -11,7 +11,7 @@
 export const NEED = [0, 2, 4, 6];
 export const MAX = [1, 4, 7, 10];
 export const DEMAND = [2.2, 4.4, 9, 14];
-export const OVER = [150, 1000, 9000, 25000];
+export const OVER = [150, 1000, 8000, 30000];
 // What one of the staff can serve in a season, in the owner's spells of work, and what they are
 // paid for it (both scaled by the size's own takings in data.js, BUSINESSES).
 export const SERVE = 2;
@@ -32,7 +32,7 @@ export const HOURS_COME = [0.85, 1, 1.15];
 export const HOURS_OVER = [0.92, 1, 1.12];
 // A business loan: interest a season, and the share of it paid back each season.
 export const LOAN_RATE = 0.025;
-export const LOAN_PAY = 0.05;
+export const LOAN_PAY = 0.035;
 // The Town Hall's enterprise loan, for somebody who cannot find the money to start: the deposit,
 // and its (kinder) rate.
 export const SEED_DOWN = 500;
@@ -82,7 +82,7 @@ export const TRADES = {
     kit: 'new shelving, a proper till and a back room', who: 'customers', branch: ['market', 'station'], inspector: 'trading standards',
   },
   build: {
-    season: [1.2, 1.25, 0.9, 0.6], wx: { wet: 0.85, storm: 0.8, snow: 0.6, hot: 1.05 }, eco: 0.12,
+    season: [1.15, 1.2, 0.95, 0.75], wx: { wet: 0.9, storm: 0.85, snow: 0.7, hot: 1.05 }, eco: 0.09,
     busy: 'Spring and summer: everybody wants their roof done before the winter', quiet: 'Winter: frost on the mortar, and nobody wants builders in at Christmas',
     game: { id: 'pipes', titles: ['Do the plumbing yourself', 'Do the plumbing yourself', 'Get your hands dirty on site', 'Walk the site yourself'], skill: 'fitness',
       said: ['It leaks. It is not supposed to leak.', 'It holds water, which is the main thing.', 'Neat, tight, and done by teatime.', 'Not a drip. The client brings out the good biscuits.'] },
@@ -112,7 +112,7 @@ export const TRADES = {
     kit: 'faster machines and a server room that is not a cupboard', who: 'clients', branch: ['library', 'college'], inspector: 'the data inspector',
   },
   fleet: {
-    season: [0.95, 1.35, 1, 0.65], wx: { storm: 0.55, fog: 0.8, snow: 0.8, hot: 1.05 }, eco: 0.05,
+    season: [0.95, 1.3, 1, 0.75], wx: { storm: 0.7, fog: 0.88, snow: 0.85, hot: 1.05 }, eco: 0.05,
     busy: 'Summer: the mackerel are in and the sea is kind', quiet: 'Winter: gales, and the boats tied up for days',
     game: { id: 'channel', titles: ['Take the wheel yourself', 'Take the wheel yourself', 'Take a boat out yourself', 'Take a boat out yourself'], skill: 'fitness',
       said: ['You find a rock that is not on the chart. It is now.', 'In, with some new paint needed.', 'In clean, with a full hold.', 'Not a mark on her, and the best catch on the quay.'] },
