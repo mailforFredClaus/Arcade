@@ -1129,7 +1129,7 @@ function showMenu() {
 }
 
 // Shown once to a life that was begun before the town grew.
-const NEWS = 11;
+const NEWS = 12;
 function showNew() {
   const was = save.seenNew || 0;
   save.seenNew = NEWS;
@@ -1161,8 +1161,9 @@ function showNew() {
   const firm = `<p><b>🏪 A business worth running.</b> Give it a name, take on staff with natures and stories of their own, set prices, quality and hours in the office, see off rivals or buy them out, and decide what to do with the year’s accounts. It can grow to a second premises, a board, or go under.</p>`;
   const moor = `<p><b>🥾 Out to the moor.</b> A third map beyond Windle Farm (“Out to the moor”, at the top of the old town): walks, fossils and the stars, the quarry, the Askwiths of Haverleigh Hall, the drowned village under Fennick Water, and the Curlew Award for the young. Getting up there takes time unless you drive.</p>`;
   const away = `<p><b>🧳 Going away.</b> Holidays from the station, from a borrowed tent to a cruise: choose who comes and when, and the trip plays out as it goes. Honeymoons, a family caravan every summer, a holiday romance that follows you home, and a place of your own away for those with means.</p>`;
+  const street = `<p><b>🏡 Your house and street.</b> At home, “Your house and street”: a house that ages (and builders to choose between, or a landlord if you rent), bigger building work, a garden that grows year on year, neighbours with stories of their own, and dinner parties where who sits where matters.</p>`;
   if (was >= 5) {
-    ui.show(`<div class="ev-ico">🧳</div><h2>New in Starling Bay</h2><div class="how">${away}${was >= 10 ? '' : moor}${was >= 9 ? '' : firm}${was >= 8 ? '' : latest}${was >= 7 ? '' : since}</div>
+    ui.show(`<div class="ev-ico">🏡</div><h2>New in Starling Bay</h2><div class="how">${street}${was >= 11 ? '' : away}${was >= 10 ? '' : moor}${was >= 9 ? '' : firm}${was >= 8 ? '' : latest}${was >= 7 ? '' : since}</div>
       <div class="actions"><button class="btn btn-primary" data-action="evDone">Show me</button></div>`);
     return;
   }
