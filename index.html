@@ -487,6 +487,32 @@
         </div>
       </a>
 
+      <a class="game game-main" href="games/haywire/index.html">
+        <div class="thumb" aria-hidden="true">
+          <svg viewBox="0 0 100 100">
+            <rect x="6" y="6" width="88" height="88" rx="16" fill="#151a24"/>
+            <path d="M6 66h88v12a16 16 0 0 1-16 16H22A16 16 0 0 1 6 78z" fill="#232b3a"/>
+            <rect x="26" y="60" width="48" height="30" rx="4" fill="#f0761c"/>
+            <rect x="34" y="66" width="32" height="18" rx="2" fill="#a84a10"/>
+            <rect x="44" y="52" width="12" height="9" fill="#15181c"/>
+            <rect x="32" y="26" width="36" height="28" rx="4" fill="#c8ced6"/>
+            <path d="M32 30a4 4 0 0 1 4-4h28a4 4 0 0 1 4 4v5H32z" fill="#f0761c"/>
+            <rect x="36" y="39" width="28" height="7" rx="2" fill="#ffd84a"/>
+            <rect x="59" y="14" width="3" height="13" rx="1.500" fill="#15181c"/>
+            <g fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round">
+              <circle cx="50" cy="42" r="21" stroke-opacity=".9"/>
+              <path d="M50 13v12M50 59v12M21 42h12M67 42h12"/>
+            </g>
+            <circle cx="50" cy="42" r="2.200" fill="#ff3b30"/>
+          </svg>
+        </div>
+        <div>
+          <h2>Haywire</h2>
+          <p>Team deathmatch in 3D for the computer: eight robots a side, five classes, one factory yard.</p>
+          <div class="meta"><span class="pill" id="hwRank">New</span><span class="pill gold" id="hwWins">Mouse and keyboard</span></div>
+        </div>
+      </a>
+
       <div class="soon">More games coming soon</div>
     </div>
 
@@ -597,6 +623,15 @@
     const nt = store.get('newintown', null) || {};
     document.getElementById('ntLife').textContent = nt.card ? `${nt.card.name}, ${nt.card.age}${nt.card.title ? ` · ${nt.card.title}` : ''}` : 'New';
     document.getElementById('ntTrophies').textContent = `🏆 ${Object.keys((nt.meta || {}).ach || {}).length}`;
+
+    // Haywire: your rank, and the matches won.
+    const hw = store.get('haywire', null) || {};
+    if (hw.matches) {
+      let rank = 0, need = 600, into = hw.xp || 0;
+      while (into >= need) { into -= need; rank++; need += 600; }
+      document.getElementById('hwRank').textContent = `Rank ${rank + 1}`;
+      document.getElementById('hwWins').textContent = `${hw.wins || 0} won of ${hw.matches}`;
+    }
 
     const dot = document.getElementById('statusDot');
     const text = document.getElementById('statusText');

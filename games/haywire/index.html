@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Arcade">
+  <meta name="theme-color" content="#11151c">
+  <title>Haywire</title>
+  <link rel="manifest" href="../../manifest.webmanifest">
+  <link rel="icon" href="../../icons/icon-192.png">
+  <link rel="apple-touch-icon" href="../../icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="../../shared/arcade.css">
+  <link rel="stylesheet" href="../../shared/screen.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="stage" aria-label="Haywire"></canvas>
+
+  <!-- While playing. -->
+  <div class="hud" id="hud" hidden>
+    <div class="scope" id="scope"><i></i></div>
+    <div class="hurt" id="hurt"></div>
+    <div class="from" id="from"></div>
+    <div class="cross" id="cross"><i></i><i></i><i></i><i></i><b></b></div>
+    <div class="mark" id="mark"></div>
+
+    <div class="score" id="scoreBar">
+      <div class="side blue"><span>BLUE</span><b id="scoreBlue">0</b><u><i id="barBlue"></i></u></div>
+      <div class="clock"><b id="clock">10:00</b><span id="limit">First to 75</span></div>
+      <div class="side orange"><b id="scoreOrange">0</b><span>HAYWIRE</span><u><i id="barOrange"></i></u></div>
+    </div>
+    <canvas class="radar" id="radar" width="360" height="360"></canvas>
+    <div class="feed" id="feed"></div>
+    <div class="pops" id="pops"></div>
+    <div class="note" id="note"></div>
+
+    <div class="vitals">
+      <div class="cls" id="clsName">Assault</div>
+      <div class="health"><i id="hpBar"></i><b id="hp">100</b></div>
+    </div>
+    <div class="arms">
+      <div class="nades" id="nades"></div>
+      <div class="ammo"><b id="mag">30</b><span id="reserve">180</span></div>
+      <div class="gun" id="gunName">Riveter</div>
+    </div>
+
+    <div class="down" id="down" hidden>
+      <h2 id="downBy">Scrapped</h2>
+      <p id="downIn">Back in 5</p>
+      <div class="classes" id="downClasses"></div>
+    </div>
+    <div class="board" id="board" hidden></div>
+    <div class="grab" id="grab" hidden>Click to carry on</div>
+  </div>
+
+  <!-- Before a match. -->
+  <div class="title" id="title">
+    <div class="title-top">
+      <a class="round" href="../../index.html" aria-label="Back to the arcade" id="backBtn"></a>
+      <button class="round" id="menuBtn" aria-label="Settings"></button>
+    </div>
+    <div class="panel">
+      <h1 class="logo">HAY<span>WIRE</span></h1>
+      <p class="tag">Team deathmatch &middot; Foundry Yard &middot; 8 against 8</p>
+      <div class="pick" id="classPick"></div>
+      <div class="rowpick"><span>Bots</span><div class="seg" id="skillSeg"></div></div>
+      <div class="rowpick"><span>First to</span><div class="seg" id="limitSeg"></div></div>
+      <button class="play" id="playBtn">Play</button>
+      <div class="career" id="career"></div>
+      <p class="keys"><b>W A S D</b> move &middot; <b>Mouse</b> aim &middot; <b>Left</b> fire &middot; <b>Right</b> sights &middot; <b>Shift</b> sprint &middot; <b>C</b> crouch &middot; <b>Space</b> jump &middot; <b>R</b> reload &middot; <b>G</b> grenade &middot; <b>Q</b> swap &middot; <b>Tab</b> scores</p>
+    </div>
+  </div>
+  <div class="loading" id="loading">Building the yard&hellip;</div>
+
+  <div class="toast" id="toast" role="status"></div>
+  <div class="overlay" id="overlay" hidden><div class="card" id="card"></div></div>
+
+  <script type="module" src="js/game.js"></script>
+</body>
+</html>
