@@ -17,5 +17,6 @@ import heists from './heists-ui.js'; // planned jobs, the detective, and the Low
 import annals from './annals-ui.js'; // the town growing old with you
 import midlife from './midlife-ui.js'; // the middle of a life
 import gaol2 from './gaol2-ui.js'; // a stretch in Starling Gaol
+import away from './away-ui.js'; // going away: holidays, the family caravan, a place of your own away
 
-export const SCREENS = [soul, coast, motor, clubs, market, folk, flutter, careers, chapters, wants, heists, annals, midlife, gaol2];
+export const SCREENS = [soul, coast, motor, clubs, market, folk, flutter, careers, chapters, wants, heists, annals, midlife, gaol2, away];
