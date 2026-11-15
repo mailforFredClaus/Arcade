@@ -1570,8 +1570,9 @@ export const EVENTS = [
     text: (L, x) => `${P(L, x).name} is eighteen today, with a place at college in the city. It costs a fortune.`,
     inText: (L, x) => `A letter from outside: ${P(L, x).name} is eighteen, with a place at college in the city. It costs a fortune.`,
     opts: [
-      { t: (L, x) => `Pay ${his(P(L, x))} way`, cost: (L) => Math.round(20000 * (L.s.gifts.scholarship ? 0.75 : 1)), run(L, x) { const p = P(L, x); L.bond(p, 15); L.joy(6); if (p.st) p.st.smarts = Math.min(100, p.st.smarts + 10); return L.s.gaol ? `${He(p)} writes from the city every week. You read each letter until it comes apart at the folds.` : 'You wave from the platform until the train is out of sight, then cry in the car park.'; } },
-      { t: 'Help a little', cost: 5000, run(L, x) { L.bond(P(L, x), 5); L.joy(3); return `${He(P(L, x))} will work evenings to make up the rest, and be proud of that, later.`; } },
+      // (A family of means sends its children somewhere that costs what it can afford: see midSpend in midlife.js.)
+      { t: (L, x) => `Pay ${his(P(L, x))} way`, cost: (L) => Math.round(20000 * Math.min(4, L.midSpend ? L.midSpend() : 1) * (L.s.gifts.scholarship ? 0.75 : 1) / 100) * 100, run(L, x) { const p = P(L, x); L.bond(p, 15); L.joy(6); if (p.st) p.st.smarts = Math.min(100, p.st.smarts + 10); return L.s.gaol ? `${He(p)} writes from the city every week. You read each letter until it comes apart at the folds.` : 'You wave from the platform until the train is out of sight, then cry in the car park.'; } },
+      { t: 'Help a little', cost: (L) => Math.round(5000 * Math.min(4, L.midSpend ? L.midSpend() : 1) / 100) * 100, run(L, x) { L.bond(P(L, x), 5); L.joy(3); return `${He(P(L, x))} will work evenings to make up the rest, and be proud of that, later.`; } },
       { t: (L, x) => `${He(P(L, x))} can make ${his(P(L, x))} own way, like you did`, run(L, x) { const p = P(L, x); L.bond(p, -8); return `${He(p)} gets a job on the boats instead, and says it is fine.`; } },
     ],
   },
