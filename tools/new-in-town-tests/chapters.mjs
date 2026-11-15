@@ -300,7 +300,7 @@ export default function ({ check, fresh, Life, ACTIONS }) {
     s.folk.p.betty.f = 60;
     L.die('old age');
     const o = L.obituary(), c = o.carry[0];
-    check(c.name === 'Ben' && c.how === 'home' && c.age === 52 && c.kids.length === 2 && c.items.includes('guitar') && !c.items.includes('laptop') && c.home.kind === 'townhouse', 'the heir is a grown son, with his own children, the house and the keepsakes');
+    check(c.name === 'Ben Lane' && c.how === 'home' && c.age === 52 && c.kids.length === 2 && c.items.includes('guitar') && !c.items.includes('laptop') && c.home.kind === 'townhouse', 'the heir is a grown son, with the family’s name, his own children, the house and the keepsakes');
     const nx = L.chapNextLife(0);
     const H = Life.create({ seed: 12, name: nx.name, sex: nx.sex, look: nx.look, gen: nx.gen, inherit: nx.inherit, parent: nx.parent, raised: nx.st, gifts: nx.gifts, sibs: nx.sibs, dreams: ['chapMemoir', 'travel', 'novel'], heir: 'star' });
     H.chapBegin(nx.carry, ['chapMemoir', 'travel', 'novel']);

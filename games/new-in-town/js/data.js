@@ -241,12 +241,14 @@ export const CAREERS = {
     name: 'Sal\u2019s crew', icon: '🦊', place: 'harbour', stats: ['fitness', 'charm'], stress: 2, shady: true,
     blurb: 'Nobody hands in their notice.',
     rungs: [
-      rung('Lookout', 2200, { crimes: 3 }),
-      rung('Runner', 3400, { fitness: 30, crimes: 8 }),
-      rung('Enforcer', 5600, { fitness: 50, crimes: 15, bad: 10 }),
-      rung('Fixer', 9500, { charm: 50, smarts: 45, crimes: 25, bad: 20 }),
-      rung('Underboss', 17000, { charm: 65, smarts: 60, bad: 35 }),
-      rung('Boss of the Bay', 32000, { charm: 78, smarts: 70, bad: 50 }),
+      // (Better than an honest start, and no papers asked; no better than an honest top, and it all
+      // depends on Sal: see proceeds.js.)
+      rung('Lookout', 1800, { crimes: 3 }),
+      rung('Runner', 2700, { fitness: 30, crimes: 8 }),
+      rung('Enforcer', 4200, { fitness: 50, crimes: 15, bad: 10 }),
+      rung('Fixer', 6800, { charm: 50, smarts: 45, crimes: 25, bad: 20 }),
+      rung('Underboss', 11500, { charm: 65, smarts: 60, bad: 35 }),
+      rung('Boss of the Bay', 21000, { charm: 78, smarts: 70, bad: 50 }),
     ],
   },
   politics: {
@@ -297,6 +299,8 @@ export const STUDENT_RATE = 0.01; // a season, on a student loan
 // let it out, as a share of what it's worth.
 export const HOMES = {
   hostel: { name: 'Bunk at the Seagull Hostel', icon: '🛏️', rent: 500, price: null, comfort: 0, kids: 0, tier: 0, blurb: 'Eleven roommates. One of them snores in Morse code.' },
+  // (A cheap room with a kitchen: the use of Mrs Pargeter's, and a corner of her garden for a few hens.)
+  room: { name: 'Room at Mrs Pargeter’s', icon: '🪴', rent: 700, price: null, comfort: 3, kids: 0, tier: 1, lodger: true, blurb: 'A back bedroom, the use of her kitchen, and a corner of the garden for a few hens. In by eleven, and no singing.' },
   bedsit: { name: 'Bedsit over the chip shop', icon: '🍟', rent: 1200, price: null, comfort: 5, kids: 0, tier: 1, blurb: 'Yours alone. Everything you own smells of vinegar.' },
   flat: { name: 'Harbour-view flat', icon: '🏢', rent: 2400, price: 140000, earn: 0.016, comfort: 9, kids: 1, tier: 2, blurb: 'One bedroom and, if you lean out, the sea.' },
   cottage: { name: "Fisherman's cottage", icon: '🏡', rent: 3600, price: 260000, earn: 0.014, comfort: 13, kids: 2, tier: 3, blurb: 'Low beams, a wood stove and a little garden.' },
@@ -552,22 +556,27 @@ export const DREAMS = {
 // ---- the to-do list ---------------------------------------------------------------------
 
 // A guide through the first few years, one step at a time.
+// (stale: the to-do no longer fits the life, and is passed over quietly, with no reward: see engine.js.
+// The whole list is for getting started; a life past forty-five, or worth $150,000, has started.)
+const gotOn = (L) => L.s.age >= 45 || L.netWorth() >= 150000;
+const means = (L) => L.s.cash + L.s.bank;
 export const QUESTS = [
-  { text: 'Find work: the Town Hall has a job board', test: (L) => !!L.s.job || L.s.n.shifts > 0, cash: 100 },
-  { text: 'Work a shift (your workplace is marked on the map)', test: (L) => L.s.n.shifts > 0, cash: 100 },
+  { text: 'Find work: the Town Hall has a job board', test: (L) => !!L.s.job || L.s.n.shifts > 0, cash: 100, stale: (L) => gotOn(L) || L.s.age >= 25 },
+  { text: 'Work a shift (your workplace is marked on the map)', test: (L) => L.s.n.shifts > 0, cash: 100, stale: (L) => gotOn(L) || L.s.age >= 25 },
   { text: 'Out of time? Tap Next to move on a season', test: (L) => L.s.t > 0, cash: 100 },
-  { text: 'Train any skill to 25: try the library, gym, pub or studios', test: (L) => STATS.some((k) => L.s.st[k] >= 25), cash: 200 },
-  { text: 'Buy a bicycle on the High Street for more time', test: (L) => L.s.items.bike || L.s.items.car || L.s.items.sportscar, cash: 100 },
-  { text: 'Get to know someone: chat to people at the pub or the park', test: (L) => L.s.people.some((p) => p.kind !== 'parent'), cash: 150 },
-  { text: 'Move out of the hostel (Home, then Move house)', test: (L) => L.s.home !== 'hostel', cash: 300 },
-  { text: 'Earn a promotion (Me shows what the next step needs)', test: (L) => !!L.s.f.promoted, cash: 400 },
-  { text: 'Put $2,000 into savings at the bank', test: (L) => L.s.bank >= 2000, cash: 200 },
-  { text: 'Finish a course at the college', test: (L) => Object.keys(L.s.edu).length > 0, cash: 500 },
-  { text: 'Take a holiday from the station', test: (L) => Object.keys(L.s.trips).length > 0, cash: 300 },
-  { text: 'With a phone, post something on Chirper (it is at home)', test: (L) => !!L.s.chirp && L.s.chirp.posts > 0, cash: 150 },
-  { text: 'Find a curio: Mr Pym on the High Street sells them, and the beach gives them up', test: (L) => Object.keys(L.s.curSeen).length > 0, cash: 200 },
-  { text: 'Take an allotment at the park and sow something', test: (L) => (!!L.s.plot && L.s.plot.beds.some(Boolean)) || Object.keys(L.s.grown).length > 0, cash: 150 },
-  { text: 'Bring in a harvest from your allotment', test: (L) => Object.keys(L.s.grown).length > 0, cash: 250 },
+  { text: 'Train any skill to 25: try the library, gym, pub or studios', test: (L) => STATS.some((k) => L.s.st[k] >= 25), cash: 200, stale: gotOn },
+  { text: 'Buy a bicycle on the High Street for more time', test: (L) => L.s.items.bike || L.s.items.car || L.s.items.sportscar, cash: 100, stale: (L) => gotOn(L) || means(L) >= 20000 },
+  { text: 'Get to know someone: chat to people at the pub or the park', test: (L) => L.s.people.some((p) => p.kind !== 'parent'), cash: 150, stale: gotOn },
+  { text: 'Move out of the hostel (Home, then Move house)', test: (L) => L.s.home !== 'hostel', cash: 300, stale: gotOn },
+  { text: 'Earn a promotion (Me shows what the next step needs)', test: (L) => !!L.s.f.promoted, cash: 400,
+    stale: (L) => gotOn(L) || L.s.retired || (!L.s.job && L.s.age >= 30) || (!!L.s.job && !!CAREERS[L.s.job.c] && L.s.job.r >= CAREERS[L.s.job.c].rungs.length - 1) },
+  { text: 'Put $2,000 into savings at the bank', test: (L) => L.s.bank >= 2000, cash: 200, stale: (L) => gotOn(L) || means(L) >= 50000 },
+  { text: 'Finish a course at the college', test: (L) => Object.keys(L.s.edu).length > 0, cash: 500, stale: gotOn },
+  { text: 'Take a holiday from the station', test: (L) => Object.keys(L.s.trips).length > 0, cash: 300, stale: gotOn },
+  { text: 'With a phone, post something on Chirper (it is at home)', test: (L) => !!L.s.chirp && L.s.chirp.posts > 0, cash: 150, stale: gotOn },
+  { text: 'Find a curio: Mr Pym on the High Street sells them, and the beach gives them up', test: (L) => Object.keys(L.s.curSeen).length > 0, cash: 200, stale: gotOn },
+  { text: 'Take an allotment at the park and sow something', test: (L) => (!!L.s.plot && L.s.plot.beds.some(Boolean)) || Object.keys(L.s.grown).length > 0, cash: 150, stale: gotOn },
+  { text: 'Bring in a harvest from your allotment', test: (L) => Object.keys(L.s.grown).length > 0, cash: 250, stale: gotOn },
   { text: 'Make one of your dreams come true', test: (L) => Object.keys(L.s.dreamDone).length > 0, cash: 1000 },
 ];
 

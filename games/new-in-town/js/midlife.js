@@ -10,9 +10,11 @@
 // book is a choice about who to give your seasons to.
 //
 // The same again: from forty, a year in which nothing new happens (nothing big
-// enough for the journal) wears at you, a little more each year, until
-// something changes. The cure is in your hands: a wobble when it gets bad
-// enough (a red car, the Coast Marathon, a band, a long talk), or something
+// enough for the journal of your own doing, and nothing you had not done in two
+// years) wears at you, a little more each year, until something changes. The
+// cure is in your hands: a wobble when it gets bad enough (a red car, the Coast
+// Marathon, a band, a long talk: one crisis card at a time, for this one and
+// events.js's Is this it? and Fifty share a cooldown), or something
 // bigger of your own. A seat on the council, four years of Thursday evenings
 // and votes that please some people and not others; a year out of your job,
 // travelling or learning or at home; a trust in your name, endowed and then
@@ -26,6 +28,9 @@
 // Everything is kept in s.mid:
 //   seen: { person id: the season you last had time with them }
 //   rut: the same again (0 to 8); big: the season something new last happened; rutT: when it last grew
+//   yr: this year so far { own: big moments of your own doing, nov: kinds of thing done that you had not done in two years }
+//   last: { action id: the season you last did it } (only the last two years are kept)
+//   crisis: the season of the last crisis card (Is this it?, Fifty, The same week again); what: { what was bought or begun: season }
 //   means: what the town thinks you can afford, for this season (1 to 8)
 //   plan: the wobble being seen through: { id: 'run' | 'band', n, at }
 //   seat: the council: { since, until, miss, att, ward, votes, terms } or null; ran: when you last stood
@@ -49,6 +54,8 @@ export const CLOSE = 85;
 // What is not time together, though it is done with somebody.
 const COLD = new Set(['split', 'forget', 'thump', 'rumour', 'prank', 'scrounge', 'lean', 'gift', 'school']);
 const RUT_MAX = 8;
+// The cards that ask whether this is it: events.js's Is this it? and Fifty, and this file's The same week again.
+const CRISES = new Set(['midlife', 'birthday50', 'midWobble']);
 // The council: a term is four years; a seat pays a small allowance.
 const TERM = 16, ALLOWANCE = 800;
 // What a trust in your name is for.
@@ -74,6 +81,10 @@ const VOTES = {
 
 export function install({ def, A, Life, clamp, hooks, addEvents }) {
   const M = (L) => L.s.mid;
+  // Still growing up: a child or grandchild under eighteen is not somebody who drifts away.
+  const young = (p) => (p.kind === 'child' || p.kind === 'grandchild') && p.age < 18;
+  // Somebody you share a home with.
+  const home = (p) => (p.kind === 'spouse' || p.kind === 'partner') && !!p.live;
   const first = (p) => p.name.split(' ')[0];
   const he = (p) => (p.sex === 'm' ? 'he' : 'she'), He = (p) => (p.sex === 'm' ? 'He' : 'She'), him = (p) => (p.sex === 'm' ? 'him' : 'her'), his = (p) => (p.sex === 'm' ? 'his' : 'her');
   const round = (n, to = 50) => Math.round(n / to) * to;
@@ -82,7 +93,8 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
   hooks.load.push((L) => {
     const s = L.s;
     if (!s.mid || typeof s.mid !== 'object') s.mid = {};
-    const m = s.mid, b = { seen: {}, rut: 0, big: s.t || 0, rutT: s.t || 0, means: 1, plan: null, seat: null, ran: null, sab: null, trust: null, lent: [], nest: {}, voted: {}, done: {}, n: { terms: 0, votes: 0, gigs: 0, years: 0 } };
+    // (A life saved before the year was counted this way starts its year as a full one.)
+    const m = s.mid, b = { seen: {}, rut: 0, big: s.t || 0, rutT: s.t || 0, means: 1, plan: null, seat: null, ran: null, sab: null, trust: null, lent: [], nest: {}, voted: {}, done: {}, n: { terms: 0, votes: 0, gigs: 0, years: 0 }, yr: { own: 0, nov: 2 }, last: {}, crisis: null, what: {} };
     for (const [k, v] of Object.entries(b)) if (m[k] == null) m[k] = v;
   });
   hooks.ready.push((L) => { if (!(L.s.mid.means >= 1)) L.s.mid.means = L.midCalcMeans(); });
@@ -92,15 +104,19 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
     // From what you are worth: 1 up to about $150,000, 2 at $600,000, 3 at $1.35M, 4 at $2.4M ... up to 8.
     midCalcMeans() { return Math.round(clamp((Math.max(0, this.netWorth()) / 150000) ** 0.5, 1, 8) * 100) / 100; },
     midMeans() { return (this.s.mid && this.s.mid.means) || 1; },
+    // What somebody of your means spends, against what most people would: it rises faster than the
+    // means themselves (twice the means, two and a half times the spending), up to ten times.
+    midSpend() { return Math.min(10, this.midMeans() ** 1.35); },
     // A sum the town would ask of somebody of ordinary means, asked of you.
-    midPrice(n) { return round(n * this.midMeans(), n >= 1000 ? 500 : 50); },
+    midPrice(n) { return round(n * this.midSpend(), n >= 1000 ? 500 : 50); },
 
     // ---- people ----
-    midClose() { return this.s.people.filter((p) => REST[p.kind] != null && !(p.kind === 'child' && p.age < 18) && p.bond >= CLOSE); },
+    midClose() { return this.s.people.filter((p) => REST[p.kind] != null && !young(p) && p.bond >= CLOSE); },
     // Seasons since you last had time with somebody.
     midSince(p) { const v = this.s.mid.seen[p.id]; return v == null ? 0 : this.s.t - v; },
     // Somebody close who is drifting for want of your time.
-    midDrifting(p) { return REST[p.kind] != null && !(p.kind === 'child' && p.age < 18) && p.bond > REST[p.kind] + 3 && this.midSince(p) >= 2; },
+    // (Not a child or grandchild still growing up, nor a husband, wife or partner you live with: home is time together of a sort.)
+    midDrifting(p) { return REST[p.kind] != null && !young(p) && !home(p) && p.bond > REST[p.kind] + 3 && this.midSince(p) >= 2; },
     midSaw(p) { if (p && p.id != null) this.s.mid.seen[p.id] = this.s.t; },
     // A present, a party or a round: full good up to WARM, a quarter of it above.
     midToken(p, was) {
@@ -114,6 +130,24 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
     midRut() { const s = this.s; return s.age >= 40 ? s.mid.rut : 0; },
     midRutWord() { const r = this.midRut(); return r >= 6 ? 'Every Tuesday the same' : r >= 4 ? 'Restless' : r >= 2 ? 'In a rut' : r >= 1 ? 'Settled' : 'Plenty going on'; },
     midFresh(n = 2) { const m = this.s.mid; m.rut = Math.max(0, m.rut - n); m.big = this.s.t; },
+    // Seasons since the last crisis card (Is this it?, Fifty, The same week again): they share one cooldown.
+    midCrisisAgo() { const c = this.s.mid && this.s.mid.crisis; return c == null ? 999 : this.s.t - c; },
+    // A crisis card answered with something bought or begun ('bike', 'car', 'run', 'band', 'sax', 'learn', 'talk'...).
+    midCrisis(what) { const m = this.s.mid; if (!m) return; m.crisis = this.s.t; if (what) m.what[what] = this.s.t; },
+    // Whether something was bought or begun in a crisis already (one red one is enough for a life).
+    midHad(what) { const m = this.s.mid; return !!m && m.what[what] != null; },
+    // What the days are made of, in a few words: for the cards that ask whether this is it.
+    midWeek() {
+      const s = this.s, j = s.job;
+      if (j && CAREERS[j.c] && CAREERS[j.c].shady) return 'you do what Sal wants doing, you come home';
+      if (j) return 'you go to work, you come home';
+      if (s.retired) return 'you do the crossword, you walk to the harbour and back';
+      const herd = s.mkt && s.mkt.herd;
+      if (herd && herd.hens && herd.hens.n > 0) return 'you see to the hens, you take the eggs up to the market';
+      if (s.mkt && s.mkt.stall) return 'you load the stall, you unload the stall';
+      if (s.plot) return 'you go up to the allotment, you come home';
+      return 'you get up, you get through the day';
+    },
 
     // ---- the council ----
     midSeat() { const st = this.s.mid.seat; return !!st && this.s.t < st.until; },
@@ -147,7 +181,10 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
     midYearCost(how) { return how === 'travel' ? this.midPrice(9000) : how === 'learn' ? this.midPrice(2500) : 0; },
     // ---- the trust ----
     midTrustCost() { return Math.max(40000, this.midPrice(40000)); },
-    midTrustName() { const parts = this.s.name.split(' '); return `The ${parts.length > 1 ? parts[parts.length - 1] : parts[0]} Trust`; },
+    // (After the family's name: an heir carries it on, see chapSurname in chapters.js.)
+    midTrustName() { const sur = this.chapSurname ? this.chapSurname() : null, parts = this.s.name.split(' '); return `The ${sur || (parts.length > 1 ? parts[parts.length - 1] : parts[0])} Trust`; },
+    // Seasons since anybody chaired the trustees (0 with no trust).
+    midChairDue() { const t = this.s.mid.trust; return t ? this.s.t - t.chair : 0; },
     // ---- money lent to a grown child ----
     midOwed() { return this.s.mid.lent.reduce((a, l) => a + l.left, 0); },
   });
@@ -162,6 +199,8 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
     if (c && L.clubFriends) for (const q of L.clubFriends(c[2])) L.midSaw(q);
     void m;
   });
+  // The three crisis cards share one cooldown, whatever was chosen on them (n.wob: how many there have been).
+  hooks.chose.push((L, id) => { if (CRISES.has(id) && L.s.mid) { L.s.mid.crisis = L.s.t; L.s.mid.n.wob = (L.s.mid.n.wob || 0) + 1; } });
   hooks.chose.push((L, id, x) => {
     const pid = typeof x === 'number' ? x : x && typeof x === 'object' && typeof x.p === 'number' ? x.p : null;
     if (pid != null) { const p = L.person(pid); if (p && REST[p.kind] != null) L.midSaw(p); }
@@ -186,9 +225,9 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
     // People left without your time drift back towards where acquaintances sit.
     for (const p of s.people) {
       const rest = REST[p.kind];
-      if (rest == null || (p.kind === 'child' && p.age < 18)) continue;
+      if (rest == null || young(p)) continue;
       if (m.seen[p.id] == null) { m.seen[p.id] = s.t; continue; }
-      if (jailed || s.t - m.seen[p.id] < 2 || p.bond <= rest) continue;
+      if (jailed || s.t - m.seen[p.id] < 2 || p.bond <= rest || home(p)) continue;
       L.bond(p, -(p.bond - rest) * RATE[p.kind]);
     }
     for (const id of Object.keys(m.seen)) if (!s.people.some((p) => String(p.id) === id)) delete m.seen[id];
@@ -213,7 +252,9 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
       tr.fund -= spend; tr.n++;
       if (spend > 0) { L.karma(2); L.fame(0.4); L.joy(2); }
       if (tr.fund < tr.start * 0.25) L.queue('midTrustLow');
-      else if (tr.chair !== s.t && tr.chair !== s.t - 1 && tr.chair !== s.t - 2 && L.chance(0.35)) L.queue('midTrustBooks');
+      // (Nobody in the chair for a year is a temptation to the treasurer: once in each lapse, for a sum the
+      // size of the fund, not of your purse. Chair a meeting, and a later lapse may tempt him again.)
+      else if (L.midChairDue() >= 4 && !(tr.books != null && tr.books >= tr.chair) && L.chance(0.5)) { tr.books = s.t; L.queue('midTrustBooks', { n: Math.min(tr.fund, round(Math.max(1000, tr.fund * 0.12), 500)) }); }
       // (You hear what it did in its first good years; after that it goes on doing it quietly.)
       else if (spend > 0 && tr.good < CAUSES[tr.cause].good.length) L.queue('midTrustYear', { i: tr.good });
     }
@@ -232,7 +273,8 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
     const s = L.s, m = M(L);
     m.means = L.midCalcMeans();
     // When it has got bad enough, the itch to do something about it.
-    if (!jailed && s.age >= 40 && s.age <= 60 && m.rut >= 4 && !m.plan && (m.wob == null || s.t - m.wob >= 16) && !s.pend.some((q) => q.id === 'midWobble')) { m.wob = s.t; L.queue('midWobble'); }
+    // (Not within four years of the last crisis card of any kind: Is this it?, Fifty and this one share a cooldown.)
+    if (!jailed && s.age >= 40 && s.age <= 60 && m.rut >= 4 && !m.plan && (m.wob == null || s.t - m.wob >= 16) && L.midCrisisAgo() >= 16 && !s.pend.some((q) => q.id === 'midWobble' || q.id === 'birthday50')) { m.wob = s.t; L.queue('midWobble'); }
     // The ward wants an answer at the end of a term.
     const st = m.seat;
     if (st && s.t === st.until - 1 && !s.pend.some((q) => q.id === 'midTerm')) L.queue('midTerm');
@@ -243,20 +285,42 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
       if (left.length) { const k = L.pick(left); voted[k] = s.t; st.votes.push(k); L.queue('midVote', { k }); }
     }
   });
-  // A birthday: another year of the same, or not.
+  // A birthday: another year of the same, or not. A year is something new if it had a big moment of your
+  // own doing in it (big enough for the journal), or two kinds of thing you had not done in two years;
+  // what merely happens to you at the turn of the seasons does not count.
   hooks.year.push((L) => {
-    const s = L.s, m = M(L);
+    const s = L.s, m = M(L), y = m.yr || { own: 0, nov: 2 };
     if (s.age >= 40 && s.age <= 64) {
-      if (s.t - m.big >= 4 && !L.midAway()) { m.rut = Math.min(RUT_MAX, m.rut + 1); m.rutT = s.t; if (m.rut === 3) L.note('Forty-something, and the same week again. Something needs to change.'); }
+      const flat = y.own === 0 && y.nov < 2 && !L.midAway();
+      if (flat) { m.rut = Math.min(RUT_MAX, m.rut + 1); m.rutT = s.t; if (m.rut === 3) L.note(`${s.age < 50 ? 'Forty-something' : s.age < 60 ? 'Fifty-something' : 'Sixty-something'}, and the same week again. Something needs to change.`); }
+      // (A year full of new things takes a little more off.)
+      else if (y.own + y.nov >= 5) m.rut = Math.max(0, m.rut - 1);
     } else if (s.age >= 65) m.rut = Math.max(0, m.rut - 2);
+    m.yr = { own: 0, nov: 0 };
+    for (const [id, t] of Object.entries(m.last)) if (s.t - t >= 8) delete m.last[id];
   });
-  // Anything big enough for the journal is something new.
+  // Anything big enough for the journal, and of your own doing, is something new.
+  // (Not what comes with the turn of the season: see the wrapper on endSeason below.)
   hooks.noted.push((L, e) => {
     const m = L.s.mid;
-    if (!m || (e.k !== 'big' && e.k !== 'love')) return;
+    if (!m || (e.k !== 'big' && e.k !== 'love') || L.midTurning) return;
+    if (m.yr) m.yr.own++;
     if (m.big !== L.s.t) m.rut = Math.max(0, m.rut - 1);
     m.big = L.s.t;
   });
+  // Something done that you had not done in two years (with a block of time or more in it) is new too.
+  hooks.acted.push((L, id, x, y) => {
+    const m = L.s.mid, a = A[id];
+    if (!m || !m.yr || !a || L.s.gaol || (typeof a.time === 'function' ? a.time(L, x, y) : a.time) <= 0) return;
+    if (m.last[id] == null || L.s.t - m.last[id] >= 8) m.yr.nov++;
+    m.last[id] = L.s.t;
+  });
+  // (While the season turns, what is written in the journal happened to you: midTurning says so.)
+  const turnOf = Life.prototype.endSeason;
+  Life.prototype.endSeason = function midTurn(...args) {
+    this.midTurning = true;
+    try { return turnOf.apply(this, args); } finally { this.midTurning = false; }
+  };
 
   // ---- how it feels ----
   hooks.mood.push((L) => {
@@ -297,7 +361,8 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
     place: 'townhall', sec: 'The ward', icon: '🗳️', title: 'Stand for the council', time: 2,
     cost: (L) => L.midPrice(3000),
     desc: (L) => `The harbour ward needs a councillor: leaflets, a hall, a photograph in the Gazette. Four years of Thursday evenings and a vote now and then, and ${money(ALLOWANCE)} a season for it. About ${Math.round(L.midStandOdds() * 100)}%.`,
-    show: (L) => L.s.age >= 30 && !L.midSeat() && !(L.s.job && L.s.job.c === 'politics'),
+    // (Shown to a politician too, so that the ward's sheet can say why not: see midStandWhy.)
+    show: (L) => L.s.age >= 30 && !L.midSeat(),
     why: (L) => L.midStandWhy(),
     run(L) {
       const s = L.s, m = M(L), again = !!m.seat;
@@ -365,7 +430,7 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
   });
   def('midChair', {
     place: 'townhall', sec: 'In your name', icon: '📑', title: (L) => `Chair the trustees of ${M(L).trust ? M(L).trust.name.replace(/^The /, 'the ') : 'your trust'}`, time: 1, per: 1,
-    desc: 'Read the accounts, ask the awkward question, sign the cheques. A trust that is watched is a trust that is kept honest.',
+    desc: (L) => { const n = L.midChairDue(); return `Read the accounts, ask the awkward question, sign the cheques. A trust that is watched is a trust that is kept honest.${n >= 3 ? ` Nobody has taken the chair for ${n >= 8 ? `${Math.floor(n / 4)} years` : n >= 4 ? 'a year' : 'three seasons'}.` : ''}`; },
     show: (L) => !!M(L).trust,
     run(L) {
       const t = M(L).trust;
@@ -375,6 +440,7 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
     },
   });
   def('midTopUp', {
+    icon: '🪙', title: 'Put more into the fund', desc: 'Another few years of what it does, before it runs low.',
     time: 0, cost: (L) => L.midPrice(15000),
     why: (L) => (!M(L).trust ? 'You have no trust.' : null),
     run(L) { const t = M(L).trust, n = L.midPrice(15000); t.fund += n; L.s.n.given = (L.s.n.given || 0) + n; L.karma(2); L.joy(2); return `${money(n)} more into the fund. The treasurer writes it in the book with a flourish.`; },
@@ -409,18 +475,31 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
 
   // ---- the cards ----
 
+  const NUMS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+  const num = (n) => NUMS[n] || String(n);
+  const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+  const ORD = ['', 'first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth'];
+  const termTitle = (L) => { const n = M(L).seat ? M(L).seat.terms : 0; return n === 0 ? 'Four years on' : ['Eight years on', 'Twelve years on', 'Sixteen years on'][n - 1] || 'Another four years on'; };
   const isKid = (L, x) => { const p = L.person(x && x.p); return !!p && p.kind === 'child' && p.age >= 18; };
+  // What went from a trust nobody watched (never more than there was).
+  const lost = (L, x) => Math.max(0, Math.min(M(L).trust.fund, x && x.n > 0 ? x.n : round(M(L).trust.fund * 0.1, 500)));
   addEvents([
     {
       id: 'midWobble', icon: '🪞', title: 'The same week again', w: 0, ok: (L) => !L.s.gaol && !M(L).plan,
-      text: (L) => `You are ${L.s.age}. You get up, you go to work, you come home, and the week after is the same week again. ${L.partner() ? `${first(L.partner())} asks if you are all right. You say yes.` : 'Nobody asks if you are all right, which is its own answer.'} Something has to change.`,
+      text: (L) => {
+        const s = L.s, n = M(L).n.wob || 0, p = L.partner();
+        const open = [`You are ${s.age}. You get up, ${L.midWeek()}, and the week after is the same week again.`, `${s.age}, and you could set your watch by yourself: Monday, ${L.midWeek()}; Tuesday, the same.`, `You are ${s.age}, and another year has gone by without leaving a mark. Up in the morning, ${L.midWeek()}, and again.`][n % 3];
+        return `${open} ${p ? `${first(p)} asks if you are all right. You say yes.` : 'Nobody asks if you are all right, which is its own answer.'} Something has to change.`;
+      },
       opts: [
-        { t: 'The red Varenna on Jess Dobbs’s forecourt', show: (L) => !!A.motorNew && !L.can('motorNew', 'vela'), cost: (L) => Math.max(0, L.motorNet(MODELS.vela.price)),
-          run(L) { A.motorNew.run(L, 'vela'); if (L.s.motor && L.s.motor.car) L.s.motor.car.col = 'red'; L.joy(10); L.midFresh(2); const p = L.partner(); if (p) L.bond(p, -3); return `It is red, and low, and goes like a train. ${p ? `${first(p)} looks at it for a long time and says nothing, loudly.` : 'You drive it to the end of the cliff road and back, twice.'} For a few months, it helps.`; } },
-        { t: 'Sign up for the Coast Marathon', run(L) { M(L).plan = { id: 'run', n: 0, at: L.s.t }; L.midFresh(2); L.joy(3); return 'You fill in the form before you can think better of it. Twenty-six miles, along the coast road, next summer. Training starts in the park.'; } },
-        { t: 'Get a band together', run(L) { M(L).plan = { id: 'band', n: 0, at: L.s.t }; L.midFresh(2); L.joy(4); return 'A card in the window of the music shop: BASS AND DRUMS WANTED, NO TIME-WASTERS. Two time-wasters answer, and you take them both. Rehearsals at the studios.'; } },
-        { t: (L) => `Talk it over with ${first(L.partner())}, on the sea wall`, show: (L) => !!L.partner(), run(L) { const p = L.partner(); L.bond(p, 8); L.midSaw(p); L.midFresh(2); L.joy(4); return `You walk to the end of the sea wall and back, twice, and say all of it. ${first(p)} has felt the same, as it turns out, for about a year. It helps more than any car would.`; } },
-        { t: 'It will pass', run(L) { L.joy(-2); return 'You buy a better coffee machine. It does not pass.'; } },
+        // (One red thing in a life is enough: not if a crisis has already bought a motorbike or a car.)
+        { t: 'The red Varenna on Jess Dobbs’s forecourt', show: (L) => !!A.motorNew && !L.can('motorNew', 'vela') && !L.midHad('bike') && !L.midHad('car'), cost: (L) => Math.max(0, L.motorNet(MODELS.vela.price)),
+          run(L) { A.motorNew.run(L, 'vela'); if (L.s.motor && L.s.motor.car) L.s.motor.car.col = 'red'; L.midCrisis('car'); L.joy(10); L.midFresh(2); const p = L.partner(); if (p) L.bond(p, -3); return `It is red, and low, and goes like a train. ${p ? `${first(p)} looks at it for a long time and says nothing, loudly.` : 'You drive it to the end of the cliff road and back, twice.'} For a few months, it helps.`; } },
+        { t: 'Sign up for the Coast Marathon', show: (L) => M(L).done.run == null, run(L) { M(L).plan = { id: 'run', n: 0, at: L.s.t }; L.midCrisis('run'); L.midFresh(2); L.joy(3); return ['You fill in the form before you can think better of it. Twenty-six miles, along the coast road, next summer. Training starts in the park.', 'The form again, and this time you mean it. You buy the shoes the same afternoon, which is how you know. Training starts in the park.', 'You tell three people at the Gull, so that you cannot back out. Twenty-six miles, next summer. Training starts in the park.'][(M(L).n.wob || 0) % 3]; } },
+        { t: 'Get a band together', show: (L) => M(L).done.band == null, run(L) { M(L).plan = { id: 'band', n: 0, at: L.s.t }; L.midCrisis('band'); L.midFresh(2); L.joy(4); return 'A card in the window of the music shop: BASS AND DRUMS WANTED, NO TIME-WASTERS. Two time-wasters answer, and you take them both. Rehearsals at the studios.'; } },
+        { t: (L) => `Talk it over with ${first(L.partner())}, on the sea wall`, show: (L) => !!L.partner(), run(L) { const p = L.partner(); L.bond(p, 8); L.midSaw(p); L.midCrisis('talk'); L.midFresh(2); L.joy(4); return `You walk to the end of the sea wall and back, twice, and say all of it. ${first(p)} has felt the same, as it turns out, for about a year. It helps more than any car would.`; } },
+        { t: 'Walk the coast path to Kettleby, and think', show: (L) => !L.partner(), run(L) { L.midCrisis('walk'); L.midFresh(2); L.gain('fitness', 1); L.joy(4); return 'Fourteen miles, a flask and a pork pie. Somewhere past the lighthouse you work out what you want, and by Kettleby you have nearly written it down.'; } },
+        { t: 'It will pass', run(L) { const n = M(L).n.wob || 0; L.midCrisis(null); L.joy(-2); return ['You buy a better coffee machine. It does not pass.', 'You rearrange the furniture. The week stays where it was.', 'You have your hair cut differently. Nobody notices, including you.'][n % 3]; } },
       ],
     },
     {
@@ -474,12 +553,29 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
       ],
     },
     {
-      id: 'midTerm', icon: '🗳️', title: 'Four years on', w: 0, ok: (L) => !!M(L).seat,
-      text: (L) => `Your term as councillor for the harbour ward is nearly over. ${M(L).seat.ward >= 6 ? 'People stop you in the street to say they hope you are standing again.' : M(L).seat.ward <= -4 ? 'There are people in the ward who cross the road to avoid you.' : 'The ward seems neither here nor there about you, which is what a ward is like.'}`,
+      id: 'midTerm', icon: '🗳️', title: (L) => termTitle(L), w: 0, ok: (L) => !!M(L).seat,
+      text: (L) => {
+        const st = M(L).seat, n = st.terms, ward = st.ward >= 6 ? 0 : st.ward <= -4 ? 1 : 2;
+        const said = [
+          ['People stop you in the street to say they hope you are standing again.', 'Mrs Pargeter has put a poster with your face on it in the window of the allotment shed, unasked.', 'The ward has got used to you, and seems to like it.'],
+          ['There are people in the ward who cross the road to avoid you.', 'Somebody has drawn a moustache on your photograph in the Town Hall corridor, and nobody has rubbed it off.', 'The letters page of the Gazette has had a good deal to say about you this year.'],
+          ['The ward seems neither here nor there about you, which is what a ward is like.', 'Most of the ward could not tell you your name, and the rest could tell you what you did about their bins.', 'The ward is about as fond of you as it is of the one-way system.'],
+        ][ward][(n + L.s.t) % 3];
+        const old = L.s.age > 72 ? ' You are past seventy now, and the Thursdays are long.' : '';
+        return n === 0 ? `Your term as councillor for the harbour ward is nearly over. ${said}${old}`
+          : `${cap(num(n + 1))} terms as councillor for the harbour ward, and the ${ORD[Math.min(n + 1, ORD.length - 1)]} is nearly over. ${said}${old}`;
+      },
       opts: [
-        { t: 'Stand again', cost: (L) => L.midPrice(2000), odds: (L) => L.midStandOdds() + 0.1,
-          run(L, x, win) { const s = L.s, m = M(L), st = m.seat; st.terms++; m.n.terms++; m.done.term = s.age; if (win) { st.since = s.t + 1; st.until = s.t + 1 + TERM; st.votes = []; st.miss = 0; L.joy(6); L.note('Re-elected to the council.', 'big'); return 'Re-elected, by more than last time. You buy the count a round in the church hall, which is technically a breach of something.'; } st.until = s.t + 1; m.ran = s.t; L.joy(-6); return 'You lose, by a few dozen votes, to somebody who promised to do something about the gulls. Four years, and a box of letters from the ward, which you keep.'; } },
-        { t: 'Stand down while they still like you', run(L) { const s = L.s, m = M(L); m.seat.terms++; m.n.terms++; m.done.term = s.age; m.seat.until = s.t + 1; L.karma(2); L.joy(2); L.note('Stood down from the council after a full term.'); return 'A farewell at the Town Hall with sherry and a speech by the mayor, who gets your name nearly right.'; } },
+        // (The ward likes its councillors with a few grey hairs, but not past seventy-two: see midStandWhy.)
+        { t: 'Stand again', cost: (L) => L.midPrice(2000), odds: (L) => L.midStandOdds() + 0.1, show: (L) => L.s.age <= 72,
+          run(L, x, win) {
+            const s = L.s, m = M(L), st = m.seat, n = st.terms; st.terms++; m.n.terms++; m.done.term = s.age;
+            if (win) { st.since = s.t + 1; st.until = s.t + 1 + TERM; st.votes = []; st.miss = 0; L.joy(6); L.note('Re-elected to the council.', 'big'); return ['Re-elected, by more than last time. You buy the count a round in the church hall, which is technically a breach of something.', 'Re-elected, by a margin the Gazette calls “comfortable” and your opponent calls “a disgrace”. You shake hands anyway.', 'Re-elected. The returning officer reads your name out as if he had expected it, and he had.', 'Re-elected, again. The church hall caretaker hands you the key to put the chairs away, since you know where they go.'][Math.min(n, 3)]; }
+            st.until = s.t + 1; m.ran = s.t; L.joy(-6);
+            return n === 0 ? 'You lose, by a few dozen votes, to somebody who promised to do something about the gulls. Four years, and a box of letters from the ward, which you keep.' : `You lose, after ${num(n + 1)} terms, to a young woman with a bicycle and a clipboard who knocked on every door in the ward twice. You shake her hand, and mean it, mostly.`;
+          } },
+        { t: (L) => (L.s.age > 72 ? 'Stand down: let somebody younger have a go' : 'Stand down while they still like you'),
+          run(L) { const s = L.s, m = M(L), n = m.seat.terms; m.seat.terms++; m.n.terms++; m.done.term = s.age; m.seat.until = s.t + 1; L.karma(2); L.joy(2); L.note(`Stood down from the council after ${n ? `${num(n + 1)} terms` : 'a full term'}.`); return n === 0 ? 'A farewell at the Town Hall with sherry and a speech by the mayor, who gets your name nearly right.' : `A farewell at the Town Hall after ${num(n + 1)} terms: sherry, a speech, and a framed map of the harbour ward signed by everybody who ever sat on the council with you. Somebody has written “the bins!” beside the High Street.`; } },
       ],
     },
     {
@@ -488,11 +584,13 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
       opts: [{ t: 'Worth every penny', run(L) { const t = M(L).trust; t.good++; L.joy(3); return 'You read it twice, and put the letter in the drawer with the others.'; } }],
     },
     {
+      // x.n: what went, out of the fund. (An old save's card, queued without it, is a tenth of the fund.)
       id: 'midTrustBooks', icon: '📑', title: 'The trust’s accounts', w: 0, ok: (L) => !!M(L).trust,
-      text: (L) => `Nobody has chaired a meeting of ${M(L).trust.name.replace(/^The /, 'the ')} for a year, and the treasurer has been buying a great many things for the office, including a car.`,
+      text: (L, x) => `Nobody has chaired a meeting of ${M(L).trust.name.replace(/^The /, 'the ')} for ${L.midChairDue() >= 8 ? `${Math.floor(L.midChairDue() / 4)} years` : 'a year'}, and the treasurer has been buying a great many things for the office, including ${['a car', 'a coffee machine the size of a wardrobe', 'a boat, for “outreach”', 'a great deal of carpet'][L.s.t % 4]}. ${money(lost(L, x))} of the fund has gone.`,
       opts: [
-        { t: 'Put it right quietly, out of your own pocket', cost: (L) => L.midPrice(8000), run(L) { const t = M(L).trust; t.chair = L.s.t; L.joy(-2); return 'The treasurer resigns for family reasons. You pay back what went, and chair every meeting from now on.'; } },
-        { t: 'Call in the police', run(L) { const t = M(L).trust; t.chair = L.s.t; t.fund = Math.max(0, t.fund - round(t.start * 0.15, 500)); L.fame(-1); L.karma(1); return 'The treasurer is in the Gazette, and so, less kindly, are you: TRUST CHIEF “NEVER LOOKED AT THE BOOKS”. Some of the money is never found.'; } },
+        { t: (L, x) => `Put it back quietly, out of your own pocket`, cost: (L, x) => lost(L, x), run(L) { L.joy(-2); return 'The treasurer resigns for family reasons. You pay back what went, and take the chair at the next meeting yourself, with the accounts open in front of you.'; } },
+        { t: 'Call in the police', run(L, x) { const t = M(L).trust; t.fund = Math.max(0, t.fund - round(lost(L, x) * 0.6, 100)); L.fame(-1); L.karma(1); return 'The treasurer is in the Gazette, and so, less kindly, are you: TRUST CHIEF “NEVER LOOKED AT THE BOOKS”. Some of the money is found in a lock-up in Kettleby; the rest never is.'; } },
+        { t: 'Let the fund stand the loss, and find a new treasurer', run(L, x) { const t = M(L).trust; t.fund = Math.max(0, t.fund - lost(L, x)); L.karma(-1); return 'A new treasurer, a retired bank manager who counts the paperclips. The fund is lighter, and the trust goes on doing a little less good for a while.'; } },
       ],
     },
     {

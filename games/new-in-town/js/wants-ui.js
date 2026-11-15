@@ -4,7 +4,7 @@
 // their dreams went, any arrangement for their care, money between you, and
 // what the two of you have been through together.
 
-import { CARE, PATHS, AMBITIONS, fee } from './wants-lib.js';
+import { CARE, PATHS, AMBITIONS, care } from './wants-lib.js';
 
 const EXAM_SAID = ['failed most of the exams', 'scraped through the exams', 'did well in the exams', 'got top marks in nearly everything'];
 const OUT = { won: 'came true', lost: 'did not work out', held: 'you asked them not to', home: 'came home instead' };
@@ -39,7 +39,7 @@ export default function (kit) {
     }
     if (p.kind === 'parent' && r.care) {
       const c = CARE[r.care], half = r.care !== 'with' && life.siblings().some((q) => q.bond >= 50);
-      rows.push(row('🫖', `${esc(c.said)}${c.cost ? ` · ${money(Math.round(fee(life, c.cost) / (half ? 2 : 1)))} a season${half ? ', your half' : ''}` : ''}${r.care === 'you' ? ' · it takes a block of your time each season' : ''}`));
+      rows.push(row('🫖', `${esc(c.said)}${c.cost ? ` · ${money(Math.round(care(life, c.cost) / (half ? 2 : 1)))} a season${half ? ', your half' : ''}` : ''}${r.care === 'you' ? ' · it takes a block of your time each season' : ''}`));
     }
     if (p.kind === 'friend') {
       if (ln) rows.push(row('🫴', `Borrowed ${money(ln.n)}, to be paid back ${ln.due <= t ? 'by now' : ln.due - t === 1 ? 'next season' : `in ${ln.due - t} seasons`}`));
