@@ -655,7 +655,8 @@ const SHEET = {
       if (p.kind === 'friend' && life.fancy(p)) facts.push(p.single ? '<span class="up">💗 Single</span>' : '<span>Spoken for</span>');
       const loves = (p.likes || []).filter((a) => p.known[a]);
       if (loves.length) facts.push(`<span>Loves ${loves.map((a) => OUTINGS[a].icon).join(' ')}</span>`);
-      if ((p.kind === 'partner' || p.kind === 'spouse') && p.bond >= 50) facts.push(`<span>${p.wish ? 'Wants children' : 'Does not want children'}</span>`);
+      // (Only while it is still a question: before fifty, and with no children of your own yet.)
+      if ((p.kind === 'partner' || p.kind === 'spouse') && p.bond >= 50 && p.age < 50 && !life.kids().length) facts.push(`<span>${p.wish ? 'Wants children' : 'Does not want children'}</span>`);
     }
     const foe = p.kind === 'enemy';
     const perk = p.job && !['parent', 'ex', 'enemy'].includes(p.kind) && p.age >= 18 ? `<p class="fine">${life.perk(p.job) && p.bond >= 60 ? '✓ ' : ''}Someone close in ${CAREERS[p.job].name.toLowerCase()} (60 bond) gets you ${PERKS[p.job]}.</p>` : '';
@@ -1068,7 +1069,7 @@ function journalHtml() {
   for (let i = s.log.length - 1; i >= 0; i--) {
     const e = s.log[i];
     if (e.a !== age) { if (age !== null) out += '</div>'; age = e.a; out += `<div class="box"><h3>Age ${age}</h3>`; }
-    out += `<p class="entry ${e.k}"><i>${SEASON_ICON[e.q]}</i>${esc(e.t)}</p>`;
+    out += `<p class="entry${e.k ? ` e-${e.k}` : ''}"><i>${SEASON_ICON[e.q]}</i>${esc(e.t)}</p>`;
   }
   return `<div class="box"><button class="btn btn-soft wide" data-do="open" data-kind="gazette">📰 This season’s Gazette</button></div>${out}</div>`;
 }
@@ -1110,7 +1111,7 @@ function showMenu() {
 }
 
 // Shown once to a life that was begun before the town grew.
-const NEWS = 7;
+const NEWS = 8;
 function showNew() {
   const was = save.seenNew || 0;
   save.seenNew = NEWS;
@@ -1133,8 +1134,14 @@ function showNew() {
     <p><b>⏳ The middle years.</b> People drift unless you give them your time, the same week again starts to tell after forty, and there is more to take on: a council seat, a year out, a trust in your name, a child’s first house.</p>
     <p><b>🃏 Fewer repeats.</b> Cards seen many times come up less, an heir does not relive the family’s stories, and the townsfolk remember a family born here.</p>
     <p><b>⛓️ Prison is a life of its own.</b> A job inside to rise in, a landing of people with stories, courses by post, letters and visits, parole you prepare for, and a way over the wall you plan.</p>`;
+  // (And what has come since that.)
+  const latest = `<p><b>🛥️ Living well.</b> Money matters at every means now. Prices follow what you have, and someone of means misses what they are used to: a home to match, a holiday, something given, something for fun. A yacht to sail from the harbour.</p>
+    <p><b>🪴 A way up without a career.</b> A room at Mrs Pargeter’s with a corner for hens, hens in Tom’s yard, jam in his farmhouse kitchen, and holly wreaths in winter.</p>
+    <p><b>🕶️ Crime pays less, and remembers.</b> Smaller takes, a street that talks, money from crime that can be confiscated, and Sal’s trust deciding your place in the crew.</p>
+    <p><b>⏱️ Where the time goes.</b> Tap the time pips at the top to see why a season has the time it has.</p>
+    <p><b>🧾 A family’s town.</b> Heirs keep the family name, the calendar runs on across the generations, and the stories, shouts and anniversaries vary more.</p>`;
   if (was >= 5) {
-    ui.show(`<div class="ev-ico">🗺️</div><h2>New in Starling Bay</h2><div class="how">${since}</div>
+    ui.show(`<div class="ev-ico">🗺️</div><h2>New in Starling Bay</h2><div class="how">${latest}${was >= 7 ? '' : since}</div>
       <div class="actions"><button class="btn btn-primary" data-action="evDone">Show me</button></div>`);
     return;
   }

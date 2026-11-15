@@ -184,7 +184,7 @@ details.an-note p { margin: 6px 0 0; }
 .an-yr .an-h.dim { color: #9a8f78; font-weight: 400; font-style: italic; }
 .an-yr .an-m { font-size: 13px; color: #5a5446; line-height: 1.35; font-style: italic; }
 .an-yr.now { background: #f6efdc; border-radius: 6px; padding: 7px 4px; }
-.entry.town { color: #3d5a63; }
+.entry.e-town { color: #3d5a63; }
 .an-me .picks { margin-top: 10px; }
 `;
 
