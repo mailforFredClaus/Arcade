@@ -10,9 +10,11 @@
 // book is a choice about who to give your seasons to.
 //
 // The same again: from forty, a year in which nothing new happens (nothing big
-// enough for the journal) wears at you, a little more each year, until
-// something changes. The cure is in your hands: a wobble when it gets bad
-// enough (a red car, the Coast Marathon, a band, a long talk), or something
+// enough for the journal of your own doing, and nothing you had not done in two
+// years) wears at you, a little more each year, until something changes. The
+// cure is in your hands: a wobble when it gets bad enough (a red car, the Coast
+// Marathon, a band, a long talk: one crisis card at a time, for this one and
+// events.js's Is this it? and Fifty share a cooldown), or something
 // bigger of your own. A seat on the council, four years of Thursday evenings
 // and votes that please some people and not others; a year out of your job,
 // travelling or learning or at home; a trust in your name, endowed and then

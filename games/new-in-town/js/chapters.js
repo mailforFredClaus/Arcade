@@ -672,7 +672,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     const carry = { ...c, said: leftSaid(c) };
     // (The town goes on as this life left it: its mayor, what was built, its shops and its regulars: annals.js.)
     if (this.annalsHandOn) carry.town = this.annalsHandOn(c);
-    // (And its calendar runs on: the heir's first spring is the one after this life ended, or after the years
+    // (And its calendar runs on: the heir's first spring is the spring this life ended in, or the one after it, or after the years
     // away of one who comes back at eighteen; annalsHandOn counts the town's seasons from the same spring.)
     carry.y0 = (this.s.y0 || 0) + Math.ceil(this.s.t / 4) + (c.how === 'back' ? (c.gap || 0) : 0);
     return {

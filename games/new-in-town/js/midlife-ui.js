@@ -61,7 +61,7 @@ export default function (kit) {
       if (!m || (s.age < 38 && !busyWith(life)) || (s.age >= 70 && !busyWith(life))) return '';
       const rut = life.midRut();
       let out = `<div class="box mid-me"><h3>The middle years</h3>`;
-      if (s.age >= 40 && s.age < 66) out += `<div class="line"><span>🔁 The same week again</span><b>${esc(life.midRutWord())}</b></div><span class="bar mid-bar"><span style="width:${Math.round((rut / 8) * 100)}%"></span></span><p class="fine">${rut >= 3 ? 'A year with nothing new in it wears at you, a little more each year. Something new helps, big enough to go in the journal.' : 'A year with nothing new in it wears at you. So far, life keeps changing.'}</p>`;
+      if (s.age >= 40 && s.age < 66) out += `<div class="line"><span>🔁 The same week again</span><b>${esc(life.midRutWord())}</b></div><span class="bar mid-bar"><span style="width:${Math.round((rut / 8) * 100)}%"></span></span><p class="fine">${rut >= 3 ? 'A year with nothing new in it wears at you, a little more each year. Something new helps: a big moment of your own making, or a couple of things you have not done in years.' : 'A year with nothing new in it wears at you: the same work, the same evenings. So far, life keeps changing.'}</p>`;
       // Who is close, and who is drifting for want of your time.
       const close = life.midClose(), drift = s.people.filter((p) => life.midDrifting(p)).sort((a, b) => b.bond - a.bond).slice(0, 6);
       out += `<div class="line"><span>🫂 People who really know you</span><b>${close.length}</b></div>`;
