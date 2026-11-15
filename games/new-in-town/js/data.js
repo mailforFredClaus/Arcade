@@ -69,6 +69,16 @@ export const PLACES = {
   theatre: { name: 'The Pavilion', icon: '🎭', area: 'hill', x: 70, y: 340, blurb: 'Plays, pantomime, and a bar that opens at the interval.' },
   market: { name: 'Market Square', icon: '🧺', area: 'hill', x: 196, y: 340, blurb: 'Stalls every Saturday, and a fountain nobody has ever seen working.' },
   cove: { name: 'Smugglers’ Cove', icon: '🏖️', area: 'hill', x: 322, y: 340, blurb: 'A sandy cove below the cliffs, with beach huts and the lifeboat station.' },
+  // Out on Starling Moor, beyond Windle Farm: a third map (moor.js has what there is to do).
+  observatory: { name: 'The Askwith Observatory', icon: '🔭', area: 'moor', x: 70, y: 112, blurb: 'A Victorian dome on the highest ground for miles, and an astronomer who will not hear a word against Pluto.' },
+  stones: { name: 'The Gossips', icon: '🪨', area: 'moor', x: 196, y: 112, blurb: 'Nineteen standing stones in a ring. Women turned to stone for gossiping on a Sunday, they say. They still look as if they are listening.' },
+  quarry: { name: 'Blackrake Quarry', icon: '⛏️', area: 'moor', x: 322, y: 112, blurb: 'A working quarry, a siren before the blasting, and a flooded old pit that everybody is told to keep out of.' },
+  reservoir: { name: 'Fennick Water', icon: '💧', area: 'moor', x: 70, y: 228, blurb: 'Trout, cold swimming and a sailing hut. Under the water is the village of Fennick, drowned in 1938.' },
+  camp: { name: 'Curlew Camp', icon: '⛺', area: 'moor', x: 196, y: 228, blurb: 'A campsite in a hollow out of the wind, a youth hostel in an old barn, and the start of the Curlew Award.' },
+  wood: { name: 'Hollowell Wood', icon: '🍄', area: 'moor', x: 322, y: 228, blurb: 'Old oaks, bluebells in May, mushrooms in October, and a charcoal burner who has not been seen in town since 1990.' },
+  halt: { name: 'Sallow Halt', icon: '🚂', area: 'moor', x: 70, y: 340, blurb: 'A request stop on the old line, and the viaduct over Sallow Gill. Steam specials in summer and at Christmas.' },
+  village: { name: 'Moor End', icon: '🏘️', area: 'moor', x: 196, y: 340, blurb: 'A village at the end of the moor road: the Drovers, a post office, a green with a cricket square, and a fête every summer.' },
+  hall: { name: 'Haverleigh Hall', icon: '🏰', area: 'moor', x: 322, y: 340, blurb: 'Home of the Askwiths since 1702, and of the roof leaks since 1703. The gardens are open to the public.' },
 };
 
 // ---- careers ----------------------------------------------------------------------------

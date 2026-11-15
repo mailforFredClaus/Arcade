@@ -20,6 +20,7 @@ import { install as heists } from './heists.js'; // planned jobs, the detective,
 import { install as annals } from './annals.js'; // the town growing old with you: elections, big events, Years in the Bay
 import { install as midlife } from './midlife.js'; // the middle of a life: people to tend, the same again, and things worth wanting
 import { install as gaol2 } from './gaol2.js'; // a stretch in Starling Gaol: work, the landing, the board, the wall
+import { install as moor } from './moor.js'; // Starling Moor, the third map: the Hall, the quarry, Fennick, the stars and the walks
 
 // (The plain things to do up the hill go last, so that each place's own sections come first.)
-export const RULES = [soul, coast, motor, clubs, market, folk, flutter, careers, chapters, wants, heists, annals, midlife, gaol2, hill];
+export const RULES = [soul, coast, motor, clubs, market, folk, flutter, careers, chapters, wants, heists, annals, midlife, gaol2, moor, hill];
