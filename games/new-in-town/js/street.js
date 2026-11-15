@@ -36,7 +36,6 @@
 //     the garden (g), help (staff), the annexe (ann), the neighbours (nb), the landlord (ll)
 //   nid: the next neighbour's id; used: names given out in this life
 //   next: no card from here before this season (unless it cannot wait)
-//   means: what you can afford, as the town sees it (1 to 8)
 //   charm: which charming builder is about; owe: money owed privately [{ what, left, each }]
 //   past: old neighbours who may turn up again; cutting: a rose brought from the last garden
 //   fin, vanish: building work just finished, a builder just gone (for the card)
@@ -63,20 +62,25 @@ export function install({ def, Life, hooks, addEvents }) {
 
   function blank() {
     return {
-      v: 1, at: null, lease: 0, homes: {}, nid: 1, used: [], next: 0, means: 1, charm: 0, owe: [], past: [], cutting: null, fin: null, vanish: null,
+      v: 1, at: null, lease: 0, homes: {}, nid: 1, used: [], next: 0, charm: 0, owe: [], past: [], cutting: null, fin: null, vanish: null,
       n: { built: 0, mended: 0, saved: 0, hosted: 0, perfect: 0, fixed: 0, apples: 0, bloom: 0, shows: 0 }, f: {}, shows: {}, partyT: -99, openT: -99, kindT: -99, bloomT: -99, showT: -99,
     };
   }
   // A name nobody in this life has had from here, nor anybody you know: no two neighbours,
   // landlords or gardeners in one life share a first name or a surname. whole: a first name and
   // a surname (else one name, from firsts).
-  function fresh(L, firsts, lasts, whole = true) {
+  // (The family remembers the names its lives have met, as chapters.js keeps them: an heir does not
+  // move in next to somebody with the same name as a neighbour of the last life.)
+  function fresh(L, firsts, lasts, whole = true, kind = 'stFirst') {
     const S = S0(L), used = new Set(S.used.flatMap((n) => n.split(' '))), people = new Set(L.s.people.map((p) => p.name));
+    const free = (kind, l) => { const f = L.chapNameFree ? L.chapNameFree(kind, l) : l; return f.length >= 2 ? f : l; };
+    const fs = free(kind, firsts), ls = lasts ? free('stLast', lasts) : null;
     for (let i = 0; i < 40; i++) {
-      const f = L.pick(firsts), l = whole ? L.pick(lasts) : null, n = whole ? `${f} ${l}` : f;
+      const f = L.pick(fs), l = whole ? L.pick(ls) : null, n = whole ? `${f} ${l}` : f;
       if (used.has(f) || (l && used.has(l)) || people.has(n)) continue;
       S.used.push(n);
       if (S.used.length > 300) S.used.shift();
+      if (L.chapNameUse) { L.chapNameUse(kind, f); if (l) L.chapNameUse('stLast', l); }
       return n;
     }
     const n = whole ? `${L.pick(firsts)} ${L.pick(lasts)}` : L.pick(firsts);
@@ -108,7 +112,7 @@ export function install({ def, Life, hooks, addEvents }) {
     const s = L.s, r = L.rnd(), kind = r < 0.36 ? 'good' : r < 0.7 ? 'slack' : 'sharp';
     const sex = kind === 'good' ? 'f' : kind === 'slack' ? 'm' : L.chance(0.5) ? 'm' : 'f';
     const agency = kind === 'sharp' && L.chance(0.4);
-    const name = agency ? 'Tidewater Lettings' : `${sex === 'm' ? 'Mr' : 'Mrs'} ${fresh(L, NB_LAST, null, false)}`;
+    const name = agency ? 'Tidewater Lettings' : `${sex === 'm' ? 'Mr' : 'Mrs'} ${fresh(L, NB_LAST, null, false, 'stLast')}`;
     return { kind, name, sex, agency, since: s.t, up: 0, tn: 40, nextUp: s.t + L.int(6, 14), known: 0, offered: 0, told: 0 };
   }
   // A house, as you find it on moving in.
@@ -127,7 +131,8 @@ export function install({ def, Life, hooks, addEvents }) {
       if (e && e.ups.garden) { old('lawn', 1); old('roses', 1); }
     }
     h.nb = newStreet(L, kind);
-    if (!owned && kind !== 'hostel') h.ll = newLandlord(L);
+    // (A hostel has a warden, and a room at Mrs Pargeter’s has Mrs Pargeter: neither is a landlord.)
+    if (!owned && kind !== 'hostel' && !HOMES[kind].lodger) h.ll = newLandlord(L);
     return h;
   }
   const kindOf = (h) => h && h.kind;
@@ -142,9 +147,18 @@ export function install({ def, Life, hooks, addEvents }) {
     stOwned() { const h = this.stHouse(); return !!h && !!this.s.owned && h.kind === this.s.home; },
     stNbs() { const h = this.stHouse(); return h ? h.nb.filter((n) => !n.gone) : []; },
     stNb(id) { const n = this.stNbs().find((q) => q.id === id); return n || null; },
-    stMeans() { return (this.s.street && this.s.street.means) || 1; },
-    // (What the town thinks you can afford, from what you are worth: 1 up to about $150,000, 2 at $600,000, 3 at $1.35M ... up to 8.)
-    stCalcMeans() { return Math.round(clamp((Math.max(0, this.netWorth()) / 150000) ** 0.5, 1, 8) * 100) / 100; },
+    // What you can afford, as the town sees it, and what a dear thing costs you (midlife.js).
+    stMeans() { return this.midMeans ? this.midMeans() : 1; },
+    stSpend() { return this.midSpend ? this.midSpend() : 1; },
+    // Whether the work done on a home of your own lifts it a step, for the home somebody of your
+    // means is used to (comfort.js): two lots of building work, or one and a garden worth looking
+    // at, on a house in good repair.
+    stHomeLift() {
+      const h = this.stHouse();
+      if (!h || !this.stOwned() || this.stCond(h) < 80) return 0;
+      const n = Object.keys(h.done).length;
+      return n >= 2 || (n >= 1 && this.stScore(h) >= 60) ? 1 : 0;
+    },
     stCharmer() { return CHARMERS[(this.s.street.charm || 0) % CHARMERS.length]; },
     stBuilder(b) { return b === 'charm' ? this.stCharmer() : BUILDERS[b] ? BUILDERS[b].name : 'You'; },
     stScale() { const h = this.stHouse(); return h ? HOUSE[h.kind].scale : 1; },
@@ -164,7 +178,7 @@ export function install({ def, Life, hooks, addEvents }) {
       if (!h) {
         const e = key[0] === 'e' ? this.estateOf(Number(key.slice(1))) : null;
         h = S.homes[key] = newHouse(this, s.home, key[0] === 'e', e);
-        if (!quiet && s.t > 0) this.note(s.home === 'hostel' ? `In ${STREETS.hostel.name} at the Seagull: ${list(h.nb.map((n) => n.name))}.` : `New neighbours, on ${STREETS[s.home].name.replace(/^The /, 'the ')}: ${list(h.nb.map((n) => n.name))}.`);
+        if (!quiet) this.note(s.home === 'hostel' ? `In ${STREETS.hostel.name} at the Seagull: ${list(h.nb.map((n) => n.name))}.` : `New neighbours, on ${STREETS[s.home].name.replace(/^The /, 'the ')}: ${list(h.nb.map((n) => n.name))}.`);
       } else if (h.left != null) {
         // Back in a house of your own: the garden has had its own way meanwhile.
         if (h.g) h.g.care = Math.max(0, h.g.care - (s.t - h.left) * 12);
@@ -207,7 +221,8 @@ export function install({ def, Life, hooks, addEvents }) {
       const S = this.s.street, h = S && S.homes[`e${e.id}`], k = HOMES[e.kind];
       if (!h || !k || k.price == null) return 0;
       let d = Object.values(h.done).reduce((a, x) => a + (x.v || 0), 0);
-      if (h.g && HOUSE[h.kind].size >= 2) d += k.price * 0.03 * this.stScore(h) / 100;
+      // (A garden you have made counts; one left as the last people had it is in the price already.)
+      if (h.g && HOUSE[h.kind].size >= 2 && Object.values(h.g.ft).some((f) => !f.old)) d += k.price * 0.03 * this.stScore(h) / 100;
       for (const [f, r] of Object.entries(h.f)) d -= r.st === 'left' ? k.price * FAULTS[f].knock * r.sev : r.st === 'patched' ? k.price * FAULTS[f].knock * 0.5 : 0;
       return Math.round(d * this.s.idx / 1000) * 1000;
     },
@@ -304,7 +319,7 @@ export function install({ def, Life, hooks, addEvents }) {
     stHostCost(x) {
       const p = x || this.stHostPlan(), m = MENUS[p.m];
       if (!m || !Array.isArray(p.g)) return 0;
-      return fee(this, (p.g.length + 1) * m.each * (m.rich ? Math.sqrt(this.stMeans()) : 1));
+      return fee(this, (p.g.length + 1) * m.each * (m.rich ? Math.sqrt(this.stSpend()) : 1));
     },
   });
 
@@ -338,7 +353,7 @@ export function install({ def, Life, hooks, addEvents }) {
   // A feud made up: the trophy, and a word in the journal.
   Life.prototype.stMended = function stMended(n) {
     if (!n) return;
-    const was = n.feud;
+    const was = n.feud || (n.st < -10 ? 1 : 0);
     n.feud = 0; n.st = Math.max(n.st, 30);
     if (was >= 1) { S0(this).n.mended++; this.karma(2); this.note(`Made it up with ${n.name}, after ${Math.max(1, Math.round((this.s.t - n.t) / 4))} year${this.s.t - n.t >= 6 ? 's' : ''} of not speaking.`, 'big'); }
   };
@@ -476,7 +491,6 @@ export function install({ def, Life, hooks, addEvents }) {
     // Money owed privately is paid off, a season at a time (the bill is in bills, below).
     for (const o of S.owe) o.left = Math.max(0, o.left - Math.min(o.each, o.left));
     S.owe = S.owe.filter((o) => o.left > 0);
-    S.means = L.stCalcMeans();
     if (!h || jailed) { if (h && h.g) garden(L, h); return; }
     if (h.ann && h.ann.p != null && !L.person(h.ann.p)) { h.ann.p = null; h.ann.asked = 0; }
     if (h.ann && h.ann.p != null) { const q = L.person(h.ann.p); if (q) L.bond(q, 1.5); }
@@ -519,8 +533,8 @@ export function install({ def, Life, hooks, addEvents }) {
     const g = h.g;
     if (g) {
       const score = L.stScore(h), size = HOUSE[h.kind].size;
-      if (L.season === 2 && S.showT !== yr && L.stShowable(h).length && L.chance(0.7)) add('stShow', {}, 6, true, () => { S.showT = yr; });
-      if (L.season === 1 && S.bloomT !== yr && score >= 35 && L.chance(0.55)) add('stBloom', { size }, 6, true, () => { S.bloomT = yr; });
+      if (L.season === 2 && yr - S.showT >= 2 && L.stShowable(h).length && L.chance(0.45)) add('stShow', {}, 6, true, () => { S.showT = yr; });
+      if (L.season === 1 && yr - S.bloomT >= 2 && score >= 35 && L.chance(0.4)) add('stBloom', { size }, 6, true, () => { S.bloomT = yr; });
       if (g.ft.pond && g.ft.pond.m >= 1 && !g.frogs) add('stFrogs', {}, 5, true, () => { g.frogs = 1; });
       if (g.ft.fruit && !g.ft.fruit.old && g.ft.fruit.m >= 1 && !g.apple && (L.season === 1 || L.season === 2)) add('stApple', {}, 6, true, () => { g.apple = 1; });
       if (h.owned && (h.kind === 'villa' || h.kind === 'manor') && L.season === 1 && score >= 55 && s.t - S.openT >= 8) add('stOpenDay', {}, 3, false, () => { S.openT = s.t; });
@@ -642,7 +656,6 @@ export function install({ def, Life, hooks, addEvents }) {
     for (const [k, v] of Object.entries(b.n)) if (S.n[k] == null) S.n[k] = v;
     L.stSync(true);
   });
-  hooks.ready.push((L) => { const S = S0(L); if (S && !(S.means > 1)) S.means = L.stCalcMeans(); });
 
   // ---- what you can do --------------------------------------------------------------------
 
@@ -827,7 +840,7 @@ export function install({ def, Life, hooks, addEvents }) {
         return `${h.staff.gardener} comes on Tuesdays, with a flask, a kneeler and opinions about your compost. ${money(fee(L, h.kind === 'townhouse' ? 500 : 350))} a season.`;
       }
       if (h.staff.keeper) { const n = h.staff.keeper; h.staff.keeper = null; return `${n} hands back her keys with a list of where everything is, which is useful, and a look, which is not.`; }
-      h.staff.keeper = `Mrs ${fresh(L, NB_LAST, null, false)}`; h.staff.kAt = s.t; h.staff.kT = 0;
+      h.staff.keeper = `Mrs ${fresh(L, NB_LAST, null, false, 'stLast')}`; h.staff.kAt = s.t; h.staff.kT = 0;
       return `${h.staff.keeper} starts on Monday. By Wednesday she knows where everything is and has moved most of it. ${money(fee(L, { townhouse: 900, villa: 1400, manor: 2400 }[h.kind]))} a season.`;
     },
   });

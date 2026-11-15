@@ -24,6 +24,7 @@ export const list = (l) => (l.length > 1 ? `${l.slice(0, -1).join(', ')} and ${l
 export const HOUSE = {
   hostel: { built: 90, size: 0, scale: 0, table: 0 },
   bedsit: { built: 120, size: 0.5, scale: 0.4, table: 2 },
+  room: { built: 110, size: 0.5, scale: 0, table: 0 },
   flat: { built: 55, size: 0.5, scale: 0.6, table: 4 },
   cottage: { built: 190, size: 2, scale: 1, table: 5 },
   townhouse: { built: 140, size: 3, scale: 1.4, table: 6 },
@@ -148,6 +149,7 @@ export const PROJECTS = {
 // What each kind of home has for a garden.
 export const GARDENS = {
   bedsit: { name: 'A share of the yard', icon: '🪴', said: 'your two pots in the yard behind the chip shop' },
+  room: { name: 'A corner of her garden', icon: '🪴', said: 'your corner of Mrs Pargeter’s garden' },
   flat: { name: 'Window boxes', icon: '🌼', said: 'your window boxes' },
   cottage: { name: 'The little garden', icon: '🏡', said: 'the little garden' },
   townhouse: { name: 'The long garden', icon: '🌳', said: 'the long garden' },
@@ -181,8 +183,9 @@ export const CLASSES = {
 // Who lives near each kind of home. always: one of these is always there. pool: the rest are
 // drawn from these. n: how many neighbours. where: what to call it; their: where they live.
 export const STREETS = {
-  hostel: { name: 'Dormitory B', icon: '🛏️', said: 'the bunkroom', their: 'the next bunk', n: 3, always: ['sailor'], pool: ['ladder', 'student', 'singer'] },
+  hostel: { name: 'Dormitory B', icon: '🛏️', said: 'the bunkroom', their: 'in the next bunk', n: 3, always: ['sailor'], pool: ['ladder', 'student', 'singer'] },
   bedsit: { name: 'Over the chip shop', icon: '🍟', said: 'the landing', their: 'across the landing', n: 3, always: ['chippy'], pool: ['singer', 'student', 'milk'] },
+  room: { name: 'Mrs Pargeter’s', icon: '🪴', said: 'Mrs Pargeter’s house', their: 'at Mrs Pargeter’s', n: 3, always: ['student'], pool: ['milk', 'ladder'] },
   flat: { name: 'Harbour Court', icon: '🏢', said: 'Harbour Court', their: 'downstairs', n: 4, always: ['couple'], pool: ['milk', 'teen', 'watch', 'ladder', 'parking'] },
   cottage: { name: 'Ropewalk Lane', icon: '🏡', said: 'the lane', their: 'next door', n: 4, always: ['fence'], pool: ['milk', 'teen', 'ladder', 'watch'] },
   townhouse: { name: 'The top of the High Street', icon: '🏘️', said: 'the top of the High Street', their: 'next door', n: 4, always: ['parking'], pool: ['fence', 'teen', 'watch', 'milk', 'ladder'] },
@@ -224,7 +227,7 @@ export const ROLES = {
   keeper: { age: [58, 70], names: 'old', seat: 'shy', st: 15, vs: [], quirk: 'Has lived at the lodge for forty years and knows where every pipe on the estate runs.', want: 'A roof on the lodge that does not leak. (You are his landlord.)' },
 };
 // The thing that gets borrowed, by where you live.
-export const LENT = { hostel: 'kettle', bedsit: 'iron', flat: 'drill' };
+export const LENT = { hostel: 'kettle', bedsit: 'iron', room: 'iron', flat: 'drill' };
 export const lent = (kind) => LENT[kind] || 'ladder';
 
 // How somebody on your street stands with you, in words.

@@ -50,7 +50,8 @@ export function install({ def, Life, clamp, hooks }) {
       if (m < 1.5 || s.gaol) return [];
       const tier = homeFor(m), name = Object.values(HOMES).find((h) => h.tier === tier).name;
       return [
-        { id: 'home', icon: '🏡', text: `A home to match: ${low(name)}, or better`, ok: HOMES[s.home].tier >= tier },
+        // (A home of your own that has been done up, with the building work and the garden, counts a step up: see stHomeLift in street.js.)
+        { id: 'home', icon: '🏡', text: `A home to match: ${low(name)}, or better`, ok: HOMES[s.home].tier + (this.stHomeLift ? this.stHomeLift() : 0) >= tier },
         { id: 'trip', icon: '🧳', text: 'A holiday in the last year', ok: c.trip != null && s.t - c.trip < 4 },
         { id: 'gave', icon: '🎁', text: 'Something given in the last year: to the family, to the town, or a trust of your own', ok: (c.gave != null && s.t - c.gave < 4) || !!(s.mid && s.mid.trust) },
         { id: 'fun', icon: '⛵', text: 'Something just for the fun of it: a boat, a yacht or a sports car', ok: !!(s.items.boat || s.items.sportscar || c.yacht) },

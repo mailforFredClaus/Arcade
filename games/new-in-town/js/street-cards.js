@@ -273,7 +273,7 @@ export const HOUSE_CARDS = [
   {
     id: 'stShow', icon: '🏵️', title: 'The Harvest Show',
     ok: at((L) => L.season === 2 && L.stShowable().length > 0),
-    text: (L, x) => `${by(x, ['The big tent in Pebble Park, long tables, and the garden classes, judged by a retired headmaster with a magnifying glass.', 'The Harvest Show again: the tent smells of crushed grass and onions, and the judges are already muttering.', 'Trestle tables in the big tent, rows of entries on white paper plates, and a great deal of looking without seeming to look.'])} ${L.stShowable().map(([c]) => `Your ${CLASSES[c].name}`).join(' and ')} could go in.${Object.values(S(L).shows).some((n) => n) ? ' They remember your name from before.' : ''}`,
+    text: (L, x) => `${by(x, ['The big tent in Pebble Park, long tables, and the garden classes, judged by a retired headmaster with a magnifying glass.', 'The Harvest Show again: the tent smells of crushed grass and onions, and the judges are already muttering.', 'Trestle tables in the big tent, rows of entries on white paper plates, and a great deal of looking without seeming to look.'])} Your ${L.stShowable().map(([c]) => CLASSES[c].name.replace(/^the /, '')).join(' and ')} could go in.${Object.values(S(L).shows).some((n) => n) ? ' They remember your name from before.' : ''}`,
     opts: [...Object.keys(CLASSES).map((c) => ({
       t: () => `Enter ${CLASSES[c].name}`, show: (L) => L.stShowable().some((o) => o[0] === c),
       odds: (L) => { const q = (L.stShowable().find((o) => o[0] === c) || [0, 0])[1]; return clamp(0.12 + q * 0.5 + L.s.st.craft / 400 - 0.06 * (S(L).shows[c] || 0), 0.05, 0.9); },
@@ -283,7 +283,7 @@ export const HOUSE_CARDS = [
         if (!win) return L.pick([`Highly commended, on a little card. The winner has been growing ${c === 'roses' ? 'roses' : c === 'fruit' ? 'pears' : 'leeks'} since 1961.`, 'Third, behind two people who have clearly been doing this for a very long time and want you to know it.', 'Nothing this year. The judge pauses at yours, though, and you are sure of it.']);
         S2.shows[c] = (S2.shows[c] || 0) + 1; S2.n.shows++;
         L.cash(fee(L, CLASSES[c].prize)); L.fame(0.5);
-        if (S2.n.shows === 1) L.note(`Won ${CLASSES[c].name} at the Harvest Show, with something grown at home.`, 'big');
+        if (S2.n.shows === 1) L.note(`Took a first for ${CLASSES[c].name} at the Harvest Show, with ${c === 'roses' ? 'roses' : c === 'fruit' ? 'apples' : 'vegetables'} grown at home.`, 'big');
         return `First! A red rosette and ${money(fee(L, CLASSES[c].prize))}${c === 'fruit' ? ' for a plate of five apples, polished on your sleeve' : c === 'roses' ? ' for three blooms in a jam jar, and the vicar asks for a cutting' : ' for a basket of vegetables with the soil washed off'}. You pretend to be calm about it.`;
       },
     })), { t: 'Just go and look', run(L) { L.joy(2); return 'You look at the winners and think, next year.'; } }],
