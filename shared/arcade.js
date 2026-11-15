@@ -394,6 +394,16 @@ function play(a, name, k) {
       hiss(a, { d: 0.2, g: 0.14, f0: 500, f1: 1700, q: 1.6 });
       tone(a, { f: 1500, type: 'square', d: 0.03, g: 0.04 });
       break;
+    case 'clang':
+      // Steel on steel (k 1: on a shield).
+      tone(a, { f: k ? 880 : 1900, f2: k ? 620 : 1500, type: 'square', d: 0.06, g: 0.06 });
+      tone(a, { f: k ? 1460 : 3100, type: 'triangle', t: 0.01, d: 0.22, g: 0.07 });
+      hiss(a, { d: 0.08, g: 0.2, f0: 6000, f1: 2500, q: 1.5 });
+      break;
+    case 'twang':
+      tone(a, { f: 190, f2: 120, type: 'triangle', d: 0.16, g: 0.3 });
+      hiss(a, { d: 0.18, g: 0.14, f0: 2600, f1: 700, q: 1.2 });
+      break;
     case 'deploy':
       tone(a, { f: 330, f2: 660, type: 'triangle', d: 0.18, g: 0.1 });
       tone(a, { f: 990, type: 'triangle', t: 0.14, d: 0.2, g: 0.07 });

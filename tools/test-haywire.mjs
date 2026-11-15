@@ -1,5 +1,6 @@
 // Checks Haywire: that the map is fair and can be walked all over, the rules
-// one at a time (moving, shooting, reloading, grenades, scoring), and then
+// one at a time (moving, shooting, reloading, grenades, scoring, and the old
+// arms: swords, shields, bows and things thrown), and then, in each mode,
 // whole matches played by the bots: that they finish, that nobody gets
 // stuck or falls out of the yard, that neither end of the yard is the
 // better one, that harder bots beat easier ones, and that the same match
@@ -7,7 +8,7 @@
 // Usage: node tools/test-haywire.mjs [matches]
 
 import { buildMap } from '../games/haywire/js/map.js';
-import { Match, STEP, GUNS, CLASSES, RESPAWN, REGEN_DELAY, NADE_FUSE, JUMP, GRAVITY, WALK, TALL, TALL_CROUCH } from '../games/haywire/js/engine.js';
+import { Match, STEP, GUNS, CLASSES, MODES, RESPAWN, REGEN_DELAY, NADE_FUSE, JUMP, GRAVITY, WALK, TALL, TALL_CROUCH } from '../games/haywire/js/engine.js';
 import { STEP_UP } from '../games/haywire/js/world.js';
 
 const matches = Number(process.argv[2] || 12);
@@ -93,8 +94,8 @@ const map = buildMap(), w = map.world;
 // A match with every robot under the test's control, two of them set facing
 // each other `apart` metres from each other, down the long clear strip
 // behind the blue base's wall.
-function duel(apart = 6, clsA = 0, clsB = 0) {
-  const m = new Match(map, { seed: 5, scoreLimit: 3 });
+function duel(apart = 6, clsA = 0, clsB = 0, mode = 0) {
+  const m = new Match(map, { seed: 5, scoreLimit: 3, mode });
   for (const s of m.soldiers) { s.bot = null; s.nextCls = s.team ? clsB : clsA; }
   for (let k = 0; k < 30; k++) m.step();
   m.events.length = 0;
@@ -298,14 +299,117 @@ const has = (m, e) => m.events.some((x) => x.e === e);
   check(clock.over && clock.winner === -1, 'the clock running out ends it too: a draw if the scores are level');
 }
 
-// ---- whole matches, played by the bots --------------------------------------------------
+// ---- the old arms -------------------------------------------------------------------------
 
 {
+  // Classes 0 to 4 here: knight, archer, lancer, berserker, scout.
+  const old = (apart, a = 0, b = 0) => duel(apart, a, b, 1);
+  const aimFor = (a, dist, speed, grav) => { a.in.pitch = Math.atan2(1.0 - 1.62 + 0.08 + 0.5 * grav * (dist / speed) ** 2, dist); };
+
+  // The sword.
+  const s = old(2);
+  check(s.a.weapons[0].gun.id === 'sword' && s.a.weapons[1].gun.id === 'knife' && s.a.hp === 110, 'a knight has a sword, a dagger and thicker plating');
+  s.a.in.fire = true;
+  s.m.step();
+  check(s.b.hp === 110 && has(s.m, 'swing'), 'a swing takes a moment to land');
+  run(s.m, GUNS.sword.wind + 0.02);
+  check(s.b.hp === 110 - GUNS.sword.dmg, 'then takes 48 from whoever is in reach');
+  run(s.m, GUNS.sword.rate * 2 + 0.2);
+  check(!s.b.alive && s.a.kills === 1, 'three blows scrap a knight');
+  const far = old(4);
+  far.a.in.fire = true;
+  run(far.m, 1);
+  check(far.b.hp === 110 && far.a.shots > 0, 'a sword does not reach four metres');
+
+  // The shield.
+  const sh = old(2);
+  sh.b.in.ads = true;
+  sh.a.in.fire = true;
+  run(sh.m, 0.3);
+  check(sh.b.block && sh.b.hp === 110 && has(sh.m, 'block'), 'a raised shield stops a blow from the front');
+  sh.a.in.fire = false;
+  run(sh.m, 1.5);
+  sh.b.in.yaw = Math.PI; // turned its back
+  sh.a.in.fire = true;
+  run(sh.m, 0.3);
+  check(sh.b.hp < 110, 'but not one from behind');
+
+  // The bow.
+  const bow = old(20, 1);
+  aimFor(bow.a, 20, GUNS.bow.speed, GUNS.bow.grav);
+  bow.a.in.fire = true;
+  run(bow.m, 0.5);
+  check(bow.a.draw > 0.5 && bow.a.draw < 0.7 && bow.m.shots.length === 0, 'a bow is drawn while the button is held');
+  run(bow.m, 0.6);
+  bow.a.in.fire = false;
+  bow.m.step();
+  check(bow.a.draw === 0 && bow.m.shots.length === 1 && bow.a.weapons[0].mag === 23, 'and looses an arrow when it is let go');
+  run(bow.m, 0.6);
+  check(Math.abs(bow.b.hp - (110 - GUNS.bow.dmg)) < 1e-6 && bow.m.shots.length === 0, `a full draw does ${GUNS.bow.dmg} at twenty metres`);
+  const half = old(8, 1);
+  aimFor(half.a, 8, 34, GUNS.bow.grav);
+  half.a.in.fire = true;
+  run(half.m, GUNS.bow.drawTime * 0.45);
+  half.a.in.fire = false;
+  run(half.m, 0.6);
+  check(half.b.hp < 110 && half.b.hp > 110 - GUNS.bow.dmg * 0.75, `a half draw does less (${(110 - half.b.hp).toFixed(0)})`);
+  const stop = old(20, 1);
+  aimFor(stop.a, 20, GUNS.bow.speed, GUNS.bow.grav);
+  stop.b.in.ads = true;
+  stop.a.in.fire = true;
+  run(stop.m, 1.1);
+  stop.a.in.fire = false;
+  run(stop.m, 0.7);
+  check(stop.b.hp === 110 && has(stop.m, 'block'), 'a shield stops an arrow');
+  const wall = old(20, 1);
+  wall.a.in.yaw = Math.PI / 2; // at the base wall
+  wall.a.in.fire = true;
+  run(wall.m, 1.1);
+  wall.a.in.fire = false;
+  run(wall.m, 0.5);
+  check(has(wall.m, 'stick') && wall.m.shots.length === 0, 'an arrow sticks in a wall');
+
+  // Throwing a pike; an axe through two at once; a dagger in the back.
+  const pike = old(9, 2);
+  aimFor(pike.a, 9, GUNS.spear.shot.speed, GUNS.spear.shot.grav);
+  pike.a.in.ads = true;
+  pike.m.step();
+  check(pike.m.shots.length === 1 && pike.a.weapons[0].mag === 2 && has(pike.m, 'hurl'), 'the right button throws a pike');
+  run(pike.m, 0.6);
+  check(pike.b.hp === 110 - GUNS.spear.shot.dmg, 'which does 95');
+  pike.a.in.ads = false;
+  run(pike.m, 0.2);
+  check(pike.a.weapons[0].mag === 2, 'one press throws one');
+  const axe = old(2, 3);
+  const other = axe.m.soldiers[9];
+  other.x = 12.8; other.z = 8; other.y = 0; other.protect = 0;
+  axe.a.in.fire = true;
+  run(axe.m, GUNS.axe.wind + 0.05);
+  check(axe.b.hp === 110 - GUNS.axe.dmg && other.hp < other.maxHp, 'an axe hits everyone in front of it');
+  const back = old(1.5, 4);
+  back.b.in.yaw = Math.PI; // facing away
+  back.a.in.fire = true;
+  run(back.m, GUNS.daggers.wind + 0.05);
+  check(back.b.hp === 110 - GUNS.daggers.dmg * GUNS.daggers.back, 'a dagger in the back does double');
+
+  // A fire pot.
+  const pot = old(12);
+  pot.a.in.pitch = 0.1;
+  pot.a.in.nade = true;
+  pot.m.step();
+  pot.a.in.nade = false;
+  run(pot.m, 1.6);
+  check(pot.m.nades.length === 0 && has(pot.m, 'boom'), 'a fire pot bursts where it lands');
+}
+
+// ---- whole matches, played by the bots --------------------------------------------------
+
+for (let mode = 0; mode < MODES.length; mode++) {
   const wins = [0, 0], kills = [0, 0];
   let minutes = 0, stuck = 0, lost = 0;
   const t0 = Date.now();
   for (let seed = 1; seed <= matches; seed++) {
-    const m = new Match(map, { seed, scoreLimit: 50, timeLimit: 600 });
+    const m = new Match(map, { seed, mode, scoreLimit: 50, timeLimit: 600 });
     const seen = m.soldiers.map((s) => ({ x: s.x, z: s.z, t: 0 }));
     while (!m.over) {
       m.step();
@@ -325,12 +429,12 @@ const has = (m, e) => m.events.some((x) => x.e === e);
     kills[1] += m.scores[1];
     minutes += m.time / 60;
     if (seed === 1) {
-      const again = new Match(map, { seed, scoreLimit: 50, timeLimit: 600 });
+      const again = new Match(map, { seed, mode, scoreLimit: 50, timeLimit: 600 });
       while (!again.over) { again.step(); again.events.length = 0; }
       check(again.hash() === m.hash() && again.tick === m.tick, 'the same match always plays out the same way');
     }
   }
-  console.log(`${matches} matches between bots: blue won ${wins[0]}, orange ${wins[1]}; ${kills[0]} against ${kills[1]} scrapped; ${(minutes / matches).toFixed(1)} minutes each on average (${((Date.now() - t0) / 1000).toFixed(1)} s to play them)`);
+  console.log(`${MODES[mode].name}: ${matches} matches between bots: blue won ${wins[0]}, orange ${wins[1]}; ${kills[0]} against ${kills[1]} scrapped; ${(minutes / matches).toFixed(1)} minutes each on average (${((Date.now() - t0) / 1000).toFixed(1)} s to play them)`);
   check(stuck === 0, `no robot stands in one place for three quarters of a minute (${stuck} did)`);
   check(lost === 0, `no robot leaves the yard or ends up inside a wall (${lost} sightings)`);
   if (matches >= 12) {
@@ -343,7 +447,7 @@ const has = (m, e) => m.events.some((x) => x.e === e);
   const rounds = Math.max(4, Math.round(matches / 3));
   for (let seed = 1; seed <= rounds; seed++) {
     const hardTeam = seed % 2;
-    const m = new Match(map, { seed: 100 + seed, scoreLimit: 30, timeLimit: 600, skill: hardTeam ? [0, 2] : [2, 0] });
+    const m = new Match(map, { seed: 100 + seed, mode, scoreLimit: 30, timeLimit: 600, skill: hardTeam ? [0, 2] : [2, 0] });
     while (!m.over) { m.step(); m.events.length = 0; }
     if (m.winner === hardTeam) hardWins++;
   }

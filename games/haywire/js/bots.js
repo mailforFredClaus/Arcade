@@ -30,7 +30,6 @@ export const SKILL = [
 // further than the second it closes in.
 const RANGE = { rifle: [7, 32], smg: [3, 15], shotgun: [0, 8], lmg: [9, 38], sniper: [16, 90], pistol: [3, 16] };
 
-const CLASS_GUN = ['rifle', 'smg', 'shotgun', 'lmg', 'sniper'];
 const LANE_Z = [[0, 21], [21, 43], [43, 64]];
 
 const wrap = (a) => a - TAU * Math.round(a / TAU);
@@ -84,7 +83,11 @@ export class Brain {
     this.fleeUntil = 0;
     // Which way round it goes this life: 0 the north side, 1 the middle,
     // 2 the south. The close-up guns keep to the buildings.
-    const gun = CLASS_GUN[this.s.nextCls >= 0 ? this.s.nextCls : this.s.cls], roll = this.m.rng.next();
+    const gun = this.m.classes[this.s.nextCls >= 0 ? this.s.nextCls : this.s.cls].gun, roll = this.m.rng.next();
+    this.wantDraw = 1; // how far to draw the bow before letting go
+    this.throwAt = this.m.time + 1 + this.m.rng.next() * 3;
+    this.parry = false;
+    this.sawSwing = false;
     const mid = gun === 'shotgun' ? 0.1 : gun === 'smg' ? 0.22 : gun === 'lmg' ? 0.45 : 0.34;
     this.lane = roll < mid ? 1 : roll < mid + (1 - mid) / 2 ? 0 : 2;
   }
@@ -118,8 +121,9 @@ export class Brain {
 
     // Reload when there's a lull, and get the main gun back out.
     if (!this.visible) {
+      const main = s.weapons[0];
       if (wp.mag < wp.gun.mag * 0.6) inp.reload = true;
-      if (s.slot === 1 && (s.weapons[0].mag > 0 || s.weapons[0].reserve > 0)) inp.slot = 0;
+      if (s.slot === 1 && (main.mag > 0 || main.reserve > 0 || (main.gun.kind === 'melee' && main.gun.id !== 'spear'))) inp.slot = 0;
     }
     this.unstick();
 
@@ -226,6 +230,7 @@ export class Brain {
     const wp = s.weapons[s.slot], gun = wp.gun;
     this.mode = this.mode === 'camp' ? 'camp' : 'fight';
     const dx = t.x - s.x, dz = t.z - s.z, dist = Math.hypot(dx, dz) || 1e-6;
+    if (gun.kind) { this.fightOld(dt, dist, dx / dist, dz / dist); return; }
     const [near, far] = RANGE[gun.id];
 
     // Badly hurt and being shot at: sometimes it breaks off to mend.
@@ -298,6 +303,79 @@ export class Brain {
     }
   }
 
+  // Fighting with the old arms: close in and swing, hold a shield up, throw, or draw a bow.
+  fightOld(dt, dist, fx, fz) {
+    const s = this.s, m = this.m, k = this.k, inp = s.in, t = this.target, r = m.rng, w = this.w;
+    const wp = s.weapons[s.slot], gun = wp.gun, theirs = t.weapons[t.slot].gun;
+    const ready = m.time - this.tSeen > k.react * 0.7 && s.protect <= 0.2;
+    const body = t.y + (t.crouching ? 0.7 : 1.1), speed = Math.hypot(t.vx, t.vz);
+    const camp = this.mode === 'camp';
+    if (s.hp < s.maxHp * 0.35 && m.time - s.hurtAt < 0.5 && !camp && dist > 4 && m.time > this.coverUntil + 5 && r.next() < 0.04 * (0.5 + k.dance)) {
+      if (this.takeCover()) return;
+    }
+    // Where something sent through the air must be aimed: ahead of a moving
+    // target, and above it for the drop.
+    const lob = (v, grav) => {
+      const tf = dist / v;
+      return this.aimAt(t.x + t.vx * tf * 0.85, body + 0.5 * grav * tf * tf, t.z + t.vz * tf * 0.85, dt, s.ads > 0.8 ? 0.6 : 0.85, speed);
+    };
+    const stepTo = (x, z) => {
+      const l = Math.hypot(x, z);
+      if (l < 0.01) return;
+      const px = s.x + (x / l) * 0.9, pz = s.z + (z / l) * 0.9;
+      if (w.blocked(px, s.y, pz, s.r, s.h, STEP_UP) || w.floorUnder(px, s.y, pz, 0.1, STEP_UP) < s.y - STEP_UP) { this.strafe = -this.strafe; return; }
+      this.wx = x / l; this.wz = z / l;
+    };
+    if (m.time >= this.strafeAt) {
+      this.strafe = -this.strafe;
+      this.strafeAt = m.time + 0.35 + r.next() * 0.9;
+      this.still = r.next() > k.dance;
+    }
+
+    if (gun.kind === 'bow') {
+      // Someone right on top of it: out with the dagger.
+      if (dist < 3.2 && s.slot === 0 && s.draw === 0) { inp.slot = 1; return; }
+      const off = lob(gun.slow + (gun.speed - gun.slow) * ((this.wantDraw - 0.25) / 0.75), gun.grav);
+      inp.ads = dist > 16;
+      if (wp.mag > 0 && ready && (s.cool <= 0 || s.draw > 0)) {
+        inp.fire = !(s.draw >= this.wantDraw && off < Math.max(0.02, Math.atan(0.4 / dist)));
+        if (!inp.fire) this.wantDraw = dist < 10 ? 0.55 + r.next() * 0.3 : 0.8 + r.next() * 0.2;
+      }
+      if (camp) return;
+      if (dist < 9) stepTo(-fx - fz * this.strafe * 0.5, -fz + fx * this.strafe * 0.5);
+      else if (dist > 45) { this.goTo(w.nodeAt(t.x, t.y + 0.1, t.z), 0.8); this.follow(); }
+      else if (!this.still && s.draw < 0.5) stepTo(-fz * this.strafe, fx * this.strafe);
+      return;
+    }
+
+    // A blade. Throw something on the way in, if there's something to throw.
+    const keep = gun.id === 'spear' ? 1 : 0;
+    let off;
+    if (gun.alt === 'throw' && wp.mag > keep && dist > 5.5 && dist < 22 && m.time > this.throwAt) {
+      off = lob(gun.shot.speed, gun.shot.grav);
+      if (ready && s.cool <= 0 && s.swing <= 0 && off < Math.max(0.02, Math.atan(0.35 / dist))) {
+        inp.ads = !s.altHeld;
+        if (inp.ads) this.throwAt = m.time + 1.2 + r.next() * 2.5;
+      }
+    } else off = this.aimAt(t.x, body, t.z, dt, 1, speed);
+    // A shield goes up against a drawn bow, and sometimes against a blow.
+    if (gun.alt === 'block') {
+      const swinging = theirs.kind === 'melee' && t.swing > 0 && dist < theirs.reach + 0.7;
+      if (swinging && !this.sawSwing) this.parry = r.next() < 0.2 + 0.45 * k.dance;
+      this.sawSwing = swinging;
+      if (s.swing <= 0 && ((swinging && this.parry) || (theirs.kind === 'bow' && t.draw > 0.3 && dist > 3.5 && dist < 30))) inp.ads = true;
+    }
+    if (!camp) {
+      if (dist > gun.reach * 0.8) {
+        // Straight at it when it's close and in plain view; otherwise by the path.
+        if (dist < 7 && Math.abs(t.y - s.y) < 0.6 && w.sees(s.x, s.y + 1, s.z, t.x, t.y + 1, t.z)) stepTo(fx - fz * this.strafe * (dist > 3 ? 0.3 : 0), fz + fx * this.strafe * (dist > 3 ? 0.3 : 0));
+        if (this.wx === 0 && this.wz === 0) { this.goTo(w.nodeAt(t.x, t.y + 0.1, t.z), 0.5); this.follow(); }
+        inp.sprint = dist > 6 && !inp.ads && off < 0.5;
+      } else if (!this.still || dist < gun.reach * 0.4) stepTo(-fz * this.strafe - (dist < gun.reach * 0.45 ? fx : 0), fx * this.strafe - (dist < gun.reach * 0.45 ? fz : 0));
+    }
+    if (ready && dist < gun.reach + 0.1 && Math.abs(t.y - s.y) < 1.6 && off < 0.5 && s.cool <= 0 && !inp.ads) inp.fire = true;
+  }
+
   // ---- it was here a moment ago --------------------------------------------------------
 
   hunt(dt) {
@@ -318,7 +396,7 @@ export class Brain {
     if (since < 0.7) {
       // Keep the sights on the corner it went round.
       this.aimAt(this.lx, this.ly + 1.2, this.lz, dt);
-      inp.ads = dist > 10;
+      inp.ads = dist > 10 && !s.weapons[s.slot].gun.kind;
       return;
     }
     if (dist < 1.6) { this.target = null; return; }
@@ -421,7 +499,7 @@ export class Brain {
       // Arrived: hold here a while, watching the way the other team comes from.
       this.turn(this.holdYaw + Math.sin(m.time * 0.9 + s.id) * 0.7, 0, dt, 0.3);
       inp.crouch = this.holdLow;
-      inp.ads = true;
+      inp.ads = s.weapons[s.slot].gun.alt !== 'throw';
       if (m.time - s.hurtAt < 0.4) this.waitUntil = 0;
       return;
     }
@@ -457,7 +535,7 @@ export class Brain {
     const s = this.s, m = this.m, w = this.w, r = m.rng, map = m.map;
     this.perch = null;
     let node = -1;
-    if (s.weapons[0].gun.id === 'sniper' && r.next() < 0.75) {
+    if ((s.weapons[0].gun.id === 'sniper' && r.next() < 0.75) || (s.weapons[0].gun.id === 'bow' && s.weapons[0].mag > 0 && r.next() < 0.4)) {
       let best = null, bestD = Infinity;
       for (const p of map.perches) {
         // (Not the one it has just left, nor the one beside it.)
@@ -523,6 +601,8 @@ export class Brain {
       for (let j = Math.min(p.length - 1, this.pi + 4); j > this.pi; j--) {
         if (this.clearWalk(p, this.pi, j)) { this.ahead = j; break; }
       }
+      // (The points cut past are done with.)
+      this.pi = this.ahead;
     }
     const n = p[this.ahead], dx = w.nodeX(n) - s.x, dz = w.nodeZ(n) - s.z, d = Math.hypot(dx, dz) || 1;
     this.wx = dx / d;
@@ -531,7 +611,7 @@ export class Brain {
     const next = p[this.pi], up = w.nodeY[next] - s.y;
     if (up > STEP_UP && s.grounded && Math.hypot(w.nodeX(next) - s.x, w.nodeZ(next) - s.z) < 1.3) inp.jump = !s.jumpHeld;
     // Fallen a long way off the path: plan again.
-    if (Math.hypot(w.nodeX(next) - s.x, w.nodeZ(next) - s.z) > 5) this.repathAt = 0;
+    if (Math.hypot(w.nodeX(next) - s.x, w.nodeZ(next) - s.z) > 9) this.repathAt = 0;
     return true;
   }
 

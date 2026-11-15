@@ -3,7 +3,7 @@
 // the scores, the sounds and the menus.
 
 import { buildMap } from './map.js';
-import { Match, STEP, CLASSES, GUNS, EYE, EYE_CROUCH, WALK, RESPAWN } from './engine.js';
+import { Match, STEP, MODES, GUNS, EYE, EYE_CROUCH, WALK } from './engine.js';
 import { SKILL } from './bots.js';
 import { Renderer, Builder, M } from './gl.js';
 import { buildMesh, SKY, SUN } from './mesh.js';
@@ -25,8 +25,11 @@ const wrap = (a) => a - TAU * Math.round(a / TAU);
 // ---- saved things ---------------------------------------------------------------------
 
 const SAVE_KEY = 'haywire';
-const save = Object.assign({ cls: 0, skill: 1, limit: 75, sens: 1, fov: 90, invert: false, matches: 0, wins: 0, kills: 0, deaths: 0, heads: 0, streak: 0, xp: 0 }, store.get(SAVE_KEY, {}) || {});
+const save = Object.assign({ mode: 0, clsOld: 0, cls: 0, skill: 1, limit: 75, sens: 1, fov: 90, invert: false, matches: 0, wins: 0, kills: 0, deaths: 0, heads: 0, streak: 0, xp: 0 }, store.get(SAVE_KEY, {}) || {});
 const writeSave = () => store.set(SAVE_KEY, save);
+if (!MODES[save.mode]) save.mode = 0;
+// Each mode remembers its own choice of class.
+const clsKey = (mode) => (mode === MODES[1] ? 'clsOld' : 'cls');
 const RANKS = ['Spare Part', 'Loose Nut', 'Bolt', 'Sprocket', 'Gearhead', 'Piston', 'Dynamo', 'Turbine', 'Ironclad', 'Juggernaut', 'Mainframe', 'Overlord'];
 // Each rank takes 600 more points than the one before.
 function rankOf(xp) {
@@ -41,7 +44,7 @@ let R = null, models = null, map = null, world = null, mesh = null, flash = null
 let match = null, me = null;
 // 'load', 'title' (bots play behind the menu), 'play', 'over'.
 let phase = 'load';
-let acc = 0, last = 0, locked = false, force = false;
+let acc = 0, last = 0, locked = false, force = false, frozen = false; // (force and frozen are for testing)
 const view = { yaw: 0, pitch: 0 }; // where the player is looking
 const cam = { eye: [44, 20, 32], yaw: 0, pitch: -0.5, fov: 1, y: 0, shake: 0, roll: 0, dead: null, view: null, proj: null };
 const vis = []; // how each robot is drawn: where it is in its stride, and so on
@@ -75,7 +78,7 @@ function load() {
 
 // How sharp the picture is drawn: as sharp as the screen, but no more than
 // 1440 lines, and less on a machine that can't keep up (see frame()).
-let sharp = 1, slow = 0, quick = 0;
+let sharp = 1, slow = 0, quick = 0, spent = 0, wasSpent = 0, settled = false;
 function layout() {
   W = innerWidth;
   H = innerHeight;
@@ -88,7 +91,7 @@ function newMatch(opts) {
   match = new Match(map, { seed: (Math.random() * 2 ** 32) >>> 0, ...opts });
   me = opts.human ? match.soldiers[0] : null;
   vis.length = 0;
-  for (const s of match.soldiers) vis.push({ stride: s.id * 1.3, pace: 0, lean: 0, lower: 0, hurt: -9, light: [SKY[0], SKY[1], SKY[2]] });
+  for (const s of match.soldiers) vis.push({ stride: s.id * 1.3, pace: 0, lean: 0, lower: 0, hurt: -9, swingT: -9, sweep: 0, cut: 0, twist: 0, blockK: 0, light: [SKY[0], SKY[1], SKY[2]] });
   fxReset();
   acc = 0;
   feed.length = 0;
@@ -98,12 +101,14 @@ function newMatch(opts) {
 
 // Bots playing behind the menu.
 function attract() {
-  newMatch({ human: false, skill: [1, 1], scoreLimit: 1e9, timeLimit: 1e9 });
+  newMatch({ human: false, mode: save.mode, skill: [1, 1], scoreLimit: 1e9, timeLimit: 1e9 });
   cam.dead = null;
 }
 
 function start() {
-  newMatch({ human: true, cls: save.cls, skill: [1, save.skill], scoreLimit: save.limit, timeLimit: 600 });
+  clearTimeout(overTimer);
+  crouchOn = false;
+  newMatch({ human: true, mode: save.mode, cls: save[clsKey(MODES[save.mode])], skill: [1, save.skill], scoreLimit: save.limit, timeLimit: 600 });
   phase = 'play';
   $('title').hidden = true;
   $('hud').hidden = false;
@@ -116,6 +121,7 @@ function start() {
 }
 
 function toTitle() {
+  clearTimeout(overTimer);
   phase = 'title';
   release();
   attract();
@@ -126,7 +132,10 @@ function toTitle() {
   showTitle();
 }
 
+let overTimer = 0;
 function finish() {
+  // (Not if the player has left the match in the meantime.)
+  if (phase !== 'play' || !me) return;
   phase = 'over';
   release();
   const won = match.winner === 0, drew = match.winner < 0;
@@ -161,10 +170,14 @@ function finish() {
 const keys = new Set();
 const mouse = { fire: false, ads: false };
 let wantSlot = -1, wantCls = -1;
+let crouchOn = false; // C goes down and C comes up again; sprinting or jumping stands you up too
 const fine = matchMedia('(pointer: fine)').matches;
 
+let asking = 0; // when the game last asked to hold the mouse
 function grab() {
-  if (document.pointerLockElement === canvas) return;
+  // (Asking twice at once makes some browsers drop the first.)
+  if (document.pointerLockElement === canvas || performance.now() - asking < 400) return;
+  asking = performance.now();
   try {
     const p = canvas.requestPointerLock({ unadjustedMovement: true });
     if (p && p.catch) p.catch(() => { try { const q = canvas.requestPointerLock(); if (q && q.catch) q.catch(() => {}); } catch { /* no pointer lock */ } });
@@ -177,11 +190,14 @@ function release() {
 }
 
 document.addEventListener('pointerlockchange', () => {
+  const was = locked;
   locked = document.pointerLockElement === canvas;
   if (!locked) {
     keys.clear();
     mouse.fire = mouse.ads = false;
-    if (phase === 'play' && !ui.isOpen()) showPause();
+    $('board').hidden = true;
+    // Only when the mouse was held and has been let go (Esc): that pauses.
+    if (was && phase === 'play' && !ui.isOpen()) showPause();
   }
 });
 canvas.addEventListener('click', () => { if (phase === 'play' && !ui.isOpen() && !locked) grab(); });
@@ -215,7 +231,10 @@ document.addEventListener('wheel', () => {
 
 window.addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
-  if (phase === 'play' && e.code === 'Tab') { e.preventDefault(); $('board').hidden = false; boardAt = 0; }
+  if (phase === 'play' && e.code === 'Tab') {
+    e.preventDefault();
+    if (!e.repeat) { $('board').hidden = false; boardAt = 0; }
+  }
   if (phase !== 'play' || ui.isOpen()) return;
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
   if (e.repeat) return;
@@ -227,6 +246,7 @@ window.addEventListener('keydown', (e) => {
     else if (n < 2) wantSlot = n;
   }
   if (e.code === 'KeyQ' && me && me.alive) wantSlot = 1 - me.slot;
+  if (e.code === 'KeyC' && me && me.alive) crouchOn = !crouchOn;
   if (e.code === 'KeyP') showPause();
   if (e.code === 'KeyF') fullScreen();
 });
@@ -234,7 +254,7 @@ window.addEventListener('keyup', (e) => {
   keys.delete(e.code);
   if (e.code === 'Tab') $('board').hidden = true;
 });
-window.addEventListener('blur', () => { keys.clear(); mouse.fire = mouse.ads = false; });
+window.addEventListener('blur', () => { keys.clear(); mouse.fire = mouse.ads = false; $('board').hidden = true; });
 
 function feedInput() {
   const inp = me.in, on = locked || force;
@@ -243,8 +263,9 @@ function feedInput() {
   inp.yaw = view.yaw;
   inp.pitch = view.pitch;
   inp.jump = on && keys.has('Space');
-  inp.crouch = on && keys.has('KeyC');
   inp.sprint = on && (keys.has('ShiftLeft') || keys.has('ShiftRight'));
+  if (inp.jump || (inp.sprint && inp.mz > 0) || !me.alive) crouchOn = false;
+  inp.crouch = crouchOn;
   inp.ads = on && mouse.ads;
   inp.fire = on && mouse.fire;
   inp.reload = on && keys.has('KeyR');
@@ -262,7 +283,7 @@ function fullScreen() {
 }
 
 function pickClass(n) {
-  save.cls = n;
+  save[clsKey(match.mode)] = n;
   writeSave();
   wantCls = n;
   if (me) me.nextCls = n;
@@ -357,7 +378,7 @@ function onEvent(ev) {
       if (s === me) {
         cam.dead = { by: by !== me ? by : null, t: 0 };
         $('down').hidden = false;
-        $('downBy').innerHTML = by === me ? 'Blown up by your own grenade' : `Scrapped by <b>${by.name}</b>`;
+        $('downBy').innerHTML = by === me ? `Blown up by your own ${match.mode.pot ? 'fire pot' : 'grenade'}` : `Scrapped by <b>${by.name}</b>`;
         shown.down = '';
         mouse.fire = false;
       } else if (me && me.assists > shownAssists) pop('<b>+40</b>Assist');
@@ -375,6 +396,7 @@ function onEvent(ev) {
       if (s === me) {
         view.yaw = me.yaw;
         view.pitch = 0;
+        crouchOn = false;
         cam.dead = null;
         cam.y = match.eyeY(me);
         $('down').hidden = true;
@@ -386,12 +408,36 @@ function onEvent(ev) {
     case 'shell': if (s === me) sfx('clack'); break;
     case 'swap': if (s === me) sfx('swap'); break;
     case 'dry': if (s === me) sfx('tap'); break;
+    // The old arms.
+    case 'swing':
+      vis[ev.id].swingT = match.time;
+      if (s === me) sfx('whoosh', 0, 0.45); else sound('whoosh', 0, s.x, s.y + 1.2, s.z, 0.5, 22);
+      break;
+    case 'cut':
+      fx.sparks(ev.x, ev.y, ev.z, 9, [1, 0.85, 0.5], 5);
+      sound('clang', 0, ev.x, ev.y, ev.z, 0.8, 40);
+      break;
+    case 'block':
+      fx.sparks(ev.x, ev.y, ev.z, 12, [0.9, 0.95, 1], 6);
+      fx.light(ev.x, ev.y, ev.z, 4, 1, 1, 1.2, 0.08);
+      sound('clang', 1, ev.x, ev.y, ev.z, 1, 45);
+      break;
+    case 'draw': if (s === me) sfx('slide', 0, 0.25); break;
+    case 'loose': if (s === me) sfx('twang', 0, 0.8); else sound('twang', 0, s.x, s.y + 1.4, s.z, 0.6, 30); break;
+    case 'hurl':
+      if (s === me) { sfx('lob', 0, 0.8); hand.kick = 1.4; } else sound('lob', 0, s.x, s.y + 1.4, s.z, 0.5, 25);
+      break;
+    case 'stick':
+      fx.stick(models.thrown[ev.kind], M.chain(M.move(ev.x, ev.y, ev.z), M.rotY(-Math.atan2(ev.dx, -ev.dz)), M.rotX(Math.asin(clamp(ev.dy, -1, 1)))));
+      fx.puff(ev.x, ev.y, ev.z, 0.1, 0.5, 0.3, 0.2);
+      sound('clack', 0, ev.x, ev.y, ev.z, 0.7, 30);
+      break;
     case 'throw': if (s === me) sfx('lob'); else sound('lob', 0, s.x, s.y + 1.4, s.z, 0.5, 25); break;
     case 'bounce': sound('clack', 0, ev.x, ev.y, ev.z, 0.6, 28); break;
     case 'jump': if (s === me) sfx('hop', 0, 0.25); break;
     case 'land': if (s === me) { hand.dip = Math.min(1, ev.v / 9); sfx('foot', 2, 0.6); } break;
     case 'foot': if (s === me) sfx('foot', (Math.random() * 2) | 0, me.sprinting ? 0.5 : 0.3); else sound('foot', 0, s.x, s.y, s.z, 0.45, 14); break;
-    case 'over': if (phase === 'play') setTimeout(finish, 900); break;
+    case 'over': if (phase === 'play') { clearTimeout(overTimer); overTimer = setTimeout(finish, 900); } break;
     default:
   }
 }
@@ -402,12 +448,18 @@ const shown = { hp: -1, mag: -1, reserve: -1, nades: -1, s0: -1, s1: -1, clock: 
 let hurtShow = 0, shownAssists = 0, boardAt = 0;
 const fromShow = [];
 
-function hitMark(kind) {
+// The cross that flashes when a shot lands: once a frame, however many
+// pellets hit, for the best of them (0 a hit, 1 the head, 2 scrapped).
+let marked = -1;
+function hitMark(kind) { marked = Math.max(marked, kind); }
+function showMark() {
+  if (marked < 0) return;
   const el = $('mark');
   el.className = 'mark';
   void el.offsetWidth;
-  el.className = kind === 2 ? 'mark kill' : 'mark hit';
-  sfx('hitmark', kind, 0.9);
+  el.className = marked === 2 ? 'mark kill' : 'mark hit';
+  sfx('hitmark', marked, 0.9);
+  marked = -1;
 }
 
 function pop(html, cls = '') {
@@ -423,7 +475,7 @@ function pop(html, cls = '') {
 function addFeed(by, s, gun, head) {
   const el = document.createElement('div');
   if (by === me || s === me) el.className = 'mine';
-  const what = gun === 'nade' ? 'grenade' : GUNS[gun].name;
+  const what = gun === 'nade' ? (match.mode.pot ? 'fire pot' : 'grenade') : GUNS[gun].name;
   el.innerHTML = by === s ? `<span class="t${s.team}">${s.name}</span><em>own grenade</em>`
     : `<span class="t${by.team}">${by.name}</span><em class="${head ? 'head' : ''}">${what}${head ? ' &middot; head' : ''}</em><span class="t${s.team}">${s.name}</span>`;
   const box = $('feed');
@@ -437,12 +489,13 @@ const classCard = (c, i, on, key = true) => `<button class="class${on ? ' on' : 
 
 function boardHtml() {
   const team = (t) => `<div class="team t${t}"><h3><span>${t ? 'HAYWIRE' : 'BLUE'}</span><span>${match.scores[t]}</span></h3><table><tr><th>Robot</th><th>Score</th><th>K</th><th>D</th><th>A</th></tr>${
-    match.table(t).map((s) => `<tr class="${s === me ? 'me' : ''}${s.alive ? '' : ' dead'}"><td>${s.name}<small>${CLASSES[s.cls].name}</small></td><td>${s.score}</td><td>${s.kills}</td><td>${s.deaths}</td><td>${s.assists}</td></tr>`).join('')}</table></div>`;
+    match.table(t).map((s) => `<tr class="${s === me ? 'me' : ''}${s.alive ? '' : ' dead'}"><td>${s.name}<small>${match.classes[s.cls].name}</small></td><td>${s.score}</td><td>${s.kills}</td><td>${s.deaths}</td><td>${s.assists}</td></tr>`).join('')}</table></div>`;
   return `<div class="board">${team(0)}${team(1)}</div>`;
 }
 
 function updateHud(now, dt) {
-  if (phase !== 'play' && phase !== 'over') return;
+  if ((phase !== 'play' && phase !== 'over') || !me) return;
+  showMark();
   const set = (key, v, id, text = v) => { if (shown[key] !== v) { shown[key] = v; $(id).textContent = text; return true; } return false; };
   if (set('s0', match.scores[0], 'scoreBlue')) $('barBlue').style.width = `${(100 * match.scores[0]) / match.scoreLimit}%`;
   if (set('s1', match.scores[1], 'scoreOrange')) $('barOrange').style.width = `${(100 * match.scores[1]) / match.scoreLimit}%`;
@@ -454,25 +507,36 @@ function updateHud(now, dt) {
     $('hpBar').style.width = `${(100 * hp) / (me.maxHp || 100)}%`;
     $('hpBar').parentElement.classList.toggle('low', hp < 40);
   }
-  set('cls', CLASSES[me.cls].name, 'clsName');
-  if (gun) {
+  set('cls', match.classes[me.cls].name, 'clsName');
+  if (gun && gun.kind) {
+    // The old arms: only what there is a number of to show.
+    const counted = gun.kind === 'bow' || gun.alt === 'throw';
+    set('mag', counted ? `n${wp.mag}` : 'none', 'mag', counted ? wp.mag : '');
+    $('mag').classList.remove('low');
+    set('reserve', gun.id, 'reserve', gun.kind === 'bow' ? 'arrows' : { spear: 'pikes', axe: 'hatchets', daggers: 'knives' }[gun.id] || '');
+  } else if (gun) {
     if (set('mag', wp.mag, 'mag')) $('mag').classList.toggle('low', wp.mag <= gun.mag * 0.25);
     set('reserve', wp.reserve, 'reserve', wp.reserve === Infinity ? '∞' : wp.reserve);
+  }
+  if (gun) {
     set('gun', gun.name, 'gunName');
     if (shown.nades !== me.nadeCount) { shown.nades = me.nadeCount; $('nades').innerHTML = '<i></i>'.repeat(me.nadeCount); }
   }
   // The sights open out as the aim loosens, and go when the gun is up.
   const cross = $('cross');
   if (me.alive && gun) {
-    const gap = 3 + (Math.tan(match.spread(me)) / Math.tan(cam.fov / 2)) * (H / 2);
+    // (With a bow they close in as it is drawn.)
+    const gap = gun.kind ? (gun.kind === 'bow' ? 17 - 12 * me.draw : 6) : 3 + (Math.tan(match.spread(me)) / Math.tan(cam.fov / 2)) * (H / 2);
     cross.style.setProperty('--gap', `${gap.toFixed(1)}px`);
     const scoped = gun.id === 'sniper' && me.ads > 0.9;
-    cross.classList.toggle('aim', me.ads > 0.5);
+    cross.classList.toggle('aim', me.ads > 0.5 && !gun.kind);
     cross.style.opacity = me.sprinting || scoped || (gun.id === 'sniper' && me.ads > 0.5) ? 0 : 1;
     $('scope').style.opacity = scoped ? 1 : 0;
   } else { cross.style.opacity = 0; $('scope').style.opacity = 0; }
   let note = '', warn = false;
-  if (me.alive && gun) {
+  if (me.alive && gun && gun.kind) {
+    if (gun.kind === 'bow' && wp.mag === 0) { note = 'Out of arrows: Q for the dagger'; warn = true; }
+  } else if (me.alive && gun) {
     if (me.reloadT > 0) note = 'Reloading';
     else if (wp.mag === 0 && wp.reserve <= 0) { note = 'Out of rounds'; warn = true; }
     else if (wp.mag <= gun.mag * 0.25 && wp.reserve > 0) { note = 'R to reload'; warn = wp.mag === 0; }
@@ -497,7 +561,7 @@ function updateHud(now, dt) {
     if (shown.down !== key) {
       shown.down = key;
       $('downIn').textContent = `Back in ${Math.ceil(Math.max(0, me.respawnT))}`;
-      $('downClasses').innerHTML = CLASSES.map((c, i) => classCard(c, i, i === me.nextCls)).join('');
+      $('downClasses').innerHTML = match.classes.map((c, i) => classCard(c, i, i === me.nextCls)).join('');
     }
   }
   if (!$('board').hidden && now - boardAt > 250) { boardAt = now; $('board').innerHTML = boardHtml().replace(/^<div class="board">|<\/div>$/g, ''); }
@@ -629,7 +693,32 @@ const lightAt = (s, v, dt) => {
   return v.light;
 };
 
-const poseIn = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0, crouch: 0, stride: 0, pace: 0, lean: 0, lower: 0 };
+const poseIn = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0, crouch: 0, stride: 0, pace: 0, lean: 0, lower: 0, twist: 0 };
+
+// The shape of a swing, from how far through it is (0..1) and how much of
+// that is the wind-up: down to -1 as the arm goes back, quickly up to 1 as
+// the blow goes through, then easing back to 0.
+function sweep(p, wind) {
+  if (p >= 1) return 0;
+  if (p < wind) return -ease(p / wind);
+  const q = (p - wind) / (1 - wind);
+  return q < 0.25 ? -1 + 2 * ease(q / 0.25) : 1 - ease((q - 0.25) / 0.75);
+}
+
+// How far a blade is into the cut itself: 0, up to 1 as it goes through, and back to 0.
+function through(p, wind) {
+  const q = (p - wind) / (1 - wind);
+  return q <= 0 || q >= 0.6 ? 0 : Math.sin((Math.PI * q) / 0.6);
+}
+
+// How a robot holds one of the old arms (seen from outside), k through its swing.
+function held(gun, k, cut) {
+  const fwd = Math.max(0, k), back = Math.max(0, -k);
+  if (gun.id === 'spear') return M.chain(M.move(0, 0, 0.35 + 0.25 * back - 0.75 * fwd), M.rotX(0.1));
+  if (gun.id === 'axe') return M.rotX(1.0 + 0.75 * back - 1.25 * fwd);
+  if (gun.id === 'bow') return M.chain(M.move(-0.1, 0.02, -0.12), M.rotZ(0.2));
+  return M.chain(M.rotY(0.85 * k), M.rotX(0.95 + 0.3 * back - 0.75 * cut));
+}
 function poseOf(s, v, alpha) {
   poseIn.x = lerp(s.px, s.x, alpha);
   poseIn.y = lerp(s.py, s.y, alpha);
@@ -640,7 +729,8 @@ function poseOf(s, v, alpha) {
   poseIn.stride = v.stride;
   poseIn.pace = s.grounded ? v.pace : 0.45;
   poseIn.lean = v.lean;
-  poseIn.lower = v.lower;
+  poseIn.lower = s.weapons[s.slot].gun.kind ? 0 : v.lower;
+  poseIn.twist = v.twist;
   return pose(poseIn);
 }
 
@@ -657,6 +747,13 @@ function draw(now, dt, alpha) {
     v.stride += speed * dt * 2.6;
     v.lean += ((s.sprinting ? 0.24 : 0) - v.lean) * Math.min(1, dt * 8);
     v.lower += ((s.sprinting ? 0.7 : s.reloadT > 0 || s.swapT > 0 ? 0.5 : 0) - v.lower) * Math.min(1, dt * 10);
+    // The old arms: how far through a swing it is, and whether its shield is up.
+    const gun = s.weapons[s.slot].gun;
+    const swung = clamp((match.time - v.swingT) / (gun.rate || 1), 0, 1);
+    v.sweep = gun.kind === 'melee' ? sweep(swung, gun.wind / gun.rate) : 0;
+    v.cut = gun.kind === 'melee' ? through(swung, gun.wind / gun.rate) : 0;
+    v.twist = gun.kind === 'melee' && gun.id !== 'spear' ? -0.45 * v.sweep : 0;
+    v.blockK += ((s.block ? 1 : 0) - v.blockK) * Math.min(1, dt * 14);
     lightAt(s, v, dt);
     poses.push(poseOf(s, v, alpha));
   }
@@ -668,14 +765,21 @@ function draw(now, dt, alpha) {
       fn(r.thigh, p.thigh[0], s, own); fn(r.thigh, p.thigh[1], s, own);
       fn(r.shin, p.shin[0], s, own); fn(r.shin, p.shin[1], s, own);
       fn(r.hips, p.hips, s, own); fn(r.top, p.top, s, own);
-      fn(models.guns[s.weapons[s.slot].gun.id].mesh, p.gun, s, own);
+      const gun = s.weapons[s.slot].gun;
+      fn(models.guns[gun.id].mesh, gun.kind ? M.mul(p.gun, held(gun, vis[s.id].sweep, vis[s.id].cut)) : p.gun, s, own);
+      // A knight's shield: on the arm, or up in front.
+      if (gun.alt === 'block') {
+        const k = vis[s.id].blockK;
+        fn(models.shields[s.team], M.chain(p.top, M.move(lerp(-0.33, -0.03, k), 0.27, lerp(-0.2, -0.46, k)), M.rotY(lerp(1, 0, k))), s, own);
+      }
     });
   };
 
   // Shadows first (the player's own included, though they aren't drawn themselves).
   R.shadows(cam.at);
   eachPart((meshPart, m) => R.cast(meshPart, m));
-  for (const n of match.nades) R.cast(models.nade, M.move(n.x, n.y, n.z));
+  const nadeMesh = match.mode.pot ? models.pot : models.nade;
+  for (const n of match.nades) R.cast(nadeMesh, M.move(n.x, n.y, n.z));
   fxDraw(R, models, 'cast');
 
   R.begin({ view: cam.view, proj: cam.proj, eye: cam.at, sunCol: SUN, skyTop: [0.13, 0.3, 0.7], horizon: [0.62, 0.7, 0.8], fog: [60, 240], lights: lightsNow(cam.at) });
@@ -696,9 +800,16 @@ function draw(now, dt, alpha) {
   });
   for (const n of match.nades) {
     const x = lerp(n.px, n.x, alpha), y = lerp(n.py, n.y, alpha), z = lerp(n.pz, n.z, alpha);
-    R.draw(models.nade, M.chain(M.move(x, y, z), M.rotX(n.rest ? 0 : now / 60), M.rotY(1)), SKY);
-    // A light on it that blinks faster as it runs down.
-    if (Math.sin(now / (30 + n.fuse * 45)) > 0) R.sprite(x, y + 0.1, z, 0.22, [1, 0.15, 0.1, 0]);
+    R.draw(nadeMesh, M.chain(M.move(x, y, z), M.rotX(n.rest ? 0 : now / 60), M.rotY(1)), SKY);
+    // A fire pot burns; a grenade has a light that blinks faster as it runs down.
+    if (match.mode.pot) R.sprite(x, y + 0.2, z, 0.2 + 0.08 * Math.random(), [1, 0.55, 0.15, 0]);
+    else if (Math.sin(now / (30 + n.fuse * 45)) > 0) R.sprite(x, y + 0.1, z, 0.22, [1, 0.15, 0.1, 0]);
+  }
+  // Arrows and thrown things in the air: point first, the thrown ones turning over.
+  for (const p of match.shots) {
+    const x = lerp(p.px, p.x, alpha), y = lerp(p.py, p.y, alpha), z = lerp(p.pz, p.z, alpha);
+    const turn = p.kind === 'hatchet' || p.kind === 'knife' ? -(5 - p.life) * 22 : 0;
+    R.draw(models.thrown[p.kind], M.chain(M.move(x, y, z), M.rotY(-Math.atan2(p.vx, -p.vz)), M.rotX(Math.atan2(p.vy, Math.hypot(p.vx, p.vz)) + turn)), SKY, { gloss: 0.4 });
   }
   fxDraw(R, models, 'solid');
   fxDraw(R, models, 'flat', now);
@@ -711,6 +822,7 @@ function draw(now, dt, alpha) {
 // The gun in the player's hands.
 function drawHands(now, dt) {
   const gun = me.weapons[me.slot].gun, info = models.guns[gun.id], v = vis[me.id];
+  if (gun.kind) { drawOldHands(dt, gun, info, v); return; }
   const ads = ease(me.ads), hip = 1 - ads;
   hand.kick *= Math.exp(-dt * 13);
   hand.swayX *= Math.exp(-dt * 9);
@@ -724,10 +836,11 @@ function drawHands(now, dt) {
   const reload = me.reloadT > 0 ? Math.sin(Math.PI * clamp(1 - me.reloadT / (g.shell ? g.shell : g.reload), 0, 1)) : 0;
   const down = Math.max(reload * 0.8, clamp(me.swapT / 0.4, 0, 1), clamp(me.throwT / 0.65, 0, 1) * 1.1);
   const SIZE = 0.8;
-  const x = 0.2 * hip + bobX + hand.swayX * hip - run * 0.03;
-  const y = lerp(-info.sight * SIZE, -0.2, hip) + bobY + hand.swayY * hip - down * 0.22 - hand.dip * 0.05 - run * 0.02 + hand.kick * 0.006 * hip;
-  const z = lerp(-0.3, -0.46, hip) + hand.kick * 0.035 + run * 0.04;
-  const local = M.chain(M.move(x, y, z), M.rotY(-0.04 * hip - run * 0.6), M.rotX(hand.kick * (0.035 + 0.03 * hip) - down * 0.7 - run * 0.16), M.rotZ(-run * 0.22 + down * 0.3), M.scale(SIZE));
+  // Sprinting, the gun comes in to the middle, held low with the barrel up a little, and swings with each stride.
+  const x = 0.2 * hip * (1 - 0.82 * run) + bobX * (1 + 2 * run) + hand.swayX * hip;
+  const y = lerp(-info.sight * SIZE, -0.2, hip) + bobY * (1 + run) + hand.swayY * hip - down * 0.22 - hand.dip * 0.05 - run * 0.07 + hand.kick * 0.006 * hip;
+  const z = lerp(-0.3, -0.46, hip) + hand.kick * 0.035 + run * 0.05;
+  const local = M.chain(M.move(x, y, z), M.rotY(-0.04 * hip * (1 - run)), M.rotX(hand.kick * (0.035 + 0.03 * hip) - down * 0.7 + run * 0.2), M.rotZ(run * 0.1 + down * 0.3), M.scale(SIZE));
   const model = M.mul(M.rigidInverse(cam.view), local);
   const light = v.light;
   R.beginHands(M.perspective(1.0, W / H, 0.02, 10), cam.view);
@@ -736,6 +849,57 @@ function drawHands(now, dt) {
   if (hand.flash > 0) {
     hand.flash -= dt;
     R.draw(flash, M.chain(model, M.move(0, 0.035, -info.muzzle - 0.03), M.rotZ(hand.roll), M.scale(0.75 + 0.5 * Math.random())), [1, 1, 1], { emit: 9, alpha: 0.85 });
+  }
+}
+
+// One of the old arms in the player's hands.
+function drawOldHands(dt, gun, info, v) {
+  const k = v.sweep, fwd = Math.max(0, k), back = Math.max(0, -k), cut = v.cut;
+  hand.kick *= Math.exp(-dt * 9);
+  hand.swayX *= Math.exp(-dt * 9);
+  hand.swayY *= Math.exp(-dt * 9);
+  hand.dip *= Math.exp(-dt * 7);
+  const walk = me.grounded ? v.pace : 0, run = v.lean / 0.24;
+  const bobX = Math.sin(v.stride) * 0.014 * walk * (1 + run) + hand.swayX;
+  const down = Math.max(clamp(me.swapT / 0.4, 0, 1), clamp(me.throwT / 0.65, 0, 1) * 1.1);
+  const bobY = -Math.abs(Math.cos(v.stride)) * 0.014 * walk * (1 + run) + hand.swayY - down * 0.32 - hand.dip * 0.05;
+  const inv = M.rigidInverse(cam.view), light = v.light, throwK = hand.kick;
+  const at = (x, y, z, ...turns) => M.mul(inv, M.chain(M.move(x + bobX, y + bobY, z), ...turns));
+  // (The forearm follows the hand, but doesn't turn with the blade.)
+  const arm = (mesh, m) => R.draw(mesh, M.mul(M.move(m[12], m[13], m[14]), M.mul(inv, M.ident()).map((val, i) => (i >= 12 && i < 15 ? 0 : val))), light);
+  R.beginHands(M.perspective(1.0, W / H, 0.02, 10), cam.view);
+  let m;
+  if (gun.kind === 'bow') {
+    // The bow comes up and in as it is drawn, with the arrow on the string.
+    const d = me.draw;
+    m = at(lerp(-0.16, -0.04, d) - run * 0.1, -0.12 - run * 0.1, -0.56, M.rotZ(-0.42 + 0.3 * d), M.rotX(-run * 0.3));
+    R.draw(models.armL, M.chain(m, M.move(0, 0, -0.02)), light);
+    const wp = me.weapons[me.slot];
+    if (wp.mag > 0 && (me.cool <= 0 || d > 0)) {
+      R.draw(models.thrown.arrow, M.chain(m, M.move(0.025, 0.01, -0.25 + 0.33 * d)), light);
+      R.draw(models.armR, M.chain(m, M.move(0.03, 0, 0.14 + 0.33 * d), M.rotZ(0.5)), light);
+    }
+  } else if (gun.id === 'spear') {
+    m = at(0.24 - 0.07 * fwd, -0.25 - run * 0.03, 0.1 + 0.28 * back - 0.8 * fwd - throwK * 0.3, M.rotY(0.05), M.rotX(0.07 + run * 0.12 + throwK * 0.1));
+    arm(models.armR, m);
+  } else if (gun.id === 'axe') {
+    m = at(0.27 - 0.17 * fwd - run * 0.12, -0.34 + 0.16 * back - 0.1 * fwd, -0.5 - 0.12 * fwd, M.rotY(-0.1 + 0.3 * fwd), M.rotZ(-0.2 + 0.2 * fwd), M.rotX(1.15 + 0.6 * back - 1.4 * fwd - run * 0.35 - throwK * 0.5));
+    arm(models.armR, m);
+  } else if (gun.id === 'daggers') {
+    m = at(0.15, -0.27 + 0.03 * back, -0.42 + 0.1 * back - 0.3 * fwd - throwK * 0.12, M.rotX(0.75 + 0.2 * back - 0.5 * fwd - run * 0.3 - throwK * 0.4));
+    arm(models.armR, m);
+    arm(models.armL, M.chain(m, M.move(-0.3, 0, 0)));
+  } else {
+    // A sword or a dagger: back to the right, then across.
+    m = at(0.3 + 0.07 * back - 0.42 * fwd - 0.15 * cut - run * 0.14, -0.32 + 0.08 * back + 0.05 * cut, -0.6 - 0.1 * cut, M.rotY(-0.15 + (k < 0 ? 0.6 * k : 1.3 * k)), M.rotZ(-0.35 + 0.55 * fwd), M.rotX(1.05 + 0.25 * back - 0.9 * cut - 0.2 * fwd - run * 0.4));
+    arm(models.armR, m);
+  }
+  R.draw(info.mesh, m, light, { gloss: 0.7 });
+  if (gun.alt === 'block') {
+    // The shield: down at the left, or up in front.
+    const b = ease(v.blockK);
+    const sm = at(lerp(-0.5, -0.24, b), lerp(-0.72, -0.42, b) - run * 0.1, lerp(-0.55, -0.62, b), M.rotY(lerp(0.6, 0.15, b)), M.rotX(lerp(-0.25, 0, b)));
+    R.draw(models.shields[0], sm, [light[0] + 0.25, light[1] + 0.25, light[2] + 0.25], { gloss: 0.3 });
   }
 }
 
@@ -748,12 +912,18 @@ function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
   // (The match waits while a card is up, or the mouse isn't held by the game.)
-  const running = (phase === 'play' && !ui.isOpen() && (locked || force)) || phase === 'title';
+  const running = !frozen && ((phase === 'play' && !ui.isOpen() && (locked || force)) || phase === 'title');
   // Too slow for a while: draw the picture a little less sharp.
-  if (running && dt > 0.024) slow++; else if (running && dt < 0.019) quick++;
-  if (slow + quick >= 120) {
-    if (slow > 80 && sharp > 0.5) { sharp = Math.max(0.5, sharp * 0.85); layout(); }
-    slow = quick = 0;
+  // (If that doesn't help, the screen itself is the limit: put it back and leave it.)
+  if (running && !settled) {
+    if (dt > 0.024) slow++; else quick++;
+    spent += dt;
+    if (slow + quick >= 120) {
+      if (wasSpent && spent > wasSpent * 0.93) { sharp = Math.min(1, sharp / 0.85); settled = true; layout(); }
+      else if (slow > 80 && sharp > 0.5) { sharp = Math.max(0.5, sharp * 0.85); wasSpent = spent; layout(); }
+      else wasSpent = 0;
+      slow = quick = spent = 0;
+    }
   }
   if (running) {
     acc += dt;
@@ -782,7 +952,13 @@ function frame(now) {
 // ---- menus ----------------------------------------------------------------------------
 
 function showTitle() {
-  $('classPick').innerHTML = CLASSES.map((c, i) => classCard(c, i, i === save.cls, false)).join('');
+  const mode = MODES[save.mode];
+  $('modeSeg').innerHTML = MODES.map((m, i) => `<button class="seg-btn${i === save.mode ? ' on' : ''}" data-mode="${i}">${m.name}</button>`).join('');
+  $('classPick').innerHTML = mode.classes.map((c, i) => classCard(c, i, i === save[clsKey(mode)], false)).join('');
+  $('keysLine').innerHTML = (save.mode
+    ? 'W A S D|move,Mouse|aim,Left|swing; hold to draw the bow,Right|shield; throw; look closer,Shift|sprint,C|crouch and stand,Space|jump,G|fire pot,Q|dagger,Tab|scores,F|full screen'
+    : 'W A S D|move,Mouse|aim,Left|fire,Right|sights,Shift|sprint,C|crouch and stand,Space|jump,R|reload,G|grenade,Q|swap,Tab|scores,F|full screen')
+    .split(',').map((k) => k.split('|')).map(([key, what]) => `<b>${key}</b> ${what.replace(/;/g, ',')}`).join(' &middot; ');
   $('skillSeg').innerHTML = SKILL.map((k, i) => `<button class="seg-btn${i === save.skill ? ' on' : ''}" data-skill="${i}">${k.name}</button>`).join('');
   $('limitSeg').innerHTML = [50, 75, 100].map((n) => `<button class="seg-btn${n === save.limit ? ' on' : ''}" data-limit="${n}">${n}</button>`).join('');
   const r = rankOf(save.xp);
@@ -793,9 +969,18 @@ function showTitle() {
 $('classPick').addEventListener('click', (e) => {
   const el = e.target.closest('[data-cls]');
   if (!el) return;
-  save.cls = Number(el.dataset.cls);
+  save[clsKey(MODES[save.mode])] = Number(el.dataset.cls);
   writeSave();
   sfx('tap');
+  showTitle();
+});
+$('modeSeg').addEventListener('click', (e) => {
+  const el = e.target.closest('[data-mode]');
+  if (!el || Number(el.dataset.mode) === save.mode) return;
+  save.mode = Number(el.dataset.mode);
+  writeSave();
+  sfx('tap');
+  attract(); // the bots behind the menu change over too
   showTitle();
 });
 $('skillSeg').addEventListener('click', (e) => {
@@ -834,7 +1019,7 @@ function showPause() {
   ui.show(`<h2>Paused</h2>
     <p>Blue ${match.scores[0]} &middot; Haywire ${match.scores[1]}</p>
     ${settingsHtml()}
-    <div class="classes">${CLASSES.map((c, i) => classCard(c, i, i === me.nextCls, false)).join('')}</div>
+    <div class="classes">${match.classes.map((c, i) => classCard(c, i, i === me.nextCls, false)).join('')}</div>
     <p class="tip">A change of class takes effect the next time you come back.</p>
     <div class="actions">
       <button class="btn btn-primary" data-action="resume">Carry on</button>
@@ -856,7 +1041,8 @@ function showHow() {
     <div class="how">
       <p><b>Scrap the haywire robots.</b> Every one your team scraps is a point; the first team to the target wins.</p>
       <p><b>W A S D</b> to move, the <b>mouse</b> to aim, <b>left button</b> to fire. Hold the <b>right button</b> to look down the sights: slower, but much more accurate.</p>
-      <p><b>Shift</b> sprints, <b>C</b> crouches (steadier, and smaller), <b>Space</b> jumps onto crates. <b>R</b> reloads, <b>Q</b> or <b>1</b> and <b>2</b> swap to the pistol and back, <b>G</b> throws a grenade.</p>
+      <p><b>Shift</b> sprints, <b>C</b> crouches and <b>C</b> again stands (crouched you are steadier, and smaller), <b>Space</b> jumps onto crates. <b>R</b> reloads, <b>Q</b> or <b>1</b> and <b>2</b> swap to the pistol and back, <b>G</b> throws a grenade.</p>
+      <p><b>Old Iron</b> is the same match with no guns. The <b>left button</b> swings; with a bow, hold it to draw and let go to loose, aiming a little high for the drop. The <b>right button</b> raises the Knight's shield, throws a pike, hatchet or knife, or looks closer down the bow. <b>G</b> throws a fire pot that bursts where it lands, and <b>Q</b> draws your dagger.</p>
       <p><b>Head shots</b> do more. Your plating mends itself when nothing has hit you for a few seconds, so get behind something.</p>
       <p>The <b>radar</b> shows your team in blue, and the others in red wherever one was last seen or heard. Hold <b>Tab</b> for the scores, press <b>F</b> to fill the screen, and <b>Esc</b> to pause.</p>
     </div>
@@ -887,7 +1073,7 @@ $('card').addEventListener('click', (e) => {
   showPause();
 });
 // A card closed some other way (Esc, a click outside) carries the match on.
-$('overlay').addEventListener('click', () => { if (!ui.isOpen() && phase === 'play') { last = performance.now(); grab(); } });
+$('overlay').addEventListener('click', (e) => { if (e.target === $('overlay') && !ui.isOpen() && phase === 'play') { last = performance.now(); grab(); } });
 
 // ---- start ----------------------------------------------------------------------------
 
@@ -901,7 +1087,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden && pha
 if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
   window.haywire = {
     get match() { return match; }, get me() { return me; }, get phase() { return phase; }, view, cam, keys, mouse, save, start, finish,
-    set force(v) { force = v; }, stat, get mesh() { return mesh; },
+    set force(v) { force = v; }, set frozen(v) { frozen = v; }, vis, hand, stat, get mesh() { return mesh; },
   };
 }
 
