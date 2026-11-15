@@ -33,6 +33,23 @@ export const GUNS = {
   sniper: { name: 'Longbolt', auto: false, pellets: 1, dmg: 85, head: 2, rate: 1.15, mag: 5, reserve: 30, reload: 2.6, hip: 7, ads: 0.03, adsTime: 0.3, adsMove: 0.4, zoom: 4.2, kickUp: 3.5, kickSide: 0.6, bloom: 0, near: 100, far: 200, min: 1, weight: 1 },
   pistol: { name: 'Spark', auto: false, pellets: 1, dmg: 24, head: 1.5, rate: 0.14, mag: 12, reserve: Infinity, reload: 1.3, hip: 1.6, ads: 0.35, adsTime: 0.12, adsMove: 0.85, zoom: 1.15, kickUp: 1.1, kickSide: 0.35, bloom: 0.5, near: 12, far: 35, min: 0.5, weight: 1 },
 };
+
+// The old arms, for the mode with no guns. kind 'melee': a swing lands wind
+// seconds after it starts, on whoever is within reach metres and inside an
+// arc that many radians wide in front (cleave: on everyone there). back: how
+// much more it does from behind. kind 'bow': hold to draw, let go to loose;
+// dmg and speed run from a half-drawn bow to a full one. alt is what the
+// right button does: 'block' raises a shield, 'zoom' looks closer, 'throw'
+// throws one of mag things (shot says what it does in the air).
+const OLD = { auto: true, pellets: 1, head: 1, reserve: 0, reload: 0, hip: 0, ads: 0, adsTime: 0.15, adsMove: 1, zoom: 1, kickUp: 0, kickSide: 0, bloom: 0, weight: 1, mag: 0 };
+Object.assign(GUNS, {
+  sword: { ...OLD, name: 'Longsword', kind: 'melee', dmg: 48, wind: 0.16, rate: 0.55, reach: 2.3, arc: 1.5, alt: 'block', adsMove: 0.65 },
+  spear: { ...OLD, name: 'Pike', kind: 'melee', dmg: 62, wind: 0.22, rate: 0.8, reach: 3.5, arc: 0.6, alt: 'throw', mag: 3, shot: { kind: 'spear', dmg: 95, speed: 30, grav: 9, head: 1.5 } },
+  axe: { ...OLD, name: 'Greataxe', kind: 'melee', dmg: 95, wind: 0.42, rate: 1.15, reach: 2.6, arc: 2, cleave: true, alt: 'throw', mag: 3, weight: 0.97, shot: { kind: 'hatchet', dmg: 70, speed: 23, grav: 12, head: 1.3 } },
+  bow: { ...OLD, name: 'Longbow', kind: 'bow', dmg: 92, min: 40, speed: 58, slow: 26, grav: 9.8, drawTime: 0.85, rate: 0.35, mag: 24, head: 1.8, alt: 'zoom', zoom: 1.6, adsTime: 0.2, adsMove: 0.6, shot: { kind: 'arrow' } },
+  daggers: { ...OLD, name: 'Twin Daggers', kind: 'melee', dmg: 30, wind: 0.08, rate: 0.28, reach: 1.9, arc: 1.4, back: 2, alt: 'throw', mag: 10, shot: { kind: 'knife', dmg: 36, speed: 34, grav: 10, head: 1.5 } },
+  knife: { ...OLD, name: 'Dagger', kind: 'melee', dmg: 28, wind: 0.1, rate: 0.38, reach: 1.8, arc: 1.3, back: 1.5, alt: null },
+});
 for (const k of Object.keys(GUNS)) GUNS[k].id = k;
 
 export const CLASSES = [
@@ -41,6 +58,21 @@ export const CLASSES = [
   { id: 'breacher', name: 'Breacher', gun: 'shotgun', hp: 110, speed: 1.04, nades: 2, what: 'A shotgun for doorways and corners.' },
   { id: 'gunner', name: 'Gunner', gun: 'lmg', hp: 115, speed: 0.9, nades: 1, what: 'Heavy plating and eighty rounds.' },
   { id: 'marksman', name: 'Marksman', gun: 'sniper', hp: 100, speed: 1, nades: 1, what: 'One shot to the head, from anywhere.' },
+];
+
+export const OLD_CLASSES = [
+  { id: 'knight', name: 'Knight', gun: 'sword', hp: 110, speed: 1, nades: 1, what: 'A quick sword, and a shield to stop arrows and blades.' },
+  { id: 'archer', name: 'Archer', gun: 'bow', hp: 90, speed: 1.02, nades: 1, what: 'Hold to draw, let go to loose. Deadly from afar.' },
+  { id: 'lancer', name: 'Lancer', gun: 'spear', hp: 100, speed: 1, nades: 1, what: 'The longest reach, and pikes to throw.' },
+  { id: 'berserker', name: 'Berserker', gun: 'axe', hp: 130, speed: 0.95, nades: 1, what: 'A slow axe that fells all in its path.' },
+  { id: 'scout', name: 'Scout', gun: 'daggers', hp: 90, speed: 1.14, nades: 2, what: 'Fast, with knives to throw and a deadly backstab.' },
+];
+// The two ways to play: with guns, or with the old arms. side: what
+// everyone carries as well; pot: the grenade is a fire pot that bursts
+// where it lands.
+export const MODES = [
+  { id: 'guns', name: 'Firefight', classes: CLASSES, side: 'pistol', pot: false, what: 'Rifles, shotguns and grenades.' },
+  { id: 'old', name: 'Old Iron', classes: OLD_CLASSES, side: 'knife', pot: true, what: 'Swords, bows, pikes and axes. No guns.' },
 ];
 
 export const NAMES = [
@@ -68,6 +100,9 @@ export class Match {
     this.map = map;
     this.world = map.world;
     this.rng = new Rand(opts.seed ?? 1);
+    this.mode = MODES[opts.mode ?? 0];
+    this.classes = this.mode.classes;
+    this.shots = []; // arrows and thrown things in the air
     this.size = opts.size ?? 8;
     this.scoreLimit = opts.scoreLimit ?? 50;
     this.timeLimit = opts.timeLimit ?? 600;
@@ -90,7 +125,7 @@ export class Match {
           yaw: 0, pitch: 0, grounded: true, crouching: false, crouchK: 0, sprinting: false, sprintOut: 0, ads: 0,
           hp: 0, maxHp: 100, hurtAt: -99, hurtBy: -1, protect: 0, dmgFrom: new Map(),
           weapons: [], slot: 0, cool: 0, reloadT: 0, swapT: 0, throwT: 0, nadeCount: 0, bloom: 0, kp: 0, ky: 0,
-          fireHeld: false, pull: 0, nadeHeld: false, jumpHeld: false, lastShot: -99, stride: 0,
+          fireHeld: false, pull: 0, nadeHeld: false, swing: 0, draw: 0, block: false, altHeld: false, jumpHeld: false, lastShot: -99, stride: 0,
           knownT: -99, kx: 0, ky2: 0, kz: 0, // when and where the other team last knew it to be
           kills: 0, deaths: 0, assists: 0, score: 0, streak: 0, best: 0, heads: 0, shots: 0, hits: 0,
           in: emptyInput(), bot: null,
@@ -116,6 +151,7 @@ export class Match {
     for (const s of this.soldiers) this.stepSoldier(s, dt);
     this.separate();
     for (let k = this.nades.length - 1; k >= 0; k--) if (this.stepNade(this.nades[k], dt)) this.nades.splice(k, 1);
+    for (let k = this.shots.length - 1; k >= 0; k--) if (this.stepShot(this.shots[k], dt)) this.shots.splice(k, 1);
     // What the player can see, the whole blue team knows about.
     if (this.tick % 8 === 0) {
       for (const s of this.soldiers) if (s.human && s.alive) this.look(s);
@@ -162,7 +198,7 @@ export class Match {
       }
     }
     if (s.nextCls >= 0) s.cls = s.nextCls;
-    const cls = CLASSES[s.cls];
+    const cls = this.classes[s.cls];
     s.alive = true;
     s.x = best.x; s.z = best.z; s.y = w.groundAt(best.x, best.z, 0.5);
     s.px = s.x; s.py = s.y; s.pz = s.z;
@@ -173,7 +209,9 @@ export class Match {
     s.hp = s.maxHp = cls.hp;
     s.protect = 1.5;
     s.dmgFrom.clear();
-    s.weapons = [cls.gun, 'pistol'].map((id) => ({ gun: GUNS[id], mag: GUNS[id].mag, reserve: GUNS[id].reserve }));
+    s.swing = s.draw = 0;
+    s.block = false;
+    s.weapons = [cls.gun, this.mode.side].map((id) => ({ gun: GUNS[id], mag: GUNS[id].mag, reserve: GUNS[id].reserve }));
     s.pull = 0;
     s.slot = 0; s.cool = 0.3; s.reloadT = 0; s.swapT = 0; s.throwT = 0; s.bloom = 0; s.kp = s.ky = 0;
     s.nadeCount = cls.nades;
@@ -186,13 +224,13 @@ export class Match {
 
   stepSoldier(s, dt) {
     const inp = s.in;
-    if (inp.cls >= 0 && inp.cls < CLASSES.length) s.nextCls = inp.cls;
+    if (inp.cls >= 0 && inp.cls < this.classes.length) s.nextCls = inp.cls;
     if (!s.alive) {
       s.respawnT -= dt;
       if (s.respawnT <= 0) this.spawn(s);
       return;
     }
-    const w = this.world, gun = s.weapons[s.slot].gun, cls = CLASSES[s.cls];
+    const w = this.world, gun = s.weapons[s.slot].gun, cls = this.classes[s.cls];
     s.yaw = inp.yaw;
     s.pitch = clamp(inp.pitch, -1.5, 1.5);
     if (s.protect > 0) s.protect -= dt;
@@ -213,7 +251,7 @@ export class Match {
     let mx = inp.mx, mz = inp.mz;
     const ml = Math.hypot(mx, mz);
     if (ml > 1) { mx /= ml; mz /= ml; }
-    const speed = WALK * cls.speed * gun.weight * (s.sprinting ? SPRINT : 1) * (s.crouching ? CROUCH : 1) * (1 + (gun.adsMove - 1) * s.ads);
+    const speed = WALK * cls.speed * gun.weight * (s.sprinting ? SPRINT : 1) * (s.crouching ? CROUCH : 1) * (1 + (gun.adsMove - 1) * s.ads) * (1 - 0.4 * s.draw);
     const sy = Math.sin(s.yaw), cy = Math.cos(s.yaw);
     const wx = (sy * mz + cy * mx) * speed, wz = (-cy * mz + sy * mx) * speed;
     if (s.grounded) {
@@ -259,9 +297,16 @@ export class Match {
       s.swapT = 0.4;
       s.reloadT = 0;
       s.bloom = 0;
+      s.swing = s.draw = 0;
       this.events.push({ e: 'swap', id: s.id });
     }
     const wp = s.weapons[s.slot], gun = wp.gun;
+    if (gun.kind) {
+      this.stepOld(s, dt, wp, gun);
+      if (inp.nade && !s.nadeHeld && s.nadeCount > 0 && s.throwT <= 0 && s.swapT <= 0) this.throwNade(s);
+      s.nadeHeld = inp.nade;
+      return;
+    }
     const pressed = inp.fire && !s.fireHeld;
     s.fireHeld = inp.fire;
     // A single-shot gun fires once for each press; a press made a moment
@@ -300,6 +345,138 @@ export class Match {
 
     if (inp.nade && !s.nadeHeld && s.nadeCount > 0 && s.throwT <= 0 && s.swapT <= 0) this.throwNade(s);
     s.nadeHeld = inp.nade;
+  }
+
+  // The old arms: swinging, blocking, drawing a bow, throwing.
+  stepOld(s, dt, wp, gun) {
+    const inp = s.in, free = s.swapT <= 0 && s.throwT <= 0 && s.sprintOut <= 0;
+    const alt = inp.ads && !s.altHeld;
+    s.altHeld = inp.ads;
+    s.fireHeld = inp.fire;
+    s.block = gun.alt === 'block' && inp.ads && s.swing <= 0 && !s.sprinting && free;
+    if (gun.kind === 'bow') {
+      if (inp.fire && free && s.cool <= 0 && wp.mag > 0) {
+        if (s.draw === 0) this.events.push({ e: 'draw', id: s.id });
+        s.draw = Math.min(1, s.draw + dt / gun.drawTime);
+      } else if (s.draw > 0) {
+        // Let go: the arrow flies, faster and harder the further the bow was drawn.
+        if (!inp.fire && s.draw >= 0.25 && free) {
+          const k = (s.draw - 0.25) / 0.75;
+          wp.mag--;
+          s.cool = gun.rate;
+          const wide = (0.25 + (1 - s.draw) * 1.6 + Math.min(1, Math.hypot(s.vx, s.vz) / WALK) * 0.9 + (s.grounded ? 0 : 2)) * (1 - 0.5 * s.ads);
+          this.loose(s, gun, 'arrow', gun.slow + (gun.speed - gun.slow) * k, gun.min + (gun.dmg - gun.min) * k, gun.grav, gun.head, wide * RAD);
+          this.events.push({ e: 'loose', id: s.id });
+        }
+        s.draw = 0;
+      }
+      return;
+    }
+    if (s.swing > 0) {
+      s.swing -= dt;
+      if (s.swing <= 0) this.strike(s, gun);
+    } else if (inp.fire && s.cool <= 0 && free && !s.block) {
+      s.swing = gun.wind;
+      s.cool = gun.rate;
+      s.protect = 0;
+      this.events.push({ e: 'swing', id: s.id });
+    } else if (alt && gun.alt === 'throw' && wp.mag > 0 && s.cool <= 0 && free) {
+      const sh = gun.shot;
+      wp.mag--;
+      s.cool = 0.55;
+      s.protect = 0;
+      this.loose(s, gun, sh.kind, sh.speed, sh.dmg, sh.grav, sh.head, 0.6 * RAD);
+      this.events.push({ e: 'hurl', id: s.id });
+      // The last pike thrown: out with the dagger.
+      if (gun.id === 'spear' && wp.mag === 0 && s.slot === 0) { s.slot = 1; s.swapT = 0.4; }
+    }
+  }
+
+  // A swing lands: on the nearest enemy in reach and in front (or all of them, for an axe).
+  strike(s, gun) {
+    const w = this.world, d = this.aim(s, [0, 0, 0]), ox = s.x, oy = this.eyeY(s), oz = s.z;
+    const fl = Math.hypot(d[0], d[2]) || 1e-6, cosArc = Math.cos(gun.arc / 2), hits = [];
+    for (const e of this.soldiers) {
+      if (!e.alive || e.team === s.team) continue;
+      const cy = e.y + (e.crouching ? 0.6 : 0.95), x = e.x - ox, y = cy - oy, z = e.z - oz, dist = Math.hypot(x, y, z);
+      if (dist > gun.reach + 0.34) continue;
+      const flat = Math.hypot(x, z) || 1e-6;
+      if (dist > 0.9 && (x * d[0] + z * d[2]) / (flat * fl) < cosArc) continue;
+      if (!w.sees(ox, oy, oz, e.x, cy, e.z)) continue;
+      hits.push({ e, dist, cy });
+    }
+    hits.sort((a, b) => a.dist - b.dist || a.e.id - b.e.id);
+    if (!gun.cleave) hits.length = Math.min(1, hits.length);
+    let any = false, stopped = false;
+    for (const { e, cy } of hits) {
+      const front = this.facing(e, s.x - e.x, s.z - e.z);
+      if (e.block && front > 0.3) {
+        stopped = true;
+        this.events.push({ e: 'block', id: e.id, x: e.x + Math.sin(e.yaw) * 0.4, y: cy + 0.2, z: e.z - Math.cos(e.yaw) * 0.4 });
+        continue;
+      }
+      any = true;
+      this.events.push({ e: 'cut', x: e.x, y: cy + 0.2, z: e.z });
+      this.hurt(e, gun.dmg * (gun.back && front < -0.3 ? gun.back : 1), s, gun.id, false);
+    }
+    // A blow that only met a shield throws the arm back.
+    if (stopped && !any) s.cool += 0.4;
+    s.shots++;
+    if (any) s.hits++;
+  }
+
+  // How squarely soldier e faces the direction (x, z): 1 straight at it, -1 away.
+  facing(e, x, z) {
+    const l = Math.hypot(x, z) || 1e-6;
+    return (Math.sin(e.yaw) * x - Math.cos(e.yaw) * z) / l;
+  }
+
+  // Sends an arrow or a thrown thing on its way.
+  loose(s, gun, kind, speed, dmg, grav, head, wide) {
+    const d = this.aim(s, [0, 0, 0]), rng = this.rng;
+    const r = wide * Math.sqrt(rng.next()), a = rng.next() * Math.PI * 2;
+    const rl = Math.hypot(d[0], d[2]) || 1, rx = -d[2] / rl, rz = d[0] / rl;
+    const ex = Math.cos(a) * r, ey = Math.sin(a) * r;
+    let dx = d[0] + rx * ex - d[1] * rz * ey, dy = d[1] + (d[0] * rz - d[2] * rx) * ey, dz = d[2] + rz * ex + d[1] * rx * ey;
+    const l = Math.hypot(dx, dy, dz);
+    dx /= l; dy /= l; dz /= l;
+    const x = s.x + dx * 0.35, y = this.eyeY(s) - 0.08 + dy * 0.35, z = s.z + dz * 0.35;
+    s.shots++;
+    this.shots.push({ kind, gun: gun.id, by: s.id, team: s.team, x, y, z, px: x, py: y, pz: z, vx: dx * speed, vy: dy * speed, vz: dz * speed, grav, dmg, head, life: 5 });
+  }
+
+  // An arrow or a thrown thing in the air. True when it has landed.
+  stepShot(p, dt) {
+    const w = this.world;
+    p.px = p.x; p.py = p.y; p.pz = p.z;
+    p.life -= dt;
+    if (p.life <= 0) return true;
+    p.vy -= p.grav * dt;
+    const v = Math.hypot(p.vx, p.vy, p.vz), dx = p.vx / v, dy = p.vy / v, dz = p.vz / v, dist = v * dt;
+    const wall = w.ray(p.x, p.y, p.z, dx, dy, dz, dist);
+    let best = Math.min(wall, dist), struck = null, head = false;
+    for (const e of this.soldiers) {
+      if (!e.alive || e.team === p.team) continue;
+      const h = this.rayHits(e, p.x, p.y, p.z, dx, dy, dz, best);
+      if (h.t < best) { best = h.t; struck = e; head = h.head; }
+    }
+    const x = p.x + dx * best, y = p.y + dy * best, z = p.z + dz * best;
+    if (struck) {
+      const by = this.soldiers[p.by];
+      if (struck.block && this.facing(struck, -dx, -dz) > 0.3) this.events.push({ e: 'block', id: struck.id, x, y, z });
+      else {
+        this.events.push({ e: 'cut', x, y, z });
+        by.hits++;
+        this.hurt(struck, p.dmg * (head ? p.head : 1), by, p.gun, head);
+      }
+      return true;
+    }
+    if (wall <= dist) {
+      this.events.push({ e: 'stick', kind: p.kind, x: x - dx * 0.06, y: y - dy * 0.06, z: z - dz * 0.06, dx, dy, dz });
+      return true;
+    }
+    p.x = x; p.y = y; p.z = z;
+    return false;
   }
 
   // How wide a soldier's shots scatter right now, in radians.
@@ -502,6 +679,8 @@ export class Match {
       if (t === Infinity) { n.x += dx * dist; n.y += dy * dist; n.z += dz * dist; break; }
       const go = Math.max(0, t - 0.08);
       n.x += dx * go; n.y += dy * go; n.z += dz * go;
+      // A fire pot bursts where it lands.
+      if (this.mode.pot) { this.explode(n); return true; }
       left -= go / v;
       // Bounce: lose most of the speed into the surface, some along it.
       const h = w.hit, vn = n.vx * h.nx + n.vy * h.ny + n.vz * h.nz;
@@ -520,8 +699,9 @@ export class Match {
     for (const e of this.soldiers) {
       if (!e.alive || (e.team === n.team && e !== by)) continue;
       const cy = e.y + (e.crouching ? 0.6 : 0.95), d = Math.hypot(e.x - n.x, cy - n.y, e.z - n.z);
-      if (d >= NADE_REACH || !w.sees(n.x, n.y + 0.25, n.z, e.x, cy, e.z)) continue;
-      this.hurt(e, NADE_DAMAGE * clamp(1 - (d - 1.2) / (NADE_REACH - 1.2), 0, 1), by, 'nade', false);
+      const reach = this.mode.pot ? 5 : NADE_REACH;
+      if (d >= reach || !w.sees(n.x, n.y + 0.25, n.z, e.x, cy, e.z)) continue;
+      this.hurt(e, (this.mode.pot ? 140 : NADE_DAMAGE) * clamp(1 - (d - 1.2) / (reach - 1.2), 0, 1), by, 'nade', false);
     }
   }
 

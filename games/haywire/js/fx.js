@@ -5,7 +5,7 @@
 import { M } from './gl.js';
 import { pose } from './models.js';
 
-const sparks = [], smoke = [], tracers = [], marks = [], debris = [], lights = [], glows = [];
+const sparks = [], smoke = [], tracers = [], marks = [], debris = [], lights = [], glows = [], stuck = [];
 const rnd = (a = 1) => (Math.random() * 2 - 1) * a;
 
 // Marks stay until there are too many; then the oldest go.
@@ -15,7 +15,7 @@ function mark(m) {
 }
 
 export function fxReset() {
-  for (const list of [sparks, smoke, tracers, marks, debris, lights, glows]) list.length = 0;
+  for (const list of [sparks, smoke, tracers, marks, debris, lights, glows, stuck]) list.length = 0;
 }
 
 export const fx = {
@@ -48,6 +48,12 @@ export const fx = {
     fx.sparks(x, y, z, 4, [1, 0.8, 0.45], 3.5, n);
     fx.puff(x + n[0] * 0.08, y + n[1] * 0.08, z + n[2] * 0.08, 0.14, 0.55, 0.4, 0.3);
     mark({ x, y, z, n, size: 0.05 + Math.random() * 0.03, a: 0.75 });
+  },
+
+  // An arrow or a thrown thing left sticking out of whatever it hit.
+  stick(mesh, m) {
+    if (stuck.length >= 70) stuck.shift();
+    stuck.push({ mesh, m, t: 0 });
   },
 
   // A robot comes apart: each piece goes its own way.
@@ -103,6 +109,7 @@ export function fxStep(dt, world) {
     t.head += 300 * dt;
     if (t.head - 12 > t.len) tracers.splice(k, 1);
   }
+  for (let k = stuck.length - 1; k >= 0; k--) if ((stuck[k].t += dt) > 25) stuck.splice(k, 1);
   for (const list of [lights, glows]) {
     for (let k = list.length - 1; k >= 0; k--) {
       list[k].t += dt;
@@ -140,7 +147,7 @@ export function lightsNow(eye) {
   return out.slice(0, 4).map((o) => o.v);
 }
 
-const tmpA = [0, 0, 0], tmpB = [0, 0, 0];
+const tmpA = [0, 0, 0], tmpB = [0, 0, 0], STUCK_LIGHT = [0.4, 0.45, 0.55];
 export function fxDraw(R, models, pass, now = 0) {
   if (pass === 'cast' || pass === 'solid') {
     for (const d of debris) {
@@ -150,6 +157,7 @@ export function fxDraw(R, models, pass, now = 0) {
       if (pass === 'cast') R.cast(d.mesh, m);
       else R.draw(d.mesh, m, d.light);
     }
+    if (pass === 'solid') for (const s of stuck) R.draw(s.mesh, s.m, STUCK_LIGHT);
     return;
   }
   for (const m of marks) R.mark(m.x, m.y, m.z, m.n, m.size, [0, 0, 0, m.a]);

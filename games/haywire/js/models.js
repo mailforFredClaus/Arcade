@@ -139,6 +139,75 @@ const GUN_SHAPES = {
     return { sight: 0.097, muzzle: 0.2, rear: 0.035, front: -0.19 };
   },
 };
+// The old arms, laid out the same way: pointing along -z, held at the origin.
+const BLADE = '#d3d9e0', EDGE = '#f1f4f7', WOOD = '#8a5a2c', GOLD = '#c9a13a', WRAP = '#3a2a1c';
+function blade(b, x, z0, z1, tall) {
+  b.box(x - 0.011, -tall, z1, x + 0.011, tall, z0, BLADE);
+  b.box(x - 0.004, -tall - 0.008, z1 + 0.02, x + 0.004, tall + 0.008, z0, EDGE);
+  // A point.
+  b.tri([x - 0.011, -tall, z1], [x + 0.011, -tall, z1], [x, 0, z1 - tall * 3], BLADE);
+  b.tri([x + 0.011, tall, z1], [x - 0.011, tall, z1], [x, 0, z1 - tall * 3], BLADE);
+  b.tri([x - 0.011, tall, z1], [x - 0.011, -tall, z1], [x, 0, z1 - tall * 3], EDGE);
+  b.tri([x + 0.011, -tall, z1], [x + 0.011, tall, z1], [x, 0, z1 - tall * 3], EDGE);
+}
+function dagger(b, x) {
+  blade(b, x, -0.07, -0.34, 0.024);
+  b.box(x - 0.05, -0.014, -0.07, x + 0.05, 0.014, -0.05, GOLD);
+  b.box(x - 0.016, -0.016, -0.05, x + 0.016, 0.016, 0.08, WRAP);
+}
+function axeHead(b, z, size) {
+  b.box(-0.014, -0.03 * size, z - 0.12 * size, 0.014, 0.3 * size, z + 0.12 * size, BLADE);
+  b.box(-0.006, 0.24 * size, z - 0.17 * size, 0.006, 0.34 * size, z + 0.17 * size, EDGE);
+  b.box(-0.02, -0.05 * size, z - 0.05 * size, 0.02, 0.06 * size, z + 0.05 * size, STEEL);
+}
+const OLD_SHAPES = {
+  sword(b) {
+    blade(b, 0, -0.12, -0.98, 0.032);
+    b.box(-0.1, -0.018, -0.12, 0.1, 0.018, -0.09, GOLD);
+    b.box(-0.017, -0.017, -0.09, 0.017, 0.017, 0.1, WRAP);
+    b.cube(0, 0, 0.115, 0.045, 0.045, 0.03, GOLD);
+    return { muzzle: 0.98 };
+  },
+  knife(b) { dagger(b, 0); return { muzzle: 0.34 }; },
+  daggers(b) { dagger(b, 0); dagger(b, -0.3); return { muzzle: 0.34 }; },
+  spear(b) {
+    b.rod(0, 0, 0.9, -1.3, 0.017, 0.017, WOOD, 6);
+    b.rod(0, 0, -1.3, -1.62, 0.04, 0.003, BLADE, 6);
+    b.rod(0, 0, -1.27, -1.3, 0.026, 0.04, GOLD, 6);
+    return { muzzle: 1.62 };
+  },
+  axe(b) {
+    b.rod(0, 0, 0.4, -0.9, 0.021, 0.021, WOOD, 6);
+    axeHead(b, -0.76, 1);
+    b.rod(0, 0, 0.4, 0.44, 0.03, 0.03, GOLD, 6);
+    return { muzzle: 0.9 };
+  },
+  // Held upright: the limbs run up and down, the string behind.
+  bow(b) {
+    const pts = [[0, -0.05], [0.3, -0.045], [0.55, 0.03], [0.72, 0.13]];
+    for (const side of [1, -1]) {
+      for (let k = 0; k < pts.length - 1; k++) limb(b, [0, pts[k][0] * side, pts[k][1]], [0, pts[k + 1][0] * side, pts[k + 1][1]], 0.015 - k * 0.003, WOOD);
+    }
+    b.box(-0.02, -0.07, -0.07, 0.02, 0.07, -0.03, WRAP);
+    b.box(-0.002, -0.72, 0.128, 0.002, 0.72, 0.132, '#e9e2cf');
+    return { muzzle: 0.1 };
+  },
+};
+const THROWN = {
+  arrow(b) {
+    b.rod(0, 0, 0.38, -0.4, 0.007, 0.007, '#c9b38a', 5);
+    b.rod(0, 0, -0.4, -0.47, 0.016, 0.002, BLADE, 5);
+    b.box(-0.03, -0.002, 0.24, 0.03, 0.002, 0.37, '#d8443a');
+    b.box(-0.002, -0.03, 0.24, 0.002, 0.03, 0.37, '#d8443a');
+  },
+  hatchet(b) {
+    b.rod(0, 0, 0.2, -0.26, 0.015, 0.015, WOOD, 6);
+    axeHead(b, -0.2, 0.5);
+  },
+  knife(b) { dagger(b, 0); },
+  spear(b) { OLD_SHAPES.spear(b); },
+};
+
 const ACCENT = { rifle: '#3fb6c8', smg: '#e8c53a', shotgun: '#d8612c', lmg: '#8fcf5a', sniper: '#b58cf0', pistol: '#d0d5db' };
 
 function gun(R, id) {
@@ -175,12 +244,37 @@ export function makeModels(R) {
     guns[id] = gun(R, id);
     arms[id] = hands(R, guns[id]);
   }
+  for (const id of Object.keys(OLD_SHAPES)) {
+    const b = new Builder();
+    guns[id] = { ...OLD_SHAPES[id](b), sight: 0, mesh: R.mesh(b) };
+  }
+  const thrown = {};
+  for (const id of Object.keys(THROWN)) {
+    const b = new Builder();
+    THROWN[id](b);
+    thrown[id] = R.mesh(b);
+  }
+  // A shield for each team (it faces -z), a clay pot of oil, and a forearm for each side.
+  const shields = TEAM.map((t) => R.mesh(new Builder()
+    .box(-0.27, -0.36, -0.03, 0.27, 0.36, 0, t.main)
+    .box(-0.3, -0.39, -0.02, 0.3, 0.39, 0.012, STEEL)
+    .box(-0.04, -0.36, -0.04, 0.04, 0.36, -0.03, t.dark)
+    .rod(0, 0, -0.03, -0.075, 0.075, 0.03, PALE, 8)));
+  const pot = new Builder().ball(0, 0, 0, 0.1, '#b5652e', 8, 5).box(-0.04, 0.08, -0.04, 0.04, 0.14, 0.04, '#8a4a22').box(-0.012, 0.1, -0.012, 0.012, 0.19, 0.012, '#e9e2cf');
+  // (Short, so it stays out of the way when the hand crosses in front of the eye.)
+  const armOf = (side) => {
+    const b = new Builder();
+    limb(b, [0.03 * side, -0.08, 0.04], [0.15 * side, -0.36, 0.3], 0.034, '#2a3340');
+    limb(b, [0.06 * side, -0.15, 0.1], [0.08 * side, -0.2, 0.15], 0.038, TEAM[0].dark);
+    b.cube(0.01 * side, -0.05, 0.03, 0.06, 0.09, 0.075, '#1b1e23');
+    return R.mesh(b);
+  };
   const nade = new Builder().ball(0, 0, 0, 0.075, '#3d5a3a', 8, 5).box(-0.02, 0.06, -0.02, 0.02, 0.11, 0.02, JOINT).box(-0.08, -0.012, -0.08, 0.08, 0.012, 0.08, '#2a3d28');
   const chunk = new Builder().cube(0, 0, 0, 1, 1, 1, STEEL);
   const shell = new Builder().rod(0, 0, -0.5, 0.5, 0.5, 0.5, '#d9a441', 6);
   // The arrow over a team-mate's head.
   const tag = new Builder().tri([-0.1, 0.16, 0], [0.1, 0.16, 0], [0, 0, 0], [1, 1, 1]).tri([0.1, 0.16, 0], [-0.1, 0.16, 0], [0, 0, 0], [1, 1, 1]);
-  return { robots: [robot(R, 0), robot(R, 1)], guns, arms, nade: R.mesh(nade), chunk: R.mesh(chunk), shell: R.mesh(shell), tag: R.mesh(tag) };
+  return { robots: [robot(R, 0), robot(R, 1)], guns, arms, thrown, shields, pot: R.mesh(pot), armR: armOf(1), armL: armOf(-1), nade: R.mesh(nade), chunk: R.mesh(chunk), shell: R.mesh(shell), tag: R.mesh(tag) };
 }
 
 // Where each piece of a robot is, given how it stands. s: x, y, z, yaw,
@@ -204,7 +298,7 @@ export function pose(s) {
   });
   out.hips = M.chain(root, M.move(0, hip, 0), M.rotX(-0.1 * k));
   // The top half leans into a run and a crouch, and tips to aim up and down.
-  out.top = M.chain(root, M.move(0, hip + WAIST, 0), M.rotX(s.pitch * 0.75 - 0.22 * k - s.lean), M.rotY(Math.sin(s.stride) * 0.06 * s.pace));
+  out.top = M.chain(root, M.move(0, hip + WAIST, 0), M.rotX(s.pitch * 0.75 - 0.22 * k - s.lean), M.rotY(Math.sin(s.stride) * 0.06 * s.pace - (s.twist || 0)));
   out.gun = M.chain(out.top, M.move(HOLD[0], HOLD[1], HOLD[2]), M.rotX(s.pitch * 0.25 + 0.22 * k + s.lean - s.lower));
   return out;
 }
