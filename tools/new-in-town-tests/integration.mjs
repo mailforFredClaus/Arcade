@@ -130,7 +130,8 @@ export default function ({ check, fresh, Life }) {
     const L = fresh({ seed: 1 });
     till(L, 44);
     const an = L.s.annals;
-    if (an.mayor.k === 'penn') { an.penn = 'out'; an.mayor = { k: 'c99', name: 'Mei Abara', sex: 'f', age: 50, at: L.s.t, job: 'a nurse', plat: 'steady', since: L.s.t, terms: 1 }; }
+    // (Whoever the dice have made mayor by now, the check puts its own in: street.js draws a few more numbers, and the town votes differently.)
+    an.penn = 'out'; an.mayor = { k: 'c99', name: 'Mei Abara', sex: 'f', age: 50, at: L.s.t, job: 'a nurse', plat: 'steady', since: L.s.t, terms: 1 };
     L.s.st.smarts = 50; L.s.age = 30;
     check(EV.drains1.when(L), 'the drains are found under whoever is mayor');
     L.queue('drains1');

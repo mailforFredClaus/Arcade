@@ -672,7 +672,7 @@ export function install({ def, Life, hooks, addEvents }) {
       if (h.kind !== 'hostel') bits.push(`${L.stCondWord(h)}.`);
       if (h.proj && !h.proj.gone) bits.push(`${PROJECTS[h.proj.id].name} under way.`);
       if (h.g) bits.push(`The garden: ${L.stScoreWord(h).toLowerCase()}.`);
-      bits.push('The neighbours, and having people round.');
+      bits.push(HOUSE[h.kind].table ? 'The neighbours, and having people round.' : 'The people you live among.');
       return bits.join(' ');
     },
   });
@@ -914,7 +914,7 @@ export function install({ def, Life, hooks, addEvents }) {
     cost: (L, x) => L.stHostCost(x),
     why(L, x) {
       const h = here(L), seats = L.stTableSize();
-      if (!h || !seats) return 'Not in a hostel bunk.';
+      if (!h || !seats) return h && h.kind !== 'hostel' ? 'Not in somebody else’s house.' : 'Not in a hostel bunk.';
       const p = x || L.stHostPlan();
       if (!MENUS[p.m]) return 'What will you give them?';
       if (!Array.isArray(p.g) || !p.g.length) return 'Invite somebody first.';

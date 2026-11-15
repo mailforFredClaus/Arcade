@@ -396,7 +396,7 @@ export const HOUSE_CARDS = [
   {
     id: 'stDoctor', icon: '🩺', title: 'A familiar face',
     ok: (L) => !L.s.gaol && !!L.s.ill,
-    text: (L, x) => `The young doctor who comes round the ward at St Wren’s has a face you know: ${x.name}, who used to revise in the next bunk with a highlighter in each hand. ${x.sex === 'm' ? 'He' : 'She'} knows you at once.`,
+    text: (L, x) => `The young doctor who comes round the ward at St Wren’s has a face you know: ${x.name}, who used to revise in the room next to yours, years ago, with a highlighter in each hand. ${x.sex === 'm' ? 'He' : 'She'} knows you at once.`,
     opts: [{ t: 'Ask how it all turned out', run(L, x) { const n = L.s.ill ? L.s.ill.name : 'trouble'; if (L.s.ill && L.s.ill.sev <= 2) L.s.ill = null; L.hp(4); L.joy(5); return `${x.sex === 'm' ? 'He' : 'She'} sorts out your ${n}, sits on the end of your bed for ten minutes when ${x.sex === 'm' ? 'he' : 'she'} should not, and will not hear of thanks. “You tested me on the bones of the hand,” ${x.sex === 'm' ? 'he' : 'she'} says. “Every one.”`; } }],
   },
 ];

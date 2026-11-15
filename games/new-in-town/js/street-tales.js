@@ -174,7 +174,7 @@ export const TALE_CARDS = [
   },
   {
     id: 'stLadder3', icon: '🪜', title: 'It comes home', ok: okN((L, n) => !n.f.back),
-    text: (L, x) => { const n = N(L, x); return `${f(n)} is moving to be near ${his(n)} daughter in Kettleby. On the morning the van comes, ${he(n)} knocks on your door with your ${thing(L)}, painted a cheerful blue, and a tin of shortbread taped to it.`; },
+    text: (L, x) => { const n = N(L, x); return `${f(n)} is moving to be near ${his(n)} daughter in Kettleby. On the morning the van comes, ${he(n)} ${L.s.home === 'hostel' ? 'comes to your bunk' : 'knocks on your door'} with your ${thing(L)}, painted a cheerful blue, and a tin of shortbread taped to it.`; },
     opts: [
       { t: 'Wave them off', run(L, x) { const n = N(L, x); n.f.back = 1; L.joy(4); L.stGone(n, 'moved'); L.note(`${n.name} moved away, and gave you back your ${thing(L)}, painted blue.`); return `You stand at the gate with the ${thing(L)} until the van has gone round the corner. It is the best ${thing(L)} on the street now.`; } },
       { t: 'Tell them to keep it', run(L, x) { const n = N(L, x); L.karma(1); L.joy(3); L.stGone(n, 'moved'); L.note(`${n.name} moved away, with your ${thing(L)}, which you told ${him(n)} to keep.`); return `${f(n)} goes pink, and hugs you, and the ${thing(L)} goes into the van on top of everything else, where it belongs.`; } },
