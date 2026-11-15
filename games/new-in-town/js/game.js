@@ -46,7 +46,15 @@ function persist() {
 
 let tab = 'town';
 let here = 'station'; // where you are standing on the map
-let area = 'bay'; // which map is showing: the bay, or the old town up the hill
+let area = 'bay'; // which map is showing: the bay, the old town up the hill, or the moor
+// The maps, from the sea up. Each has a button at the top for the way up (or out) to the next,
+// and one at the foot for the way down to the one below.
+const AREAS = [
+  { id: 'bay', up: '⛰️ <b>Up the hill</b>' },
+  { id: 'hill', up: '🥾 <b>Out to the moor</b>', down: '⚓ <b>Down to the bay</b>' },
+  { id: 'moor', down: '⛰️ <b>Down to the old town</b>' },
+];
+const areaOf = (place) => PLACES[place].area || 'bay';
 let MODS = []; // the screens for the newer parts of town (ui-mods.js), once they are set up
 
 // ---- the same again -----------------------------------------------------------------------
@@ -173,14 +181,23 @@ function renderMap() {
   for (const m of MODS) if (m.marks) for (const [id, e] of m.marks(life) || []) mark(id, e);
   // (What the years have done to the town, drawn on its map: see annalsScene.)
   const scene = life.annalsScene ? life.annalsScene() : {};
+  // (And what the newer parts of town draw on their own maps: see scene in ui-mods.js.)
+  for (const m of MODS) if (m.scene) Object.assign(scene, m.scene(life));
   const key = `${area}|${placeTier(s.home)}|${JSON.stringify(marks)}|${JSON.stringify(scene)}`;
   if (key !== mapKey) {
     mapKey = key;
     $('mapArt').innerHTML = townSvg({ area, tier: placeTier(s.home), marks, scene });
-    $('pTown').classList.toggle('hill', area === 'hill');
-    $('mapGo').innerHTML = area === 'bay' ? '⛰️ <b>Up the hill</b>' : '⚓ <b>Down to the bay</b>';
-    // (A badge on the other map is worth knowing about.)
-    $('mapGo').classList.toggle('dot', Object.keys(marks).some((id) => (PLACES[id].area || 'bay') !== area));
+    const i = AREAS.findIndex((a) => a.id === area);
+    for (const a of AREAS) $('pTown').classList.toggle(a.id, a.id === area);
+    // The way up, and the way down; each with a dot if there is a badge on a map that way.
+    const badged = (lo, hi) => Object.keys(marks).some((id) => { const k = AREAS.findIndex((a) => a.id === areaOf(id)); return k >= lo && k <= hi; });
+    for (const [btn, to, label, dot] of [['mapGo', AREAS[i + 1], AREAS[i].up, badged(i + 1, 99)], ['mapDown', AREAS[i - 1], AREAS[i].down, badged(0, i - 1)]]) {
+      $(btn).hidden = !to;
+      if (!to) continue;
+      $(btn).dataset.area = to.id;
+      $(btn).innerHTML = label;
+      $(btn).classList.toggle('dot', dot);
+    }
   }
   $('me').innerHTML = face(s.look, s.age, s.happy, s.sex);
   // (Only at the start of a season, before anything else has been done.)
@@ -191,7 +208,7 @@ function renderMap() {
 
 function placeMe() {
   const p = PLACES[here];
-  $('me').hidden = (p.area || 'bay') !== area;
+  $('me').hidden = areaOf(here) !== area;
   $('me').style.left = `${(p.x + (p.x > 300 ? -34 : 34)) / 4}%`;
   $('me').style.top = `${(p.y + 2) / 6}%`;
 }
@@ -215,7 +232,7 @@ function goTo(place) {
   sfx('tap');
   const far = here !== place;
   here = place;
-  area = PLACES[place].area || 'bay';
+  area = areaOf(place);
   placeMe();
   $('me').classList.remove('hop');
   void $('me').offsetWidth;
@@ -1112,7 +1129,7 @@ function showMenu() {
 }
 
 // Shown once to a life that was begun before the town grew.
-const NEWS = 9;
+const NEWS = 10;
 function showNew() {
   const was = save.seenNew || 0;
   save.seenNew = NEWS;
@@ -1142,8 +1159,9 @@ function showNew() {
     <p><b>⏱️ Where the time goes.</b> Tap the time pips at the top to see why a season has the time it has.</p>
     <p><b>🧾 A family’s town.</b> Heirs keep the family name, the calendar runs on across the generations, and the stories, shouts and anniversaries vary more.</p>`;
   const firm = `<p><b>🏪 A business worth running.</b> Give it a name, take on staff with natures and stories of their own, set prices, quality and hours in the office, see off rivals or buy them out, and decide what to do with the year’s accounts. It can grow to a second premises, a board, or go under.</p>`;
+  const moor = `<p><b>🥾 Out to the moor.</b> A third map beyond Windle Farm (“Out to the moor”, at the top of the old town): walks, fossils and the stars, the quarry, the Askwiths of Haverleigh Hall, the drowned village under Fennick Water, and the Curlew Award for the young. Getting up there takes time unless you drive.</p>`;
   if (was >= 5) {
-    ui.show(`<div class="ev-ico">🗺️</div><h2>New in Starling Bay</h2><div class="how">${firm}${was >= 8 ? '' : latest}${was >= 7 ? '' : since}</div>
+    ui.show(`<div class="ev-ico">🥾</div><h2>New in Starling Bay</h2><div class="how">${moor}${was >= 9 ? '' : firm}${was >= 8 ? '' : latest}${was >= 7 ? '' : since}</div>
       <div class="actions"><button class="btn btn-primary" data-action="evDone">Show me</button></div>`);
     return;
   }
@@ -1181,6 +1199,7 @@ function showHow() {
     <p><b>Look after yourself.</b> ❤️ Health falls with age and overwork; if it runs out, so do you. 🙂 Mood follows how life is going: a better home, friends, love, a pet. Who you are grows out of what you do: the Me tab shows the traits taking shape, and a long low spell needs looking after.</p>
     <p><b>Bills fall due every season.</b> Save at the bank, buy shares (the index fund is the steady one) or property to let out, start a business, or borrow. A bicycle gives you more time, and so does a car, once you have passed your test at the garage up the hill.</p>
     <p><b>Up the hill</b> (the button at the top of the map) is the old town: the church, the library, the Pavilion, the football ground, the market, a farm, the cliffs, a cove and a garage. Join a club, keep hens, learn to drive, solve the mystery of the <i>Merrow</i>.</p>
+    <p><b>Out on the moor</b> (the button at the top of the old town’s map) are a big house and its family, a quarry, a reservoir with a drowned village under it, standing stones, an old wood, an observatory, a campsite, a railway halt and the village of Moor End. Getting up there takes time without a car. Walk the moor, forage, gather fossils, log the stars, and find out what happened to Fennick.</p>
     <p><b>The townsfolk</b> have stories of their own. Call on them, bring presents they like, and do them favours: a good friend in town is worth more than money.</p>
     <p><b>People.</b> Friends are made all over town, and everyone has things they love doing. For romance, chat someone up at the pub, try the dating app, or ask out a friend who is single. Close friends in the right jobs do you favours.</p>
     <p><b>Life happens.</b> Cards turn up with choices. A percentage shows your chance where a skill decides it.</p>
@@ -1406,7 +1425,7 @@ const DO = {
   },
   area(el) {
     if (busy || !life || life.s.dead || life.s.gaol) return;
-    area = el.dataset.area || (area === 'bay' ? 'hill' : 'bay');
+    area = AREAS.some((a) => a.id === el.dataset.area) ? el.dataset.area : 'bay';
     sfx('flip');
     renderMap();
   },
@@ -1460,6 +1479,7 @@ const DO = {
 //   lowRoad(life): lines of HTML for the Low road box on the Me tab (shown once there is a crime to your name)
 //   work(life): the business's lines in the Work box on the Me tab, in place of the plain ones (firm-ui.js)
 //   marks(life): [[place, emoji], ...] for badges on the map
+//   scene(life): { key: value } added to what art.js draws of how the maps have changed (moor-ui.js)
 //   place(life, id): HTML to show at the top of a place's sheet (how it has changed, say)
 //   css: a stylesheet of its own
 const kit = {
