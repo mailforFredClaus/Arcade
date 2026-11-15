@@ -3,6 +3,7 @@
 // the scores, the sounds and the menus.
 
 import { buildMap } from './map.js';
+import { buildLine } from './line.js';
 import { Match, STEP, MODES, GUNS, EYE, EYE_CROUCH, WALK } from './engine.js';
 import { SKILL } from './bots.js';
 import { Renderer, Builder, M } from './gl.js';
@@ -56,10 +57,6 @@ let W = 1, H = 1;
 function load() {
   R = new Renderer(canvas);
   models = makeModels(R);
-  map = buildMap();
-  world = map.world;
-  mesh = buildMesh(map);
-  R.setWorld(mesh.verts, mesh.index, map.sun, [map.W, map.H]);
   // The flash at the end of the barrel: three flat stars crossing.
   const b = new Builder();
   for (let k = 0; k < 3; k++) {
@@ -70,7 +67,6 @@ function load() {
   b.quad([-0.025, 0, 0], [0.025, 0, 0], [0.01, 0, -0.3], [-0.01, 0, -0.3], [1, 0.85, 0.45]);
   b.quad([0, -0.025, 0], [0, 0.025, 0], [0, 0.01, -0.3], [0, -0.01, -0.3], [1, 0.85, 0.45]);
   flash = R.mesh(b);
-  drawRadarMap();
   layout();
   attract();
   phase = 'title';
@@ -89,7 +85,35 @@ function layout() {
 
 // ---- matches --------------------------------------------------------------------------
 
+// The two maps: Foundry Yard for team deathmatch, the Long Works for
+// Advance. Each is built, lit and drawn for the radar the first time it is
+// wanted (which takes a moment), and kept.
+const maps = {};
+function useMap(id) {
+  if (!maps[id]) {
+    const m = id === 'line' ? buildLine() : buildMap();
+    maps[id] = { map: m, mesh: buildMesh(m), radar: null };
+  }
+  const it = maps[id];
+  if (map === it.map) return;
+  map = it.map;
+  world = map.world;
+  mesh = it.mesh;
+  R.setWorld(mesh, map.sun, [map.W, map.H]);
+  if (!it.radar) it.radar = drawRadarMap();
+  radarMap = it.radar;
+}
+const mapFor = (type) => (type === 'adv' ? 'line' : 'yard');
+// Runs fn once the map for this kind of match is ready, with a notice up while it is built.
+function whenBuilt(type, fn) {
+  if (maps[mapFor(type)]) { fn(); return; }
+  $('loading').textContent = type === 'adv' ? 'Building the Long Works…' : 'Building the yard…';
+  $('loading').hidden = false;
+  setTimeout(() => { useMap(mapFor(type)); $('loading').hidden = true; fn(); }, 40);
+}
+
 function newMatch(opts) {
+  useMap(mapFor(opts.type));
   match = new Match(map, { seed: (Math.random() * 2 ** 32) >>> 0, ...opts });
   me = opts.human ? match.soldiers[0] : null;
   vis.length = 0;
@@ -115,7 +139,7 @@ function start() {
   phase = 'play';
   $('title').hidden = true;
   $('hud').hidden = false;
-  $('limit').textContent = match.type === 'adv' ? 'Sector 1 of 3' : `First to ${save.limit}`;
+  $('limit').textContent = match.type === 'adv' ? '' : `First to ${save.limit}`;
   shown.objs = shown.sector = '';
   $('objs').innerHTML = $('marks').innerHTML = '';
   shown.hp = shown.mag = shown.reserve = shown.nades = shown.s0 = shown.s1 = shown.clock = -1;
@@ -174,7 +198,7 @@ function finish() {
 function scoreLine() {
   if (match.type !== 'adv') return `Blue ${match.scores[0]} &middot; Haywire ${match.scores[1]}`;
   const side = match.attack === 0 ? 'Blue attacking' : 'Blue defending';
-  return `${side} &middot; ${Math.min(match.sector, 3)} of 3 sectors taken &middot; ${match.tickets} ${match.tickets === 1 ? 'life' : 'lives'} left to the attack`;
+  return `${side} &middot; ${match.sector} of ${match.sectors.length} sectors taken &middot; battalion ${match.battalion} of ${match.battalions}, ${match.tickets} ${match.tickets === 1 ? 'life' : 'lives'} left`;
 }
 
 // ---- mouse and keys -------------------------------------------------------------------
@@ -390,7 +414,7 @@ function onEvent(ev) {
       if (s === me) {
         cam.dead = { by: by !== me ? by : null, t: 0 };
         $('down').hidden = false;
-        $('downBy').innerHTML = by === me ? `Blown up by your own ${match.mode.pot ? 'fire pot' : 'grenade'}` : `Scrapped by <b>${by.name}</b>`;
+        $('downBy').innerHTML = by !== me ? `Scrapped by <b>${by.name}</b>` : ev.gun === 'out' ? 'Scrapped for leaving the fight' : `Blown up by your own ${match.mode.pot ? 'fire pot' : 'grenade'}`;
         shown.down = '';
         mouse.fire = false;
       } else if (me && me.assists > shownAssists) pop('<b>+40</b>Assist');
@@ -460,11 +484,19 @@ function onEvent(ev) {
     }
     case 'sector': {
       if (phase !== 'play') break;
-      const last = ev.n >= 2, ours = match.attack === 0;
-      pop(ours ? (last ? 'The yard is taken' : `Sector ${ev.n + 1} taken: push on`) : (last ? 'The yard is lost' : `Sector ${ev.n + 1} lost: fall back`), 'streak');
+      const last = ev.n >= match.sectors.length - 1, ours = match.attack === 0, name = match.sectors[ev.n].name;
+      pop(ours ? (last ? 'The works are taken' : `${name} is taken: on to ${match.sectorNow().name}`) : (last ? 'The works are lost' : `${name} is lost: fall back to ${match.sectorNow().name}`), 'streak');
       if (!last) sfx(ours ? 'cheer' : 'lose', 0, 0.8);
       break;
     }
+    case 'battalion':
+      if (phase !== 'play') break;
+      pop(match.attack === 0 ? `Battalion ${ev.n} takes up the attack` : `Their battalion is spent: ${match.battalions - ev.n + 1} to go`, 'streak');
+      sfx(match.attack === 0 ? 'alarm' : 'cheer', 0, 0.8);
+      break;
+    case 'rout':
+      if (me && match.soldiers[ev.by] === me) pop('<b>+2 lives</b>Caught falling back');
+      break;
     case 'over': if (phase === 'play') { clearTimeout(overTimer); overTimer = setTimeout(finish, 900); } break;
     default:
   }
@@ -503,8 +535,8 @@ function pop(html, cls = '') {
 function addFeed(by, s, gun, head) {
   const el = document.createElement('div');
   if (by === me || s === me) el.className = 'mine';
-  const what = gun === 'nade' ? (match.mode.pot ? 'fire pot' : 'grenade') : GUNS[gun].name;
-  el.innerHTML = by === s ? `<span class="t${s.team}">${s.name}</span><em>own grenade</em>`
+  const what = gun === 'nade' ? (match.mode.pot ? 'fire pot' : 'grenade') : gun === 'out' ? '' : GUNS[gun].name;
+  el.innerHTML = by === s ? `<span class="t${s.team}">${s.name}</span><em>${gun === 'out' ? 'left the fight' : match.mode.pot ? 'own fire pot' : 'own grenade'}</em>`
     : `<span class="t${by.team}">${by.name}</span><em class="${head ? 'head' : ''}">${what}${head ? ' &middot; head' : ''}</em><span class="t${s.team}">${s.name}</span>`;
   const box = $('feed');
   box.appendChild(el);
@@ -565,7 +597,17 @@ function updateHud(now, dt) {
     $('scope').style.opacity = scoped ? 1 : 0;
   } else { cross.style.opacity = 0; $('scope').style.opacity = 0; }
   let note = '', warn = false;
-  if (me.alive && gun && gun.kind) {
+  // Advance: out of the sector being fought for, with how long there is to get back.
+  let astray = '';
+  if (match.type === 'adv' && me.alive && !match.over) {
+    const [lo, hi] = match.bounds(me);
+    if (me.x < lo || me.x > hi) {
+      const left = Math.max(0, match.retreatUntil - match.time) + 6 - me.out;
+      astray = `${match.attack === 0 ? 'Get back to the fight' : me.x < lo ? 'Fall back to the next sector' : 'Get back to the fight'}: ${Math.ceil(left)}`;
+    }
+  }
+  if (astray) { note = astray; warn = true; }
+  else if (me.alive && gun && gun.kind) {
     if (gun.kind === 'bow' && wp.mag === 0) { note = 'Out of arrows: Q for the dagger'; warn = true; }
   } else if (me.alive && gun) {
     if (me.reloadT > 0) note = 'Reloading';
@@ -604,14 +646,15 @@ function updateHud(now, dt) {
 // hold, and the objectives, at the top and out in the yard.
 const TEAM_CSS = ['#4a9bff', '#ff8a2a'];
 function hudAdvance() {
-  const att = match.attack, held = 3 - Math.min(3, match.sector);
+  const att = match.attack, all = match.sectors.length, held = all - Math.min(all, match.sector);
   const nums = att === 0 ? [match.tickets, held] : [held, match.tickets];
-  const bars = att === 0 ? [match.tickets / match.ticketsAtStart, held / 3] : [held / 3, match.tickets / match.ticketsAtStart];
+  const bars = att === 0 ? [match.tickets / match.ticketsAtStart, held / all] : [held / all, match.tickets / match.ticketsAtStart];
   if (shown.s0 !== nums[0]) { shown.s0 = nums[0]; $('scoreBlue').textContent = nums[0]; $('barBlue').style.width = `${Math.min(100, 100 * bars[0])}%`; }
   if (shown.s1 !== nums[1]) { shown.s1 = nums[1]; $('scoreOrange').textContent = nums[1]; $('barOrange').style.width = `${Math.min(100, 100 * bars[1])}%`; }
-  if (shown.sector !== match.sector) {
-    shown.sector = match.sector;
-    $('limit').textContent = `Sector ${Math.min(3, match.sector + 1)} of 3`;
+  const stage = `${match.sector}|${match.battalion}`;
+  if (shown.sector !== stage) {
+    shown.sector = stage;
+    $('limit').textContent = `Sector ${Math.min(all, match.sector + 1)} of ${all} · Battalion ${match.battalion} of ${match.battalions}`;
     $('marks').innerHTML = match.objectives().map((o) => `<div class="objmark"><b>${o.name}</b><span></span></div>`).join('');
   }
   const objs = match.objectives(), vp = M.mul(cam.proj, cam.view);
@@ -643,13 +686,14 @@ function hudAdvance() {
 
 // ---- the radar ------------------------------------------------------------------------
 
-const radarMap = document.createElement('canvas');
+let radarMap = null;
 const PX = 4; // dots a metre on the radar's picture of the yard
 
 function drawRadarMap() {
-  radarMap.width = map.W * PX;
-  radarMap.height = map.H * PX;
-  const g = radarMap.getContext('2d');
+  const pic = document.createElement('canvas');
+  pic.width = map.W * PX;
+  pic.height = map.H * PX;
+  const g = pic.getContext('2d');
   for (let z = 0; z < map.H; z++) {
     for (let x = 0; x < map.W; x++) {
       const wall = world.solidAt(x + 0.5, 1.2, z + 0.5), low = world.solidAt(x + 0.5, 0.5, z + 0.5);
@@ -659,6 +703,7 @@ function drawRadarMap() {
       g.fillRect(x * PX, z * PX, PX, PX);
     }
   }
+  return pic;
 }
 
 function drawRadar() {
@@ -698,6 +743,16 @@ function drawRadar() {
   }
   for (const n of match.nades) dot(n.x, n.z, 0, '#ffe04a', 2.6, false);
   if (match.type === 'adv') {
+    // The two ends of the sector being fought for.
+    const sec = match.sectorNow();
+    g.lineWidth = 3;
+    for (const [x, team] of [[sec.x0 - 1, match.attack], [sec.x1 + 1, 1 - match.attack]]) {
+      g.strokeStyle = TEAM_CSS[team];
+      g.beginPath();
+      g.moveTo(x * PX, 3 * PX);
+      g.lineTo(x * PX, (map.H - 3) * PX);
+      g.stroke();
+    }
     for (const o of match.objectives()) {
       g.strokeStyle = g.fillStyle = TEAM_CSS[o.own ? match.attack : 1 - match.attack];
       g.lineWidth = 2.5;
@@ -728,7 +783,9 @@ function aim(now, dt, alpha) {
   if (phase === 'title' || !me) {
     // A slow flight round the yard, looking at the middle.
     const a = now / 14000, r = 30 + 6 * Math.sin(now / 9000);
-    const cx = map.W / 2, cz = map.H / 2;
+    // (In Advance, round the sector being fought for.)
+    const sec = match.type === 'adv' ? match.sectorNow() : null;
+    const cx = sec ? (sec.x0 + sec.x1) / 2 : map.W / 2, cz = map.H / 2;
     cam.eye[0] = cx + Math.cos(a) * r * 1.25;
     cam.eye[1] = 15 + 3 * Math.sin(now / 7000);
     cam.eye[2] = cz + Math.sin(a) * r * 0.85;
@@ -1054,7 +1111,7 @@ function showTitle() {
   $('sideSeg').innerHTML = ['Attack', 'Defend'].map((name, i) => `<button class="seg-btn${i === save.side ? ' on' : ''}" data-side="${i}">${name}</button>`).join('');
   $('limitRow').hidden = adv;
   $('sideRow').hidden = !adv;
-  $('tagLine').innerHTML = adv ? 'Advance &middot; take the yard a sector at a time &middot; 12 against 12' : 'Team deathmatch &middot; Foundry Yard &middot; 8 against 8';
+  $('tagLine').innerHTML = adv ? 'Advance &middot; the Long Works &middot; five sectors &middot; 12 against 12' : 'Team deathmatch &middot; Foundry Yard &middot; 8 against 8';
   $('modeSeg').innerHTML = MODES.map((m, i) => `<button class="seg-btn${i === save.mode ? ' on' : ''}" data-mode="${i}">${m.name}</button>`).join('');
   $('classPick').innerHTML = mode.classes.map((c, i) => classCard(c, i, i === save[clsKey(mode)], false)).join('');
   $('keysLine').innerHTML = (save.mode
@@ -1082,8 +1139,8 @@ $('typeSeg').addEventListener('click', (e) => {
   save.type = el.dataset.type;
   writeSave();
   sfx('tap');
-  attract();
   showTitle();
+  whenBuilt(save.type, attract);
 });
 $('sideSeg').addEventListener('click', (e) => {
   const el = e.target.closest('[data-side]');
@@ -1162,7 +1219,8 @@ function showHow() {
       <p><b>Scrap the haywire robots.</b> Every one your team scraps is a point; the first team to the target wins.</p>
       <p><b>W A S D</b> to move, the <b>mouse</b> to aim, <b>left button</b> to fire. Hold the <b>right button</b> to look down the sights: slower, but much more accurate.</p>
       <p><b>Shift</b> sprints, <b>C</b> crouches and <b>C</b> again stands (crouched you are steadier, and smaller), <b>Space</b> jumps onto crates. <b>R</b> reloads, <b>Q</b> or <b>1</b> and <b>2</b> swap to the pistol and back, <b>G</b> throws a grenade.</p>
-      <p><b>Advance</b> is attack and defence. The yard is three sectors, each with two objectives, A and B. The attackers take an objective by having more robots at it than the defenders, and take the sector by holding both at once; then the fight moves on to the next. Every attacker scrapped costs the attack one of its lives. Take all three sectors and the attack has won; run out of lives, or of time, and the defence has.</p>
+      <p><b>Advance</b> is attack and defence, on a map of its own: the Long Works, five arenas in a row. Each is a sector with two objectives, A and B. The attackers take an objective by having more robots at it than the defenders, and take the sector by holding both at once. Then everyone moves on: the defenders fall back to the next arena, and the fight starts again there.</p>
+      <p>The attack has three battalions. Every attacker scrapped costs the battalion one of its lives; when they are gone the next battalion takes up the attack, and the defenders have that sector back whole. Take all five sectors and the attack has won; lose all three battalions and the defence has. Keep to the sector being fought for: stray out of it for six seconds and you are scrapped.</p>
       <p><b>Old Iron</b> is the same match with no guns. The <b>left button</b> swings; with a bow, hold it to draw and let go to loose, aiming a little high for the drop. The <b>right button</b> raises the Knight's shield, throws a pike, hatchet or knife, or looks closer down the bow. <b>G</b> throws a fire pot that bursts where it lands, and <b>Q</b> draws your dagger.</p>
       <p><b>Head shots</b> do more. Your plating mends itself when nothing has hit you for a few seconds, so get behind something.</p>
       <p>The <b>radar</b> shows your team in blue, and the others in red wherever one was last seen or heard. Hold <b>Tab</b> for the scores, press <b>F</b> to fill the screen, and <b>Esc</b> to pause.</p>
