@@ -117,6 +117,26 @@ const BURN = 16;
 
 // ---- the pieces ------------------------------------------------------------------------
 
+// Who is on the sea wall, the first time and the times after (see soulSeaWall).
+const WALL = [
+  { him: 'her', tea: 'a cup of tea', text: 'A young woman is sitting on the sea wall in the drizzle, crying the way people do when they think nobody is looking.',
+    sit: 'She does not say much and you do not ask. After a while she says thank you, and goes home.',
+    meet: (L) => ({ sex: 'f', age: L.int(20, 32) }), met: (n) => `A broken engagement, and a long way from home. By the second pot her name is ${n}, and she is laughing at something Betty said.`,
+    betty: 'A broken engagement, and a long way from home. Betty brings cake that nobody ordered.',
+    quiet: 'Twenty minutes of company without a word. When she gets up she nods to you, as if you had agreed something.', leave: 'You think about her on and off all week.' },
+  { him: 'him', tea: 'a cup of tea', text: 'An old man in a good coat is sitting on the sea wall with a wreath on his knees, looking at the water as if he were waiting for it to say something.',
+    sit: 'His brother went down with a trawler forty years ago today, off the Head. When he has told you about him, he drops the wreath in, and shakes your hand, and walks home.',
+    meet: (L) => ({ sex: 'm', age: L.int(70, 84) }), met: (n) => `His brother went down with a trawler forty years ago today. By the second pot he is ${n} to you, and asking whether you play dominoes.`,
+    betty: 'His brother went down with a trawler forty years ago today. Betty knew him, it turns out, and sits down with you both, which she never does.',
+    quiet: 'You sit at the other end of the wall until he drops the wreath in. On his way past he touches his hat to you.', leave: 'When you look back from the end of the front, the wreath is in the water and he is gone.' },
+  { him: 'him', tea: 'a fried-egg sandwich', text: 'A boy of about fifteen is sitting on the sea wall in his school uniform at eleven in the morning, feeding chips to the gulls one at a time.',
+    sit: 'Exams, a father who shouts, and a girl called Kayleigh. By the end he has run out of chips and you have run out of advice, and he goes back to school, which is something.',
+    meet: null, met: () => '',
+    betty: 'Betty takes one look at him and brings a fried-egg sandwich and a lecture, in that order. He goes back to school with the sandwich inside him and the lecture, mostly, too.',
+    quiet: 'You sit and feed a chip or two to the gulls yourself. When the school bell goes up the hill, he gets up, and so do you.', leave: 'He is still there when you come back along the front at teatime, and the gulls are still interested.' },
+];
+const wall = (x) => WALL[(x && x.v) || 0] || WALL[0];
+
 const he = (p) => (p.sex === 'm' ? 'he' : 'she');
 const him = (p) => (p.sex === 'm' ? 'him' : 'her');
 const his = (p) => (p.sex === 'm' ? 'his' : 'her');
@@ -870,13 +890,15 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       ],
     },
     {
+      // (Somebody different each time it comes round: x.v, by how often it has been seen. See WALL.)
       id: 'soulSeaWall', icon: '🌊', title: 'Somebody on the sea wall', w: 2, cd: 20,
-      text: 'A young woman is sitting on the sea wall in the drizzle, crying the way people do when they think nobody is looking.',
+      ctx: (L) => ({ v: (L.s.seen.soulSeaWall || 0) % WALL.length }),
+      text: (L, x) => wall(x).text,
       opts: [
-        { t: 'Sit with her a while', run(L) { L.karma(2); L.joy(1); return 'She does not say much and you do not ask. After a while she says thank you, and goes home.'; } },
-        { t: ic('kind', 'Take her to Betty’s for a cup of tea, and listen'), show: tr('kind'), cost: 5, run(L) { L.karma(3); L.joy(4); const p = L.chance(0.4) && L.friends().length < 20 ? L.meet({ sex: 'f', age: L.int(20, 32) }) : null; return p ? `A broken engagement, and a long way from home. By the second pot her name is ${p.name}, and she is laughing at something Betty said.` : 'A broken engagement, and a long way from home. Betty brings cake that nobody ordered.'; } },
-        { t: ic('loner', 'Sit nearby, say nothing, and stay'), show: tr('loner'), run(L) { L.karma(1.5); L.joy(2); return 'Twenty minutes of company without a word. When she gets up she nods to you, as if you had agreed something.'; } },
-        { t: 'Leave her be', run(L) { L.joy(-1); return 'You think about her on and off all week.'; } },
+        { t: (L, x) => `Sit with ${wall(x).him} a while`, run(L, x) { L.karma(2); L.joy(1); return wall(x).sit; } },
+        { t: (L, x) => ic('kind', `Take ${wall(x).him} to Betty’s for ${wall(x).tea}, and listen`), show: tr('kind'), cost: 5, run(L, x) { const w = wall(x); L.karma(3); L.joy(4); const p = w.meet && L.chance(0.4) && L.friends().length < 20 ? L.meet(w.meet(L)) : null; return p ? w.met(p.name) : w.betty; } },
+        { t: ic('loner', 'Sit nearby, say nothing, and stay'), show: tr('loner'), run(L, x) { L.karma(1.5); L.joy(2); return wall(x).quiet; } },
+        { t: (L, x) => `Leave ${wall(x).him} be`, run(L, x) { L.joy(-1); return wall(x).leave; } },
       ],
     },
     {

@@ -37,6 +37,8 @@ export const GOODS = {
   jam: { name: 'Jam', icon: '🍓', one: 'jar of jam', many: 'jars of jam', price: 30, want: 26, rate: [1, 0.9, 1.1, 1.25], dem: [0.9, 0.9, 1.1, 1.3] },
   cheese: { name: 'Goat’s cheese', icon: '🧀', one: 'goat’s cheese', many: 'goat’s cheeses', price: 55, want: 11, rate: [1, 1.05, 1, 1.2], dem: [1, 1, 1, 1.2] },
   bric: { name: 'Bric-a-brac', icon: '🕰️', one: 'piece of bric-a-brac', many: 'pieces of bric-a-brac', price: 36, want: 8, rate: [1, 1.1, 1, 1.1], dem: [1, 1.2, 1, 1] },
+  // (Made in winter, from the holly and ivy in Tom's hedges: something to sell when the hens are off lay.)
+  wreath: { name: 'Holly wreaths', icon: '🌿', one: 'holly wreath', many: 'holly wreaths', price: 30, want: 16, fresh: true, rate: [0.6, 0.6, 0.8, 1.15], dem: [0.2, 0.1, 0.4, 1.4] },
   // (Pictures are the ones you paint in the park, also sold at the studios. Nobody at a
   // Saturday market pays gallery prices, so the price here has a ceiling.)
   art: { name: 'Paintings', icon: '🖼️', one: 'painting', many: 'paintings', price: 0, want: 1, rate: [1, 1.3, 0.9, 1.1], dem: [1, 1.4, 0.9, 1] },
@@ -77,11 +79,15 @@ export const BEASTS = {
   pig: { name: 'Pig', one: 'pig', many: 'pigs', keep: 'a pig', icon: '🐖', skill: 45, price: 220, buy: 1, back: 0, feed: 160, makes: null, lay: [0, 0, 0, 0], blurb: 'A weaner to fatten. Worth more each season it is well kept, and it digs the allotment over for you.' },
 };
 // What each home has room for. A hostel bunk and a bedsit have none; a
+// room at Mrs Pargeter's has a corner of her garden for a few hens; a
 // flat can keep a hive on the roof; anywhere with a garden, hens.
-export const ROOM = { flat: { bees: 1 }, cottage: { hens: 6, bees: 2 }, townhouse: { hens: 8, bees: 2 }, villa: { hens: 12, bees: 3, goat: 2 }, manor: { hens: 20, bees: 4, goat: 3, pig: 1 } };
-// Tom will keep a goat or a pig in his top paddock for you, once he trusts you to.
-export const PADDOCK = { goat: 2, pig: 1 };
+export const ROOM = { room: { hens: 3 }, flat: { bees: 1 }, cottage: { hens: 6, bees: 2 }, townhouse: { hens: 8, bees: 2 }, villa: { hens: 12, bees: 3, goat: 2 }, manor: { hens: 20, bees: 4, goat: 3, pig: 1 } };
+// Tom will keep a goat or a pig in his top paddock for you, once he trusts you to; and a few hens
+// in the corner of his yard as soon as he will sell you any, for a little towards their corn.
+export const PADDOCK = { hens: 6, goat: 2, pig: 1 };
 export const PADDOCK_SKILL = 40, PADDOCK_FEE = 90;
+export const paddockSkill = (kind) => (kind === 'hens' ? BEASTS.hens.skill : PADDOCK_SKILL);
+export const grazeFee = (kind) => (kind === 'hens' ? 10 : PADDOCK_FEE);
 // A pig is grown after this many seasons, and Tom takes it to market.
 export const PIG_GROWN = 6;
 
@@ -187,6 +193,7 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
       if (was < b.skill && m.farm >= b.skill) { L.note(`Tom Windle reckons you know enough to keep ${b.keep} now.`); L.say(b.icon, `Tom will sell you ${b.keep} now`, 'good'); }
     }
     if (was < PADDOCK_SKILL && m.farm >= PADDOCK_SKILL) L.note('Tom Windle says you can keep a goat or a pig in his top paddock, if you have no room at home.');
+    if (was < BEASTS.hens.skill && m.farm >= BEASTS.hens.skill && !ROOM[L.s.home]) L.note('Tom Windle says a few hens could go in the corner of his yard, if you have nowhere to keep them.');
   };
   const addStock = (L, g, n, q) => {
     if (!(n > 0)) return;
@@ -207,7 +214,7 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
     // ---- the animals ----
     // Room at home for a kind of animal, and room for it all told (home, or Tom's paddock).
     mktRoom(kind) { return (ROOM[this.s.home] || {})[kind] || 0; },
-    mktPaddock(kind) { return this.s.mkt.farm >= PADDOCK_SKILL ? PADDOCK[kind] || 0 : 0; },
+    mktPaddock(kind) { return this.s.mkt.farm >= paddockSkill(kind) ? PADDOCK[kind] || 0 : 0; },
     // Where more of a kind would go: with the rest of them, or at home if there is room, or up at Tom's.
     mktWhere(kind) {
       const h = this.s.mkt.herd[kind];
@@ -227,7 +234,7 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
       const herd = this.s.mkt.herd;
       return Math.round(Object.keys(herd).reduce((a, k) => a + BEASTS[k].feed * herd[k].n, 0) * (this.season === 3 ? 1.3 : 1));
     },
-    mktGraze() { const herd = this.s.mkt.herd; return Object.keys(herd).reduce((a, k) => a + (herd[k].where === 'farm' ? PADDOCK_FEE * herd[k].n : 0), 0); },
+    mktGraze() { const herd = this.s.mkt.herd; return Object.keys(herd).reduce((a, k) => a + (herd[k].where === 'farm' ? grazeFee(k) * herd[k].n : 0), 0); },
     mktKinds() { return Object.keys(this.s.mkt.herd); },
     mktHasReady() { const r = this.s.mkt.ready; return Object.keys(r).some((g) => r[g].n > 0); },
     // Animals your home has no room for go up to Tom's paddock, if he will
@@ -239,9 +246,12 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
         if (h.where !== 'home') continue;
         const room = this.mktRoom(kind);
         if (h.n <= room) continue;
-        if (!room && this.mktPaddock(kind) >= h.n) { h.where = 'farm'; said.push(`your ${h.n === 1 ? b.one : b.many} went up to Tom’s top paddock`); continue; }
-        const go = h.n - room, pay = this.mktBack(kind) * go;
-        h.n = room;
+        // (As many as Tom has room for go up to him; the rest he buys back.)
+        const up = room ? 0 : Math.min(h.n, this.mktPaddock(kind));
+        if (up) { h.where = 'farm'; said.push(`${up === h.n ? 'your' : `${up} of your`} ${up === 1 ? b.one : b.many} went up to Tom’s ${kind === 'hens' ? 'yard' : 'top paddock'}`); }
+        const keep = up || room, go = h.n - keep, pay = this.mktBack(kind) * go;
+        if (!go) continue;
+        h.n = keep;
         if (!h.n) delete m.herd[kind];
         if (pay) this.cash(pay);
         said.push(`${sayMany(b, go)} went back to Tom Windle${pay ? ` for ${money(pay)}` : ''}`);
@@ -486,7 +496,7 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
       const b = BEASTS[kind], m = L.s.mkt;
       if (!b) return 'No such animal.';
       if (m.farm < b.skill) return `Tom will not sell you ${b.many} until you know what you are doing (Farming ${b.skill}).`;
-      if (!L.mktWhere(kind)) return PADDOCK[kind] ? `No room at home, and Tom’s paddock is for people he trusts (Farming ${PADDOCK_SKILL}).` : L.s.home === 'hostel' ? 'Not in a hostel bunk.' : 'Your home has no room for them.';
+      if (!L.mktWhere(kind)) return PADDOCK[kind] ? `No room at home, and Tom’s paddock is for people he trusts (Farming ${paddockSkill(kind)}).` : L.s.home === 'hostel' ? 'Not in a hostel bunk.' : 'Your home has no room for them.';
       return L.mktBuyN(kind) > 0 ? null : 'No room for any more.';
     },
     run(L, kind) {
@@ -494,11 +504,11 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
       if (h) h.n += n;
       else {
         m.herd[kind] = { n, care: 70, where, age: 0, fat: 0, since: s.t };
-        L.note(`Bought ${sayMany(b, n)} from Tom Windle${where === 'farm' ? ', kept in his top paddock' : ''}.`);
+        L.note(`Bought ${sayMany(b, n)} from Tom Windle${where === 'farm' ? (kind === 'hens' ? ', kept in the corner of his yard' : ', kept in his top paddock') : ''}.`);
       }
       L.joy(4);
       const said = { hens: '“Three good layers,” says Tom, putting them in a cardboard box with holes in. “Grit, water, and shut them in at night. Foxes.”', bees: 'Tom brings the hive down on the back of the quad bike, very slowly, in a veil. “They’re calm,” he says. “Mostly.”', goat: '“She’ll eat your washing,” says Tom. “And your hedge. And your letters.” The goat looks at you as if it is all true.', pig: 'A weaner, pink and furious, in a sack. “Don’t name it,” says Tom. You name it.' }[kind];
-      return `${said}${where === 'farm' ? ' It stays in Tom’s top paddock.' : ''}`;
+      return `${said}${where === 'farm' ? (kind === 'hens' ? ' They live in the corner of Tom’s yard, with his, and you can tell yours apart. Mostly.' : ' It stays in Tom’s top paddock.') : ''}`;
     },
   });
   def('beastSell', {
@@ -548,32 +558,81 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
 
   const kitchen = (L) => (L.s.home === 'hostel' ? 'The hostel kitchen is a kettle.' : null);
   const made = (L, base) => clamp(Math.round((0.2 + L.s.st.craft / 110 + L.rnd() * 0.15 + (base || 0)) * 100) / 100, 0.1, 1);
+  // Jam and baking can be done in somebody else's kitchen as well as your own (Tom's farmhouse, the
+  // church hall), but twice a season of each is all there is time and fruit for, wherever it is done.
+  const JAMS = ['mktJam', 'mktJamFarm', 'mktJamHall'], BAKES = ['mktBake', 'mktBakeFarm', 'mktBakeHall'];
+  const twice = (ids, what) => (L) => (ids.reduce((a, id) => a + (L.s.use[id] || 0), 0) >= 2 ? `Twice a season is plenty of ${what}.` : null);
+  const jamCost = (L) => (L.season === 2 ? 30 : 90);
+  const jamDesc = (L) => `About ${Math.round(JAM_BATCH * (0.85 + L.s.st.craft / 400))} jars, which keep. ${L.season === 2 ? 'Blackberries from the hedges, so only sugar and jars to buy.' : 'Fruit from the greengrocer; it is cheaper in autumn.'} Craft.`;
+  const jam = (L, said) => {
+    const n = Math.round(JAM_BATCH * (0.85 + L.s.st.craft / 400)), q = made(L);
+    addStock(L, 'jam', n, q);
+    L.gain('craft', 1.2); L.joy(1); L.s.mkt.n.made++;
+    return `${L.pick(said)} ${n} jars.`;
+  };
+  const bakeCost = (L) => ((L.s.mkt.stock.eggs || { n: 0 }).n >= 2 ? 45 : 70);
+  const bakeDesc = (L) => `About ${Math.round(BAKE_BATCH * (0.85 + L.s.st.craft / 400))} cakes, to sell this season: they do not keep.${(L.s.mkt.stock.eggs || { n: 0 }).n >= 2 ? ' Uses two boxes of your own eggs.' : ''} Craft.`;
+  const bake = (L, said) => {
+    const m = L.s.mkt, own = (m.stock.eggs || { n: 0 }).n >= 2;
+    if (own) take(L, 'eggs', 2);
+    const n = Math.round(BAKE_BATCH * (0.85 + L.s.st.craft / 400)), q = made(L, own ? 0.05 : 0);
+    addStock(L, 'cake', n, q);
+    L.gain('craft', 1.2); L.joy(1.5); m.n.made++;
+    return `${L.pick(said)} ${n} cakes.`;
+  };
   def('mktJam', {
     place: 'home', sec: 'Making for the stall', icon: '🍓', title: 'Make jam', per: 2,
     // (In autumn the hedges are full of blackberries, for nothing.)
-    cost: (L) => (L.season === 2 ? 30 : 90),
-    desc: (L) => `About ${Math.round(JAM_BATCH * (0.85 + L.s.st.craft / 400))} jars, which keep. ${L.season === 2 ? 'Blackberries from the hedges, so only sugar and jars to buy.' : 'Fruit from the greengrocer; it is cheaper in autumn.'} Craft.`,
-    why: kitchen,
-    run(L) {
-      const n = Math.round(JAM_BATCH * (0.85 + L.s.st.craft / 400)), q = made(L);
-      addStock(L, 'jam', n, q);
-      L.gain('craft', 1.2); L.joy(1); L.s.mkt.n.made++;
-      return `${L.pick(['The kitchen smells of hot sugar for a week.', 'You do the cold saucer test four times and it sets on the fifth.', 'Every surface is sticky, including the cat.', 'A row of jars on the windowsill, glowing like stained glass.'])} ${n} jars.`;
-    },
+    cost: jamCost, desc: jamDesc,
+    why: (L) => kitchen(L) || twice(JAMS, 'jam')(L),
+    run: (L) => jam(L, ['The kitchen smells of hot sugar for a week.', 'You do the cold saucer test four times and it sets on the fifth.', 'Every surface is sticky, including the cat.', 'A row of jars on the windowsill, glowing like stained glass.']),
   });
   def('mktBake', {
     place: 'home', sec: 'Making for the stall', icon: '🍰', title: 'Bake for the stall', per: 2,
     // (Your own eggs make it cheaper.)
-    cost: (L) => ((L.s.mkt.stock.eggs || { n: 0 }).n >= 2 ? 45 : 70),
-    desc: (L) => `About ${Math.round(BAKE_BATCH * (0.85 + L.s.st.craft / 400))} cakes, to sell this season: they do not keep.${(L.s.mkt.stock.eggs || { n: 0 }).n >= 2 ? ' Uses two boxes of your own eggs.' : ''} Craft.`,
-    why: kitchen,
+    cost: bakeCost, desc: bakeDesc,
+    why: (L) => kitchen(L) || twice(BAKES, 'baking')(L),
+    run: (L) => bake(L, ['Victoria sponges, a lemon drizzle and a tray of flapjack.', 'One of them sinks in the middle. You fill the hole with cream and call it a feature.', 'You lick every bowl. It is the law.']),
+  });
+  // Tom's farmhouse kitchen, for those who have worked for him: a little for the gas, and a jar for Tom.
+  const FARM_FEE = 20, HALL_FEE = 15;
+  const tomKnows = (L) => (L.s.mkt.days < 1 ? 'Tom lets the people who work for him use the farmhouse. Do a day on the farm first.' : null);
+  def('mktJamFarm', {
+    place: 'farm', sec: 'Making for the stall', icon: '🍓', title: 'Make jam in Tom’s kitchen', per: 2,
+    cost: (L) => jamCost(L) + FARM_FEE, desc: (L) => `${jamDesc(L)} ${money(FARM_FEE)} to Tom for the gas, and he will want a jar.`,
+    why: (L) => tomKnows(L) || twice(JAMS, 'jam')(L),
+    run: (L) => jam(L, ['Tom’s range is older than Tom, and twice as hot. The jam sets first time.', 'Tom comes in for his tea halfway through, tastes it off the spoon, and says nothing, which means yes.', 'Margaret the cow puts her head over the yard gate to see what the smell is.']),
+  });
+  def('mktBakeFarm', {
+    place: 'farm', sec: 'Making for the stall', icon: '🍰', title: 'Bake in Tom’s kitchen', per: 2,
+    cost: (L) => bakeCost(L) + FARM_FEE, desc: (L) => `${bakeDesc(L)} ${money(FARM_FEE)} to Tom for the gas, and he will want a slice.`,
+    why: (L) => tomKnows(L) || twice(BAKES, 'baking')(L),
+    run: (L) => bake(L, ['The farmhouse oven has one hot corner and one cold one. You learn which is which.', 'Tom eats the one that sank, standing up, and says it would be a waste not to.', 'A tray of rock cakes and a tray of scones, cooling on the windowsill where the dog cannot reach. Nearly.']),
+  });
+  // The church hall kitchen, between the Brownies and the choir: something in the roof fund tin.
+  def('mktJamHall', {
+    place: 'church', sec: 'The church hall kitchen', icon: '🍓', title: 'Make jam in the church hall', per: 2,
+    cost: (L) => jamCost(L) + HALL_FEE, desc: (L) => `${jamDesc(L)} ${money(HALL_FEE)} in the roof fund tin for the use of it.`,
+    why: twice(JAMS, 'jam'),
+    run: (L) => jam(L, ['The Mothers’ Union has left a note about the urn. You read it twice and touch nothing.', 'The church hall kitchen has twelve saucepans and one lid. It is enough.', 'The Reverend Hollis drifts in, tastes it, and asks if you would do a dozen jars for the fête.']),
+  });
+  def('mktBakeHall', {
+    place: 'church', sec: 'The church hall kitchen', icon: '🍰', title: 'Bake in the church hall', per: 2,
+    cost: (L) => bakeCost(L) + HALL_FEE, desc: (L) => `${bakeDesc(L)} ${money(HALL_FEE)} in the roof fund tin for the use of it.`,
+    why: twice(BAKES, 'baking'),
+    run: (L) => bake(L, ['A big oven, a long table and the smell of floor polish. You bake enough for a siege.', 'The Brownies come in for their meeting and are given a cake to share. It does not last.', 'The hall’s oven has a dial with no numbers on it. You go by smell, and it works.']),
+  });
+  // Holly and ivy from Tom's hedges, for wreaths to sell on the square in winter.
+  def('mktWreath', {
+    place: 'farm', sec: 'Making for the stall', icon: '🌿', title: 'Make holly wreaths', per: 1, cost: 25,
+    desc: (L) => `Tom lets you cut holly and ivy from his hedges. About ${Math.round(8 + L.s.st.craft / 10)} wreaths, to sell on the square this winter. Wire and ribbon to buy. Craft.`,
+    show: (L) => L.season === 3,
+    why: tomKnows,
     run(L) {
-      const m = L.s.mkt, own = (m.stock.eggs || { n: 0 }).n >= 2;
-      if (own) take(L, 'eggs', 2);
-      const n = Math.round(BAKE_BATCH * (0.85 + L.s.st.craft / 400)), q = made(L, own ? 0.05 : 0);
-      addStock(L, 'cake', n, q);
-      L.gain('craft', 1.2); L.joy(1.5); m.n.made++;
-      return `${L.pick(['Victoria sponges, a lemon drizzle and a tray of flapjack.', 'One of them sinks in the middle. You fill the hole with cream and call it a feature.', 'You lick every bowl. It is the law.'])} ${n} cakes.`;
+      const n = Math.round(8 + L.s.st.craft / 10), q = made(L, 0.05);
+      addStock(L, 'wreath', n, q);
+      L.gain('craft', 1.2); L.joy(1.5); farmUp(L, 0.3); L.s.mkt.n.made++;
+      return `${L.pick(['Gloves, secateurs and a barn with the doors open on the frost. Your fingers are scratched to ribbons, and the wreaths are lovely.', 'Holly, ivy, a few fir cones and a red bow each. Tom says his mother used to do them, and goes quiet.', 'The barn smells of Christmas and cows, in about equal parts.'])} ${n} wreaths.`;
     },
   });
   def('mktCheese', {

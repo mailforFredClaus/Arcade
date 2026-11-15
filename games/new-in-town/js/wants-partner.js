@@ -36,6 +36,16 @@ const earn = (r, k, n, until) => { r.inc = r.inc || {}; r.inc[k] = { n, until };
 const sup = (a, d) => { a.sup = (a.sup || 0) + d; };
 const sore = (r, d) => { r.sore = Math.max(0, (r.sore || 0) + d); };
 const kidsLine = (L, t) => (young(L, 12).length ? ` ${t}` : '');
+// The anniversary dinner at the good restaurant, a different evening each year (f: their first name).
+const ANNIV_DINNER = [
+  () => 'A table by the window, the band plays your song, and the waiter gives you the last of the pudding for nothing.',
+  () => 'You dance in the restaurant, between the tables, and nobody minds.',
+  () => 'Three courses, two hours, and not one word about work.',
+  (f) => `The table in the corner this year, under the picture of the lifeboat. ${f} orders the thing you always order, to see your face.`,
+  (f) => `The restaurant has changed hands, and the new people do not know your song. ${f} hums it instead, badly, all through the pudding.`,
+  (f) => `A power cut halfway through the main course. The whole room eats by candlelight, and ${f} says it is the best one yet.`,
+  (f) => `You talk about the wedding: who was there, who is not now, the uncle and the trifle. ${f} remembers it better than you, and you let ${f} tell it.`,
+];
 // Ending things, as the card that does it says so. The one who strayed takes less: the judge sees to that.
 function leave(L, p, theirFault) {
   const s = L.s, had = s.cash + s.bank;
@@ -323,6 +333,7 @@ export const PARTNER_CARDS = [
   },
 
   // ---- anniversaries ----
+  // (The dinner, a different evening each year: by the year, so that no two in a row are alike.)
   {
     id: 'wantsAnniv', icon: '💐', ok: (L, x) => mine(L, x) && P(L, x).kind === 'spouse',
     title: (L, x) => (MILESTONES[x.y] ? `${cap(MILESTONES[x.y])}` : `${ORD(x.y)} anniversary`),
@@ -336,7 +347,7 @@ export const PARTNER_CARDS = [
       ][x.y % 3] + (x.y >= 25 ? ' Half the town seems to know about it already.' : '');
     },
     opts: [
-      { t: 'The good restaurant, and the song from the wedding', cost: (L, x) => price(L, MILESTONES[x.y] ? 500 : 250), run(L, x) { const p = P(L, x); L.bond(p, MILESTONES[x.y] ? 12 : 8); L.joy(5); return L.pick(['A table by the window, the band plays your song, and the waiter gives you the last of the pudding for nothing.', 'You dance in the restaurant, between the tables, and nobody minds.', 'Three courses, two hours, and not one word about work.']); } },
+      { t: 'The good restaurant, and the song from the wedding', cost: (L, x) => price(L, MILESTONES[x.y] ? 500 : 250), run(L, x) { const p = P(L, x); L.bond(p, MILESTONES[x.y] ? 12 : 8); L.joy(5); return ANNIV_DINNER[x.y % ANNIV_DINNER.length](first(p)); } },
       { t: 'Make something by hand', check: ['craft', 40], run(L, x, win) { const p = P(L, x); if (win) { L.bond(p, 12); L.joy(3); return L.pick([`${first(p)} cries, and puts it on the mantelpiece, where it stays.`, `A little box of driftwood with your initials burnt into the lid. ${first(p)} keeps the letters in it.`, `A frame, made from the wood of the old garden bench, round the wedding photograph. ${first(p)} cannot speak for a minute.`]); } L.bond(p, 3); return L.pick(['It is the thought that counts, you are told, kindly.', 'It is meant to be a bird. Everybody agrees it is very nearly a bird.', `It falls apart on the table. ${first(p)} laughs until ${he(p)} cries, which is a present of a kind.`]); } },
       { t: 'A walk to where you first met', run(L, x) { const p = P(L, x); L.bond(p, 6); L.joy(3); L.gain('fitness', 0.5); return L.pick(['It has become a phone shop. You stand outside it holding hands anyway.', 'The bench is still there. So, it turns out, are your initials.', 'You argue about where exactly it was, and both enjoy it very much.']); } },
       { t: 'Renew your vows at St Brigid’s', show: (L, x) => x.y >= 25, cost: (L) => price(L, 1500), run(L, x) { const p = P(L, x); L.bond(p, 15); L.joy(12); been(L, p, `Renewed your vows after ${x.y} years.`); return 'The Reverend Hollis reads the service with her glasses on her head, looking for them. Your old friends fill the front pews, older, and the bells ring as if you were twenty-five.'; } },
@@ -460,7 +471,7 @@ export const PARTNER_CARDS = [
     opts: [
       { t: 'Sit on the stairs with them', run(L, x) { const p = P(L, x); L.bond(p, 8); been(L, p, `Sat with ${first(p)} the day ${x.name} died.`); return inherit(L, p, x, `You sit there until it gets dark, and nobody turns the light on.`); } },
       { t: 'Take on the arrangements', run(L, x) { const p = P(L, x); busy(L, 2); L.bond(p, 10); L.karma(1); been(L, p, `Saw to everything when ${x.name} died.`); return inherit(L, p, x, 'The undertaker, the vicar, the flowers, the sandwiches, the cousins. You do all of it, so that all ' + first(p) + ' has to do is be sad.'); } },
-      { t: 'Keep things going at home', run(L, x) { const p = P(L, x); L.bond(p, 3); return inherit(L, p, x, 'Meals on the table, the bins out, the children fed. It is not nothing, though it feels like it.'); } },
+      { t: 'Keep things going at home', run(L, x) { const p = P(L, x); L.bond(p, 3); return inherit(L, p, x, `Meals on the table, the bins out, ${L.kids().some((k) => k.age < 18) ? 'the children fed' : L.s.pet ? `${L.s.pet.name} fed` : 'the post opened'}. It is not nothing, though it feels like it.`); } },
     ],
   },
 
@@ -526,5 +537,5 @@ function inherit(L, p, x, said) {
   if (!i || i.left > 0) return said;
   const n = Math.round((1500 + i.w * 60) / 100) * 100;
   L.cash(n);
-  return `${said} When the will is read, there is ${money(n)} for the two of you, "for the children, or the roof".`;
+  return `${said} When the will is read, there is ${money(n)} for the two of you, "${L.kids().length ? 'for the children, or the roof' : L.s.owned ? 'for the roof, or a rainy day' : 'for a rainy day'}".`;
 }

@@ -46,7 +46,7 @@
 
 import { TROPHIES, HOMES, money } from './data.js';
 import {
-  clamp, first, he, him, his, P, isLove, rec, been, price, fee, young, spareRooms,
+  clamp, first, he, him, his, P, isLove, rec, been, price, fee, care, young, spareRooms,
   AMBITIONS, BANDS, INSTRUMENTS, BOATS, SHOPS, PREMISES, HOPES, PATHS, CARE, MILESTONES, EXAM,
 } from './wants-lib.js';
 import { PARTNER_CARDS } from './wants-partner.js';
@@ -87,8 +87,10 @@ function draw(L, p, r) {
   const a = pick();
   w[a] = 0;
   const b = pick();
-  r.band = L.pick(BANDS); r.inst = L.pick(INSTRUMENTS); r.boat = L.pick(BOATS); const sh = SHOPS[p.trait] || SHOPS.kind;
-  r.shop = { a: sh.a, job: sh.job, sign: L.pick(sh.signs), where: L.pick(PREMISES) };
+  // (Never a band, a boat, a shop or a shopfront the family has had in the town before: chapGiveName in chapters.js.)
+  const nm = (kind, list) => (L.chapGiveName ? L.chapGiveName(kind, list) : L.pick(list));
+  r.band = nm('band', BANDS); r.inst = L.pick(INSTRUMENTS); r.boat = nm('boat', BOATS); const sh = SHOPS[p.trait] || SHOPS.kind;
+  r.shop = { a: sh.a, job: sh.job, sign: nm('shop', sh.signs), where: nm('where', PREMISES) };
   return [{ id: a, st: 0, at: s.t + L.int(4, 10), sup: 0, out: null }, { id: b, st: 0, at: null, sup: 0, out: null }];
 }
 // The parents of the person you are with.
@@ -615,7 +617,7 @@ export function install({ A, Life, hooks, addEvents }) {
       const R = W.p[q.id];
       if (!R) continue;
       if (q.kind === 'parent' && R.care && CARE[R.care].cost) {
-        const n = fee(L, CARE[R.care].cost) / (R.care !== 'with' && halves(L) ? 2 : 1);
+        const n = care(L, CARE[R.care].cost) / (R.care !== 'with' && halves(L) ? 2 : 1);
         out.push([{ carer: `A carer for ${first(q)}`, home: `Seaview House, for ${first(q)}`, with: `${first(q)}’s keep` }[R.care] + (R.care !== 'with' && halves(L) ? ' (your half)' : ''), Math.round(n)]);
       }
       if (q.kind === 'child' && q.age < 5 && R.care === 'nursery') out.push([`Bayview Nursery, for ${first(q)}`, fee(L, 600)]);

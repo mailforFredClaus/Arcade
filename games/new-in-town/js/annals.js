@@ -331,9 +331,10 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
     },
     // "spring, year 12": when a season falls.
     // (Before this life began, as an heir's town remembers it: "autumn, 12 years ago".)
+    // (The year runs on through a family, from the year the first of it came: see yearOf in engine.js.)
     annalsWhen(t) {
-      const q = SEASONS[((t % 4) + 4) % 4].toLowerCase();
-      if (t >= 0) return `${q}, year ${Math.floor(t / 4) + 1}`;
+      const q = SEASONS[((t % 4) + 4) % 4].toLowerCase(), y = this.yearOf ? this.yearOf(t) : Math.floor(t / 4) + 1;
+      if (t >= 0 || (this.s.y0 > 0 && y >= 1)) return `${q}, year ${y}`;
       const n = Math.max(1, Math.round((this.s.t - t) / 4));
       return `${q}, ${n === 1 ? 'a year' : `${n} years`} ago`;
     },
@@ -1349,7 +1350,7 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
       id: 'anFilm', icon: '🎬', title: 'The Wreckers of Starling Cove', ok: (L) => !L.s.gaol && !!ev(L, 'film') && !ev(L, 'film').aired,
       text: (L) => `The film crew has set up in the harbour car park: a catering van, three caravans and a man with a megaphone. They want extras${L.s.age >= 55 ? ', and are especially keen on weathered faces' : ''}, and somewhere to put the leading lady.`,
       opts: [
-        { t: 'Queue up to be an extra', check: ['charm', 40], run(L, x, win) { if (win) { ev(L, 'film').part = 1; L.cash(1200); L.fame(2); L.joy(6); L.s.time = Math.max(0, L.s.time - 1); return `Three weeks in a ${L.s.sex === 'f' ? 'bonnet' : 'tricorn hat'}, as ${L.pick(['Villager Four', 'A Wrecker (Background)', 'Woman With Basket', 'Drunk Man At Inn'])}. You are paid ${money(1200)} and fed far too much.`; } return 'They look at you, and at the next person, and take the next person. "Lovely face," says the woman with the clipboard. "Wrong century."'; } },
+        { t: 'Queue up to be an extra', check: ['charm', 40], run(L, x, win) { if (win) { ev(L, 'film').part = 1; L.cash(1200); L.fame(2); L.joy(6); L.s.time = Math.max(0, L.s.time - 1); return `Three weeks in a ${L.s.sex === 'f' ? 'bonnet' : 'tricorn hat'}, as ${L.pick(L.s.sex === 'f' ? ['Villager Four', 'A Wrecker’s Wife (Background)', 'Woman With Basket', 'Fishwife, Shouting'] : ['Villager Four', 'A Wrecker (Background)', 'Man With Lantern', 'Drunk Man At Inn'])}. You are paid ${money(1200)} and fed far too much.`; } return 'They look at you, and at the next person, and take the next person. "Lovely face," says the woman with the clipboard. "Wrong century."'; } },
         { t: 'Let them film in your home', show: (L) => !!L.s.owned && ['cottage', 'townhouse', 'villa', 'manor'].includes(L.s.home), run(L) { L.cash(3000); L.joy(2); return 'Your front room is a smugglers’ den for a week. They pay $3,000, leave a chandelier, and take your cat’s favourite chair, which they say is "very period".'; } },
         { t: 'Cater for the crew', show: (L) => !!L.s.biz && L.s.biz.type === 'food', run(L) { const n = round10(L.bizTake() * 1.5); L.cash(n); L.s.n.earned += n; L.s.time = Math.max(0, L.s.time - 1); return `Bacon rolls at five in the morning for sixty people, every day for a month. ${money(n)}, and the leading man asks for your recipe.`; } },
         { t: 'Watch from the sea wall', run(L) { L.joy(2); return 'You watch them film the same shipwreck eleven times. On the twelfth, a gull walks through it, and that is the one they use.'; } },
@@ -1546,8 +1547,10 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
   // A year worth telling the young about.
   function memory(L) {
     const s = L.s, an = s.annals, out = [];
-    for (const [id, e] of Object.entries(an.ev)) if (LIVED[id] && e.t >= 0 && s.t - e.t >= 40) out.push({ a: s.age - Math.floor((s.t - e.t) / 4), h: typeof LIVED[id] === 'function' ? LIVED[id](L) : LIVED[id] });
-    for (const id of ['lido', 'bypass', 'barrier']) if (an.built[id] != null && s.t - an.built[id] >= 40) out.push({ a: s.age - Math.floor((s.t - an.built[id]) / 4), h: LIVED[id] });
+    // (Only what this life saw: since it came to the Bay, or, for one born here, since it was old enough to remember.)
+    const seen = (t) => t >= Math.min(0, an.from) && s.t - t >= 40 && s.age - Math.floor((s.t - t) / 4) >= (how(L) === 'home' ? 6 : 18);
+    for (const [id, e] of Object.entries(an.ev)) if (LIVED[id] && seen(e.t)) out.push({ a: s.age - Math.floor((s.t - e.t) / 4), h: typeof LIVED[id] === 'function' ? LIVED[id](L) : LIVED[id] });
+    for (const id of ['lido', 'bypass', 'barrier']) if (an.built[id] != null && seen(an.built[id])) out.push({ a: s.age - Math.floor((s.t - an.built[id]) / 4), h: LIVED[id] });
     return out.length ? out[L.int(0, out.length - 1)] : null;
   }
   // What came of your vote last time, for polling day.

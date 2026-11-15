@@ -140,6 +140,9 @@ export const CLUBS = {
 };
 export const CLUB_IDS = Object.keys(CLUBS);
 // The Players’ summer plays, one a year.
+// Who runs each club, of the townsfolk in folk.js; and how warm turning up alone can make them (a friend: see WORDS in folk.js).
+export const RUNS = { choir: 'hollis', players: 'desmond', rovers: 'gaz', book: 'achterberg' };
+const CLUB_WARM = 50;
 export const PLAYS = ['Murder at Gull Cottage', 'The Lighthouse Keeper’s Daughter', 'A Month of Wet Sundays', 'Fog on the Esplanade', 'The Vicar’s Last Bicycle', 'The Mayor’s Trousers', 'Ghosts of the Merrow', 'Three Weeks in Weston', 'Tea at the Winter Gardens', 'The Bishop Who Came to Lunch'];
 export const playOf = (year) => PLAYS[year % PLAYS.length];
 
@@ -280,13 +283,25 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
   const fellows = (L, id, d) => { for (const p of L.clubFriends(id)) L.bond(p, d); };
   // Sometimes a fellow member becomes a friend.
   const meetOne = (L, id, ch) => (L.friends().length < 20 && L.chance(ch) ? L.meet({ club: id }) : null);
-  const turnUp = (L, m) => { m.last = L.s.t; m.miss = 0; };
+  // Turning up is seen, by the club and by whoever runs it: the vicar at choir practice, Desmond at the
+  // Pavilion, Gaz on the touchline, Miss Achterberg at the book club (folk.js). Week after week they come
+  // to know you, as far as a friend; past that, a closer friendship is made by calling on them yourself.
+  const turnUp = (L, m, id) => {
+    m.last = L.s.t; m.miss = 0;
+    const who = RUNS[id], p = who && L.s.folk && L.s.folk.p[who];
+    if (!p || !L.folkWarm) return;
+    if (p.met == null) L.folkIntro(who);
+    else if (p.f < CLUB_WARM) L.folkWarm(who, 1.5);
+    p.seen = L.s.t;
+  };
 
   // Up a rank, if every need is met: one step at a time.
   function promote(L, id) {
     const s = L.s, c = CLUBS[id], m = mem(L, id), need = L.clubNeeds(id);
     if (!need || !need.every((n) => n.ok)) return '';
     m.r++;
+    // (Whoever runs the club is pleased for you, and it shows.)
+    if (RUNS[id] && L.folkWarm && s.folk && s.folk.p[RUNS[id]] && s.folk.p[RUNS[id]].met != null) L.folkWarm(RUNS[id], 4);
     s.clubs.past[id] = { n: m.n, r: Math.max(m.r, (s.clubs.past[id] || {}).r || 0) };
     if (m.r === c.ranks.length - 1) s.clubs.f.top = 1;
     L.joy(5);
@@ -471,7 +486,7 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
   // A club night.
   function night(L, id) {
     const s = L.s, c = CLUBS[id], m = mem(L, id), sk = L.clubSkill(id);
-    m.n++; turnUp(L, m);
+    m.n++; turnUp(L, m, id);
     let up = 7 + sk / 20 + s.st.charm / 40, learnt = 3 + s.st[c.stat] / 30, joy = 4, text;
     let stat = c.stat, also = c.also;
     const calm = !['storm', 'snow'].includes(s.wx);
@@ -563,7 +578,7 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
   // The big day of the club’s year. x: how the game went (0 to 1; left out, a fair one).
   function occasion(L, id, x) {
     const s = L.s, m = mem(L, id), part = L.clubPart(id), sk = L.clubSkill(id), said = OCC_SAID[id];
-    m.occ = L.year; turnUp(L, m);
+    m.occ = L.year; turnUp(L, m, id);
     if (part < 0) {
       L.queue('clubTeamTalk');
       return `${cap(L.clubOcc(id).name)}, on Saturday. You spend the week picking the side, and the night before not sleeping.`;
@@ -593,7 +608,7 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
   // Once a year, for whoever is at the top.
   function lead(L, id) {
     const s = L.s, m = mem(L, id);
-    m.lead = s.t; turnUp(L, m);
+    m.lead = s.t; turnUp(L, m, id);
     stand(m, 5); learn(L, id, 2); fellows(L, id, 3); L.gain('charm', 1.5);
     if (id === 'players') {
       if (L.chance(L.checkOdds('craft', 45 - L.clubSkill(id) / 5))) { L.fame(1); L.joy(8); return 'Your one-act play wins the drama festival in Aldermouth. Desmond is extremely gracious about it, for nearly a whole evening.'; }

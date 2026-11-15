@@ -7,7 +7,7 @@
 
 import { money } from './data.js';
 import {
-  clamp, he, He, him, his, His, first, P, rec, been, price, fee, busy, perf, grow, young, tr, ti, trait, spareRooms,
+  clamp, he, He, him, his, His, first, P, rec, been, price, fee, care, busy, perf, grow, young, tr, ti, trait, spareRooms,
   HOPES, PATHS, EXAM, CARE, GRADUATE,
 } from './wants-lib.js';
 
@@ -21,6 +21,27 @@ const owe = (L, f, n) => { const r = rec(L, f); r.owe = Math.max(0, (r.owe || 0)
 // A brother or sister who might share the load.
 const sib = (L) => L.siblings().filter((q) => q.bond >= 50).sort((a, b) => b.bond - a.bond)[0] || null;
 const youSaid = (L) => (L.s.sex === 'f' ? 'Mum' : 'Dad');
+// What a parent tells you at the end, about the life before you: never the same story twice in a family, and
+// only one of a mother and father tells how they met (s.wants.f.told keeps the ones told).
+const TALES = [
+  ['dance', (p) => `a dance hall in ${p.sex === 'm' ? 'Kettleby' : 'the city'}, and a borrowed ${p.sex === 'm' ? 'suit two sizes too big' : 'dress'}`],
+  ['fruit', (p) => `a summer picking fruit, and ${p.sex === 'm' ? 'a girl with a bicycle' : 'a boy with a motorbike'}`],
+  ['sea', () => 'a brother nobody ever mentioned, who went to sea and did not come back'],
+  ['met', () => 'how the two of them met at a bus stop, in the snow'],
+  ['band', (p) => `the year ${p.sex === 'm' ? 'he' : 'she'} sang with a dance band in a hotel on the coast, under another name`],
+  ['caravan', () => 'a winter in a caravan on the cliffs, with no money and a paraffin heater, which was the happiest of all'],
+  ['letter', () => 'a letter that was never posted, and who it was to'],
+  ['ring', () => 'a ring pawned twice and bought back twice, and where it is now'],
+  ['race', (p) => `a horse called Biscuit Tin that won at forty to one, and what ${p.sex === 'm' ? 'he' : 'she'} did with the money`],
+];
+function lastTale(L, p) {
+  const W = L.s.wants, told = (W.f.told = W.f.told || []);
+  const ok = TALES.filter(([k]) => !told.includes(k));
+  const [k, f] = ok.length ? L.pick(ok) : L.pick(TALES);
+  if (!told.includes(k)) told.push(k);
+  if (told.length > 6) told.shift();
+  return f(p);
+}
 // What a friend moving house needs carried (wants.js chooses it).
 const big = (x) => (x && x.big) || 'a piano';
 
@@ -236,18 +257,26 @@ export const FAMILY_CARDS = [
       return `${f} has had a fall in the kitchen. Nothing broken, the doctor says, this time. But ${he(p)} has been forgetting things: the gas, the cat, your birthday. ${He(p)} is not managing on ${his(p)} own any more, and will not say so.${sib(L) ? ` ${first(sib(L))} says ${he(sib(L))} will go halves on whatever it costs.` : ''}`;
     },
     opts: [
-      { t: (L, x) => (rec(L, P(L, x)).need >= 2 ? 'Look after them yourself' : 'Go round every day yourself'), run(L, x) { const p = P(L, x); setCare(L, p, 'you'); L.bond(p, 6); return rec(L, p).need >= 2 ? `You are there every morning and every evening, and on the phone in between. It takes most of what you have. ${first(p)} knows.` : `Shopping, pills, a hot dinner, and the crossword done together. An hour a day, more on Sundays. ${first(p)} grumbles, and looks forward to it.`; } },
-      { t: (L) => `A carer to come in (${money(fee(L, CARE.carer.cost))} a season)`, why: (L, x) => (rec(L, P(L, x)).need >= 2 ? 'It needs more than a carer now.' : null), run(L, x) { const p = P(L, x); setCare(L, p, 'carer'); L.bond(p, 2); return `A carer called Wendy comes in twice a day. ${first(p)} pretends to resent her, and saves her the best biscuits.`; } },
-      { t: (L) => `Seaview House (${money(fee(L, CARE.home.cost))} a season)`, run(L, x) { const p = P(L, x); setCare(L, p, 'home'); L.bond(p, -6); return `A room with a view of the bay, a hairdresser on Tuesdays and bingo on Fridays. ${first(p)} hates it for a month, and then, rather to ${his(p)} own surprise, does not.`; } },
-      { t: 'Move them in with you', why: (L, x) => (spareRooms(L) < 1 ? 'You would need a spare room.' : null), run(L, x) { const p = P(L, x), pt = L.partner(); setCare(L, p, 'with'); L.bond(p, 10); if (pt && pt.kind !== 'parent') L.bond(pt, -4); L.note(`${first(p)} came to live with you.`); return `${first(p)} arrives with a suitcase, a clock and a lifetime of opinions about how you load the dishwasher.${pt ? ` ${first(pt)} is very good about it, mostly.` : ''}`; } },
+      { t: (L, x) => (rec(L, P(L, x)).need >= 2 ? `Look after ${him(P(L, x))} yourself` : 'Go round every day yourself'), run(L, x) { const p = P(L, x); setCare(L, p, 'you'); L.bond(p, 6); return rec(L, p).need >= 2 ? `You are there every morning and every evening, and on the phone in between. It takes most of what you have. ${first(p)} knows.` : `Shopping, pills, a hot dinner, and the crossword done together. An hour a day, more on Sundays. ${first(p)} grumbles, and looks forward to it.`; } },
+      { t: (L) => `A carer to come in (${money(care(L, CARE.carer.cost))} a season)`, why: (L, x) => (rec(L, P(L, x)).need >= 2 ? 'It needs more than a carer now.' : null), run(L, x) { const p = P(L, x); setCare(L, p, 'carer'); L.bond(p, 2); return `A carer called Wendy comes in twice a day. ${first(p)} pretends to resent her, and saves her the best biscuits.`; } },
+      { t: (L) => `Seaview House (${money(care(L, CARE.home.cost))} a season)`, run(L, x) { const p = P(L, x); setCare(L, p, 'home'); L.bond(p, -6); return `A room with a view of the bay, a hairdresser on Tuesdays and bingo on Fridays. ${first(p)} hates it for a month, and then, rather to ${his(p)} own surprise, does not.`; } },
+      { t: (L, x) => `Move ${him(P(L, x))} in with you`, why: (L, x) => (spareRooms(L) < 1 ? 'You would need a spare room.' : null), run(L, x) { const p = P(L, x), pt = L.partner(); setCare(L, p, 'with'); L.bond(p, 10); if (pt && pt.kind !== 'parent') L.bond(pt, -4); L.note(`${first(p)} came to live with you.`); return `${first(p)} arrives with a suitcase, a clock and a lifetime of opinions about how you load the dishwasher.${pt ? ` ${first(pt)} is very good about it, mostly.` : ''}`; } },
       { t: (L) => `Ask ${first(sib(L))} to take a turn`, show: (L) => !!sib(L), odds: () => 0.5, run(L, x, win) { const p = P(L, x), q = sib(L); if (win) { setCare(L, p, 'sib'); L.bond(q, -3); return `${first(q)} takes ${first(p)} in for now. "Your turn next," ${he(q)} says, and means it.`; } L.bond(q, -8); rec(L, p).ask = 1; return `${first(q)} cannot, and says why at length. You will have to think again, next season.`; } },
     ],
   },
   {
     id: 'wantsLastTalk', icon: '🕯️', title: (L, x) => `${first(P(L, x))} asks for you`, ok: par,
-    text: (L, x) => { const p = P(L, x); return `${first(p)} has been very tired lately, and sleeps most of the day. This afternoon ${he(p)} is awake and clear as a bell, and asks you to sit on the bed. ${He(p)} wants to tell you something.`; },
+    // (Not the same afternoon for a mother and a father: the second is told in other words.)
+    text: (L, x) => {
+      const p = P(L, x), f = first(p), n = ((L.s.wants.f.told || []).length + (rec(L, p).widow != null ? 1 : 0)) % 3;
+      return [
+        `${f} has been very tired lately, and sleeps most of the day. This afternoon ${he(p)} is awake and clear as a bell, and asks you to sit on the bed. ${He(p)} wants to tell you something.`,
+        `${f} has hardly been out of the chair by the window since the spring. Today ${he(p)} has had ${his(p)} hair done, which nobody can account for, and pats the cushion beside ${him(p)} when you come in. There is something ${he(p)} has been meaning to say.`,
+        `The nurse from the surgery comes twice a day now. When she has gone, ${f} turns the radio off, which ${he(p)} never does, and asks you to stay a while. ${He(p)} has been saving something up.`,
+      ][n];
+    },
     opts: [
-      { t: (L, x) => `Ask about ${his(P(L, x))} life before you were born`, run(L, x) { const p = P(L, x); rec(L, p).talk = 'story'; L.gain('smarts', 0.5); L.joy(2); const tale = L.pick(['a dance hall in 1962, and a borrowed dress', 'a summer picking fruit, and a boy with a motorbike', 'a brother nobody ever mentioned, who went to sea and did not come back', 'how the two of them met at a bus stop, in the snow']); been(L, p, `${first(p)} told you about ${tale}.`); return `${He(p)} tells you about ${tale}. You have never heard a word of it before. You hold on to every one.`; } },
+      { t: (L, x) => `Ask about ${his(P(L, x))} life before you were born`, run(L, x) { const p = P(L, x); rec(L, p).talk = 'story'; L.gain('smarts', 0.5); L.joy(2); const tale = lastTale(L, p); been(L, p, `${first(p)} told you about ${tale}.`); return `${He(p)} tells you about ${tale}. ${L.pick(['You have never heard a word of it before. You hold on to every one.', 'Nobody ever told you. You sit very still, so as not to stop it.', 'Half of it you half knew. The other half you will never forget.'])}`; } },
       { t: (L, x) => `Tell ${him(P(L, x))} what ${he(P(L, x))} has meant to you`, run(L, x) { const p = P(L, x); rec(L, p).talk = 'said'; L.bond(p, 10); return `You say it badly, and all of it. ${first(p)} pats your hand and says, "I know, love. I always knew."`; } },
       { t: 'Make your peace about the old quarrel', show: (L, x) => P(L, x).bond < 55, run(L, x) { const p = P(L, x); rec(L, p).talk = 'peace'; L.bond(p, 20); L.karma(1); return 'Neither of you can remember, in the end, quite what it was about. You both apologise anyway, and laugh, and it is gone.'; } },
       { t: ti('bookish', 'Read to them, as they once read to you'), show: tr('bookish'), run(L, x) { const p = P(L, x); rec(L, p).talk = 'read'; L.bond(p, 8); return `The same book, the same voices for the same characters. ${first(p)} mouths the words along with you, and falls asleep smiling before the end.`; } },
