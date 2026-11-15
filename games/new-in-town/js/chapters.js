@@ -32,7 +32,11 @@
 // back to the Bay at eighteen; with nobody at all, a distant cousin steps off
 // the train as before. Heirlooms and ribbons are untouched.
 //
-// Everything is kept in s.chap.
+// The family's town: an heir keeps the family's surname, the town's calendar runs on from the year the
+// last life ended (s.y0: the years already behind the family when this life began; engine.js's year counts
+// from it), and the names the family has given (pets, shops, premises, bands, boats) are not given twice.
+//
+// Everything is kept in s.chap (and s.y0).
 
 import { DREAMS, TROPHIES, HOMES, ITEMS, CAREERS, PLACES, COURSES, GIFTS, BUSINESSES, STATS, STAT_NAME, BACKGROUNDS, QUESTS, SHIFTS_FOR_RUNG, NAMES_M, NAMES_F, money, low, an, lowJob } from './data.js';
 
@@ -188,6 +192,8 @@ function blank() {
     old: { hip: null, hipAt: null, mend: null, heart: null, mind: null, lunch: null, adv: null, down: null, kid: null, lift: 0 },
     dusk: null, letter: null, par: null, out: null,
     n: { taught: 0, minded: 0, settled: 0 },
+    // sur: the family's surname, once known; names: { kind: [names the family has given in the town] }
+    sur: null, names: {},
   };
 }
 
@@ -386,6 +392,16 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       };
       if (!carry) { C.start = { how: 'train', age: 18 }; C.snap = snapNow(this); return; }
       C.start = { how: carry.how, age: carry.how === 'home' ? carry.age : 18, rel: carry.rel, from: carry.from, called: carry.called, left: carry.how === 'back' ? 18 - (carry.gap || 0) : null, said: carry.said || '', letter: carry.letter || null };
+      // The family's name: an heir given only a first name takes it (and one the name box cut short is mended).
+      const nm = (s.name || '').trim(), full = carry.name || '';
+      if (carry.sur) {
+        if (full.length > 16 && full.startsWith(nm)) s.name = full;
+        else if (nm && !nm.includes(' ')) s.name = `${nm} ${carry.sur}`;
+      }
+      C.sur = s.name.includes(' ') ? s.name.split(' ').pop() : carry.sur || null;
+      if (carry.names && typeof carry.names === 'object') C.names = JSON.parse(JSON.stringify(carry.names));
+      // The town's calendar runs on from the last life (see year in engine.js).
+      if (carry.y0 > 0) s.y0 = Math.round(carry.y0);
       // The town is the one the last life left (annals.js).
       if (carry.town && this.annalsTakeOn) this.annalsTakeOn(carry.town, carry.how, carry.how === 'home' ? clampN(Math.round(carry.age), 18, 95) : 18);
       // Keepsakes come with whoever carries on.
@@ -403,6 +419,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       for (const id of FAM_ONCE) if (C.fam[id]) s.seen[id] = s.seen[id] || 1;
       // And the townsfolk know the family: born here, you know them, and they know you (folk.js).
       if (s.folk && carry.folk && this.folkTakeOn) this.folkTakeOn(carry.folk, carry.how, carry.called);
+      if (s.away && carry.away && this.awayTakeOn) this.awayTakeOn(carry.away);
       // What came in the will is in the bank.
       const inherited = Math.max(0, Math.round(carry.money || 0));
       s.cash = Math.max(0, s.cash - inherited);
@@ -554,7 +571,9 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     // nobody to carry on, it is not lost on the cousin who does.)
     const sh = est.shares.find((q) => q.p === (p ? p.id : null)) || (!p && est.toSpouse && est.heir == null ? { n: est.left } : null);
     const moneyIn = sh ? sh.n : 0;
-    const base = { from: s.name, fromSex: s.sex, gen: s.gen + 1, items: named || !p ? est.keep.slice() : [], money: moneyIn, home: named && est.home ? { kind: est.home.kind, ups: est.home.ups } : null, biz: named && est.biz ? { type: est.biz.type, lvl: est.biz.lvl, rep: est.biz.rep, mgr: est.biz.mgr, age: est.biz.age } : null };
+    const base = { from: s.name, fromSex: s.sex, gen: s.gen + 1, items: named || !p ? est.keep.slice() : [], money: moneyIn, home: named && est.home ? { kind: est.home.kind, ups: est.home.ups } : null, biz: named && est.biz ? { type: est.biz.type, lvl: est.biz.lvl, rep: est.biz.rep, mgr: est.biz.mgr, age: est.biz.age } : null,
+      // (The family's name, and the names it has given in the town, come down with whoever carries on.)
+      sur: L.chapSurname(), names: JSON.parse(JSON.stringify(s.chap.names || {})) };
     if (!p) return { ...base, how: 'train', rel: 'cousin', called: 'your cousin', age: 18, purse: 0, sibs: null, parent: null, st: null };
     const gap = p.age < 18 ? 18 - p.age : 0;
     const how = gap ? 'back' : 'home';
@@ -589,7 +608,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     const folk = {};
     if (s.folk) for (const [id, f] of Object.entries(s.folk.p)) if (f.met != null) folk[id] = { f: Math.round(f.f), stage: f.stage || 0, known: { ...(f.known || {}) }, shut: f.shut ? 1 : 0, ...(f.skip ? { skip: { ...f.skip } } : {}), ...(id === 'marlow' ? { fm: s.f.marlow || 0 } : {}) };
     return {
-      ...base, how, pid: p.id, rel: relOf(p), called, age: p.age + gap, gap, name: first(p), sex: p.sex, look: p.look, job: p.age >= 18 ? p.job : null,
+      ...base, how, pid: p.id, rel: relOf(p), called, age: p.age + gap, gap, name: base.sur ? `${first(p)} ${base.sur}` : first(p), sex: p.sex, look: p.look, job: p.age >= 18 ? p.job : null,
       single, wed, kids: own, sibs, parent, parPurse, purse: p.purse || 0, st, sibBond: fair, folk, fam: famFor(L, called, p.kind === 'grandchild' ? 2 : 1),
       letter: s.chap.letter && s.chap.letter.to === p.id ? s.chap.letter.text : null,
     };
@@ -614,6 +633,27 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     const who = c.parent.sex === 'f' ? 'Mum' : 'Dad';
     return pre === ' ' ? ` ${who} has ${money(c.parPurse)} put by, and it will come down in time.` : `${pre}${c.parent.name.split(' ')[0]} has ${money(c.parPurse)} put by, to come down in time`;
   }
+  // The family's surname: carried down to this life, or the last word of a name of more than one.
+  Life.prototype.chapSurname = function () {
+    const s = this.s, C = s.chap, parts = (s.name || '').trim().split(/\s+/);
+    return (C && C.sur) || (parts.length > 1 ? parts[parts.length - 1] : null);
+  };
+  // A name for something of the family's in the town (kind: 'pet', 'shop', 'where', 'band', 'boat'...),
+  // from list, that the family has not given before (any, if all have been): by chance, or with first,
+  // the first free one in the list's order (for a name that belongs to a story). It is remembered.
+  Life.prototype.chapGiveName = function (kind, list, firstFree = false) {
+    const free = this.chapNameFree(kind, list), n = free.length ? (firstFree ? free[0] : this.pick(free)) : this.pick(list);
+    this.chapNameUse(kind, n);
+    return n;
+  };
+  Life.prototype.chapNameFree = function (kind, list) { const used = ((this.s.chap && this.s.chap.names) || {})[kind] || []; return list.filter((n) => !used.includes(n)); };
+  Life.prototype.chapNameUse = function (kind, n) {
+    const C = this.s.chap;
+    if (!C) return;
+    const N = C.names || (C.names = {}), l = N[kind] || (N[kind] = []);
+    if (!l.includes(n)) l.push(n);
+    if (l.length > 40) l.shift();
+  };
   // How carrying on as someone would begin, in a line for the end screen.
   Life.prototype.chapStartSaid = function (c) {
     const things = [];
@@ -633,6 +673,12 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     const carry = { ...c, said: leftSaid(c) };
     // (The town goes on as this life left it: its mayor, what was built, its shops and its regulars: annals.js.)
     if (this.annalsHandOn) carry.town = this.annalsHandOn(c);
+    // (The family's holidays go on: the caravan park they always went to, and the tradition, see away.js. Not a
+    // place of their own away: that is in the will as money already, through what it is worth.)
+    if (this.awayCarry) carry.away = { ...this.awayCarry(), own: null };
+    // (And its calendar runs on: the heir's first spring is the spring this life ended in, or the one after it, or after the years
+    // away of one who comes back at eighteen; annalsHandOn counts the town's seasons from the same spring.)
+    carry.y0 = (this.s.y0 || 0) + Math.ceil(this.s.t / 4) + (c.how === 'back' ? (c.gap || 0) : 0);
     return {
       sibs: carry.sibs, gifts: o.gifts, gen: this.s.gen + 1, inherit: carry.money, from: this.s.name,
       name: carry.name || '', look: carry.look || null, sex: carry.sex || null, st: carry.how === 'home' ? null : carry.st, parent: carry.parent, carry, age: carry.age,

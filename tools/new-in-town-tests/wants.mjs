@@ -275,7 +275,7 @@ export default function ({ check, fresh, Life, ACTIONS }) {
     // Moving them in needs room.
     L.s.home = 'bedsit';
     L.s.pend = [{ id: 'wantsFrail', x: { p: mum.id } }];
-    const ev = L.event(), opt = ev.opts.find((o) => /Move them in/.test(o.t));
+    const ev = L.event(), opt = ev.opts.find((o) => /Move (him|her) in/.test(o.t));
     check(opt && /spare room/.test(opt.why), 'moving a parent in needs a spare room');
     L.s.pend = [];
     L.s.home = 'townhouse';

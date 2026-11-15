@@ -172,11 +172,13 @@ export function install({ def, A, Life, clamp, hooks, addEvents }) {
             L.s.n.casino = (L.s.n.casino || 0) - n; L.joy(-8); F(L).h = Math.min(100, F(L).h + 6);
             return `It goes the way it was always going to go. Now you owe Sal’s man ${money(owe)} as well.`;
           } },
-        { t: 'Take it out of your savings, and go back', show: (L) => !L.flBarred(), why: (L, x) => (L.s.bank < x ? 'There is not that much in the bank.' : null), odds: () => 0.4,
+        // (What you have: cash first, then the bank, as everything else is paid for.)
+        { t: (L) => (L.s.bank > 0 ? 'Take it out of your savings, and go back' : 'Take it out of what you have, and go back'), show: (L) => !L.flBarred(), why: (L, x) => (L.s.cash + L.s.bank < x ? 'You have not got that much, in the bank or out of it.' : null), odds: () => 0.4,
           run(L, x, win) {
             if (win) { L.cash(x); L.s.n.casino = (L.s.n.casino || 0) + x; L.joy(3); F(L).h = Math.min(100, F(L).h + 4); return 'You win it back. The relief is so enormous you nearly cry in the car park.'; }
-            L.s.bank -= x; L.s.n.casino = (L.s.n.casino || 0) - x; L.joy(-8); F(L).h = Math.min(100, F(L).h + 5);
-            return `${money(x)} out of the savings and onto the felt, and none of it comes back.`;
+            const fromBank = Math.max(0, x - L.s.cash);
+            L.cash(-x); L.s.n.casino = (L.s.n.casino || 0) - x; L.joy(-8); F(L).h = Math.min(100, F(L).h + 5);
+            return `${money(x)} ${fromBank > 0 ? 'out of the savings' : 'out of your pocket'} and onto the felt, and none of it comes back.`;
           } },
         { t: 'Leave it. Go for a walk instead', run(L) { F(L).h = Math.max(0, F(L).h - 5); L.joy(-2); return 'You walk all the way to Gorse Head and back in the dark. The wanting does not go, but you get home without having fed it.'; } },
       ],

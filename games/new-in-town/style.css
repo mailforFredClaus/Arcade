@@ -360,8 +360,8 @@ summary { font-size: 12.5px; font-weight: 900; color: var(--teal-d); cursor: poi
 .person small { font-size: 12.5px; font-weight: 700; color: var(--muted); }
 .entry { display: flex; gap: 8px; margin: 0 !important; padding: 5px 0; font-size: 13.5px; font-weight: 700; line-height: 1.4; color: #4a5470; }
 .entry i { font-style: normal; flex: none; min-width: 20px; font-weight: 900; color: #9a8f78; }
-.entry.big { color: var(--ink); font-weight: 800; }
-.entry.love { color: #b03a5b; font-weight: 800; }
+.entry.e-big { color: var(--ink); font-weight: 800; }
+.entry.e-love { color: #b03a5b; font-weight: 800; }
 
 /* ---- starting and ending ---- */
 .full { position: fixed; inset: 0; z-index: 30; overflow-y: auto; -webkit-overflow-scrolling: touch; background: linear-gradient(180deg, #9fdcf5 0%, #dff4f1 34%, #f6ead2 100%); }

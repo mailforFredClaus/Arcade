@@ -578,8 +578,9 @@ def('apply', {
 // Three ways to do a shift. n: how much it counts towards promotion.
 const EFFORT = {
   work: { n: 1, stress: 1, perf: 1, icon: '💼', title: (L) => `Work a shift as ${L.jobTitle()}`, desc: (L) => `Pays about ${money(L.shiftPay())}.` },
-  workHard: { n: 1.5, stress: 1.8, perf: 5, hp: -1, icon: '🔥', title: () => 'Go the extra mile', desc: () => 'Same pay, but it counts as a shift and a half towards promotion, and the boss notices. Tiring.' },
-  workEasy: { n: 0.5, stress: 0.3, perf: -5, icon: '🫖', title: () => 'Coast through a shift', desc: () => 'Same pay and hardly any strain, but it counts for half, and the boss notices that too.' },
+  // (At the top of the ladder there is no promotion to count towards: only what the boss, or the board, thinks of you.)
+  workHard: { n: 1.5, stress: 1.8, perf: 5, hp: -1, icon: '🔥', title: () => 'Go the extra mile', desc: (L) => (L.atTop() ? 'Same pay, but people notice, and a good name at work brings bonuses and keeps you safe. Tiring.' : 'Same pay, but it counts as a shift and a half towards promotion, and the boss notices. Tiring.') },
+  workEasy: { n: 0.5, stress: 0.3, perf: -5, icon: '🫖', title: () => 'Coast through a shift', desc: (L) => (L.atTop() ? 'Same pay and hardly any strain, but people notice that too.' : 'Same pay and hardly any strain, but it counts for half, and the boss notices that too.') },
 };
 for (const [id, e] of Object.entries(EFFORT)) {
   def(id, {
@@ -596,7 +597,7 @@ const PLAYED = [{ n: 0.6, perf: -4, pay: 0.75 }, { n: 1, perf: 1, pay: 1 }, { n:
 def('workPlay', {
   place: (L) => (L.s.job ? CAREERS[L.s.job.c].place : null), sec: 'Work', time: 2,
   icon: (L) => JOB_GAMES[L.s.job.c].icon, title: (L) => jobGame(L.s.job.c, L.s.job.r).title,
-  desc: (L) => (L.playDue() ? `${L.watcher()} is watching today: make a mess of it and it will be remembered. Done well, it pays up to half as much again and counts for more.` : 'Play the shift. Done well, it pays up to half as much again and counts for more towards promotion; done badly, less.'),
+  desc: (L) => (L.playDue() ? `${L.watcher()} is watching today: make a mess of it and it will be remembered. Done well, it pays up to half as much again and counts for more.` : L.atTop() ? 'Play the shift. Done well, it pays up to half as much again; done badly, less.' : 'Play the shift. Done well, it pays up to half as much again and counts for more towards promotion; done badly, less.'),
   show: (L) => !!L.s.job,
   why: (L, x) => (x === undefined || (typeof x === 'number' && x >= 0 && x <= 1) ? null : 'Roll your sleeves up.'),
   run(L, x) {
@@ -732,7 +733,8 @@ def('pet', {
   why: (L) => (L.s.pet ? 'You already have a pet.' : L.s.home === 'hostel' ? 'No pets in the hostel.' : null),
   run(L, kind) {
     const s = L.s;
-    s.pet = { kind, name: L.pick(PET_NAMES), age: L.int(1, 3), since: s.t };
+    // (Not a name the family has given a pet before: chapters.js.)
+    s.pet = { kind, name: L.chapGiveName ? L.chapGiveName('pet', PET_NAMES) : L.pick(PET_NAMES), age: L.int(1, 3), since: s.t };
     L.joy(8);
     L.note(`Adopted ${s.pet.name} the ${PETS[kind].name}.`);
     return `A ${PETS[kind].name} called ${s.pet.name} looks at you through the bars, and that is that. You are a family now.`;
@@ -937,7 +939,9 @@ export class Life {
   // ---- the numbers that move ----
 
   get season() { return this.s.t % 4; }
-  get year() { return Math.floor(this.s.t / 4) + 1; }
+  // (The town's calendar runs on through a family: s.y0 is the years already behind it when this life began; chapters.js.)
+  get year() { return this.yearOf(this.s.t); }
+  yearOf(t) { return Math.floor(t / 4) + 1 + (this.s.y0 || 0); }
 
   // Money in (or out: what cash can't cover comes from savings, then a loan).
   cash(d) {
@@ -985,6 +989,10 @@ export class Life {
     if (s.log.length > 400) s.log.splice(1, s.log.length - 400);
     for (const f of HOOKS.noted) f(this, e);
   }
+  // At the top rung of your career: nowhere further to be promoted to.
+  atTop() { const j = this.s.job; return !!j && !!CAREERS[j.c] && j.r >= CAREERS[j.c].rungs.length - 1; }
+  // A to-do that no longer fits the life (the last, a dream come true, always does).
+  questStale(q) { return !!q.stale && q.stale(this); }
   // Something to flash up on screen.
   say(icon, text, kind = '') { this.news.push({ icon, text, kind }); }
   queue(id, x = null) { this.s.pend.push({ id, x }); }
@@ -1372,8 +1380,10 @@ export class Life {
       this.note(`A dream came true: ${DREAMS[id].name.toLowerCase()}.`, 'big');
       this.say(DREAMS[id].icon, `Dream come true: ${DREAMS[id].name}`, 'dream');
     }
-    while (s.quest < QUESTS.length && QUESTS[s.quest].test(this)) {
+    // (A to-do the life has grown out of is passed over quietly, with nothing to help it along: see stale in data.js.)
+    while (s.quest < QUESTS.length && (QUESTS[s.quest].test(this) || this.questStale(QUESTS[s.quest]))) {
       const q = QUESTS[s.quest++];
+      if (!q.test(this)) continue;
       s.cash += q.cash;
       this.say('✅', `Done! ${money(q.cash)} to help you along`, 'quest');
     }
@@ -1403,13 +1413,15 @@ export class Life {
     return {
       id, icon: val(e.icon, this, x), title: val(e.title, this, x), text: val(s.gaol && e.inText ? e.inText : again ? e.again : e.text, this, x),
       opts: e.opts.filter((o) => !o.show || o.show(this, x)).map((o) => {
-        const chance = o.check ? this.checkOdds(o.check[0], o.check[1]) : o.odds ? clamp(o.odds(this, x) + this.luck(), 0.02, 0.98) : null;
+        // (A check may be worked out from the life: [stat, how hard], or a function giving one.)
+        const ck = val(o.check, this, x);
+        const chance = ck ? this.checkOdds(ck[0], ck[1]) : o.odds ? clamp(o.odds(this, x) + this.luck(), 0.02, 0.98) : null;
         return {
           // (A choice that is nearly hopeless says so in words, not only as a small number: see hopeWord.)
           t: val(o.t, this, x) + this.hopeWord(chance),
           cost: val(o.cost, this, x) || 0,
           chance,
-          stat: o.check ? o.check[0] : null,
+          stat: ck ? ck[0] : null,
           why: (o.cost && s.cash + s.bank < val(o.cost, this, x) ? `You need ${money(val(o.cost, this, x))}.` : null) || (o.why ? o.why(this, x) : null),
         };
       }),
@@ -1587,9 +1599,12 @@ export class Life {
     s.karma -= Math.sign(s.karma) * Math.min(1, Math.abs(s.karma));
     this.ecoYear();
     if (s.age === 67) { s.pension += 1500; this.note('The state pension begins: $1,500 a season.'); }
+    // (A mother and father do not die in the same year: the second not within three years of the first,
+    // unless very old. s.f.parGone: the season the last one died; see parentDies in events.js.)
+    let parLately = (s.f.parGone != null && s.t - s.f.parGone < 12) || s.pend.some((q) => q.id === 'parentDies');
     for (const p of s.people.slice()) {
       p.age++;
-      if (p.kind === 'parent' && p.age >= 68 && this.chance((p.age - 66) ** 2 / 1500)) this.queue('parentDies', p.id);
+      if (p.kind === 'parent' && p.age >= 68 && !(parLately && p.age < 96) && this.chance((p.age - 66) ** 2 / 1500)) { this.queue('parentDies', p.id); parLately = true; }
       else if ((p.kind === 'spouse' || p.kind === 'partner') && p.age >= 72 && this.chance((p.age - 70) ** 2 / 2200)) this.queue('spouseDies', p.id);
       else if (p.kind === 'child') this.growUp(p);
       else if (p.kind === 'sibling' || p.kind === 'grandchild') this.kinYear(p);

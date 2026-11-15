@@ -235,7 +235,8 @@ export function install({ def, A, Life, clamp }) {
     run(L, p) { L.bond(p, 7); L.joy(2); return p.kind === 'parent' ? `${p.name} asks if you are eating properly. You lie.` : `${p.name} tells you all ${his(p)} news. You hang up smiling.`; },
   });
   def('gift', {
-    who: true, sec: 'Keep in touch', title: 'Give a present', icon: '🎁', desc: 'Once a season.', time: 0, cost: 80,
+    // (A present from somebody comfortable is expected to look it: see midSpend in midlife.js.)
+    who: true, sec: 'Keep in touch', title: 'Give a present', icon: '🎁', desc: 'Once a season.', time: 0, cost: (L) => (L.midSpend ? Math.round(80 * L.midSpend() / 10) * 10 : 80),
     show: (L, p) => p.kind !== 'ex' && p.kind !== 'enemy' && ((p.kind !== 'child' && p.kind !== 'grandchild') || p.age >= 3),
     why: (L, p) => (L.s.use[`gift${p.id}`] ? 'Once a season.' : null),
     run(L, p) { L.s.use[`gift${p.id}`] = 1; L.bond(p, 6); return `${p.name} ${L.pick(['is delighted', 'pretends to be surprised', 'says you should not have, twice'])}.`; },
@@ -366,6 +367,7 @@ export function install({ def, A, Life, clamp }) {
       if (young > room) return 'No room for the children there.';
       if (s.due && young + 1 > room) return 'No room there for the little one on the way.';
       if (kind === 'hostel' && this.partner()?.live) return 'Your other half will not live in a hostel.';
+      if (h.lodger && this.partner()?.live) return 'Mrs Pargeter lets the room to one, and says so.';
       if (kind === 'hostel' && s.pet) return 'No pets in the hostel.';
       return null;
     },

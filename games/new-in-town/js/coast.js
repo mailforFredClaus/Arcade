@@ -163,6 +163,83 @@ export const SHOUTS = {
     safe: ['Wait at the mouth for the tide to turn', 'At slack water they wade out to you, cold and sheepish, and give you the film for nothing.', 'They try to swim for it before you are ready. You pull them out, but it is not tidy.'],
   },
 };
+// The same shouts, told again: a shout answered before comes round in other words the next times
+// (by how many of that kind you have been on: SHOUT_ALT[id][n - 1], round and round). Each is
+// { text, bold: [how it goes well, how it goes badly], safe: [the same] }.
+export const SHOUT_ALT = {
+  yacht: [
+    { text: 'Four in the morning, and the pagers again. A yacht off the Mare’s Teeth with her mast over the side and her crew in the cockpit, one of them holding his arm.',
+      bold: ['You go in under the rocks with Quinn swearing softly at the wheel. Three jumps, three catches, and the last one is the skipper, who apologises for the paintwork.', 'The yacht rolls just as you reach for her rail. You come back aboard with a bruise the shape of a cleat, and the others get all three off.'],
+      safe: ['The line goes across first time, which nobody can quite believe, and you tow her in to the harbour at walking pace.', 'The tow holds for a mile and then parts. Her crew spend the night aboard the lifeboat, eating your biscuits, while a tug comes from Kettleby.'] },
+    { text: 'The Teeth collect yachts the way a hedge collects crisp packets. This one is a big white thing from the city, mast gone, three aboard, and the sea getting up.',
+      bold: ['In under the rocks, alongside for a count of eight, and all three of them across. The owner offers you a job. Quinn says you already have one.', 'You misjudge the jump by a foot and go in between the hulls. The others haul you out by your lifejacket, and then fetch the yacht’s crew as well.'],
+      safe: ['A line across, and the big white yacht comes home on the end of it, very slowly, with her owner on the telephone to his insurers the whole way.', 'The line parts on the Teeth. The helicopter lifts them off, and the yacht goes on the rocks, where the gulls take it over.'] },
+  ],
+  lilo: [
+    { text: 'An inflatable crocodile going out past the point on the ebb, with a child on it, and the child’s mother swimming after it, and losing.',
+      bold: ['You go over the side and reach the mother as she tires. She holds on to you like a buoy all the way back, and thanks you through chattering teeth.', 'You get to the mother, and the mother gets you, round the neck. The others pull you both out, coughing.'],
+      safe: ['You come round between the crocodile and the open sea and lift the child aboard like a parcel. The child wants to know if the crocodile can come too.', 'You get the child, and the mother is picked up by the ice-cream boat, which the Gazette naturally prefers.'] },
+    { text: 'Two children in a rubber dinghy with one oar, going out with the tide, and an uncle on the beach shouting instructions they cannot hear.',
+      bold: ['You swim the last bit to the dinghy with a line in your teeth. The children think you are a pirate, and you do not correct them.', 'The dinghy and the tide take you further than you meant. The crew fish you out after the children, and you get no sympathy from the uncle.'],
+      safe: ['You come up alongside, take the one oar off them very gently, and tow them home. Their uncle buys the whole crew an ice cream.', 'They paddle away from you, frightened of the big orange boat. A fisherman gets to them first, and tells the Gazette all about it.'] },
+  ],
+  trawler: [
+    { text: 'The Brighter Dawn is aground on the Long Sand again, in fog again, and her skipper says the sand has moved since last time.',
+      bold: ['You go aboard and sit with him in the wheelhouse and talk about his grandchildren, until he climbs down by himself.', 'You argue with him until the water is round your knees, and then all of you go over the side together. You come up underneath the boat.'],
+      safe: ['A line on her, an hour’s wait, and she floats off at the top of the tide as if nothing had happened. Her skipper does not mention it.', 'The line holds and her winch does not. She stays on the sand until the next tide, and so, out of stubbornness, does Quinn.'] },
+    { text: 'A trawler heeled over on the Long Sand in thick fog, with the tide on the turn, her lights going under one by one. Her skipper will not leave her.',
+      bold: ['“She will be here in the morning,” you tell him, “and so should you.” He thinks about it, and climbs down, and does not look back.', 'He will not come, and then he will, all at once, as a sea comes over. You catch him, and the deck catches you.'],
+      safe: ['You stand off with a line on her until the tide lifts her, and then tow her clear, and her skipper sounds his horn all the way in.', 'The fog is too thick to get a line across. In the end her crew wade ashore at dawn, and the trawler is a wreck by the weekend.'] },
+  ],
+  dog: [
+    { text: 'A spaniel has gone over the edge at Gorse Head after a rabbit, and is on a ledge, barking at the sea. Its owner is shouting from the top.',
+      bold: ['You get ashore on the rocks and up to the ledge, and the spaniel walks down past you as if it had meant to all along. You fetch the owner instead.', 'Halfway up, a handhold comes away. You land in the shallows, and the spaniel swims out to see if you are all right.'],
+      safe: ['You talk the owner back up the path, and the spaniel follows, offended at being left out.', 'The spaniel will not come and the owner will not go. The cliff team brings them both up, and the lifeboat goes home without a word.'] },
+    { text: 'Another dog on another ledge at Gorse Head. This one is a terrier, and is refusing to be rescued.',
+      bold: ['You climb to the ledge and the terrier bites you, once, on principle, and then lets you carry it down.', 'The terrier backs away along the ledge and you follow it, which is a mistake. You come down faster than you went up.'],
+      safe: ['You sit in the boat below the ledge and wait. After an hour the terrier gets bored and comes down by itself.', 'The terrier waits you out. The cliff team gets it at dusk, and it bites them too.'] },
+  ],
+  coaster: [
+    { text: 'A cargo ship with no engine in a full gale, drifting down onto the Head, her crew in their lifejackets on the bridge wing. Quinn says one word, and it is “Right.”',
+      bold: ['You go in under her lee where the sea is only enormous, and one by one they jump. The last is the cook, carrying the ship’s cat.', 'The two hulls meet with a bang you feel in your teeth, and you go down. When you look up, the others have every one of them aboard.'],
+      safe: ['You stand by her all night while the tug works, and at dawn she is pulled clear, with her crew waving from the rail.', 'The tug’s line parts twice. By morning she is on the rocks beside the Merrow, and her crew are in the Gull, drinking your health anyway.'] },
+    { text: 'A coaster dragging her anchors onto the Head in the worst of the storm, eleven aboard, and the helicopter grounded by the wind.',
+      bold: ['Eleven jumps across a gap that opens and shuts like a mouth. You catch the youngest by his belt, and he holds on to you for a long time afterwards.', 'You are thrown against the rail as you reach for the ninth man. The others get all eleven, and you, aboard.'],
+      safe: ['Her anchors catch at last, a cable’s length from the rocks. You stand by her until the wind drops, and then lead the tug in.', 'The anchors do not hold. Her crew are winched off at dawn when the wind drops, and the coaster joins the Merrow on the Teeth.'] },
+  ],
+  swimmer: [
+    { text: 'A swimmer gone too far from the cove at dusk, and a dog running up and down the beach, barking at the sea.',
+      bold: ['You go in and find her, cold and pale and very sorry. The dog will not let her out of its sight for a week.', 'The water is colder than it looks. You hold her up and the crew hold you up, and between you it works.'],
+      safe: ['The searchlight finds her on its second sweep, floating on her back to rest, exactly as she was taught.', 'She has come ashore by herself further along by the time you find the dog, and is in the Gull, telling the story.'] },
+    { text: 'Somebody swimming at dusk, a long way out, and not swimming any more, by the look of it. The cove has emptied, except for a woman holding a towel.',
+      bold: ['You go in after him and bring him back on your arm, and the woman with the towel wraps it round both of you.', 'He goes under as you reach him, and you go after him. You both come up, eventually, and both need the oxygen.'],
+      safe: ['The light finds him clinging to the marker buoy, which is what it is there for. He is aboard in a minute.', 'You search till dark and find nothing. He has been in the beach café all along, and did not think to say.'] },
+  ],
+  flares: [
+    { text: 'A red flare over the Head in the small hours, then another. When you get there, there is nothing but the dark and the swell.',
+      bold: ['Close in under the cliffs, nearer than Quinn likes, you find them: two people in the water, holding on to a cool box.', 'A sea breaks over you close under the Head, and you come to on the deck. They find the two of them anyway, at first light.'],
+      safe: ['Square after square until dawn, and there they are, on an upturned dinghy, too cold to speak and very glad to see you.', 'Nothing all night. In the morning they turn up on the beach at Kettleby, alive, having drifted there in the dark.'] },
+    { text: 'Somebody has seen flares off the Head at three in the morning, and then nothing. Quinn takes the boat out without a word.',
+      bold: ['You find them in the lee of the rocks where nobody would look but you: a father and son on a capsized dinghy, singing to keep awake.', 'In among the rocks a swell lifts the boat and drops it. You are thrown against the wheelhouse, and the search goes on without you.'],
+      safe: ['A proper search, square by square, and the searchlight picks out two faces at half past five. They wave, feebly, and then properly.', 'The search finds nothing. A trawler picks them up at noon, ten miles out, and the Gazette asks why it took so long.'] },
+  ],
+  canoes: [
+    { text: 'A school canoe trip caught by the wind off the point, scattered across a mile of grey water, with the teacher furthest out of all.',
+      bold: ['You go in among the rocks for the furthest out. The teacher is the last aboard, and says he had it under control.', 'A canoe comes over a wave and catches you on the ear. You get all of them, and a ringing that lasts a week.'],
+      safe: ['You work round them from the open-water side and herd them in to the cove like ducks. The teacher counts them twice.', 'Two of them get in among the rocks before you can reach them, and the cliff team has to fetch them, dripping and delighted.'] },
+    { text: 'Canoes everywhere off the point, upside down and the right way up, and a man in a hat shouting through a megaphone that is not switched on.',
+      bold: ['You pick them out of the water one by one, and the man in the hat last, still holding the megaphone.', 'You go in among the rocks for a canoe that turns out to be empty. The real one is behind you, and so is a wave.'],
+      safe: ['From the open-water side you round them up, and somebody switches the megaphone on at last, just as everybody is safe.', 'They scatter faster than you can gather them. Two reach the beach on their own and claim it was the plan.'] },
+  ],
+  cave: [
+    { text: 'Somebody looking for the Merrow’s gold has been cut off in Hob’s Hole by the tide, with a metal detector and no torch.',
+      bold: ['You take the small boat in on the back of a wave and out on the next. He brings the metal detector. It found a ring pull.', 'A wave lifts the small boat into the roof of the cave. You get him out, and the cave keeps your hat.'],
+      safe: ['At slack water he wades out to you along the ledge, cold and sheepish, holding the metal detector over his head.', 'He tries to wade out before the tide is right. You pull him out of the water at the cave mouth, gasping, without his detector.'] },
+    { text: 'A family on the ledge at the back of Hob’s Hole, cut off by the tide, with a picnic and a very wet grandmother.',
+      bold: ['Three trips in the small boat between the waves. The grandmother goes last, and insists on bringing the sandwiches.', 'On the second trip a wave turns the small boat over. Everybody is all right; the picnic is not.'],
+      safe: ['You wait at the mouth for the tide to turn, and the family come out along the ledge in a line, the grandmother leading.', 'The children get bored and try to swim for it. You fish them out at the cave mouth, and the grandmother has words with them.'] },
+  ],
+};
 export const LB_RANKS = ['Trainee', 'Crew', 'Helm', 'Second coxswain'];
 const TRAINING = 4; // sessions before your first shout
 
@@ -299,6 +376,19 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
       const v = this.s.coast.lb ? this.s.coast.lb.stand : 0;
       return v >= 85 ? 'She would trust you with her boat' : v >= 60 ? 'She lets you take the helm' : v >= 40 ? 'She says your name' : v >= 20 ? 'She nods at you' : 'She has not noticed you';
     },
+    // A shout of a kind answered before, in its other words, round and round with the first (null: the first words).
+    // lb.seen: { kind: how many of it you have been on }.
+    coastShoutAlt(id) {
+      const lb = this.s.coast.lb, n = (lb && lb.seen && lb.seen[id]) || 0, alts = SHOUT_ALT[id], k = alts ? n % (alts.length + 1) : 0;
+      return k ? alts[k - 1] : null;
+    },
+    // A shout to send: of the kinds the weather brings, the ones you have been on least, mostly.
+    coastShoutPick() {
+      const s = this.s, lb = s.coast.lb, seen = (lb && lb.seen) || {};
+      const ok = Object.keys(SHOUTS).filter((k) => !SHOUTS[k].wx || SHOUTS[k].wx.includes(s.wx));
+      const least = Math.min(...ok.map((k) => seen[k] || 0));
+      return this.pick(this.chance(0.75) ? ok.filter((k) => (seen[k] || 0) === least) : ok);
+    },
     // How likely a way of doing a rescue is to come off.
     coastShoutOdds(id, bold) {
       const s = this.s, lb = s.coast.lb, sc = SHOUTS[id];
@@ -329,7 +419,10 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
       lb.log.unshift({ t: s.t, id, saved });
       lb.log.length = Math.min(lb.log.length, 6);
       if (win && s.job && s.job.c === 'sea') s.job.perf = clamp(s.job.perf + 2, 0, 100);
-      let text = sc[how][win ? 1 : 2];
+      // (Told in other words the second time of a kind, and after: see SHOUT_ALT.)
+      const seen = lb.seen || (lb.seen = {}), alt = this.coastShoutAlt(id);
+      let text = alt ? alt[how][win ? 0 : 1] : sc[how][win ? 1 : 2];
+      seen[id] = (seen[id] || 0) + 1;
       if (lb.rank === 1 && lb.stand >= 60 && lb.calls >= 6) { lb.rank = 2; text += ' Afterwards, Quinn hands you the wheel to bring her up the slipway. You are Helm now.'; this.note('Made Helm on the Starling Bay lifeboat.', 'big'); this.say('🛟', 'Made Helm on the lifeboat', 'promo'); }
       else if (lb.rank === 2 && lb.stand >= 85 && lb.calls >= 15) { lb.rank = 3; text += ' “Second cox,” says Quinn, and walks off before you can answer.'; this.note('Made second coxswain of the Starling Bay lifeboat.', 'big'); this.say('🛟', 'Made second coxswain of the lifeboat', 'promo'); }
       return text;
@@ -534,7 +627,7 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
       else if (lb.rank >= 1 && !out) {
         // The pagers go more often when the weather is bad.
         const p = { storm: 0.65, fog: 0.4, wet: 0.2, snow: 0.2, hot: 0.25, fair: 0.1 }[s.wx] ?? 0.1;
-        if (L.chance(p)) L.queue('coastShout', L.pick(Object.keys(SHOUTS).filter((k) => !SHOUTS[k].wx || SHOUTS[k].wx.includes(s.wx))));
+        if (L.chance(p)) L.queue('coastShout', L.coastShoutPick());
       }
     }
     if (m && m.on != null && m.found == null && !out) {
@@ -927,7 +1020,7 @@ export function install({ def, Life, clamp, hooks, addEvents }) {
     {
       id: 'coastShout', w: 0, icon: '🛟', title: 'The pagers go',
       ok: (L, x) => L.coastCrew() && !!SHOUTS[x],
-      text: (L, x) => SHOUTS[x].text,
+      text: (L, x) => { const a = L.coastShoutAlt(x); return a ? a.text : SHOUTS[x].text; },
       opts: [
         { t: (L, x) => SHOUTS[x].bold[0], odds: (L, x) => L.coastShoutOdds(x, true), run: (L, x, win) => L.coastShouted(x, 'bold', win) },
         { t: (L, x) => SHOUTS[x].safe[0], odds: (L, x) => L.coastShoutOdds(x, false), run: (L, x, win) => L.coastShouted(x, 'safe', win) },
