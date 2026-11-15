@@ -114,6 +114,20 @@ export class Brain {
     if (this.target && !this.target.alive) { this.target = null; this.visible = false; }
 
     const wp = s.weapons[s.slot];
+    // Advance: strayed out of the sector being fought for. Drop everything and get back in.
+    // (A defender falling back when a sector is lost does the same, without waiting to be told.)
+    let astray = false;
+    if (m.type === 'adv') {
+      const [lo, hi] = m.bounds(s);
+      astray = s.x < lo || s.x > hi;
+    }
+    this.astray = astray;
+    if (astray) {
+      this.target = null;
+      this.visible = false;
+      this.lob = null;
+      if (this.mode !== 'roam' || !this.path) { this.mode = 'roam'; this.waitUntil = 0; this.newGoal(); }
+    }
     // A marksman moves on once it has held a spot long enough, whatever it can see.
     if (this.mode === 'camp' && m.time > this.campUntil) { this.mode = 'roam'; this.perch = null; this.path = null; this.repathAt = 0; }
     if (m.time < this.fleeUntil) this.flee(dt);
@@ -534,7 +548,7 @@ export class Brain {
       return;
     }
     this.lookAlong(dt);
-    inp.sprint = this.path.length - this.pi > 7 && m.time - this.lastSeen > 3 && m.time - s.hurtAt > 3;
+    inp.sprint = this.astray || (this.path.length - this.pi > 7 && m.time - this.lastSeen > 3 && m.time - s.hurtAt > 3);
   }
 
   // Where to go next: where the other team was last seen, a marksman's
@@ -545,7 +559,7 @@ export class Brain {
     let node = -1;
     // Advance: mostly, to an objective. Attackers to one that isn't theirs
     // yet; defenders to one that is being taken, or to stand guard.
-    if (m.type === 'adv' && r.next() < 0.85) {
+    if (m.type === 'adv') {
       const mine = s.team === m.attack;
       let obj = null, top = -Infinity;
       for (const o of m.objectives()) {
@@ -559,11 +573,10 @@ export class Brain {
         const n = w.nodeAt(obj.x + (r.next() * 2 - 1) * wide, obj.y + 0.6, obj.z + (r.next() * 2 - 1) * wide);
         if (n >= 0 && Math.abs(w.nodeY[n] - obj.y) < 2.5) node = n;
       }
-      if (node >= 0) {
-        this.goTo(node, 30, true);
-        if (this.path) return;
-        node = -1;
-      }
+      if (node < 0) node = w.nodeAt(obj.x, obj.y + 0.6, obj.z);
+      this.goTo(node, 30, true);
+      if (!this.path) this.waitUntil = m.time + 0.5;
+      return;
     }
     if ((s.weapons[0].gun.id === 'sniper' && r.next() < 0.75) || (s.weapons[0].gun.id === 'bow' && s.weapons[0].mag > 0 && r.next() < 0.4)) {
       let best = null, bestD = Infinity;
@@ -596,7 +609,7 @@ export class Brain {
         node = w.nodeAt(p.x, p.y + 0.1, p.z);
       }
     }
-    this.goTo(node, 30, true, map.laneCost[this.lane]);
+    this.goTo(node, 30, true, map.laneCost ? map.laneCost[this.lane] : null);
     if (!this.path) this.waitUntil = m.time + 0.5;
   }
 

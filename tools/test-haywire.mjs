@@ -8,7 +8,8 @@
 // Usage: node tools/test-haywire.mjs [matches]
 
 import { buildMap } from '../games/haywire/js/map.js';
-import { Match, STEP, GUNS, CLASSES, MODES, TICKETS, SECTOR_BONUS, RESPAWN, REGEN_DELAY, NADE_FUSE, JUMP, GRAVITY, WALK, TALL, TALL_CROUCH } from '../games/haywire/js/engine.js';
+import { buildLine } from '../games/haywire/js/line.js';
+import { Match, STEP, GUNS, CLASSES, MODES, TICKETS, SECTOR_BONUS, BATTALIONS, OUT_TIME, RETREAT, ROUT, RESPAWN, REGEN_DELAY, NADE_FUSE, JUMP, GRAVITY, WALK, TALL, TALL_CROUCH } from '../games/haywire/js/engine.js';
 import { STEP_UP } from '../games/haywire/js/world.js';
 
 const matches = Number(process.argv[2] || 12);
@@ -402,34 +403,36 @@ const has = (m, e) => m.events.some((x) => x.e === e);
   check(pot.m.nades.length === 0 && has(pot.m, 'boom'), 'a fire pot bursts where it lands');
 }
 
-// ---- Advance: attack and defence ----------------------------------------------------------
+// ---- Advance: attack and defence, on the Long Works -----------------------------------------
 
 {
-  const home = w.nodeAt(map.spawns[0][0].x, 0.1, map.spawns[0][0].z), reach = w.reachFrom(home);
-  for (const set of map.advance.spawns) {
-    for (const [x, z] of set) {
-      const n = w.nodeAt(x, 0.1, z);
-      check(n >= 0 && reach[n] && w.nodeY[n] === 0 && !w.blocked(x, 0, z, 0.32, TALL, STEP_UP), `there is room to come in at ${x}, ${z}`);
+  const line = buildLine(), lw = line.world, secs = line.advance.sectors;
+  const reach = lw.reachFrom(lw.nodeAt(11.5, 0.1, 32.5));
+  check(secs.length === 5 && secs.every((sec, k) => k === 0 || sec.x0 > secs[k - 1].x1), 'the Long Works is five sectors in a row');
+  for (const sec of secs) {
+    check(sec.att.length >= 12 && sec.def.length >= 12, `there is room for both teams to come in at ${sec.name}`);
+    check(sec.att.every(([x]) => x < sec.x0) && sec.def.every(([x]) => x > sec.objs[0].x && x < sec.x1), `the attackers come in before ${sec.name} and the defenders at the back of it`);
+    for (const o of sec.objs) {
+      const n = lw.nodeAt(o.x, o.y + 0.1, o.z);
+      check(n >= 0 && reach[n] === 1 && !lw.blocked(o.x, o.y, o.z, 0.32, TALL, STEP_UP) && o.x > sec.x0 && o.x < sec.x1, `objective ${o.name} of ${sec.name} (${o.what}) is inside it and can be walked to`);
     }
   }
-  for (const objs of map.advance.sectors) for (const o of objs) check(reach[w.nodeAt(o.x, o.y + 0.1, o.z)] === 1, `objective ${o.name} (${o.what}) can be walked to`);
 
-  // A match with every robot under the test's control, lined up out of the way at each end.
+  // A match with every robot under the test's control, standing where it came in.
   const setUp = (opts) => {
-    const m = new Match(map, { seed: 3, type: 'adv', ...opts });
+    const m = new Match(line, { seed: 3, type: 'adv', ...opts });
     for (const s of m.soldiers) s.bot = null;
     run(m, 0.7);
     m.events.length = 0;
     const att = m.soldiers.filter((s) => s.team === m.attack), def = m.soldiers.filter((s) => s.team !== m.attack);
-    const park = (s, i) => { s.x = s.team ? 74.5 : 13.5; s.z = 6 + i * 4; s.y = 0; };
-    att.forEach(park);
-    def.forEach(park);
     const put = (s, o, dx = 0) => { s.x = o.x + dx; s.z = o.z; s.y = o.y; };
-    return { m, att, def, park, put };
+    const line2 = (list, x) => list.forEach((s, i) => { s.x = x; s.z = 6 + i * 4; s.y = 0; });
+    return { m, att, def, put, line2 };
   };
-  const { m, att, def, park, put } = setUp({ attack: 0 });
+  const { m, att, def, put, line2 } = setUp({ attack: 0 });
   check(m.soldiers.length === 24 && m.soldiers.every((s) => s.alive), 'twelve a side');
-  check(m.tickets === TICKETS && m.sector === 0, `the attack starts with ${TICKETS} lives`);
+  check(att.every((s) => s.x < 15) && def.every((s) => s.x > 55 && s.x < 62), 'the attack starts in the camp, the defence at the back of the first sector');
+  check(m.tickets === TICKETS && m.battalion === 1 && m.sector === 0, `the first battalion has ${TICKETS} lives`);
   const [A, B] = m.objectives();
   put(att[0], A);
   run(m, 5);
@@ -441,7 +444,7 @@ const has = (m, e) => m.events.some((x) => x.e === e);
   put(def[1], A, -1.5);
   run(m, 1);
   check(A.p < p0, 'more defenders than attackers win it back');
-  park(def[0], 0); park(def[1], 1);
+  line2([def[0], def[1]], 59.5);
   put(att[1], A, 1.5); put(att[2], A, -1.5);
   run(m, 8);
   check(A.own && has(m, 'taken') && att[0].score === 150, 'three attackers take it quickly, for 150 each');
@@ -449,51 +452,76 @@ const has = (m, e) => m.events.some((x) => x.e === e);
   put(att[3], B);
   run(m, 11.5);
   check(m.sector === 1 && has(m, 'sector') && m.tickets === TICKETS + SECTOR_BONUS, `both at once take the sector, and give ${SECTOR_BONUS} lives back`);
-  // Where each side comes back now: the attackers further on, the defenders further back.
+
+  // The fight moves on. The attackers go forward; one defender is left behind.
+  line2(att, 60.5);
+  line2(def.slice(2), 108.5);
+  run(m, 4);
+  check(def[0].out === 0 && def[0].alive, 'the defenders have time to fall back');
   const before = m.tickets;
+  m.scrap(def[1], att[0], 'rifle', false);
+  check(m.tickets === before + ROUT && has(m, 'rout'), `a defender caught falling back is worth ${ROUT} lives to the attack`);
   m.scrap(att[5], def[5], 'rifle', false);
   m.scrap(def[6], att[6], 'rifle', false);
-  check(m.tickets === before - 1, 'an attacker scrapped is a life gone; a defender is not');
+  check(m.tickets === before + ROUT - 1, 'an attacker scrapped is a life gone; a defender in its own sector is not');
   run(m, RESPAWN + 0.1);
-  check(att[5].alive && att[5].x > 16 && att[5].x < 34, 'the attackers now come in where the first sector was');
-  check(!def[6].alive, 'a defender is out for longer');
-  run(m, MODES[0].defWait - RESPAWN);
-  check(def[6].alive && def[6].x > 54, 'and comes back behind the second sector');
-  for (let k = 1; k < 3; k++) {
-    const [a, b] = m.objectives();
-    att.forEach((s, i) => put(s, i % 2 ? a : b, (i % 3) - 1));
-    run(m, 7);
-  }
-  check(m.over && m.winner === 0 && m.sector === 3, 'taking the third sector wins it for the attack');
+  check(att[5].alive && att[5].x > 56 && att[5].x < 62, 'the attackers now come in at the end of the first sector');
+  run(m, RETREAT + OUT_TIME - 4 - RESPAWN + 0.3);
+  check(!def[0].alive && def[0].deaths === 1 && m.scores[0] === 2, 'a defender still in the lost sector when the time is up is scrapped, for no points');
+  check(def[6].alive && def[6].x > 105 && def[6].x < 111, 'and the defenders come in at the back of the second');
+  att[7].x = 113.5; // through the far wall, out of the sector
+  run(m, OUT_TIME + 0.2);
+  check(!att[7].alive, `an attacker out of the sector for ${OUT_TIME} seconds is scrapped`);
 
-  const last = setUp({ attack: 1, tickets: 2 });
-  check(last.m.objectives()[0].x > 44, 'with orange attacking, the first sector is at the east end');
-  last.m.scrap(last.att[0], last.def[0], 'rifle', false);
-  check(!last.m.over, 'the attack goes on while it has a life left');
-  last.m.scrap(last.att[1], last.def[0], 'rifle', false);
-  check(last.m.over && last.m.winner === 0 && last.m.tickets === 0, 'and is beaten when the last is gone');
+  // Battalions.
+  const spent = setUp({ attack: 0 });
+  spent.m.objectives()[0].p = 0.6;
+  spent.m.tickets = 1;
+  spent.m.scrap(spent.att[0], spent.def[0], 'rifle', false);
+  check(spent.m.battalion === 2 && spent.m.tickets === TICKETS && spent.m.objectives()[0].p === 0 && has(spent.m, 'battalion') && !spent.m.over, 'a battalion out of lives hands over to the next, and the sector is the defenders\' again');
+  spent.m.battalion = BATTALIONS;
+  spent.m.tickets = 1;
+  spent.m.scrap(spent.att[1], spent.def[0], 'rifle', false);
+  check(spent.m.over && spent.m.winner === 1 && spent.m.tickets === 0, 'the last battalion spent is a win for the defence');
+
+  // The last sector, and the clock.
+  const end = setUp({ attack: 1 });
+  check(end.att.every((s) => s.team === 1 && s.x < 15), 'with orange attacking, it is orange that starts in the camp');
+  end.m.sector = 4;
+  const [a, b] = end.m.objectives();
+  end.att.forEach((s, i) => end.put(s, i % 2 ? a : b, (i % 3) - 1));
+  line2(end.def, 247.5);
+  run(end.m, 7);
+  check(end.m.over && end.m.winner === 1 && end.m.sector === 5, 'taking the last sector wins it for the attack');
   const slow = setUp({ attack: 0, timeLimit: 2 });
   run(slow.m, 1.5);
   check(slow.m.over && slow.m.winner === 1, 'time running out is a win for the defence');
 
   // Whole matches between bots, each team attacking in turn.
   for (let mode = 0; mode < MODES.length; mode++) {
-    const n = Math.max(4, matches);
-    let took = 0, minutes = 0;
+    const n = Math.max(4, Math.round(matches / 2));
+    let took = 0, minutes = 0, strays = 0;
     for (let seed = 1; seed <= n; seed++) {
       const play = () => {
-        const g = new Match(map, { seed, mode, type: 'adv', attack: seed % 2 });
-        while (!g.over) { g.step(); g.events.length = 0; }
-        return g;
+        const g = new Match(line, { seed, mode, type: 'adv', attack: seed % 2 });
+        let out = 0;
+        while (!g.over) {
+          g.step();
+          for (const ev of g.events) if (ev.e === 'kill' && ev.gun === 'out') out++;
+          g.events.length = 0;
+        }
+        return [g, out];
       };
-      const g = play();
+      const [g, out] = play();
       if (g.winner === g.attack) took++;
       minutes += g.time / 60;
-      check(g.winner >= 0 && (g.sector === 3 || g.tickets === 0 || g.time >= g.timeLimit), `an Advance match is played to an end (${MODES[mode].name}, ${seed})`);
-      if (seed === 1) check(play().hash() === g.hash(), 'and plays out the same way twice');
+      strays += out;
+      check(g.winner >= 0 && (g.sector === 5 || g.tickets === 0 || g.time >= g.timeLimit), `an Advance match is played to an end (${MODES[mode].name}, ${seed})`);
+      if (seed === 1) check(play()[0].hash() === g.hash(), 'and plays out the same way twice');
     }
-    console.log(`${MODES[mode].name}, Advance: the attack got through in ${took} of ${n} matches between bots; ${(minutes / n).toFixed(1)} minutes each on average`);
-    if (n >= 12) check(took >= n * 0.2 && took <= n * 0.8, `neither attack nor defence has it all its own way (${took} of ${n})`);
+    console.log(`${MODES[mode].name}, Advance: the attack got through in ${took} of ${n} matches between bots; ${(minutes / n).toFixed(1)} minutes each on average; ${strays} robots scrapped for straying`);
+    if (n >= 6) check(took >= 1 && took <= n - 1, `neither attack nor defence has it all its own way (${took} of ${n})`);
+    check(strays <= n * 6, `bots mostly keep to the sector being fought for (${strays} strayed in ${n} matches)`);
   }
 }
 

@@ -516,8 +516,16 @@ export class Renderer {
 
   // The map: corners of 13 numbers (where, facing, colour, light, pattern)
   // and the triangles between them. Draws its shadows once, here.
-  setWorld(verts, index, sunDir, size) {
-    const gl = this.gl, vao = gl.createVertexArray();
+  // (geom is kept and handed back when the game changes map, so each map
+  // is only loaded onto the graphics card once.)
+  setWorld(geom, sunDir, size) {
+    const gl = this.gl, verts = geom.verts, index = geom.index;
+    if (geom.vao) {
+      this.world = geom;
+      this.castWorld(sunDir, size);
+      return;
+    }
+    const vao = gl.createVertexArray();
     gl.bindVertexArray(vao);
     gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
     gl.bufferData(gl.ARRAY_BUFFER, verts, gl.STATIC_DRAW);
@@ -531,7 +539,15 @@ export class Renderer {
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, index, gl.STATIC_DRAW);
     gl.bindVertexArray(null);
-    this.world = { vao, count: index.length };
+    geom.vao = vao;
+    geom.count = index.length;
+    this.world = geom;
+    this.castWorld(sunDir, size);
+  }
+
+  // The map's own shadows, drawn once from where the sun is.
+  castWorld(sunDir, size) {
+    const gl = this.gl, vao = this.world.vao;
     this.sunDir = sunDir;
     // Looking down the sunlight at the whole map.
     const cx = size[0] / 2, cz = size[1] / 2, far = 140;
@@ -555,7 +571,7 @@ export class Renderer {
     gl.uniformMatrix4fv(this.depth.u.uVP, false, this.sun0);
     gl.uniformMatrix4fv(this.depth.u.uModel, false, this.ident);
     gl.bindVertexArray(vao);
-    gl.drawElements(gl.TRIANGLES, index.length, gl.UNSIGNED_INT, 0);
+    gl.drawElements(gl.TRIANGLES, this.world.count, gl.UNSIGNED_INT, 0);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   }
 
