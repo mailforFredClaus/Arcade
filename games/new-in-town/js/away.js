@@ -60,7 +60,7 @@ const hash = (n) => { let t = (n ^ 0x9e3779b9) >>> 0; t = Math.imul(t ^ (t >>> 1
 function blank(s) {
   const seed = hash((s.rng || 1) + (s.pid || 0) * 7919);
   return {
-    v: 1, seed, park: nth(PARKS, seed), bay: nth(BAYS, seed >>> 5), abroad: nth(ABROAD, seed >>> 9),
+    v: 1, seed, park: null, bay: null, abroad: nth(ABROAD, seed >>> 9),
     on: null, book: null, hols: [], fridge: [], souv: [], own: null,
     trad: { n: 0, last: -9, on: false, best: 0, done: false, back: -99 },
     moon: null, rom: null, secret: null, broch: null, glow: null, yr: {}, last: -9, ser: 0,
@@ -110,7 +110,7 @@ export function install({ def, A, Life, val, hooks, addEvents }) {
     // Where a kind of trip goes this year: a different place each year, in an order of the life's own.
     awayDest(k, t = this.s.t) {
       const A = this.s.away;
-      if (k === 'caravan') return A.park;
+      if (k === 'caravan') return this.awayPark();
       if (k === 'own') return A.own ? A.own.at : '';
       const K = KINDS[k];
       return nth(K.where, (A.seed >>> (k.length + 3)) + yearOf(t));
@@ -213,7 +213,16 @@ export function install({ def, A, Life, val, hooks, addEvents }) {
 
     // ---- a place of your own away ----
     awayOwnName(kind = this.s.away.own && this.s.away.own.kind) { return kind ? OWN[kind].name : ''; },
-    awayOwnAt(kind) { const A = this.s.away; return kind === 'static' ? A.park : kind === 'cottage' ? A.bay : A.abroad; },
+    awayOwnAt(kind) { const A = this.s.away; return kind === 'static' ? this.awayPark() : kind === 'cottage' ? this.awayBay() : A.abroad; },
+    // The caravan park in the next county, and the bay up the coast: the life's own, and not one the family has
+    // had before (chapters.js keeps the names a family has given), chosen the first time either is wanted.
+    awayPark() { const A = this.s.away; return A.park || (A.park = this.awayName('awayPark', PARKS, A.seed)); },
+    awayBay() { const A = this.s.away; return A.bay || (A.bay = this.awayName('awayBay', BAYS, A.seed >>> 5)); },
+    awayName(kind, list, n) {
+      const free = this.chapNameFree ? this.chapNameFree(kind, list) : list, name = nth(free.length ? free : list, n);
+      if (this.chapNameUse) this.chapNameUse(kind, name);
+      return name;
+    },
     awayOwnPrice(kind) { const D = OWN[kind]; return kind === 'static' ? round100(D.price * Math.sqrt(this.s.idx)) : Math.round(D.price * this.s.idx / 1000) * 1000; },
     // What it is worth: a caravan loses a little every year; a cottage follows the price of houses; a villa that,
     // and the money over there. A place let go is worth less.
@@ -252,7 +261,7 @@ export function install({ def, A, Life, val, hooks, addEvents }) {
     // (chapters.js could carry this to the heir in the carry it builds, and hand it back with awayTakeOn: see the report.)
     awayCarry() {
       const A = this.s.away;
-      return { park: A.park, bay: A.bay, abroad: A.abroad, trad: A.trad.best, hols: A.n.trips, own: A.own ? { kind: A.own.kind, at: A.own.at, paid: this.awayOwnWorth(), cond: A.own.cond } : null };
+      return { park: this.awayPark(), bay: this.awayBay(), abroad: A.abroad, trad: A.trad.best, hols: A.n.trips, own: A.own ? { kind: A.own.kind, at: A.own.at, paid: this.awayOwnWorth(), cond: A.own.cond } : null };
     },
     awayTakeOn(c) {
       if (!c || typeof c !== 'object') return;
@@ -362,7 +371,7 @@ export function install({ def, A, Life, val, hooks, addEvents }) {
     for (const [k, n] of K.stat || []) L.gain(k, n * (band ? 1 : 0.5));
     const pt = L.partner();
     for (const p of who) {
-      const d = K.bond + cls + [-8, -2, 1, 3][band] + (tr.b[p.id] || 0) + (tr.hon && p === pt ? 6 : 0);
+      const d = K.bond + cls + [-9, -4, 1, 3][band] + (tr.b[p.id] || 0) + (tr.hon && p === pt ? 6 : 0);
       L.bond(p, tr.cut ? Math.min(d, d / 2) : d);
       if (L.midSaw) L.midSaw(p);
     }
@@ -386,7 +395,7 @@ export function install({ def, A, Life, val, hooks, addEvents }) {
       const T = A.trad, y = yearOf(s.t);
       T.n = T.last === y - 1 ? T.n + 1 : T.last === y ? T.n : 1;
       T.last = y; T.best = Math.max(T.best, T.n);
-      if (T.n >= 3 && !T.on) { T.on = true; T.done = false; L.note(`A family tradition: every summer, the caravan at ${A.park}.`, 'big'); trad = ` That is three summers running at ${A.park}: a family tradition, now.`; }
+      if (T.n >= 3 && !T.on) { T.on = true; T.done = false; L.note(`A family tradition: every summer, the caravan at ${L.awayPark()}.`, 'big'); trad = ` That is three summers running at ${L.awayPark()}: a family tradition, now.`; }
     }
     const big = tr.hon || tr.gr || tr.k === 'far' || tr.k === 'gap' || (K.abroad && A.n.abroad === 1);
     L.note(`${tr.hon ? 'Honeymoon' : 'Away'}: ${K.trip(tr.at)}, ${tr.said}. “${cap(name)}.”`, big ? 'big' : '');
@@ -465,6 +474,7 @@ export function install({ def, A, Life, val, hooks, addEvents }) {
   def('awayDay', {
     place: 'station', sec: 'Going away', icon: (L) => L.awayDay().icon, title: (L) => L.awayDay().title, time: 1, per: 1, cost: (L) => L.awayDayCost(),
     desc: (L) => `${L.awayDay().blurb}${L.awayDayParty().length ? ' The family comes too.' : ''}`,
+    why: (L) => (W(L).on ? 'You are away.' : null),
     // x: how well you found your lot again on the beach (0 to 1), if it was played; otherwise an ordinary day.
     run(L, x) {
       const s = L.s, A = s.away, D = L.awayDay(), sc = typeof x === 'number' ? clamp(x, 0, 1) : 0.5, ps = L.awayDayParty();
@@ -582,9 +592,9 @@ export function install({ def, A, Life, val, hooks, addEvents }) {
     if (A.book && A.book.t <= s.t) q('awDepart', { b: A.book.id });
     // The family caravan, every summer; until the children grow out of it.
     const T = A.trad, y = yearOf(s.t);
-    if (T.on && !kids.length) { T.on = false; T.done = true; L.note(`The last of the caravan summers at ${A.park}: the children are grown.`); }
+    if (T.on && !kids.length) { T.on = false; T.done = true; L.note(`The last of the caravan summers at ${L.awayPark()}: the children are grown.`); }
     if (L.season === 1 && T.on && !A.book && A.last !== s.t) q('awTradCall');
-    if (L.season === 2 && T.on && T.last < y) { T.on = false; T.n = 0; L.note(`The caravan summers at ${A.park} lapsed, the year nobody went.`); }
+    if (L.season === 2 && T.on && T.last < y) { T.on = false; T.n = 0; L.note(`The caravan summers at ${L.awayPark()} lapsed, the year nobody went.`); }
     // ... and the grandchildren, brought back to the same sands.
     if (L.season === 1 && T.best >= 2 && s.t - T.back >= 8) {
       const c = L.kids().filter((k) => k.age >= 18 && L.grandkids().some((g) => g.of === k.id && g.age >= 3 && g.age <= 12)).sort((a, b) => b.bond - a.bond)[0];
@@ -637,6 +647,9 @@ export function install({ def, A, Life, val, hooks, addEvents }) {
       if (pt && pt.kind === 'spouse' && !s.gaol && !s.pend.some((q) => q.id === 'awMoon')) { A.moon = { p: pt.id, t: s.t }; s.pend.unshift({ id: 'awMoon', x: { p: pt.id } }); }
     }
     if (/^Retired /.test(e.t) && A.broch == null) A.broch = s.t + 1;
+    // (chapters.js's one last adventure, if it took you away, goes on the list of holidays too.)
+    const adv = /^One last adventure: (went north to see the Northern Lights|sailed alone to the islands and back)/.exec(e.t);
+    if (adv) A.hols.push({ k: 'adv', at: adv[1], who: 'on your own', ids: [], mem: /Northern/.test(adv[1]) ? 'the Northern Lights' : 'sailing alone to the islands', age: s.age, q: 3, t: s.t });
   });
 
   // The Gazette remembers the summers, or the one great journey, or the place away.
@@ -645,7 +658,7 @@ export function install({ def, A, Life, val, hooks, addEvents }) {
     if (!A) return;
     const m = s.sex !== 'f', He2 = m ? 'He' : 'She', he2 = m ? 'he' : 'she', his2 = m ? 'his' : 'her';
     const far = A.hols.filter((h) => h.k === 'far').pop();
-    if (A.trad.best >= 3) out.push(`For ${A.trad.best} summers running ${he2} took the family to ${A.park}, where the caravan’s wardrobe door still has the children’s heights pencilled on it.`);
+    if (A.trad.best >= 3) out.push(`For ${A.trad.best} summers running ${he2} took the family to ${L.awayPark()}, where the caravan’s wardrobe door still has the children’s heights pencilled on it.`);
     else if (far) out.push(`${He2} went to ${far.at.split(',')[0]} at ${far.age}, and talked about it for the rest of ${his2} life.`);
     else if (A.own) out.push(`${He2} kept ${A.own.kind === 'cottage' ? 'a cottage' : A.own.kind === 'villa' ? 'a villa' : 'a static caravan'} ${A.own.kind === 'villa' ? 'in' : 'at'} ${A.own.at}, and went there whenever the Bay got too much.`);
     else if (A.n.trips >= 12) out.push(`${He2} went away ${A.n.trips} times, and always came back.`);

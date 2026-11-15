@@ -32,8 +32,8 @@ export default function (kit) {
   const xOf = (k, p) => ({ k, w: p.w, c: p.c });
   const go = (label, kind, x, why, cls = '') => `<button class="pick ${cls}${why ? ' off' : ''}" data-do="${kind}" data-x="${esc(JSON.stringify(x))}"${why ? ` data-why="${esc(why)}"` : ''}>${label}</button>`;
   const lineShut = (life) => { const e = life.s.annals && life.s.annals.ev && life.s.annals.ev.line; return !!e && e.shut != null && e.back == null; };
-  const holSaid = (h) => (h.k === 'stay' ? `a night at ${h.at}` : h.k === 'own' ? `a week at ${h.at}` : KINDS[h.k] ? KINDS[h.k].trip(h.at) : h.at);
-  const holIcon = (h) => (h.k === 'stay' ? '🏨' : h.k === 'own' ? '🏡' : KINDS[h.k] ? KINDS[h.k].icon : '🧳');
+  const holSaid = (h) => (h.k === 'stay' ? `a night at ${h.at}` : h.k === 'own' ? `a week at ${h.at}` : h.k === 'adv' ? `one last adventure (you ${h.at})` : KINDS[h.k] ? KINDS[h.k].trip(h.at) : h.at);
+  const holIcon = (h) => (h.k === 'stay' ? '🏨' : h.k === 'own' ? '🏡' : h.k === 'adv' ? '🎈' : KINDS[h.k] ? KINDS[h.k].icon : '🧳');
   const bar = (v, label, icon) => `<div class="skill"><i>${icon}</i><span>${label}</span><span class="bar"><span style="width:${Math.round(v)}%;background:${v >= 65 ? 'var(--good)' : v >= 40 ? 'var(--sun)' : 'var(--bad)'}"></span></span><b>${Math.round(v)}</b></div>`;
 
   // ---- the board of this year's trips ----
@@ -99,6 +99,9 @@ export default function (kit) {
     if (!when && life.awayBossMinds()) notes.push('You have had this year’s holiday: the boss will mind.');
     if (lineShut(life)) notes.push('Add $150 for the coach: the railway is shut.');
     if (k === 'gap') notes.push('A whole season away. You come back with more Charm and Smarts than you went with.');
+    // (A business with staff is left to them, or to its manager: see firm.js.)
+    const firm = life.firmOf && life.firmOf();
+    if (firm && firm.staff.length) notes.push(life.firmMgr && life.firmMgr() ? `${firm.name} will be left to ${life.firmMgr().name.split(' ')[0]}.` : `${firm.name} will be left to the staff, with nobody in charge.`);
     const why = when ? life.can('awayBook', x) : life.can('trip', xOf(k, p));
     body += `<div class="item aw-sum"><div class="line"><span>Where</span><b>${esc(dest.split(',')[0])}</b></div>
       <div class="line"><span>All in</span><b>${P.why ? '—' : money(cost)}</b></div>
@@ -146,8 +149,8 @@ export default function (kit) {
     if (hols.length) out += `<div class="line"><span>🧳 Holidays</span><b>${hols.length}${A.n.abroad ? `, ${A.n.abroad} abroad` : ''}</b></div>`;
     if (s.job) out += `<div class="line"><span>🗓️ This year’s holiday</span><b>${life.awayYearUsed() ? 'Taken' : 'Still to have'}</b></div>`;
     if (A.book) { const K = life.awayKind(A.book.k); out += `<div class="line"><span>📅 Booked: ${esc(K ? K.name.toLowerCase() : 'a trip')}</span><b>${SEASONS[A.book.t % 4]}</b></div>`; }
-    if (A.trad.on) out += `<div class="line"><span>🚐 Every summer at ${esc(A.park)}</span><b>${A.trad.n} year${A.trad.n > 1 ? 's' : ''} running</b></div>`;
-    else if (A.trad.best >= 3) out += `<div class="line"><span>🚐 The caravan summers at ${esc(A.park)}</span><b>${A.trad.best} years</b></div>`;
+    if (A.trad.on) out += `<div class="line"><span>🚐 Every summer at ${esc(life.awayPark())}</span><b>${A.trad.n} year${A.trad.n > 1 ? 's' : ''} running</b></div>`;
+    else if (A.trad.best >= 3) out += `<div class="line"><span>🚐 The caravan summers at ${esc(life.awayPark())}</span><b>${A.trad.best} years</b></div>`;
     if (A.own) out += `<div class="line"><span>${OWN[A.own.kind].icon} Your ${esc(OWN[A.own.kind].name)} ${A.own.kind === 'villa' ? 'in' : 'at'} ${esc(A.own.at)}</span><b>${cashShort(life.awayOwnWorth())}</b></div>`;
     if (hols.length) {
       const row = (h) => `<div class="aw-hol"><i>${holIcon(h)}</i><div><b>“${esc(cap(h.mem))}”</b><small>At ${h.age}: ${esc(holSaid(h))}, ${esc(h.who)}.${h.hon ? ' The honeymoon.' : ''}</small></div></div>`;

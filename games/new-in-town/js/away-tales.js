@@ -21,6 +21,8 @@ const nm = (p) => (/^(Mum|Dad)$/.test(p.name) ? p.name : first(p));
 const pr = (sex) => (sex === 'm' ? { he: 'he', He: 'He', his: 'his', him: 'him' } : { he: 'she', He: 'She', his: 'her', him: 'her' });
 // The place, short: "Greece", "Pendrift Sands", "the fells of the north".
 const short = (tr) => tr.at.split(',')[0];
+// What the little things cost somebody of your means (the taxi, the thank-you, the souvenir): see midSpend in midlife.js.
+const spend = (L, n) => Math.round(n * Math.min(4, L.midSpend ? L.midSpend() : 1) / 10) * 10;
 
 export function tripCards(H) {
   const who = (L, tr) => H.people(L, tr);
@@ -56,7 +58,8 @@ export function tripCards(H) {
         ? `Halfway to the airport, somebody asks who has ${c.thing}. Nobody has ${c.thing}. ${cap(c.thing)} are on the hall table, next to the sandwiches.`
         : nth([`You arrive, unpack, and find that ${c.thing} ${/s$/.test(c.thing) ? 'are' : 'is'} at home, in the hall, exactly where you put ${/s$/.test(c.thing) ? 'them' : 'it'} so as not to forget.`, `There is a moment, an hour after you set off, when everybody goes quiet and thinks about ${c.thing}. ${cap(c.thing)} ${/s$/.test(c.thing) ? 'are' : 'is'} at home.`, `“Who packed ${c.thing}?” Nobody packed ${c.thing}.`], c.v)),
       opts: [
-        { t: (L, tr, c) => (/passports|tickets/.test(c.thing) ? 'Turn round and go back for them' : 'Buy new when you get there'), cost: (L, tr) => 25 * heads(tr), run(L, tr, c) { tr.q -= 1; return /passports|tickets/.test(c.thing) ? 'You make it with four minutes to spare, no breakfast and nobody speaking to you.' : 'It costs twice what it would at home, and is not as good, and you will have two now.'; } },
+        { t: 'Turn round and go back for them', show: (L, tr, c) => /passports|tickets/.test(c.thing), run(L, tr) { tr.q -= 1; return 'You make it with four minutes to spare, no breakfast and nobody speaking to you.'; } },
+        { t: 'Buy new when you get there', show: (L, tr, c) => !/passports|tickets/.test(c.thing), cost: (L, tr) => spend(L, 25 * heads(tr)), run() { return 'It costs twice what it would at home, and is not as good, and you will have two now.'; } },
         { t: 'Ring a neighbour and beg', show: (L, tr, c) => /passports|tickets/.test(c.thing), check: ['charm', 40], run(L, tr, c, win) { if (win) { H.mem(tr, 'the neighbour in the dressing gown', 2); return `Your neighbour arrives in a dressing gown with ${c.thing} in a carrier bag, and will not hear of thanks. You owe her for ever.`; } tr.q -= 2; L.cash(-40 * heads(tr)); return 'Nobody answers. You go back for them yourself, miss it, and pay to go the next day.'; } },
         { t: 'Make do', show: (L, tr, c) => !/passports|tickets/.test(c.thing), run(L, tr, c) { tr.q -= 1; H.mem(tr, `the year we forgot ${c.thing.replace(/^your /, 'the ')}`, 2); return 'You make do. It becomes a family story, always told against you.'; } },
         { t: 'Blame somebody else', show: (L, tr, c) => !!P(L, c.p), run(L, tr, c) { const p = P(L, c.p); bondOne(tr, p, -3); return `${nm(p)} did not pack it, and says so, often, for the rest of the week.`; } },
@@ -75,8 +78,8 @@ export function tripCards(H) {
         return `The carousel goes round and round. Everybody else’s case comes out, and a set of golf clubs, twice. Yours does not.${more}`;
       },
       opts: [
-        { t: 'Buy what you need, and claim it back', cost: (L, tr) => 60 * heads(tr) * (1 + tr.c), run() { return 'A day in the shops buying the same things you already own, in brighter colours. The insurance pays back about half, eventually.'; } },
-        { t: 'Make do with what you stand up in', check: ['charm', 35], run(L, tr, c, win) { if (win) { tr.q += 1; H.mem(tr, 'the week in borrowed clothes', 3); return 'You spend the week in one shirt and a pair of shorts from the hotel shop, and have never felt so free.'; } tr.q -= 1; return 'By Wednesday you smell of airports, and people move along the bench.'; } },
+        { t: 'Buy what you need, and claim it back', cost: (L, tr) => spend(L, 60 * heads(tr) * (1 + tr.c)), run() { return 'A day in the shops buying the same things you already own, in brighter colours. The insurance pays back about half, eventually.'; } },
+        { t: 'Make do with what you stand up in', run(L, tr) { tr.q -= 1; H.mem(tr, 'the week in borrowed clothes', 3); return 'You spend the week in one shirt and a pair of shorts from the hotel shop. By Wednesday you smell of airports, and by Friday you have never felt so free.'; } },
         { t: 'Spend a day chasing it', check: ['smarts', 40], run(L, tr, c, win) { if (win) return 'It turns up in the end, in a taxi, with a man who wants a tip.'; tr.q -= 1; return 'Nobody has heard of your case, or of you. It comes home a week after you do, with a label from somewhere you have never been.'; } },
       ],
     },
@@ -115,7 +118,7 @@ export function tripCards(H) {
       opts: [
         { t: 'Pull into a lay-by and sort it out', check: ['charm', 40], run(L, tr, c, win) { const p = P(L, c.p); if (win) { bondOne(tr, p, 3); tr.q += 1; return 'Ten minutes in a lay-by, a flask of tea and a proper talk. The rest of the drive is the best part of the holiday.'; } bondOne(tr, p, -3); tr.q -= 1; return 'It is a very long lay-by, and a very long ten minutes.'; } },
         { t: 'Turn the radio up', run(L, tr, c) { bondOne(tr, P(L, c.p), -1); return 'Nobody speaks until the sea comes into view, and then everybody does, at once.'; } },
-        { t: 'Stop for chips', cost: (L, tr) => 8 * heads(tr), run(L, tr) { tr.q += 1; bondAll(L, tr, 1); return 'Chips in a car park with the windows steaming up. Nobody remembers what it was about.'; } },
+        { t: 'Stop for chips', cost: (L, tr) => spend(L, 8 * heads(tr)), run(L, tr) { tr.q += 1; bondAll(L, tr, 1); return 'Chips in a car park with the windows steaming up. Nobody remembers what it was about.'; } },
       ],
     },
 
@@ -131,7 +134,7 @@ export function tripCards(H) {
       opts: [
         { t: 'Get in with them', run(L, tr) { for (const p of kidsOn(L, tr)) bondOne(tr, p, 4); tr.q += 1; L.gain('fitness', 0.5); H.mem(tr, 'the summer of the crocodile lilo', 2); return 'You are the crocodile for most of the afternoon. It is the best afternoon of the year.'; } },
         { t: 'A lounger, a book, and one eye open', run(L, tr) { L.hp(2); tr.q += 1; return 'You read four chapters and count heads every two pages.'; } },
-        { t: 'Sign them up for the kids’ club', cost: (L, tr) => 30 * kidsOn(L, tr).length, run(L, tr) { tr.q += 1; const pt = ptOn(L, tr); if (pt) { bondOne(tr, pt, 3); return `An afternoon to yourselves, for the first time in about a year. You and ${first(pt)} have a long lunch and talk about something other than the children, mostly the children.`; } return 'An afternoon to yourself. You do not know what to do with it, and then you do: nothing at all.'; } },
+        { t: 'Sign them up for the kids’ club', cost: (L, tr) => spend(L, 30 * kidsOn(L, tr).length), run(L, tr) { tr.q += 1; const pt = ptOn(L, tr); if (pt) { bondOne(tr, pt, 3); return `An afternoon to yourselves, for the first time in about a year. You and ${first(pt)} have a long lunch and talk about something other than the children, mostly the children.`; } return 'An afternoon to yourself. You do not know what to do with it, and then you do: nothing at all.'; } },
       ],
     },
 
@@ -162,7 +165,7 @@ export function tripCards(H) {
       opts: [
         { t: 'Board games, and a jigsaw with a piece missing', run(L, tr) { if (tr.who.length) { bondAll(L, tr, 2); return 'Monopoly, three times, and a jigsaw of a sunny beach with one piece of sky missing. Nobody sulks for long.'; } L.joy(1); return 'You do a jigsaw of a sunny beach on your own, and find the missing piece in your sock.'; } },
         { t: 'Go out in it anyway', check: ['fitness', 30], run(L, tr, c, win) { if (win) { tr.q += 1; H.mem(tr, 'the waterfall in the rain', 2); return 'A waterfall in full spate, and nobody else there to see it. You come back wet and glowing.'; } tr.q -= 1; L.hp(-1); return 'You come back wet through, with a cold coming on and nothing to show for it but wet socks.'; } },
-        { t: 'The amusement arcade', cost: (L, tr) => 15 * heads(tr), run(L, tr) { tr.q += 1; for (const p of kidsOn(L, tr)) bondOne(tr, p, 2); return 'Two hours, a bag of tokens, and a plastic watch from the grabber that stops on the way home.'; } },
+        { t: 'The amusement arcade', cost: (L, tr) => spend(L, 15 * heads(tr)), run(L, tr) { tr.q += 1; for (const p of kidsOn(L, tr)) bondOne(tr, p, 2); return 'Two hours, a bag of tokens, and a plastic watch from the grabber that stops on the way home.'; } },
       ],
     },
 
@@ -204,7 +207,7 @@ export function tripCards(H) {
         return 'You leave your wallet on a bench. A boy runs after you for two streets to give it back, and will not take a reward.';
       },
       opts: [
-        { t: 'Thank them properly', cost: 30, run(L, tr) { L.karma(1); tr.q += 1; H.mem(tr, road(L, tr) ? 'the farmer with the coat hanger' : abroad(L, tr) ? 'the lemonade lady' : 'the boy with the wallet', 2); return 'A bottle of something and a card. They are embarrassed, which makes you both feel better.'; } },
+        { t: 'Thank them properly', cost: (L) => spend(L, 30), run(L, tr) { L.karma(1); tr.q += 1; H.mem(tr, road(L, tr) ? 'the farmer with the coat hanger' : abroad(L, tr) ? 'the lemonade lady' : 'the boy with the wallet', 2); return 'A bottle of something and a card. They are embarrassed, which makes you both feel better.'; } },
         { t: 'Promise yourself to do the same for somebody', run(L, tr) { L.karma(2); tr.q += 1; return 'And you do: a lost family on the harbour wall in the Bay, the summer after. You think of the stranger as you point the way.'; } },
         { t: 'Accept, gratefully', run(L, tr) { tr.q += 1; return 'You say thank you more times than is strictly necessary. It is still not enough.'; } },
       ],
@@ -215,7 +218,7 @@ export function tripCards(H) {
       id: 'awFestival', kinds: ['sun', 'city', 'walk', 'coach', 'far', 'cruise', 'gap'], w: 1.2,
       ctx: (L) => ({ v: L.int(0, FESTIVALS.length - 1) }),
       icon: '🎆', title: 'The festival',
-      text: (L, tr, c) => `By luck, wherever you are is having its festival: ${nth(FESTIVALS, c.v)}.`,
+      text: (L, tr, c) => `By luck, you have arrived on the day of the festival: ${nth(FESTIVALS, c.v)}.`,
       opts: [
         { t: 'Join in', check: ['charm', 35], run(L, tr, c, win) { if (win) { tr.q += 2; L.joy(2); bondAll(L, tr, 1); H.mem(tr, 'the night of the festival', 4); return 'By midnight you are in the thick of it, dancing with strangers who are not strangers any more.'; } tr.q += 1; return 'You join the wrong procession, and walk very solemnly for an hour behind what turns out to be a funeral.'; } },
         { t: 'Watch from a café table', run(L, tr) { tr.q += 1; return 'The best seat in town, and a waiter who keeps the glasses coming.'; } },
@@ -246,7 +249,7 @@ export function tripCards(H) {
       text: (L, tr) => `The train is at 6:12. At 6:11 you are at the wrong end of the station${tr.who.length ? `, ${tr.said},` : ''} with a case whose wheel has stopped going round.`,
       opts: [
         { t: 'Run for it', check: ['fitness', 40], run(L, tr, c, win) { if (win) { tr.q += 1; return 'You fall into the carriage as the whistle goes, and laugh for twenty minutes.'; } L.cash(-60 * heads(tr)); tr.q -= 1; return 'The doors close in your face. A night in the station hotel, with views of the car park, and a fresh fare in the morning.'; } },
-        { t: 'A taxi, whatever it costs', cost: 90, run() { return 'The taxi driver takes the long way, and the long way is beautiful.'; } },
+        { t: 'A taxi, whatever it costs', cost: (L) => spend(L, 90), run() { return 'The taxi driver takes the long way, and the long way is beautiful.'; } },
         { t: 'Shrug, and find somewhere for tea', run(L, tr) { H.mem(tr, 'the café by the station', 2); return 'You find a café by the station that does the best cake you have ever eaten, and catch the 8:40.'; } },
       ],
     },
@@ -334,7 +337,7 @@ export function tripCards(H) {
       text: () => 'The ship docks at eight and sails at five sharp, with or without you. There is a whole town to see.',
       opts: [
         { t: 'Wander off the beaten track', odds: () => 0.7, run(L, tr, c, win) { if (win) { tr.q += 2; H.mem(tr, 'the little harbour where nobody else went', 3); return 'A little harbour, a café with three tables, and grilled fish that ruins every other fish for you. You are back with twenty minutes to spare.'; } L.cash(-250); tr.q -= 1; return 'They are pulling up the gangway as you arrive in a borrowed fishing boat. The whole ship cheers.'; } },
-        { t: 'The organised excursion', cost: (L, tr) => 60 * heads(tr), run(L, tr) { tr.q += 1; return 'Forty of you behind a woman with an umbrella held high. You see everything, at speed.'; } },
+        { t: 'The organised excursion', cost: (L, tr) => spend(L, 60 * heads(tr)), run(L, tr) { tr.q += 1; return 'Forty of you behind a woman with an umbrella held high. You see everything, at speed.'; } },
         { t: 'Stay aboard, and have the pool to yourself', run(L, tr) { L.hp(2); tr.q += 1; return 'Everybody else is ashore. You float in the pool with the whole ship humming round you.'; } },
       ],
     },
@@ -378,7 +381,7 @@ export function tripCards(H) {
       icon: '🌇', title: 'The last evening',
       text: (L, tr) => `The last evening. The cases are half packed, ${tr.k === 'city' ? 'the streets are lighting up' : tr.k === 'walk' ? 'your boots are by the door' : tr.k === 'cruise' ? 'the ship is turning for home' : 'the sun is going down'}, and there is still time for one more thing.`,
       opts: [
-        { t: 'Buy a souvenir', cost: (L, tr) => SOUV_COST[tr.k] || 10, run(L, tr) {
+        { t: 'Buy a souvenir', cost: (L, tr) => spend(L, SOUV_COST[tr.k] || 10), run(L, tr) {
           const A = L.s.away, [i, name] = L.pick(SOUVENIRS[tr.k] || SOUVENIRS.own);
           A.souv.push({ i, name, at: short(tr), age: L.s.age });
           if (A.souv.length > 12) A.souv.shift();
@@ -435,7 +438,7 @@ export function lifeCards(H) {
       ok: (L, x) => notAway(L) && !!pt(L) && pt(L).kind === 'spouse' && !!x && pt(L).id === x.p && !!W(L).moon,
       text: (L) => `And then there is the honeymoon. ${first(pt(L))} has brochures. You have a figure in your head, and it is smaller than the brochures.`,
       opts: [
-        { t: 'A night at the Gull, and a walk along the sands', cost: 180, run(L) {
+        { t: 'A night at the Gull, and a walk along the sands', cost: (L) => spend(L, 180), run(L) {
           const s = L.s, A = W(L), p = pt(L);
           A.moon = null; A.n.moon++;
           L.bond(p, 6); L.joy(4);
@@ -510,7 +513,7 @@ export function lifeCards(H) {
       ok: (L) => notAway(L) && W(L).trad.on && kids(L).length > 0 && W(L).last !== L.s.t,
       text(L) {
         const ks = kids(L), A = W(L), n = A.trad.n;
-        return `The first week of the summer holidays. The buckets and spades are by the door, ${ks.length > 2 ? 'the children have' : `${list(ks.map(first))} ${ks.length > 1 ? 'have' : 'has'}`} been packed since Tuesday, and ${A.park} is expecting you, as it has every summer for ${n === 1 ? 'a year' : `${n} years`}.`;
+        return `The first week of the summer holidays. The buckets and spades are by the door, ${ks.length > 2 ? 'the children have' : `${list(ks.map(first))} ${ks.length > 1 ? 'have' : 'has'}`} been packed since Tuesday, and ${L.awayPark()} is expecting you, as it has every summer for ${n === 1 ? 'a year' : `${n} years`}.`;
       },
       opts: [
         { t: 'Same as ever', cost: (L) => L.awayCost({ k: 'caravan', w: 'family', c: 0 }), why: (L) => tripWhy(L, { k: 'caravan', w: 'family', c: 0 }), run(L) { return go(L, { k: 'caravan', w: 'family', c: 0 }, { trad: true }); } },
@@ -524,17 +527,17 @@ export function lifeCards(H) {
       ok: (L, x) => notAway(L) && !!x && !!L.person(x.c) && L.grandkids().some((g) => g.of === x.c),
       text(L, x) {
         const c = L.person(x.c), gs = L.grandkids().filter((g) => g.of === c.id);
-        return `${first(c)} rings. ${He(c)} is taking ${gs.length > 2 ? 'the children' : list(gs.map(first))} to ${W(L).park} this summer, to the same caravan, or near enough, where ${he(c)} went every summer as a child. ${He(c)} wondered if you would come.`;
+        return `${first(c)} rings. ${He(c)} is taking ${gs.length > 2 ? 'the children' : list(gs.map(first))} to ${L.awayPark()} this summer, to the same caravan, or near enough, where ${he(c)} went every summer as a child. ${He(c)} wondered if you would come.`;
       },
       opts: [
         { t: 'Come, and pay for it all', cost: (L, x) => backCost(L, x), why: (L) => tripWhy(L, { k: 'caravan', w: 'solo', c: 0 }), run(L, x) { const c = L.person(x.c), ids = [c.id, ...L.grandkids().filter((g) => g.of === c.id).map((g) => g.id)]; return go(L, { k: 'caravan', w: 'back', c: 0 }, { ids, gr: true }); } },
-        { t: 'Come for the weekend, and pay for the ice creams', cost: 60, run(L, x) {
+        { t: 'Come for the weekend, and pay for the ice creams', cost: (L) => spend(L, 60), run(L, x) {
           const s = L.s, A = W(L), c = L.person(x.c), gs = L.grandkids().filter((g) => g.of === c.id);
           s.time = Math.max(0, s.time - 1);
           L.bond(c, 4); for (const g of gs) L.bond(g, 5); L.joy(5);
           A.n.back++;
-          A.hols.push({ k: 'caravan', at: A.park, who: `with ${first(c)} and the grandchildren`, ids: [c.id, ...gs.map((g) => g.id)], mem: `back at ${A.park} with the grandchildren`, age: s.age, q: 3, t: s.t, gr: 1 });
-          L.note(`Went back to ${A.park} with ${first(c)} and the grandchildren, where ${first(c)} went every summer as a child.`, 'big');
+          A.hols.push({ k: 'caravan', at: L.awayPark(), who: `with ${first(c)} and the grandchildren`, ids: [c.id, ...gs.map((g) => g.id)], mem: `back at ${L.awayPark()} with the grandchildren`, age: s.age, q: 3, t: s.t, gr: 1 });
+          L.note(`Went back to ${L.awayPark()} with ${first(c)} and the grandchildren, where ${first(c)} went every summer as a child.`, 'big');
           return `The same sands, the same café, a caravan two along from the old one. ${first(c)} shows ${gs.length > 1 ? 'the children' : first(gs[0])} the rock pool where ${he(c)} caught a crab the size of a dinner plate, which has got bigger every year since.`;
         } },
         { t: 'Not this time', run(L, x) { L.bond(L.person(x.c), -2); return 'You send a bucket and spade in the post instead, which is not the same, and everybody knows it.'; } },

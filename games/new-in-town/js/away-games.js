@@ -123,7 +123,8 @@ Object.assign(GAMES, {
     time: 50,
     words: ['A shambles', 'It shuts, just', 'Neatly packed', 'A work of art'],
     play(api) {
-      const pz = packPuzzle(api.rnd, api.level), { w, h } = pz, grid = new Array(w * h).fill(null), placed = {};
+      // (On a short screen, a smaller case: everything has to fit, thumbs included.)
+      const pz = packPuzzle(api.rnd, typeof window !== 'undefined' && window.innerHeight < 700 ? Math.min(api.level, 2) : api.level), { w, h } = pz, grid = new Array(w * h).fill(null), placed = {};
       const shape = {}; for (const p of pz.pieces) shape[p.id] = p.cells;
       let sel = null, over = false;
       const box = el('div', 'aw-pack', `<div class="aw-case" style="--w:${w};--h:${h}"></div><p class="mg-tally aw-say"></p><div class="aw-tray"></div><div class="aw-row"><button class="aw-turn">↻ Turn it</button><button class="mg-go aw-shut">Shut the case</button></div>`);
@@ -176,9 +177,9 @@ Object.assign(GAMES, {
     words: ['Melted', 'Sticky, but home', 'Back in good time', 'Not a drip spilt'],
     play(api) {
       let round = null, got = 0, wrong = 0, over = false;
-      const box = el('div', 'aw-beach', '<div class="aw-mine"><span>Your lot:</span><b class="aw-spot aw-me"></b><small class="aw-said"></small></div><div class="aw-sand"></div><p class="mg-tally aw-say"></p>');
+      const box = el('div', 'aw-beach', '<div class="aw-mine"><span>Your lot:</span><b class="aw-spot aw-target"></b><small class="aw-said"></small></div><div class="aw-sand"></div><p class="mg-tally aw-say"></p>');
       api.stage.append(box);
-      const sand = box.querySelector('.aw-sand'), me = box.querySelector('.aw-me'), said = box.querySelector('.aw-said'), say = box.querySelector('.aw-say');
+      const sand = box.querySelector('.aw-sand'), me = box.querySelector('.aw-target'), said = box.querySelector('.aw-said'), say = box.querySelector('.aw-say');
       const tally = (t) => { say.textContent = `${t ? `${t} ` : ''}🍦 ${got} of ${BEACH_ROUNDS} trips back`; };
       const next = () => {
         round = beachRound(api.rnd, api.level);
@@ -216,6 +217,14 @@ export const GAME_CSS = `
 .aw-tray { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; width: 100%; max-height: 32vh; overflow-y: auto; }
 .mini-stage .aw-piece { min-width: 64px; min-height: 56px; padding: 6px 6px 4px; border-radius: 12px; background: #fff; box-shadow: 0 3px 0 #e2d6bb; display: grid; justify-items: center; gap: 3px; }
 .aw-piece.must { background: #fff7df; }
+.mini-stage .aw-piece { position: relative; }
+.aw-piece.must::after { content: '★'; position: absolute; top: 2px; right: 5px; font-size: 11px; color: #c98a00; }
+@media (max-height: 700px) {
+  .aw-piece small { display: none; }
+  .mini-stage .aw-piece { min-width: 50px; min-height: 46px; padding: 6px; place-items: center; }
+  .aw-say { min-height: 1.3em; }
+  .aw-pack { gap: 6px; }
+}
 .aw-piece.sel { background: #dff1f4; box-shadow: 0 0 0 3px var(--teal), 0 3px 0 var(--teal-edge); }
 .aw-piece small { font-size: 10.5px; font-weight: 800; color: var(--muted); line-height: 1.1; max-width: 76px; }
 .aw-shape { display: grid; grid-template-columns: repeat(var(--mw), 15px); grid-template-rows: repeat(var(--mh), 15px); gap: 1px; }
@@ -230,7 +239,7 @@ export const GAME_CSS = `
 .aw-mine small { grid-column: 1 / 3; font-size: 12.5px; font-weight: 800; color: var(--muted); text-align: center; }
 .aw-sand { box-sizing: border-box; display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; width: min(320px, 100%, calc((100vh - 290px) * 0.8)); width: min(320px, 100%, calc((100dvh - 290px) * 0.8)); padding: 7px; border-radius: 16px; background: #f3dfae; background-image: radial-gradient(#e6cf96 1.2px, #0000 1.6px); background-size: 11px 11px; box-shadow: 0 3px 0 #dcc58d; }
 .aw-spot { position: relative; display: block; min-width: 0; min-height: 44px; aspect-ratio: 1; padding: 0; border-radius: 12px; background: #fbefcc; box-shadow: 0 2px 0 #e0c991; overflow: hidden; }
-.aw-me { width: 58px; height: 58px; }
+.aw-spot.aw-target { width: 58px; height: 58px; }
 .aw-umb { position: absolute; left: 14%; top: 6%; width: 62%; aspect-ratio: 1; border-radius: 50%; background: repeating-conic-gradient(var(--u) 0 30deg, #fffdf6 30deg 60deg); box-shadow: 0 1px 2px #0003; }
 .aw-towel { position: absolute; right: 7%; bottom: 8%; width: 42%; height: 46%; border-radius: 4px; background: var(--t); box-shadow: inset 0 0 0 2px #ffffff55, 0 1px 0 #0002; }
 .aw-spot i { position: absolute; left: 6%; bottom: 4%; font-style: normal; font-size: 18px; line-height: 1; }

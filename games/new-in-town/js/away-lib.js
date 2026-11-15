@@ -27,9 +27,9 @@ export const nth = (l, n) => l[((n % l.length) + l.length) % l.length];
 export const KINDS = {
   tent: {
     name: 'A borrowed tent', icon: '⛺', time: 2, fixed: 30, per: 30, n: 2, joy: 6, hp: 1, bond: 4, months: [0, 1, 2], road: true,
-    blurb: 'Two nights in a field somewhere, under canvas that smells of somebody else’s holidays. Cheap, and the stars are free.',
+    blurb: 'Two nights in a field somewhere out of the county, under canvas that smells of somebody else’s holidays. Cheap, and the stars are free.',
     cls: ['A tent with one pole missing'], clsX: [1],
-    where: ['a farmer’s field above Carrow Cove', 'the woods by Lostwell Water', 'the dunes at Marram Point', 'a field by the river at Hensby', 'a hollow on Rook Moor', 'an orchard near Kettleby'],
+    where: ['a farmer’s field above Carrow Cove', 'the woods by Lostwell Water', 'the dunes at Marram Point', 'a field by the river at Hensby', 'a sheep field above the estuary', 'an orchard near Kettleby'],
     trip: (at) => `two nights under canvas in ${at}`, mem: (at) => `the nights in ${at}`, last: 'one last look at the stars',
     shut: 'Not in winter. You like your toes.',
   },
