@@ -25,6 +25,7 @@ import { install as comfort } from './comfort.js'; // money for the comfortable:
 import { install as firm } from './firm.js'; // a business worth running: a name, staff, the office, rivals, the accounts
 import { install as moor } from './moor.js'; // Starling Moor, the third map: the Hall, the quarry, Fennick, the stars and the walks
 import { install as away } from './away.js'; // going away: holidays, trips, the family caravan, and a place of your own away
+import { install as street } from './street.js'; // where you live: the house, the garden, the street, and having people round
 
 // (The plain things to do up the hill go last, so that each place's own sections come first.)
-export const RULES = [soul, coast, motor, clubs, market, folk, flutter, careers, chapters, wants, heists, proceeds, annals, midlife, comfort, gaol2, firm, moor, away, hill];
+export const RULES = [soul, coast, motor, clubs, market, folk, flutter, careers, chapters, wants, heists, proceeds, annals, midlife, comfort, gaol2, firm, moor, away, street, hill];
