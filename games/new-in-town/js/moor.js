@@ -261,7 +261,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     // The constellation the next good night at the telescope is spent on: one not yet logged that is up this season.
     moorStarNext() {
       const q = this.season, m = this.s.moor, up = SKY_IDS.filter((id) => SKY[id].q.includes(q));
-      return up.find((id) => !m.stars[id]) || up[this.s.t % up.length];
+      return up.find((id) => m.stars[id] == null) || up[this.s.t % up.length];
     },
     moorStarEase() { const s = this.s, m = s.moor; return clamp(s.st.smarts / 110 + Math.max(0, m.folk.lamb) / 400 + (m.gifts.scope ? 0.2 : 0), 0, 1); },
 
@@ -378,7 +378,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     place: 'hall', sec: 'Haverleigh Hall', icon: (L) => (L.season === 3 ? '🕯️' : '🌹'),
     title: (L) => (L.season === 3 ? 'Christmas at the Hall' : 'Walk round the gardens'),
     desc: (L) => (L.season === 3 ? 'The house by candlelight, with mulled wine in the hall. Good for the mood.' : 'Roses, a maze, a ha-ha and a peacock with a grudge. Good for the mood; the family notice who comes.'),
-    cost: (L) => (L.season === 3 ? 25 : 15), per: 1,
+    cost: (L) => (L.season === 3 ? 25 : 15) * (L.s.moor.hall.end === 'hotel' ? 2 : 1), per: 1,
     run(L) {
       const s = L.s, h = s.moor.hall, q = L.season;
       L.joy(5 + (q === 1 ? 2 : 0)); L.hp(1);
@@ -559,7 +559,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
         return 'You walk the moor with the Order all afternoon, thinking about bronze. At the mouth of the old drift at Blackrake the rods swing shut in your hands so hard they pinch. Barnaby’s do the same. He takes his hat off.';
       }
       if (m.dowse >= 20 && !m.f.trough && L.folk && s.folk && L.folk('windle').met != null) {
-        m.f.trough = s.t;
+        m.f.trough = true;
         if (L.folkWarm) L.folkWarm('windle', 4);
         return 'Tom Windle’s top trough has run dry, and he says, with deep scorn, that you may as well try. The rods cross by the old thorn. He digs, scornfully. There is water at four feet. He says nothing at all, and sends round a dozen eggs.';
       }
@@ -669,7 +669,8 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       L.moorWarm('nance', 3);
       const met = L.maybeMeet(0.08);
       let said = L.pick(['The landlord tells you about the winter of 1963, when the Drovers was cut off for six weeks and nobody minded.', 'A farmer at the bar explains what is wrong with the sheep this year, and the year before, and the council.', 'Nance Dyer from the post office comes in for her half of stout at six sharp and tells the room who is courting whom.', 'A darts match with Haverleigh’s gamekeeper, who throws like he shoots, which is to say better than you.']);
-      if (m.drown.on == null && m.folk.nance >= 9 && !s.pend.some((e) => e.id === 'moorNance')) L.queue('moorNance');
+      // (Nance brings out the shoebox once she knows you; if you would rather not, she waits two years to ask again.)
+      if (m.drown.clues.nance == null && m.drown.end == null && m.folk.nance >= 9 && (m.f.nanceNo == null || s.t - m.f.nanceNo >= 8) && !s.pend.some((e) => e.id === 'moorNance')) L.queue('moorNance');
       else if (m.drown.on != null && L.chance(0.35)) said = L.pick(['Somebody says that on stormy nights you can hear the bells of Fennick ringing under the water. Somebody else says that is the wind. Nobody looks at the window.', 'An old man by the fire says his grandmother saw the Fennick bells go up the moor road in a cart, at night, under a tarpaulin. Nobody believes him. You buy him a drink.']);
       if (met) said += ` You end up sharing a table, and then a second pint, with ${met.name}.`;
       return said;
@@ -679,12 +680,12 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
   def('moorBuyMap', {
     place: 'village', sec: 'Moor End post office', icon: '🧭', title: 'Buy a moor map and a compass', desc: 'You get lost less in fog, and the longer walks and the silver award want one.', cost: 45, time: 0,
     show: (L) => !L.s.moor.kit.map,
-    run(L) { L.s.moor.kit.map = L.s.t; L.moorWarm('nance', 1); return 'Nance sells you the map, the compass and twenty minutes on how to fold the map, which nobody has ever managed.'; },
+    run(L) { L.s.moor.kit.map = true; L.moorWarm('nance', 1); return 'Nance sells you the map, the compass and twenty minutes on how to fold the map, which nobody has ever managed.'; },
   });
   def('moorBuyBoots', {
     place: 'village', sec: 'Moor End post office', icon: '🥾', title: 'Buy walking boots', desc: 'The rough walks and the gold award want them.', cost: 120, time: 0,
     show: (L) => !L.s.moor.kit.boots,
-    run(L) { L.s.moor.kit.boots = L.s.t; return 'Proper boots from the back of the post office, where Nance keeps them between the wellingtons and the paraffin. They will hurt for a month and last for twenty years.'; },
+    run(L) { L.s.moor.kit.boots = true; return 'Proper boots from the back of the post office, where Nance keeps them between the wellingtons and the paraffin. They will hurt for a month and last for twenty years.'; },
   });
   mdef('moorFete', {
     place: 'village', sec: 'The fête', icon: '🎪', title: 'Enter the Moor End fête', desc: 'Cakes, dogs, a tug of war and the welly-throwing. Your best skill decides what you enter.', cost: 5, per: 1,
@@ -725,7 +726,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
       m.n.stars++;
       L.moorWarm('lamb', 3); L.gain('smarts', 1.4 + sc); L.joy(4);
       let said = '';
-      if (sc >= 0.5 && !m.stars[id]) { m.stars[id] = s.t; said = `Logged: ${k.name}. ${k.said}`; L.joy(2); if (L.moorStarsN() === SKY_IDS.length) L.note('Logged every constellation in Dr Lamb’s book.', 'big'); }
+      if (sc >= 0.5 && m.stars[id] == null) { m.stars[id] = s.t; said = `Logged: ${k.name}. ${k.said}`; L.joy(2); if (L.moorStarsN() === SKY_IDS.length) L.note('Logged every constellation in Dr Lamb’s book.', 'big'); }
       else if (sc >= 0.5) said = `${k.name} again, as clear as print. ${L.pick(['Dr Lamb hums.', 'Gerald, the big telescope, purrs on his mount.'])}`;
       else said = L.pick(['You lose the shape among all the other stars and Dr Lamb finds it for you, patiently, three times.', 'The cloud comes over just as you have it. Dr Lamb says something to the sky that a doctor of astronomy should not know.']);
       if (L.moorComet() && !m.cometSeen) { m.cometSeen = true; L.joy(8); L.note('Saw the comet through the big telescope at the Askwith Observatory.', 'big'); said = `And then Dr Lamb swings the telescope round, and there it is: the comet, a smudge of light with a tail like a breath on glass, that will not be back for three thousand years. ${said}`; }
@@ -760,10 +761,11 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
   // ---- gifts and the syndicate (from the Hall's sheet) ----
   def('moorGift', {
     sec: 'Haverleigh Hall', icon: '🎁', title: (L, x) => ['A gift to the roof fund', 'A gift to restore the gardens', 'A gift to save the long gallery'][x] || 'A gift',
-    desc: 'The family notice, and remember.', time: 0, cost: (L, x) => (x >= 0 && x <= 2 ? L.moorGiftCost(x) : 0),
+    // (The price is noted as it is asked, so that what was paid is what is recorded.)
+    desc: (L, x) => `${['Slates, lead and a gutter or two', 'The walled garden, the glasshouses and the maze', 'The long gallery’s ceiling, before it comes down on the portraits'][x] || 'Something'}. The family notice, and remember.`, time: 0, cost: (L, x) => (x >= 0 && x <= 2 ? (L.s.moor.f.quote = L.moorGiftCost(x)) : 0),
     why: (L, x) => (!(x >= 0 && x <= 2) ? 'Choose a gift.' : L.s.moor.hall.gallery === 'press' ? 'The Askwiths are not taking your money, or your calls.' : L.s.t - L.s.moor.hall.gift < 4 ? 'They are still writing the thank-you letter for the last one. Once a year is generous.' : null),
     run(L, x) {
-      const s = L.s, h = s.moor.hall, cost = L.moorGiftCost(x);
+      const s = L.s, h = s.moor.hall, cost = s.moor.f.quote || L.moorGiftCost(x);
       h.gift = s.t; h.given += cost;
       L.moorFavour([4, 9, 16][x]); L.karma([1, 2, 3][x]); L.joy([2, 4, 6][x]);
       if (x === 2) L.note(`Gave ${money(cost)} to save the long gallery at Haverleigh Hall.`, 'big');
@@ -785,7 +787,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     sec: 'The Askwith Observatory', icon: '🔭', title: 'Pay for a new telescope', desc: (L) => `${money(L.moorScopeCost())}. Dr Lamb has wanted one for thirty years. Your name on the brass plate, and the sky a good deal clearer.`,
     time: 0, cost: (L) => L.moorScopeCost(),
     why: (L) => (L.s.moor.gifts.scope ? 'It is up there now, under the dome.' : L.s.moor.folk.lamb < 0 ? 'You have not met Dr Lamb yet.' : null),
-    run(L) { const s = L.s; s.moor.gifts.scope = s.t; L.moorWarm('lamb', 25); L.karma(3); L.joy(6); L.note('Paid for a new telescope at the Askwith Observatory.', 'big'); return 'It comes up the moor road on a low-loader and goes in through the roof. Dr Lamb calls it after you, then, after a decent interval, after her fourth husband, whom she has not met yet. The plate keeps your name.'; },
+    run(L) { const s = L.s; s.moor.gifts.scope = true; L.moorWarm('lamb', 25); L.karma(3); L.joy(6); L.note('Paid for a new telescope at the Askwith Observatory.', 'big'); return 'It comes up the moor road on a low-loader and goes in through the roof. Dr Lamb calls it after you, then, after a decent interval, after her fourth husband, whom she has not met yet. The plate keeps your name.'; },
   });
   // Spares and the collection, from the finds sheet.
   def('moorSellSpares', {
@@ -833,14 +835,14 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     if (L.chance(0.33)) m.blast = s.t;
     if (q === 1 && s.wx === 'hot') {
       // A drought: the water goes down and Fennick comes up. (Every hot summer has a fair chance; one is overdue when you are looking for it.)
-      const due = m.drown.on != null && !m.drown.clues.spire && s.t - m.drown.on >= 12;
+      const due = m.drown.on != null && m.drown.clues.spire == null && s.t - m.drown.on >= 12;
       if (L.chance(due ? 1 : 0.45)) m.dry = s.t;
       if (L.chance(0.3)) { m.fire = s.t; if (!jailed && m.n.trips > 0) L.queue('moorFire'); }
     }
     if (jailed) return;
     if (s.t === m.comet) L.queue('moorComet');
     if (m.drove.due === s.t) L.queue('moorDrove2');
-    if (m.drown.letterAt != null && s.t >= m.drown.letterAt && !m.drown.clues.letter && m.drown.end == null) { m.drown.letterAt = s.t + 4; L.queue('moorLetter'); }
+    if (m.drown.letterAt != null && s.t >= m.drown.letterAt && m.drown.clues.letter == null && m.drown.end == null) { m.drown.letterAt = s.t + 4; L.queue('moorLetter'); }
     // Hugo and the money he borrowed: back with something on top, or not at all.
     const loan = m.hall.loan;
     if (loan && loan.due != null && s.t >= loan.due) {
@@ -855,7 +857,7 @@ export function install({ def, A, Life, clamp, val, hooks, addEvents }) {
     const s = L.s, m = s.moor;
     // (Favour, and friendships, fade a little in a year away.)
     if (m.hall.f > 0 && s.t - m.hall.seen > 6) m.hall.f = Math.max(0, m.hall.f - 2);
-    for (const id of MOOR_FOLK_IDS) if (m.folk[id] > 0 && s.t - (m.seen[id] ?? -99) > 6) m.folk[id] = Math.max(0, m.folk[id] - 2);
+    for (const id of MOOR_FOLK_IDS) if (id !== 'kit' && m.folk[id] > 0 && s.t - (m.seen[id] ?? -99) > 6) m.folk[id] = Math.max(0, m.folk[id] - 2);
     // The steward's post is for a working age.
     if (m.hall.steward != null && s.age >= 70) { m.hall.steward = null; L.note('Retired as steward of the Haverleigh estate.'); }
   });

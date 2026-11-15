@@ -113,7 +113,7 @@ export default function (kit) {
     for (const w of who) {
       const a = m.award[w.key] || { lvl: 0, tr: 0 }, lv = AWARD[Math.min(2, a.lvl)];
       const face = w.p ? kit.face(w.p.look, w.p.age, 60, w.p.sex) : kit.face(s.look, s.age, s.happy, s.sex), why = L.can('moorTrain', w.key), v = L.look('moorTrain', w.key);
-      body += `<div class="item${a.lvl ? ' mine' : ''}"><div class="item-top"><span class="ava mr-ava">${face}</span><div><b>${esc(w.me ? 'You' : w.name)}${a.lvl ? ` ${AWARD[a.lvl - 1].icon}` : ''}</b><small>${a.lvl >= 3 ? 'Gold. The top of it.' : `${a.lvl ? `${AWARD[a.lvl - 1].name} done. ` : ''}Going for ${lv.name.toLowerCase()}: ${Math.min(a.tr, lv.train)} of ${lv.train} training days · Fitness ${Math.floor(w.fit)} of ${lv.fit}`}</small></div></div>
+      body += `<div class="item${a.lvl ? ' mine' : ''}"><div class="item-top"><span class="ava mr-ava">${face}</span><div><b>${esc(w.me ? 'You' : w.name)}${a.lvl ? ` ${AWARD[a.lvl - 1].icon}` : ''}</b><small>${a.lvl >= 3 ? 'Gold. The top of it.' : `${a.lvl ? `${AWARD[a.lvl - 1].name} done. ` : ''}Going for ${lv.name.toLowerCase()}: ${Math.min(a.tr, lv.train)} of ${lv.train} training days · Fitness ${Math.floor(w.fit)}${w.fit < lv.fit ? ` (wants ${lv.fit})` : ''}`}</small></div></div>
         ${a.lvl < 3 ? `<div class="picks">${pick(`${a.out != null ? 'Expedition planned' : 'A training day'} ${chip('time', `⏱ ${v.time}`)}`, 'moorTrain', w.key, why)}${why ? `<span class="note">${esc(why)}</span>` : ''}</div>` : ''}</div>`;
     }
     const past = Object.entries(m.award).filter(([key, a]) => a.lvl > 0 && !who.some((w) => w.key === key));
