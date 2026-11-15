@@ -9,7 +9,7 @@
 
 import { buildMap } from '../games/haywire/js/map.js';
 import { buildLine } from '../games/haywire/js/line.js';
-import { Match, STEP, GUNS, CLASSES, MODES, TICKETS, SECTOR_BONUS, BATTALIONS, OUT_TIME, RETREAT, ROUT, RESPAWN, REGEN_DELAY, NADE_FUSE, JUMP, GRAVITY, WALK, TALL, TALL_CROUCH } from '../games/haywire/js/engine.js';
+import { Match, STEP, GUNS, BASH, CLASSES, MODES, TICKETS, SECTOR_BONUS, BATTALIONS, OUT_TIME, RETREAT, ROUT, RESPAWN, REGEN_DELAY, NADE_FUSE, JUMP, GRAVITY, WALK, TALL, TALL_CROUCH } from '../games/haywire/js/engine.js';
 import { STEP_UP } from '../games/haywire/js/world.js';
 
 const matches = Number(process.argv[2] || 12);
@@ -300,6 +300,51 @@ const has = (m, e) => m.events.some((x) => x.e === e);
   check(clock.over && clock.winner === -1, 'the clock running out ends it too: a draw if the scores are level');
 }
 
+{
+  // A blow with the gun; deathmatch in one arena of the Long Works.
+  const { m, a, b } = duel(1.5);
+  a.in.reload = true;
+  a.weapons[0].mag = 10;
+  run(m, 0.1);
+  a.in.reload = false;
+  a.in.melee = true;
+  m.step();
+  check(a.reloadT === 0 && has(m, 'swing') && b.hp === 100, 'a blow with the gun breaks off a reload, and takes a moment to land');
+  run(m, BASH.wind + 0.02);
+  check(b.hp === 100 - BASH.dmg, `then does ${BASH.dmg}`);
+  a.in.fire = true;
+  run(m, 0.3);
+  check(a.shots === 1, 'the gun cannot fire until it is back in the hands');
+  const behind = duel(1.5);
+  behind.b.in.yaw = Math.PI;
+  behind.a.in.melee = true;
+  run(behind.m, BASH.wind + 0.05);
+  check(!behind.b.alive && behind.a.kills === 1, 'from behind it scraps outright');
+
+  const line = buildLine();
+  line.advance.sectors.forEach((sec, k) => {
+    const g = new Match(line, { seed: 4, arena: k, scoreLimit: 20 });
+    check(sec.west.length >= 8 && sec.spots.length >= 4, `${sec.name} has places to come in at both ends, and places to make for`);
+    let outside = 0, strays = 0;
+    while (!g.over) {
+      g.step();
+      for (const ev of g.events) if (ev.e === 'kill' && ev.gun === 'out') strays++;
+      g.events.length = 0;
+      if (g.tick % 120 === 0) for (const s of g.soldiers) if (s.alive && (s.x < sec.x0 - 4 || s.x > sec.x1 + 4)) outside++;
+    }
+    check(g.scores[0] === 20 || g.scores[1] === 20, `a deathmatch in ${sec.name} is played to the end (${g.scores.join('-')})`);
+    check(outside === 0 && strays <= 2, `and stays in it (${outside} seen outside, ${strays} scrapped for straying)`);
+  });
+  const lone = new Match(line, { seed: 4, arena: 2 });
+  for (const s of lone.soldiers) s.bot = null;
+  run(lone, 0.7);
+  const stray = lone.soldiers[0];
+  check(stray.x > 112 && stray.x < 118 && lone.soldiers[8].x > 154, 'blue comes in at the west end of the arena, orange at the east');
+  stray.x = 105;
+  run(lone, OUT_TIME + 0.2);
+  check(!stray.alive, 'and leaving the arena gets a robot scrapped');
+}
+
 // ---- the old arms -------------------------------------------------------------------------
 
 {
@@ -472,6 +517,26 @@ const has = (m, e) => m.events.some((x) => x.e === e);
   att[7].x = 113.5; // through the far wall, out of the sector
   run(m, OUT_TIME + 0.2);
   check(!att[7].alive, `an attacker out of the sector for ${OUT_TIME} seconds is scrapped`);
+
+  // A barrage comes in with each new battalion: marked, then landing, and only the defenders are hurt.
+  const shelled = setUp({ attack: 0 });
+  shelled.m.tickets = 1;
+  shelled.m.scrap(shelled.att[0], shelled.def[0], 'rifle', false);
+  shelled.m.events.length = 0;
+  const [oa] = shelled.m.objectives();
+  // (Everyone out in the open by objective B, the depot's yard; A is under a roof.)
+  const ob = shelled.m.objectives()[1];
+  shelled.def.forEach((s, i) => { s.x = ob.x - 12 + (i % 4) * 3; s.z = ob.z - 12 + Math.floor(i / 4) * 3; s.y = 0; s.protect = 0; });
+  shelled.att.slice(1).forEach((s, i) => { s.x = ob.x - 12 + (i % 4) * 3 + 1.5; s.z = ob.z - 12 + Math.floor(i / 4) * 3 + 1.5; s.y = 0; });
+  let marked = 0, landed = 0;
+  for (let k = 0; k < 11 * 60; k++) {
+    shelled.m.step();
+    for (const ev of shelled.m.events) { if (ev.e === 'incoming') marked++; if (ev.e === 'boom') landed++; }
+    shelled.m.events.length = 0;
+  }
+  check(marked >= 15 && landed === marked && shelled.m.shells.length === 0, `a new battalion comes in behind a barrage (${landed} shells)`);
+  check(shelled.def.some((s) => s.hp < s.maxHp || !s.alive) && shelled.att.slice(1).every((s) => s.alive && s.hp === s.maxHp), 'which hurts defenders in the open, and never the attackers');
+  check(shelled.m.scores[0] === 0 && oa.x > 0, 'for no points');
 
   // Battalions.
   const spent = setUp({ attack: 0 });

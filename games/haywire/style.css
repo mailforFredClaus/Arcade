@@ -39,6 +39,13 @@ body { background: #11151c; color: #fff; cursor: default; }
 .mark.kill { animation: mark .4s ease-out; }
 @keyframes mark { from { opacity: 1; transform: rotate(45deg) scale(1.5); } to { opacity: 0; transform: rotate(45deg) scale(.9); } }
 
+/* The name of whoever is in your sights, under them. */
+.who { position: absolute; left: 50%; top: calc(50% + 30px); transform: translateX(-50%); font-weight: 900; font-size: 13px; white-space: nowrap; text-shadow: 0 1px 3px #000, 0 0 2px #000; }
+.who .t0 { color: var(--team-blue); }
+.who .t1 { color: var(--team-orange); }
+.who small { font-weight: 800; opacity: .8; margin-left: 5px; font-size: 11px; }
+.down h2 small { display: block; font-size: 14px; font-weight: 800; opacity: .85; letter-spacing: .04em; margin-top: 2px; }
+
 /* Looking down the marksman's scope. */
 .scope { position: absolute; inset: 0; opacity: 0; will-change: opacity; background: radial-gradient(circle at 50% 50%, transparent 0, transparent calc(min(50vw, 50vh) * .82), #05070a calc(min(50vw, 50vh) * .84)); }
 .scope::before, .scope::after { content: ''; position: absolute; background: rgba(0, 0, 0, .85); }
@@ -165,6 +172,7 @@ body { background: #11151c; color: #fff; cursor: default; }
 .pick { flex-wrap: wrap; }
 .rowpick { display: flex; align-items: center; gap: 14px; }
 .rowpick[hidden] { display: none; }
+.rowpick .seg.six { width: 480px; grid-auto-flow: row; grid-template-columns: repeat(3, 1fr); }
 .rowpick > span { width: 70px; font-weight: 900; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; opacity: .8; }
 .rowpick .seg { background: var(--glass); width: 320px; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .16); }
 .rowpick .seg-btn { color: #b9c3d6; padding: 8px 4px; }

@@ -99,7 +99,7 @@ export class Brain {
     const s = this.s, m = this.m, inp = s.in;
     inp.mx = inp.mz = 0;
     inp.jump = false;
-    inp.fire = inp.reload = inp.nade = inp.sprint = inp.crouch = inp.ads = false;
+    inp.fire = inp.reload = inp.nade = inp.sprint = inp.crouch = inp.ads = inp.melee = false;
     inp.slot = -1;
     this.wx = this.wz = 0; // which way to walk, in the world
     // Advance: the fight has moved on to the next sector, so think again about where to go.
@@ -117,10 +117,8 @@ export class Brain {
     // Advance: strayed out of the sector being fought for. Drop everything and get back in.
     // (A defender falling back when a sector is lost does the same, without waiting to be told.)
     let astray = false;
-    if (m.type === 'adv') {
-      const [lo, hi] = m.bounds(s);
-      astray = s.x < lo || s.x > hi;
-    }
+    const fence = m.bounds(s);
+    if (fence) astray = s.x < fence[0] || s.x > fence[1];
     this.astray = astray;
     if (astray) {
       this.target = null;
@@ -261,6 +259,8 @@ export class Brain {
     }
 
     inp.ads = gun.id === 'sniper' || dist > (gun.id === 'shotgun' || gun.id === 'smg' ? 14 : 8);
+    // Right on top of it: a blow with the gun (unless it's a shotgun, which is better fired).
+    if (dist < 1.7 && Math.abs(t.y - s.y) < 1 && gun.id !== 'shotgun' && m.time - this.tSeen > k.react) inp.melee = !s.meleeHeld;
     const steady = (s.ads > 0.8 ? 0.6 : 1) * (s.crouching ? 0.85 : 1) * (gun.id === 'sniper' ? 0.9 : 1);
     const ty = t.y + (this.goHead ? (t.crouching ? 1.15 : 1.62) : t.crouching ? 0.7 : 1.15);
     const off = this.aimAt(t.x, ty, t.z, dt, steady, Math.hypot(t.vx, t.vz));
@@ -538,7 +538,7 @@ export class Brain {
       this.waitUntil = m.time + (quick ? 1 + r.next() * 3 : 2.5 + r.next() * 7);
       this.holdLow = r.next() < 0.4;
       // Face the nearest place an enemy was seen lately, else their end of the yard.
-      let tx = s.team ? 8 : map.W - 8, tz = map.H / 2, bestD = Infinity;
+      let tx = m.arena ? (s.team ? m.arena.x0 : m.arena.x1) : s.team ? 8 : map.W - 8, tz = map.H / 2, bestD = Infinity;
       for (const e of m.soldiers) {
         if (e.team === s.team || m.time - e.knownT > 12) continue;
         const d = Math.hypot(e.kx - s.x, e.kz - s.z);
@@ -601,7 +601,7 @@ export class Brain {
       if (best) node = w.nodeAt(best.kx, best.ky2 + 0.1, best.kz);
     }
     if (node < 0) {
-      const spots = map.spots;
+      const spots = m.arena ? m.arena.spots : map.spots;
       for (let k = 0; k < 8 && node < 0; k++) {
         const p = spots[Math.floor(r.next() * spots.length)];
         if (p.side === s.team && r.next() < 0.6) continue;

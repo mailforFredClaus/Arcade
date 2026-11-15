@@ -26,10 +26,17 @@ const wrap = (a) => a - TAU * Math.round(a / TAU);
 // ---- saved things ---------------------------------------------------------------------
 
 const SAVE_KEY = 'haywire';
-const save = Object.assign({ type: 'tdm', side: 0, mode: 0, clsOld: 0, cls: 0, skill: 1, limit: 75, sens: 1, fov: 90, invert: false, matches: 0, wins: 0, kills: 0, deaths: 0, heads: 0, streak: 0, xp: 0 }, store.get(SAVE_KEY, {}) || {});
+const save = Object.assign({ map: 0, vol: 1, type: 'tdm', side: 0, mode: 0, clsOld: 0, cls: 0, skill: 1, limit: 75, sens: 1, fov: 90, invert: false, matches: 0, wins: 0, kills: 0, deaths: 0, heads: 0, streak: 0, xp: 0 }, store.get(SAVE_KEY, {}) || {});
 const writeSave = () => store.set(SAVE_KEY, save);
 if (!MODES[save.mode]) save.mode = 0;
 if (save.type !== 'adv') save.type = 'tdm';
+if (!(save.map >= 0 && save.map <= 5)) save.map = 0;
+// Every sound, at the loudness asked for in the settings.
+const snd = (name, k = 0, vol = 1, pan = 0) => sfx(name, k, vol * save.vol, pan);
+// The maps for team deathmatch: Foundry Yard, or any one arena of the Long Works.
+const MAP_NAMES = ['Foundry Yard', 'The Yard', 'The Sheds', 'The Cut', 'The Foundry', 'The Offices'];
+const mapId = () => (save.type === 'adv' || save.map > 0 ? 'line' : 'yard');
+const arenaNow = () => (save.type !== 'adv' && save.map > 0 ? save.map - 1 : undefined);
 save.side = save.side ? 1 : 0;
 // Each mode remembers its own choice of class.
 const clsKey = (mode) => (mode === MODES[1] ? 'clsOld' : 'cls');
@@ -51,7 +58,7 @@ let acc = 0, last = 0, locked = false, force = false, frozen = false; // (force 
 const view = { yaw: 0, pitch: 0 }; // where the player is looking
 const cam = { eye: [44, 20, 32], yaw: 0, pitch: -0.5, fov: 1, y: 0, shake: 0, roll: 0, dead: null, view: null, proj: null };
 const vis = []; // how each robot is drawn: where it is in its stride, and so on
-const hand = { kick: 0, swayX: 0, swayY: 0, flash: 0, roll: 0, bob: 0, dip: 0 };
+const hand = { bash: 0, kick: 0, swayX: 0, swayY: 0, flash: 0, roll: 0, bob: 0, dip: 0 };
 let W = 1, H = 1;
 
 function load() {
@@ -103,17 +110,17 @@ function useMap(id) {
   if (!it.radar) it.radar = drawRadarMap();
   radarMap = it.radar;
 }
-const mapFor = (type) => (type === 'adv' ? 'line' : 'yard');
 // Runs fn once the map for this kind of match is ready, with a notice up while it is built.
-function whenBuilt(type, fn) {
-  if (maps[mapFor(type)]) { fn(); return; }
-  $('loading').textContent = type === 'adv' ? 'Building the Long Works…' : 'Building the yard…';
+function whenBuilt(fn) {
+  const id = mapId();
+  if (maps[id]) { fn(); return; }
+  $('loading').textContent = id === 'line' ? 'Building the Long Works…' : 'Building the yard…';
   $('loading').hidden = false;
-  setTimeout(() => { useMap(mapFor(type)); $('loading').hidden = true; fn(); }, 40);
+  setTimeout(() => { useMap(id); $('loading').hidden = true; fn(); }, 40);
 }
 
 function newMatch(opts) {
-  useMap(mapFor(opts.type));
+  useMap(opts.type === 'adv' || opts.arena !== undefined ? 'line' : 'yard');
   match = new Match(map, { seed: (Math.random() * 2 ** 32) >>> 0, ...opts });
   me = opts.human ? match.soldiers[0] : null;
   vis.length = 0;
@@ -127,7 +134,7 @@ function newMatch(opts) {
 
 // Bots playing behind the menu.
 function attract() {
-  newMatch({ human: false, mode: save.mode, type: save.type, attack: save.side, skill: [1, 1], scoreLimit: 1e9, timeLimit: save.type === 'adv' ? undefined : 1e9 });
+  newMatch({ human: false, mode: save.mode, type: save.type, attack: save.side, arena: arenaNow(), skill: [1, 1], scoreLimit: 1e9, timeLimit: save.type === 'adv' ? undefined : 1e9 });
   $('objs').innerHTML = $('marks').innerHTML = '';
   cam.dead = null;
 }
@@ -135,7 +142,8 @@ function attract() {
 function start() {
   clearTimeout(overTimer);
   crouchOn = false;
-  newMatch({ human: true, mode: save.mode, cls: save[clsKey(MODES[save.mode])], skill: [1, save.skill], scoreLimit: save.limit, type: save.type, attack: save.side });
+  newMatch({ human: true, mode: save.mode, cls: save[clsKey(MODES[save.mode])], skill: [1, save.skill], scoreLimit: save.limit, type: save.type, attack: save.side, arena: arenaNow() });
+  Object.assign(feats, { last: -9, run: 0, killer: -1, dry: 0, bonus: 0 });
   phase = 'play';
   $('title').hidden = true;
   $('hud').hidden = false;
@@ -146,7 +154,7 @@ function start() {
   shown.gun = shown.cls = '';
   ui.close();
   grab();
-  sfx('deploy');
+  snd('deploy');
 }
 
 function toTitle() {
@@ -169,7 +177,7 @@ function finish() {
   release();
   const won = match.winner === 0, drew = match.winner < 0;
   const before = rankOf(save.xp);
-  const gained = me.score + (won ? 500 : drew ? 250 : 150);
+  const gained = me.score + feats.bonus + (won ? 500 : drew ? 250 : 150);
   save.matches++;
   if (won) save.wins++;
   save.kills += me.kills;
@@ -179,7 +187,7 @@ function finish() {
   save.xp += gained;
   writeSave();
   const after = rankOf(save.xp);
-  sfx(won ? 'win' : 'lose');
+  snd(won ? 'win' : 'lose');
   $('down').hidden = true;
   $('board').hidden = true;
   const acc100 = me.shots ? Math.round((100 * me.hits) / me.shots) : 0;
@@ -306,6 +314,7 @@ function feedInput() {
   inp.fire = on && mouse.fire;
   inp.reload = on && keys.has('KeyR');
   inp.nade = on && keys.has('KeyG');
+  inp.melee = on && keys.has('KeyV');
   inp.slot = wantSlot;
   inp.cls = wantCls;
   wantSlot = wantCls = -1;
@@ -323,7 +332,7 @@ function pickClass(n) {
   writeSave();
   wantCls = n;
   if (me) me.nextCls = n;
-  sfx('tap');
+  snd('tap');
   shown.down = '';
 }
 
@@ -341,7 +350,7 @@ function sound(name, k, x, y, z, loud = 1, reach = 70) {
   const vol = loud * (1 - d / reach) ** 2;
   if (vol < 0.02) return;
   const pan = d > 0.5 ? (dx * Math.cos(cam.yaw) + dz * Math.sin(cam.yaw)) / d : 0;
-  sfx(name, k, Math.min(1, vol), pan * 0.8);
+  snd(name, k, Math.min(1, vol), pan * 0.8);
 }
 
 // Where the end of a robot's barrel is, near enough.
@@ -368,7 +377,7 @@ function onEvent(ev) {
       const from = muzzleOf(s, [0, 0, 0]), mine = s === me, glow = TEAM[s.team].glow;
       if (ev.first) {
         if (mine) {
-          sfx('gun', GUN_K[ev.gun], 0.9);
+          snd('gun', GUN_K[ev.gun], 0.9);
           hand.kick = Math.min(1.6, hand.kick + (ev.gun === 'sniper' || ev.gun === 'shotgun' ? 1.5 : ev.gun === 'pistol' ? 0.8 : 0.5));
           hand.flash = 0.045;
           hand.roll = Math.random() * TAU;
@@ -396,7 +405,7 @@ function onEvent(ev) {
       if (s === me) {
         hurtShow = Math.min(1, hurtShow + 0.25 + ev.dmg / 80);
         cam.shake = Math.min(0.5, cam.shake + ev.dmg / 200);
-        sfx('pain');
+        snd('pain');
         if (by !== me) fromShow.push({ x: by.x, z: by.z, t: 1 });
       }
       break;
@@ -409,12 +418,18 @@ function onEvent(ev) {
       if (by === me && s !== me) {
         hitMark(2);
         pop(`<b>+${ev.head ? 125 : 100}</b>Scrapped ${s.name}${ev.head ? ' &middot; head shot' : ''}`);
+        feat(ev, s);
         if ([3, 5, 7, 10, 15].includes(me.streak)) pop(`${me.streak} in a row`, 'streak');
       }
       if (s === me) {
         cam.dead = { by: by !== me ? by : null, t: 0 };
+        feats.dry++;
+        feats.run = 0;
+        feats.killer = by !== me ? by.id : -1;
         $('down').hidden = false;
-        $('downBy').innerHTML = by !== me ? `Scrapped by <b>${by.name}</b>` : ev.gun === 'out' ? 'Scrapped for leaving the fight' : `Blown up by your own ${match.mode.pot ? 'fire pot' : 'grenade'}`;
+        // Who did it, with what, and how much they had left.
+        $('downBy').innerHTML = by !== me ? `Scrapped by <b>${by.name}</b><small>${ev.gun === 'nade' ? (match.mode.pot ? 'Fire pot' : 'Grenade') : GUNS[ev.gun].name}${ev.head ? ', to the head' : ''} &middot; ${by.alive ? `${Math.ceil(by.hp)} of ${by.maxHp} left` : 'scrapped too'}</small>`
+          : ev.gun === 'out' ? 'Scrapped for leaving the fight' : ev.gun === 'barrage' ? 'Caught in the barrage' : `Blown up by your own ${match.mode.pot ? 'fire pot' : 'grenade'}`;
         shown.down = '';
         mouse.fire = false;
       } else if (me && me.assists > shownAssists) pop('<b>+40</b>Assist');
@@ -437,17 +452,23 @@ function onEvent(ev) {
         cam.y = match.eyeY(me);
         $('down').hidden = true;
         hurtShow = 0;
-        sfx('deploy');
+        snd('deploy');
       }
       break;
-    case 'reload': if (s === me) sfx('mag', ev.gun === 'lmg' ? 2 : ev.gun === 'shotgun' ? 0 : 1, 0.7); else sound('mag', 1, s.x, s.y + 1, s.z, 0.35, 18); break;
-    case 'shell': if (s === me) sfx('clack'); break;
-    case 'swap': if (s === me) sfx('swap'); break;
-    case 'dry': if (s === me) sfx('tap'); break;
+    case 'reload': if (s === me) snd('mag', ev.gun === 'lmg' ? 2 : ev.gun === 'shotgun' ? 0 : 1, 0.7); else sound('mag', 1, s.x, s.y + 1, s.z, 0.35, 18); break;
+    case 'shell': if (s === me) snd('clack'); break;
+    case 'swap': if (s === me) snd('swap'); break;
+    case 'dry': if (s === me) snd('tap'); break;
     // The old arms.
+    case 'incoming':
+      // A shell on its way: a mark where it will land, and the sound of it coming.
+      fx.glow(ev.x, ev.y + 0.2, ev.z, 2.6, [0.9, 0.12, 0.05], 1.3);
+      sound('swoop', 0, ev.x, ev.y, ev.z, 0.9, 60);
+      break;
     case 'swing':
+      if (s === me && !s.weapons[s.slot].gun.kind) hand.bash = 1;
       vis[ev.id].swingT = match.time;
-      if (s === me) sfx('whoosh', 0, 0.45); else sound('whoosh', 0, s.x, s.y + 1.2, s.z, 0.5, 22);
+      if (s === me) snd('whoosh', 0, 0.45); else sound('whoosh', 0, s.x, s.y + 1.2, s.z, 0.5, 22);
       break;
     case 'cut':
       fx.sparks(ev.x, ev.y, ev.z, 9, [1, 0.85, 0.5], 5);
@@ -458,47 +479,71 @@ function onEvent(ev) {
       fx.light(ev.x, ev.y, ev.z, 4, 1, 1, 1.2, 0.08);
       sound('clang', 1, ev.x, ev.y, ev.z, 1, 45);
       break;
-    case 'draw': if (s === me) sfx('slide', 0, 0.25); break;
-    case 'loose': if (s === me) sfx('twang', 0, 0.8); else sound('twang', 0, s.x, s.y + 1.4, s.z, 0.6, 30); break;
+    case 'draw': if (s === me) snd('slide', 0, 0.25); break;
+    case 'loose': if (s === me) snd('twang', 0, 0.8); else sound('twang', 0, s.x, s.y + 1.4, s.z, 0.6, 30); break;
     case 'hurl':
-      if (s === me) { sfx('lob', 0, 0.8); hand.kick = 1.4; } else sound('lob', 0, s.x, s.y + 1.4, s.z, 0.5, 25);
+      if (s === me) { snd('lob', 0, 0.8); hand.kick = 1.4; } else sound('lob', 0, s.x, s.y + 1.4, s.z, 0.5, 25);
       break;
     case 'stick':
       fx.stick(models.thrown[ev.kind], M.chain(M.move(ev.x, ev.y, ev.z), M.rotY(-Math.atan2(ev.dx, -ev.dz)), M.rotX(Math.asin(clamp(ev.dy, -1, 1)))));
       fx.puff(ev.x, ev.y, ev.z, 0.1, 0.5, 0.3, 0.2);
       sound('clack', 0, ev.x, ev.y, ev.z, 0.7, 30);
       break;
-    case 'throw': if (s === me) sfx('lob'); else sound('lob', 0, s.x, s.y + 1.4, s.z, 0.5, 25); break;
+    case 'throw': if (s === me) snd('lob'); else sound('lob', 0, s.x, s.y + 1.4, s.z, 0.5, 25); break;
     case 'bounce': sound('clack', 0, ev.x, ev.y, ev.z, 0.6, 28); break;
-    case 'jump': if (s === me) sfx('hop', 0, 0.25); break;
-    case 'land': if (s === me) { hand.dip = Math.min(1, ev.v / 9); sfx('foot', 2, 0.6); } break;
-    case 'foot': if (s === me) sfx('foot', (Math.random() * 2) | 0, me.sprinting ? 0.5 : 0.3); else sound('foot', 0, s.x, s.y, s.z, 0.45, 14); break;
+    case 'jump': if (s === me) snd('hop', 0, 0.25); break;
+    case 'land': if (s === me) { hand.dip = Math.min(1, ev.v / 9); snd('foot', 2, 0.6); } break;
+    case 'foot': if (s === me) snd('foot', (Math.random() * 2) | 0, me.sprinting ? 0.5 : 0.3); else sound('foot', 0, s.x, s.y, s.z, 0.45, 14); break;
     // Advance.
     case 'taken':
     case 'lost': {
       if (phase !== 'play') break;
       const ours = (ev.e === 'taken') === (match.attack === 0);
       pop(ours ? `Objective ${ev.name} is ours` : `Objective ${ev.name} lost`, ours ? 'streak' : '');
-      sfx(ours ? 'goal' : 'alarm', 0, 0.8);
+      snd(ours ? 'goal' : 'alarm', 0, 0.8);
       break;
     }
     case 'sector': {
       if (phase !== 'play') break;
       const last = ev.n >= match.sectors.length - 1, ours = match.attack === 0, name = match.sectors[ev.n].name;
       pop(ours ? (last ? 'The works are taken' : `${name} is taken: on to ${match.sectorNow().name}`) : (last ? 'The works are lost' : `${name} is lost: fall back to ${match.sectorNow().name}`), 'streak');
-      if (!last) sfx(ours ? 'cheer' : 'lose', 0, 0.8);
+      if (!last) snd(ours ? 'cheer' : 'lose', 0, 0.8);
       break;
     }
     case 'battalion':
       if (phase !== 'play') break;
       pop(match.attack === 0 ? `Battalion ${ev.n} takes up the attack` : `Their battalion is spent: ${match.battalions - ev.n + 1} to go`, 'streak');
-      sfx(match.attack === 0 ? 'alarm' : 'cheer', 0, 0.8);
+      snd(match.attack === 0 ? 'alarm' : 'cheer', 0, 0.8);
       break;
     case 'rout':
       if (me && match.soldiers[ev.by] === me) pop('<b>+2 lives</b>Caught falling back');
       break;
     case 'over': if (phase === 'play') { clearTimeout(overTimer); overTimer = setTimeout(finish, 900); } break;
     default:
+  }
+}
+
+// Feats: a few points more for scrapping something in style. (They go to
+// your rank, not to the match's scores.)
+const feats = { last: -9, run: 0, killer: -1, dry: 0, bonus: 0 };
+function feat(ev, s) {
+  const got = [], gun = GUNS[ev.gun], far = Math.hypot(me.x - ev.x, me.z - ev.z);
+  feats.run = match.time - feats.last < 4 ? feats.run + 1 : 1;
+  feats.last = match.time;
+  if (feats.run === 2) got.push(['Double', 50]);
+  if (feats.run === 3) got.push(['Triple', 100]);
+  if (feats.run >= 4) got.push(['Rampage', 150]);
+  if (match.scores[0] + match.scores[1] === 1) got.push(['First scrap', 50]);
+  if (s.id === feats.killer) { got.push(['Payback', 50]); feats.killer = -1; }
+  if (feats.dry >= 3) got.push(['Comeback', 50]);
+  if (ev.gun === 'bash') got.push(['Clobbered', 50]);
+  else if (ev.gun === 'nade') got.push([match.mode.pot ? 'Fire pot' : 'Grenade', 25]);
+  else if (gun && far > (gun.kind === 'melee' ? 12 : gun.kind ? 28 : 45)) got.push([gun.kind === 'melee' ? 'Long throw' : 'Long shot', 50]);
+  if (me.alive && me.hp < me.maxHp * 0.25) got.push(['Close call', 25]);
+  feats.dry = 0;
+  for (const [name, pts] of got) {
+    feats.bonus += pts;
+    pop(`<b>+${pts}</b>${name}`);
   }
 }
 
@@ -518,7 +563,7 @@ function showMark() {
   el.className = 'mark';
   void el.offsetWidth;
   el.className = marked === 2 ? 'mark kill' : 'mark hit';
-  sfx('hitmark', marked, 0.9);
+  snd('hitmark', marked, 0.9);
   marked = -1;
 }
 
@@ -536,7 +581,7 @@ function addFeed(by, s, gun, head) {
   const el = document.createElement('div');
   if (by === me || s === me) el.className = 'mine';
   const what = gun === 'nade' ? (match.mode.pot ? 'fire pot' : 'grenade') : gun === 'out' ? '' : GUNS[gun].name;
-  el.innerHTML = by === s ? `<span class="t${s.team}">${s.name}</span><em>${gun === 'out' ? 'left the fight' : match.mode.pot ? 'own fire pot' : 'own grenade'}</em>`
+  el.innerHTML = by === s ? `<span class="t${s.team}">${s.name}</span><em>${gun === 'out' ? 'left the fight' : gun === 'barrage' ? 'the barrage' : match.mode.pot ? 'own fire pot' : 'own grenade'}</em>`
     : `<span class="t${by.team}">${by.name}</span><em class="${head ? 'head' : ''}">${what}${head ? ' &middot; head' : ''}</em><span class="t${s.team}">${s.name}</span>`;
   const box = $('feed');
   box.appendChild(el);
@@ -596,14 +641,29 @@ function updateHud(now, dt) {
     cross.style.opacity = me.sprinting || scoped || (gun.id === 'sniper' && me.ads > 0.5) ? 0 : 1;
     $('scope').style.opacity = scoped ? 1 : 0;
   } else { cross.style.opacity = 0; $('scope').style.opacity = 0; }
+  // Whoever is in your sights is named under them.
+  let who = '';
+  if (me.alive && !me.sprinting) {
+    const d = match.aim(me, tmpA), ex = me.x, ey = match.eyeY(me), ez = me.z;
+    let best = Math.min(90, world.ray(ex, ey, ez, d[0], d[1], d[2], 90)), seen = null;
+    for (const s of match.soldiers) {
+      if (!s.alive || s === me) continue;
+      const h = match.rayHits(s, ex, ey, ez, d[0], d[1], d[2], best);
+      if (h.t < best) { best = h.t; seen = s; }
+    }
+    if (seen) who = `<span class="t${seen.team}">${seen.name}</span><small>${match.classes[seen.cls].name}</small>`;
+  }
+  if (shown.who !== who) { shown.who = who; $('who').innerHTML = who; }
   let note = '', warn = false;
   // Advance: out of the sector being fought for, with how long there is to get back.
   let astray = '';
-  if (match.type === 'adv' && me.alive && !match.over) {
-    const [lo, hi] = match.bounds(me);
+  const fence = me.alive && !match.over ? match.bounds(me) : null;
+  if (fence) {
+    const [lo, hi] = fence;
     if (me.x < lo || me.x > hi) {
-      const left = Math.max(0, match.retreatUntil - match.time) + 6 - me.out;
-      astray = `${match.attack === 0 ? 'Get back to the fight' : me.x < lo ? 'Fall back to the next sector' : 'Get back to the fight'}: ${Math.ceil(left)}`;
+      const adv = match.type === 'adv';
+      const left = (adv ? Math.max(0, match.retreatUntil - match.time) : 0) + 6 - me.out;
+      astray = `${adv && match.attack !== 0 && me.x < lo ? 'Fall back to the next sector' : 'Get back to the fight'}: ${Math.ceil(left)}`;
     }
   }
   if (astray) { note = astray; warn = true; }
@@ -784,7 +844,7 @@ function aim(now, dt, alpha) {
     // A slow flight round the yard, looking at the middle.
     const a = now / 14000, r = 30 + 6 * Math.sin(now / 9000);
     // (In Advance, round the sector being fought for.)
-    const sec = match.type === 'adv' ? match.sectorNow() : null;
+    const sec = match.type === 'adv' ? match.sectorNow() : match.arena || null;
     const cx = sec ? (sec.x0 + sec.x1) / 2 : map.W / 2, cz = map.H / 2;
     cam.eye[0] = cx + Math.cos(a) * r * 1.25;
     cam.eye[1] = 15 + 3 * Math.sin(now / 7000);
@@ -979,6 +1039,7 @@ function drawHands(now, dt) {
   if (gun.kind) { drawOldHands(dt, gun, info, v); return; }
   const ads = ease(me.ads), hip = 1 - ads;
   hand.kick *= Math.exp(-dt * 13);
+  hand.bash *= Math.exp(-dt * 8);
   hand.swayX *= Math.exp(-dt * 9);
   hand.swayY *= Math.exp(-dt * 9);
   hand.dip *= Math.exp(-dt * 7);
@@ -993,8 +1054,8 @@ function drawHands(now, dt) {
   // Sprinting, the gun comes in to the middle, held low with the barrel up a little, and swings with each stride.
   const x = 0.2 * hip * (1 - 0.82 * run) + bobX * (1 + 2 * run) + hand.swayX * hip;
   const y = lerp(-info.sight * SIZE, -0.2, hip) + bobY * (1 + run) + hand.swayY * hip - down * 0.22 - hand.dip * 0.05 - run * 0.07 + hand.kick * 0.006 * hip;
-  const z = lerp(-0.3, -0.46, hip) + hand.kick * 0.035 + run * 0.05;
-  const local = M.chain(M.move(x, y, z), M.rotY(-0.04 * hip * (1 - run)), M.rotX(hand.kick * (0.035 + 0.03 * hip) - down * 0.7 + run * 0.2), M.rotZ(run * 0.1 + down * 0.3), M.scale(SIZE));
+  const z = lerp(-0.3, -0.46, hip) + hand.kick * 0.035 + run * 0.05 - hand.bash * 0.2;
+  const local = M.chain(M.move(x, y, z), M.rotY(-0.04 * hip * (1 - run) + hand.bash * 0.9), M.rotZ(-hand.bash * 0.5), M.rotX(hand.kick * (0.035 + 0.03 * hip) - down * 0.7 + run * 0.2), M.rotZ(run * 0.1 + down * 0.3), M.scale(SIZE));
   const model = M.mul(M.rigidInverse(cam.view), local);
   const light = v.light;
   R.beginHands(M.perspective(1.0, W / H, 0.02, 10), cam.view);
@@ -1110,13 +1171,15 @@ function showTitle() {
   $('typeSeg').innerHTML = [['tdm', 'Deathmatch'], ['adv', 'Advance']].map(([id, name]) => `<button class="seg-btn${id === save.type ? ' on' : ''}" data-type="${id}">${name}</button>`).join('');
   $('sideSeg').innerHTML = ['Attack', 'Defend'].map((name, i) => `<button class="seg-btn${i === save.side ? ' on' : ''}" data-side="${i}">${name}</button>`).join('');
   $('limitRow').hidden = adv;
+  $('mapRow').hidden = adv;
+  $('mapSeg').innerHTML = MAP_NAMES.map((name, i) => `<button class="seg-btn${i === save.map ? ' on' : ''}" data-map="${i}">${name}</button>`).join('');
   $('sideRow').hidden = !adv;
-  $('tagLine').innerHTML = adv ? 'Advance &middot; the Long Works &middot; five sectors &middot; 12 against 12' : 'Team deathmatch &middot; Foundry Yard &middot; 8 against 8';
+  $('tagLine').innerHTML = adv ? 'Advance &middot; the Long Works &middot; five sectors &middot; 12 against 12' : `Team deathmatch &middot; ${MAP_NAMES[save.map]} &middot; 8 against 8`;
   $('modeSeg').innerHTML = MODES.map((m, i) => `<button class="seg-btn${i === save.mode ? ' on' : ''}" data-mode="${i}">${m.name}</button>`).join('');
   $('classPick').innerHTML = mode.classes.map((c, i) => classCard(c, i, i === save[clsKey(mode)], false)).join('');
   $('keysLine').innerHTML = (save.mode
     ? 'W A S D|move,Mouse|aim,Left|swing; hold to draw the bow,Right|shield; throw; look closer,Shift|sprint,C|crouch and stand,Space|jump,G|fire pot,Q|dagger,Tab|scores,F|full screen'
-    : 'W A S D|move,Mouse|aim,Left|fire,Right|sights,Shift|sprint,C|crouch and stand,Space|jump,R|reload,G|grenade,Q|swap,Tab|scores,F|full screen')
+    : 'W A S D|move,Mouse|aim,Left|fire,Right|sights,Shift|sprint,C|crouch and stand,Space|jump,R|reload,G|grenade,V|strike,Q|swap,Tab|scores,F|full screen')
     .split(',').map((k) => k.split('|')).map(([key, what]) => `<b>${key}</b> ${what.replace(/;/g, ',')}`).join(' &middot; ');
   $('skillSeg').innerHTML = SKILL.map((k, i) => `<button class="seg-btn${i === save.skill ? ' on' : ''}" data-skill="${i}">${k.name}</button>`).join('');
   $('limitSeg').innerHTML = [50, 75, 100].map((n) => `<button class="seg-btn${n === save.limit ? ' on' : ''}" data-limit="${n}">${n}</button>`).join('');
@@ -1130,7 +1193,7 @@ $('classPick').addEventListener('click', (e) => {
   if (!el) return;
   save[clsKey(MODES[save.mode])] = Number(el.dataset.cls);
   writeSave();
-  sfx('tap');
+  snd('tap');
   showTitle();
 });
 $('typeSeg').addEventListener('click', (e) => {
@@ -1138,16 +1201,25 @@ $('typeSeg').addEventListener('click', (e) => {
   if (!el || el.dataset.type === save.type) return;
   save.type = el.dataset.type;
   writeSave();
-  sfx('tap');
+  snd('tap');
   showTitle();
-  whenBuilt(save.type, attract);
+  whenBuilt(attract);
+});
+$('mapSeg').addEventListener('click', (e) => {
+  const el = e.target.closest('[data-map]');
+  if (!el || Number(el.dataset.map) === save.map) return;
+  save.map = Number(el.dataset.map);
+  writeSave();
+  snd('tap');
+  showTitle();
+  whenBuilt(attract);
 });
 $('sideSeg').addEventListener('click', (e) => {
   const el = e.target.closest('[data-side]');
   if (!el || Number(el.dataset.side) === save.side) return;
   save.side = Number(el.dataset.side);
   writeSave();
-  sfx('tap');
+  snd('tap');
   attract();
   showTitle();
 });
@@ -1156,7 +1228,7 @@ $('modeSeg').addEventListener('click', (e) => {
   if (!el || Number(el.dataset.mode) === save.mode) return;
   save.mode = Number(el.dataset.mode);
   writeSave();
-  sfx('tap');
+  snd('tap');
   attract(); // the bots behind the menu change over too
   showTitle();
 });
@@ -1165,7 +1237,7 @@ $('skillSeg').addEventListener('click', (e) => {
   if (!el) return;
   save.skill = Number(el.dataset.skill);
   writeSave();
-  sfx('tap');
+  snd('tap');
   showTitle();
 });
 $('limitSeg').addEventListener('click', (e) => {
@@ -1173,11 +1245,11 @@ $('limitSeg').addEventListener('click', (e) => {
   if (!el) return;
   save.limit = Number(el.dataset.limit);
   writeSave();
-  sfx('tap');
+  snd('tap');
   showTitle();
 });
 $('playBtn').addEventListener('click', () => { if (phase === 'title') start(); });
-$('menuBtn').addEventListener('click', () => { sfx('tap'); showSettings(); });
+$('menuBtn').addEventListener('click', () => { snd('tap'); showSettings(); });
 $('downClasses').addEventListener('click', (e) => {
   const el = e.target.closest('[data-cls]');
   if (el) pickClass(Number(el.dataset.cls));
@@ -1185,6 +1257,7 @@ $('downClasses').addEventListener('click', (e) => {
 
 const settingsHtml = () => `
   <label class="row">Mouse speed <span class="slider"><input type="range" min="0.3" max="3" step="0.05" value="${save.sens}" data-opt="sens"><output>${save.sens.toFixed(2)}</output></span></label>
+  <label class="row">Loudness <span class="slider"><input type="range" min="0" max="1" step="0.05" value="${save.vol}" data-opt="vol"><output>${Math.round(save.vol * 100)}</output></span></label>
   <label class="row">Field of view <span class="slider"><input type="range" min="70" max="110" step="1" value="${save.fov}" data-opt="fov"><output>${save.fov}</output></span></label>
   <label class="row">Flip up and down <input type="checkbox" class="toggle" data-opt="invert" ${save.invert ? 'checked' : ''}></label>
   ${switchRow('Sound', 'sound')}`;
@@ -1218,7 +1291,7 @@ function showHow() {
     <div class="how">
       <p><b>Scrap the haywire robots.</b> Every one your team scraps is a point; the first team to the target wins.</p>
       <p><b>W A S D</b> to move, the <b>mouse</b> to aim, <b>left button</b> to fire. Hold the <b>right button</b> to look down the sights: slower, but much more accurate.</p>
-      <p><b>Shift</b> sprints, <b>C</b> crouches and <b>C</b> again stands (crouched you are steadier, and smaller), <b>Space</b> jumps onto crates. <b>R</b> reloads, <b>Q</b> or <b>1</b> and <b>2</b> swap to the pistol and back, <b>G</b> throws a grenade.</p>
+      <p><b>Shift</b> sprints, <b>C</b> crouches and <b>C</b> again stands (crouched you are steadier, and smaller), <b>Space</b> jumps onto crates. <b>R</b> reloads, <b>Q</b> or <b>1</b> and <b>2</b> swap to the pistol and back, <b>G</b> throws a grenade, and <b>V</b> strikes with the gun itself at whatever is right in front of you.</p>
       <p><b>Advance</b> is attack and defence, on a map of its own: the Long Works, five arenas in a row. Each is a sector with two objectives, A and B. The attackers take an objective by having more robots at it than the defenders, and take the sector by holding both at once. Then everyone moves on: the defenders fall back to the next arena, and the fight starts again there.</p>
       <p>The attack has three battalions. Every attacker scrapped costs the battalion one of its lives; when they are gone the next battalion takes up the attack, and the defenders have that sector back whole. Take all five sectors and the attack has won; lose all three battalions and the defence has. Keep to the sector being fought for: stray out of it for six seconds and you are scrapped.</p>
       <p><b>Old Iron</b> is the same match with no guns. The <b>left button</b> swings; with a bow, hold it to draw and let go to loose, aiming a little high for the drop. The <b>right button</b> raises the Knight's shield, throws a pike, hatchet or knife, or looks closer down the bow. <b>G</b> throws a fire pot that bursts where it lands, and <b>Q</b> draws your dagger.</p>
@@ -1241,7 +1314,7 @@ $('card').addEventListener('input', (e) => {
   if (opt === 'invert') save.invert = e.target.checked;
   else {
     save[opt] = Number(e.target.value);
-    e.target.nextElementSibling.textContent = opt === 'sens' ? save.sens.toFixed(2) : save.fov;
+    e.target.nextElementSibling.textContent = opt === 'sens' ? save.sens.toFixed(2) : opt === 'vol' ? Math.round(save.vol * 100) : save.fov;
   }
   writeSave();
 });

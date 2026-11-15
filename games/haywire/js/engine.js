@@ -60,6 +60,9 @@ Object.assign(GUNS, {
   daggers: { ...OLD, name: 'Twin Daggers', kind: 'melee', dmg: 30, wind: 0.08, rate: 0.28, reach: 1.9, arc: 1.4, back: 2, alt: 'throw', mag: 10, shot: { kind: 'knife', dmg: 36, speed: 34, grav: 10, head: 1.5 } },
   knife: { ...OLD, name: 'Dagger', kind: 'melee', dmg: 28, wind: 0.1, rate: 0.38, reach: 1.8, arc: 1.3, back: 1.5, alt: null },
 });
+// A blow with the gun itself, in Firefight, for when something is right on top of you.
+export const BASH = { name: 'Rifle butt', dmg: 55, wind: 0.12, rate: 0.65, reach: 1.9, arc: 1.4, back: 2 };
+GUNS.bash = BASH;
 for (const k of Object.keys(GUNS)) GUNS[k].id = k;
 
 export const CLASSES = [
@@ -102,7 +105,7 @@ export class Rand {
 }
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
-export const emptyInput = () => ({ mx: 0, mz: 0, yaw: 0, pitch: 0, jump: false, crouch: false, sprint: false, ads: false, fire: false, reload: false, nade: false, slot: -1, cls: -1 });
+export const emptyInput = () => ({ melee: false, mx: 0, mz: 0, yaw: 0, pitch: 0, jump: false, crouch: false, sprint: false, ads: false, fire: false, reload: false, nade: false, slot: -1, cls: -1 });
 
 export class Match {
   // opts: seed, size (robots a side), human (is soldier 0 the player),
@@ -130,6 +133,11 @@ export class Match {
       this.retreatUntil = -1; // the defenders have until then to fall back to the next sector
       // For each objective, p runs from 0 (the defenders') to 1 (the attackers'); a and d count who is at it.
       this.sectors = map.advance.sectors.map((sec) => ({ ...sec, objs: sec.objs.map((o) => ({ ...o, own: false, p: 0, a: 0, d: 0 })) }));
+      this.shells = []; // a barrage on its way down: where, and how long till each lands
+      this.barrageUntil = -1;
+    } else if (map.advance) {
+      // Team deathmatch in one arena of the Long Works: blue comes in at its west end, orange at its east.
+      this.arena = map.advance.sectors[opts.arena ?? 0];
     }
     this.time = 0;
     this.tick = 0;
@@ -150,7 +158,7 @@ export class Match {
           yaw: 0, pitch: 0, grounded: true, crouching: false, crouchK: 0, sprinting: false, sprintOut: 0, ads: 0,
           hp: 0, maxHp: 100, hurtAt: -99, hurtBy: -1, protect: 0, dmgFrom: new Map(),
           weapons: [], slot: 0, cool: 0, reloadT: 0, swapT: 0, throwT: 0, nadeCount: 0, bloom: 0, kp: 0, ky: 0,
-          out: 0, fireHeld: false, pull: 0, nadeHeld: false, swing: 0, draw: 0, block: false, altHeld: false, jumpHeld: false, lastShot: -99, stride: 0,
+          out: 0, meleeHeld: false, fireHeld: false, pull: 0, nadeHeld: false, swing: 0, draw: 0, block: false, altHeld: false, jumpHeld: false, lastShot: -99, stride: 0,
           knownT: -99, kx: 0, ky2: 0, kz: 0, // when and where the other team last knew it to be
           kills: 0, deaths: 0, assists: 0, score: 0, streak: 0, best: 0, heads: 0, shots: 0, hits: 0,
           in: emptyInput(), bot: null,
@@ -181,7 +189,10 @@ export class Match {
     if (this.tick % 8 === 0) {
       for (const s of this.soldiers) if (s.human && s.alive) this.look(s);
     }
-    if (this.type === 'adv' && !this.over) this.stepAdvance(dt);
+    if (this.type === 'adv' && !this.over) {
+      this.stepAdvance(dt);
+      this.stepBarrage(dt);
+    }
     // (Out of time, the defenders have held.)
     if (!this.over && this.time >= this.timeLimit) this.finish(this.type === 'adv' ? 1 - this.attack : undefined);
   }
@@ -211,9 +222,40 @@ export class Match {
   objectives() { return this.sectorNow().objs; }
 
   // How far west and east a soldier's team may go just now.
+  // (Nothing, on a map with no sectors.)
   bounds(s) {
+    if (this.arena) return [this.arena.x0 - 1, this.arena.x1 + 1];
+    if (this.type !== 'adv') return null;
     const sec = this.sectorNow();
     return s.team === this.attack ? [sec.x0 - 15, sec.x1 + 1.5] : [sec.x0 - 1.5, sec.x1 + 15];
+  }
+
+  // A barrage: shells come down round the objectives for a few seconds,
+  // each marked a moment before it lands. Only the defenders are hurt by
+  // it, and not under a roof.
+  stepBarrage(dt) {
+    const rng = this.rng, w = this.world;
+    if (this.time < this.barrageUntil && this.tick % 24 === 0) {
+      const objs = this.objectives(), o = objs[Math.floor(rng.next() * objs.length)];
+      const a = rng.next() * Math.PI * 2, r = 11 * Math.sqrt(rng.next());
+      const x = o.x + Math.cos(a) * r, z = o.z + Math.sin(a) * r, y = w.groundAt(x, z, 30);
+      if (y > -9 && y < 9) {
+        this.shells.push({ x, y, z, t: 1.3 });
+        this.events.push({ e: 'incoming', x, y, z });
+      }
+    }
+    for (let k = this.shells.length - 1; k >= 0; k--) {
+      const sh = this.shells[k];
+      sh.t -= dt;
+      if (sh.t > 0) continue;
+      this.shells.splice(k, 1);
+      this.events.push({ e: 'boom', x: sh.x, y: sh.y, z: sh.z });
+      for (const e of this.soldiers) {
+        if (!e.alive || e.team === this.attack) continue;
+        const cy = e.y + (e.crouching ? 0.6 : 0.95), d = Math.hypot(e.x - sh.x, cy - sh.y, e.z - sh.z);
+        if (d < 5 && w.sees(sh.x, sh.y + 0.25, sh.z, e.x, cy, e.z)) this.hurt(e, 130 * clamp(1 - (d - 1) / 4, 0, 1), e, 'barrage', false);
+      }
+    }
   }
 
   stepAdvance(dt) {
@@ -259,7 +301,9 @@ export class Match {
     let best = null, bestScore = -Infinity;
     // Team deathmatch: anywhere, but better at your own end. Advance: behind your own lines.
     const adv = this.type === 'adv';
-    const places = adv ? [this.sectorNow()[s.team === this.attack ? 'att' : 'def'].map(([x, z]) => ({ x, z, yaw: 0 }))] : map.spawns;
+    const places = adv ? [this.sectorNow()[s.team === this.attack ? 'att' : 'def'].map(([x, z]) => ({ x, z, yaw: 0 }))]
+      : this.arena ? [this.arena.west.map(([x, z]) => ({ x, z, yaw: Math.PI / 2 })), this.arena.def.map(([x, z]) => ({ x, z, yaw: -Math.PI / 2 }))]
+        : map.spawns;
     for (let side = 0; side < places.length; side++) {
       for (const p of places[side]) {
         let near = 99, seen = false, taken = false;
@@ -363,9 +407,10 @@ export class Match {
     }
 
     // Advance: keep to the sector being fought for. (Defenders falling back get time to.)
-    if (this.type === 'adv') {
-      const [lo, hi] = this.bounds(s);
-      if ((s.x < lo || s.x > hi) && !(s.team !== this.attack && this.time < this.retreatUntil)) {
+    const fence = this.bounds(s);
+    if (fence) {
+      const [lo, hi] = fence;
+      if ((s.x < lo || s.x > hi) && !(this.type === 'adv' && s.team !== this.attack && this.time < this.retreatUntil)) {
         s.out += dt;
         if (s.out >= OUT_TIME) { this.scrap(s, s, 'out', false); return; }
       } else s.out = 0;
@@ -402,6 +447,19 @@ export class Match {
       if (inp.nade && !s.nadeHeld && s.nadeCount > 0 && s.throwT <= 0 && s.swapT <= 0) this.throwNade(s);
       s.nadeHeld = inp.nade;
       return;
+    }
+    // A blow with the gun itself: it breaks off a reload, and the gun can't fire till it is back.
+    const bash = inp.melee && !s.meleeHeld;
+    s.meleeHeld = inp.melee;
+    if (s.swing > 0) {
+      s.swing -= dt;
+      if (s.swing <= 0) this.strike(s, BASH);
+    } else if (bash && s.swapT <= 0 && s.throwT <= 0 && s.cool <= 0.2) {
+      s.swing = BASH.wind;
+      s.cool = BASH.rate;
+      s.reloadT = 0;
+      s.protect = 0;
+      this.events.push({ e: 'swing', id: s.id });
     }
     const pressed = inp.fire && !s.fireHeld;
     s.fireHeld = inp.fire;
@@ -702,6 +760,7 @@ export class Match {
           this.tickets = this.ticketsAtStart;
           for (const o of this.objectives()) { o.own = false; o.p = 0; }
           for (const s of this.soldiers) if (!s.alive && s.team === this.attack) s.respawnT = Math.min(s.respawnT, 2.5);
+          this.barrageUntil = this.time + 9; // and it comes in behind a barrage
           this.events.push({ e: 'battalion', n: this.battalion });
         } else {
           this.tickets = 0;
