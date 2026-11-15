@@ -65,7 +65,7 @@ Object.assign(GAMES, {
         if (!free.length) return;
         const i = free[Math.floor(api.rnd() * free.length)];
         // (About three in five are good; the rest are the ones to leave.)
-        const pool = kinds.filter((k) => k.good === (api.rnd() < 0.6));
+        const want = api.rnd() < 0.6, pool = kinds.filter((k) => k.good === want);
         cells[i] = { k: pool[Math.floor(api.rnd() * pool.length)], t: stay };
         if (cells[i].k.good) grown++;
         show(i);
