@@ -32,6 +32,9 @@ export const saveSettings = () => store.set('settings', settings);
 // ---- sound --------------------------------------------------------------
 
 let ctx = null, master = null, noiseBuf = null;
+// Where a sound goes: straight to the speakers, or (for a sound with a place
+// in the world) through its own loudness and left-or-right control first.
+let out = null;
 
 function audio() {
   if (!ctx) {
@@ -71,7 +74,7 @@ function tone(a, { f = 440, f2 = f, type = 'sine', t = 0, d = 0.15, g = 0.3 }) {
   v.gain.exponentialRampToValueAtTime(g, at + 0.008);
   v.gain.exponentialRampToValueAtTime(0.0001, at + d);
   o.connect(v);
-  v.connect(master);
+  v.connect(out || master);
   o.start(at);
   o.stop(at + d + 0.03);
 }
@@ -94,17 +97,34 @@ function hiss(a, { t = 0, d = 0.25, g = 0.25, f0 = 500, f1 = 2500, q = 1.1 }) {
   v.gain.exponentialRampToValueAtTime(0.0001, at + d);
   src.connect(bp);
   bp.connect(v);
-  v.connect(master);
+  v.connect(out || master);
   src.start(at, Math.random() * 0.5);
   src.stop(at + d + 0.03);
 }
 
 // k picks a variation for the sounds that have them (for 'match', how many
 // cascades in a row: each one rings a step higher).
-export function sfx(name, k = 0) {
+// vol and pan are for sounds that come from somewhere: how loud (0..1), and
+// how far to the left (-1) or right (1).
+export function sfx(name, k = 0, vol = 1, pan = 0) {
   if (!settings.sound) return;
   const a = audio();
   if (!a || a.state !== 'running') return;
+  if (vol !== 1 || pan !== 0) {
+    out = a.createGain();
+    out.gain.value = vol;
+    if (pan && a.createStereoPanner) {
+      const side = a.createStereoPanner();
+      side.pan.value = Math.max(-1, Math.min(1, pan));
+      out.connect(side);
+      side.connect(master);
+    } else out.connect(master);
+  }
+  play(a, name, k);
+  out = null;
+}
+
+function play(a, name, k) {
   switch (name) {
     case 'whoosh':
       hiss(a, { d: 0.22, g: 0.32, f0: 380, f1: 2600 });
@@ -322,6 +342,61 @@ export function sfx(name, k = 0) {
       // A big moment: a quick fanfare.
       [659, 784, 988, 1319].forEach((f, i) => tone(a, { f, type: 'triangle', t: i * 0.06, d: 0.22, g: 0.1 }));
       tone(a, { f: 1976, t: 0.24, d: 0.4, g: 0.05 });
+      break;
+    // Haywire.
+    case 'gun': {
+      // k: rifle, smg, shotgun, lmg, sniper, pistol. A crack, a thump under it, and a tail.
+      const [f, d, low, g] = [[2600, 0.11, 105, 0.5], [3400, 0.07, 150, 0.36], [1500, 0.26, 70, 0.75], [2000, 0.13, 85, 0.55], [1800, 0.4, 60, 0.85], [3000, 0.09, 170, 0.36]][k] || [2600, 0.1, 110, 0.5];
+      hiss(a, { d, g, f0: f, f1: f * 0.22, q: 0.5 });
+      tone(a, { f: low * 2.2, f2: low * 0.5, d: d * 0.9, g: g * 0.9 });
+      tone(a, { f: f * 0.5, f2: f * 0.12, type: 'square', d: 0.03, g: g * 0.16 });
+      if (k === 2 || k === 4) hiss(a, { t: 0.05, d: d * 1.6, g: g * 0.3, f0: 900, f1: 160, q: 0.4 });
+      break;
+    }
+    case 'ping':
+      // A round hitting metal nearby.
+      tone(a, { f: 2300 + k * 400, f2: 1500 + k * 300, type: 'triangle', d: 0.07, g: 0.05 });
+      hiss(a, { d: 0.05, g: 0.08, f0: 5200, f1: 2600, q: 2 });
+      break;
+    case 'hitmark':
+      // Your shot landed (k 1: on the head; 2: and that finished it).
+      tone(a, { f: k ? 1900 : 1250, type: 'square', d: 0.035, g: 0.05 });
+      if (k) tone(a, { f: 2850, type: 'triangle', t: 0.02, d: 0.09, g: 0.07 });
+      if (k === 2) tone(a, { f: 3800, type: 'triangle', t: 0.06, d: 0.16, g: 0.06 });
+      break;
+    case 'scrap':
+      // A robot coming apart.
+      tone(a, { f: 420, f2: 60, type: 'sawtooth', d: 0.35, g: 0.13 });
+      hiss(a, { d: 0.32, g: 0.36, f0: 3200, f1: 300, q: 0.7 });
+      [0.05, 0.13, 0.24].forEach((t, i) => tone(a, { f: 900 - i * 210, f2: 500 - i * 120, type: 'square', t, d: 0.06, g: 0.05 }));
+      break;
+    case 'blast':
+      tone(a, { f: 150, f2: 30, d: 0.7, g: 0.9 });
+      tone(a, { f: 75, f2: 26, type: 'triangle', t: 0.02, d: 0.6, g: 0.5 });
+      hiss(a, { d: 0.8, g: 0.6, f0: 1700, f1: 90, q: 0.5 });
+      hiss(a, { t: 0.1, d: 0.9, g: 0.22, f0: 600, f1: 120, q: 0.7 });
+      break;
+    case 'pain':
+      tone(a, { f: 210, f2: 90, d: 0.14, g: 0.4 });
+      hiss(a, { d: 0.09, g: 0.2, f0: 1900, f1: 500, q: 1 });
+      break;
+    case 'mag':
+      // A magazine coming out and going in.
+      tone(a, { f: 700, f2: 420, type: 'square', d: 0.04, g: 0.05 });
+      hiss(a, { d: 0.06, g: 0.12, f0: 2600, f1: 1200, q: 2 });
+      tone(a, { f: 520, f2: 760, type: 'square', t: 0.55 + k * 0.45, d: 0.045, g: 0.06 });
+      hiss(a, { t: 0.55 + k * 0.45, d: 0.07, g: 0.14, f0: 1800, f1: 3200, q: 2 });
+      break;
+    case 'foot':
+      hiss(a, { d: 0.07, g: 0.09, f0: 420 + k * 160, f1: 170, q: 1.2 });
+      break;
+    case 'lob':
+      hiss(a, { d: 0.2, g: 0.14, f0: 500, f1: 1700, q: 1.6 });
+      tone(a, { f: 1500, type: 'square', d: 0.03, g: 0.04 });
+      break;
+    case 'deploy':
+      tone(a, { f: 330, f2: 660, type: 'triangle', d: 0.18, g: 0.1 });
+      tone(a, { f: 990, type: 'triangle', t: 0.14, d: 0.2, g: 0.07 });
       break;
   }
 }
