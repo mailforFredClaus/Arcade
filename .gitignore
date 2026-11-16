@@ -2,3 +2,6 @@
 /image*.png
 # Claude Code's settings for this folder.
 .claude/
+
+# Packages for tools/build-documents.mjs (npm install).
+node_modules/

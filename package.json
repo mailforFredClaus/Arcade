@@ -15,6 +15,11 @@
     "test:honey-run": "node tools/test-honey-run.mjs 40 6000",
     "test:prism-break": "node tools/test-prism-break.mjs 70",
     "test:new-in-town": "node tools/test-new-in-town.mjs 12 60",
-    "test:haywire": "node tools/test-haywire.mjs 12"
+    "test:haywire": "node tools/test-haywire.mjs 12",
+    "build:documents": "node tools/build-documents.mjs && node tools/build-sw.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "katex": "^0.19.1"
   }
 }

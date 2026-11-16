@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Arcade">
+  <meta name="theme-color" content="#f6f3ec" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#15171c" media="(prefers-color-scheme: dark)">
+  <title>9 · Language modeling · From Neurons to Language Models</title>
+  <link rel="icon" href="../../icons/icon-192.png">
+  <link rel="apple-touch-icon" href="../../icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="../reader.css">
+  <script>try{var s=JSON.parse(localStorage.getItem('arcade:reader'))||{};if(s.theme)document.documentElement.dataset.theme=s.theme;if(s.size)document.documentElement.style.setProperty('--size',s.size+'px')}catch(e){}</script>
+</head>
+<body data-doc="neurons-to-language-models" data-page="13">
+  <div class="progress" aria-hidden="true"><span id="progress"></span></div>
+  <header class="bar">
+    <a class="back" href="../../index.html#documents" aria-label="Back to the Arcade">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Arcade</span>
+    </a>
+    <span class="bar-title">9 · Language modeling</span>
+    <div class="tools">
+      <button type="button" class="tool toc-btn" id="tocBtn" aria-label="Contents" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
+      <button type="button" class="tool" id="smaller" aria-label="Smaller text" title="Smaller text"><span class="aa small">A</span></button>
+      <button type="button" class="tool" id="bigger" aria-label="Bigger text" title="Bigger text"><span class="aa">A</span></button>
+      <button type="button" class="tool" id="theme" aria-label="Light or dark" title="Light or dark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
+    </div>
+  </header>
+  <div class="layout">
+    <nav class="toc" id="toc" aria-label="Contents"><div class="chapters"><p class="toc-head">From Neurons to Language Models</p><ol><li><a href="./">Start here</a></li><li><a href="2.html">Part I · Foundations</a></li><li class="sub"><a href="3.html">1 · Introduction</a></li><li class="sub"><a href="4.html">2 · Math refresher</a></li><li class="sub"><a href="5.html">3 · Statistical learning</a></li><li><a href="6.html">Part II · Neural networks</a></li><li class="sub"><a href="7.html">4 · Perceptron to MLP</a></li><li class="sub"><a href="8.html">5 · Backpropagation</a></li><li class="sub"><a href="9.html">6 · Optimization</a></li><li class="sub"><a href="10.html">7 · Training deep nets</a></li><li class="sub"><a href="11.html">8 · Convolution and inductive bias</a></li><li><a href="12.html">Part III · Sequences and attention</a></li><li class="sub"><a href="13.html" class="current" aria-current="page">9 · Language modeling</a></li><li class="sub"><a href="14.html">10 · Recurrent networks</a></li><li class="sub"><a href="15.html">11 · The Transformer</a></li><li class="sub"><a href="16.html">12 · Lab: build a GPT</a></li><li><a href="17.html">Part IV · Large language models</a></li><li class="sub"><a href="18.html">13 · Pretraining and scale</a></li><li class="sub"><a href="19.html">14 · Fine-tuning and adaptation</a></li><li class="sub"><a href="20.html">15 · Inference</a></li><li class="sub"><a href="21.html">16 · Prompting, retrieval, agents</a></li><li class="sub"><a href="22.html">17 · Evaluation and safety</a></li><li class="sub"><a href="23.html">18 · Beyond text</a></li><li class="sub"><a href="24.html">19 · Interpretability</a></li><li><a href="25.html">Bonus · 20 · Why does it work?</a></li><li><a href="26.html">Appendices</a></li><li class="sub"><a href="27.html">A · Selected solutions</a></li><li class="sub"><a href="28.html">B · Reading list</a></li><li class="sub"><a href="29.html">C · Capstone projects</a></li></ol></div><div class="sections"><p class="toc-head">On this page</p><ol><li class="l2"><a href="#91-text-as-tokens">9.1 Text as tokens</a></li><li class="l2"><a href="#92-byte-pair-encoding">9.2 Byte-pair encoding</a></li><li class="l2"><a href="#93-language-modeling">9.3 Language modeling</a></li><li class="l2"><a href="#94-perplexity">9.4 Perplexity</a></li><li class="l2"><a href="#95-counting-n-gram-models">9.5 Counting: n-gram models</a></li><li class="l2"><a href="#96-embeddings">9.6 Embeddings</a></li><li class="l2"><a href="#97-the-template-for-everything-that-follows">9.7 The template for everything that follows</a></li><li class="l2"><a href="#lab-9a-a-byte-pair-tokenizer">Lab 9A: a byte-pair tokenizer</a></li><li class="l2"><a href="#lab-9b-a-bigram-model-and-its-perplexity">Lab 9B: a bigram model and its perplexity</a></li><li class="l2"><a href="#problems">Problems</a></li><li class="l2"><a href="#further-reading">Further reading</a></li></ol></div></nav>
+    <main class="doc">
+      <p class="kicker">AI · Textbook</p>
+      <h1>9 · Language modeling</h1>
+      <p class="meta">From Neurons to Language Models<span class="dot">·</span>13 of 29<span class="dot">·</span>12 min read</p>
+<p><strong>Objectives.</strong> After this chapter you can:</p>
+<ul><li><p>explain what a token is and implement byte-pair encoding;</p></li><li><p>write the autoregressive factorization and the training objective of a language model;</p></li><li><p>build an n-gram model, compute its perplexity, and explain why n-grams hit a wall;</p></li><li><p>explain what an embedding is and why learned vectors generalize where counts cannot.</p></li></ul>
+<h2 id="91-text-as-tokens"><a class="anchor" href="#91-text-as-tokens" aria-hidden="true" tabindex="-1">#</a>9.1 Text as tokens</h2>
+<p>A network consumes numbers, so text must first become a sequence of integers. Each integer indexes an entry in a fixed <strong>vocabulary</strong>, and each entry is a <strong>token</strong>. The choice of what a token is has consequences that reach all the way to the behavior of a finished LLM.</p>
+<div class="table-wrap"><table><thead><tr><th>Unit</th><th>Vocabulary size</th><th>Sequence length</th><th>Problem</th></tr></thead><tbody><tr><td>Characters</td><td>About 100</td><td>Long</td><td>The model must learn spelling before it can learn anything else; long sequences are expensive</td></tr><tr><td>Words</td><td>Hundreds of thousands, and open-ended</td><td>Short</td><td>Any word outside the vocabulary cannot be represented; rare words get little training signal</td></tr><tr><td>Subwords</td><td>30,000 to 200,000</td><td>In between</td><td>Token boundaries are arbitrary with respect to meaning and spelling</td></tr></tbody></table></div>
+<p>Every modern LLM uses subwords. Frequent words are single tokens. Rare words are split into several pieces. Nothing is ever out of vocabulary. As a rough guide for English, a token is about four characters, or three quarters of a word. The ratio varies by tokenizer and is worse for other languages and for code.</p>
+<h2 id="92-byte-pair-encoding"><a class="anchor" href="#92-byte-pair-encoding" aria-hidden="true" tabindex="-1">#</a>9.2 Byte-pair encoding</h2>
+<p><strong>Byte-pair encoding</strong> (BPE) builds a subword vocabulary from data. It began as a compression algorithm (Gage, 1994) and was adapted for translation by Sennrich and others (2016).</p>
+<ol><li><p>Start with the 256 possible byte values as the vocabulary. Any text in any language is a sequence of bytes, so everything is representable from the outset.</p></li><li><p>Count every adjacent pair of symbols in the training text.</p></li><li><p>Replace the most frequent pair everywhere with a new symbol, and add that symbol to the vocabulary.</p></li><li><p>Repeat until the vocabulary reaches the target size.</p></li></ol>
+<p>To encode new text, convert it to bytes and apply the learned merges in the order they were learned. To decode, expand each symbol back to its bytes.</p>
+<p>Lab 9A implements this. Trained on a few repeated sentences about a cat and a mat, the first merges it learns are &quot;at&quot;, &quot;th&quot;, &quot; th&quot;, &quot;at &quot;, &quot;e &quot;, and &quot; the &quot;. Frequent strings become single tokens, with their leading spaces attached.</p>
+<p><strong>What tokenization does to a model.</strong> Several well-known quirks of LLMs are consequences of this preprocessing step, not of the network.</p>
+<ul><li><p>The model never sees letters. It sees token identities. Counting the letters in a word or reversing a string requires knowledge of spelling that the model must infer indirectly.</p></li><li><p>Numbers are split into irregular chunks, which makes digit-by-digit arithmetic harder to learn than it would be on aligned digits.</p></li><li><p>The same word with and without a leading space, or capitalized, is usually a different token.</p></li><li><p>Context limits, speed, and price are all counted in tokens, not characters or words.</p></li></ul>
+<p>Vocabularies also include <strong>special tokens</strong> that never occur in ordinary text: markers for the start and end of a document, and, in chat models, markers that separate the turns of a conversation (Chapter 14).</p>
+<h2 id="93-language-modeling"><a class="anchor" href="#93-language-modeling" aria-hidden="true" tabindex="-1">#</a>9.3 Language modeling</h2>
+<p>A <strong>language model</strong> is a probability distribution over token sequences. By the chain rule of probability (Section 2.3), any such distribution factors exactly as</p>
+<div class="math"><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mi>p</mi><mo stretchy="false">(</mo><msub><mi>x</mi><mn>1</mn></msub><mo separator="true">,</mo><mo>…</mo><mo separator="true">,</mo><msub><mi>x</mi><mi>T</mi></msub><mo stretchy="false">)</mo><mtext>  </mtext><mo>=</mo><mtext>  </mtext><munderover><mo>∏</mo><mrow><mi>t</mi><mo>=</mo><mn>1</mn></mrow><mi>T</mi></munderover><mi>p</mi><mo fence="false" stretchy="true" minsize="1.2em" maxsize="1.2em">(</mo><msub><mi>x</mi><mi>t</mi></msub><mo>∣</mo><msub><mi>x</mi><mrow><mo>&lt;</mo><mi>t</mi></mrow></msub><mo fence="false" stretchy="true" minsize="1.2em" maxsize="1.2em">)</mo><mi mathvariant="normal">.</mi></mrow><annotation encoding="application/x-tex">p(x_1, \dots, x_T) \;=\; \prod_{t=1}^{T} p\big(x_t \mid x_{&lt;t}\big).</annotation></semantics></math></span></div>
+<p>So modeling sequences reduces to one task repeated: given a prefix, predict a distribution over the next token. A model built this way is called <strong>autoregressive</strong>. Nothing has been assumed or approximated yet.</p>
+<p><strong>Training.</strong> Parameterize the conditional as p_θ and fit it by maximum likelihood. The loss is the average negative log-probability the model assigns to each actual next token:</p>
+<div class="math"><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mi>L</mi><mo stretchy="false">(</mo><mi>θ</mi><mo stretchy="false">)</mo><mtext>  </mtext><mo>=</mo><mtext>  </mtext><mo>−</mo><mfrac><mn>1</mn><mi>T</mi></mfrac><munderover><mo>∑</mo><mrow><mi>t</mi><mo>=</mo><mn>1</mn></mrow><mi>T</mi></munderover><mi>log</mi><mo>⁡</mo><msub><mi>p</mi><mi>θ</mi></msub><mo fence="false" stretchy="true" minsize="1.2em" maxsize="1.2em">(</mo><msub><mi>x</mi><mi>t</mi></msub><mo>∣</mo><msub><mi>x</mi><mrow><mo>&lt;</mo><mi>t</mi></mrow></msub><mo fence="false" stretchy="true" minsize="1.2em" maxsize="1.2em">)</mo><mi mathvariant="normal">.</mi></mrow><annotation encoding="application/x-tex">L(\theta) \;=\; -\frac{1}{T}\sum_{t=1}^{T} \log p_\theta\big(x_t \mid x_{&lt;t}\big).</annotation></semantics></math></span></div>
+<p>This is the cross-entropy of Section 3.4, applied at every position, with the vocabulary as the set of classes. During training the model is always given the true prefix, whatever it would have predicted itself; this is called <strong>teacher forcing</strong>.</p>
+<p><strong>Generation.</strong> Sample a token from p_θ(· | prefix), append it to the prefix, and repeat. Chapter 15 covers the choices involved.</p>
+<p><strong>Two reasons this formulation mattered.</strong></p>
+<p>First, the labels are free. The target at each position is just the next token of the text. No annotation is needed, so any text ever written is training data. This is called <strong>self-supervised learning</strong>, and it is what made training on trillions of tokens possible.</p>
+<p>Second, the task is general. Translation is continuing &quot;English: ... French:&quot;. Answering a question is continuing the question. Writing a function is continuing its signature and docstring. A sufficiently good next-token predictor is, implicitly, a system for every task that can be posed as text.</p>
+<h2 id="94-perplexity"><a class="anchor" href="#94-perplexity" aria-hidden="true" tabindex="-1">#</a>9.4 Perplexity</h2>
+<p>The standard measure of a language model is <strong>perplexity</strong>, the exponential of its per-token cross-entropy on held-out text:</p>
+<div class="math"><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mrow><mi mathvariant="normal">P</mi><mi mathvariant="normal">P</mi><mi mathvariant="normal">L</mi></mrow><mtext>  </mtext><mo>=</mo><mtext>  </mtext><mi>exp</mi><mo>⁡</mo><mo fence="false" stretchy="true" minsize="1.2em" maxsize="1.2em">(</mo><mi>L</mi><mo fence="false" stretchy="true" minsize="1.2em" maxsize="1.2em">)</mo><mi mathvariant="normal">.</mi></mrow><annotation encoding="application/x-tex">\mathrm{PPL} \;=\; \exp\big(L\big).</annotation></semantics></math></span></div>
+<p>Perplexity is an effective branching factor. A model that is uniformly unsure among k tokens at every step has perplexity k. A model with perplexity 20 is, on average, as uncertain as if it were choosing among 20 equally likely tokens. A perfect model does not reach perplexity 1, because language is not deterministic: the floor is set by the entropy of the text itself.</p>
+<p>Perplexities are comparable only between models with the same tokenizer on the same test set. A character-level perplexity of 4 and a subword-level perplexity of 20 measure different things.</p>
+<blockquote><p><strong>Checkpoint 9.1.</strong> A model&#39;s loss on held-out text is 3.0 nats per token. What is its perplexity? How many bits per token is that? If tokens average four characters, how many bits per character?</p></blockquote>
+<h2 id="95-counting-n-gram-models"><a class="anchor" href="#95-counting-n-gram-models" aria-hidden="true" tabindex="-1">#</a>9.5 Counting: n-gram models</h2>
+<p>The oldest way to estimate the conditionals is to truncate the context and count. An <strong>n-gram model</strong> assumes the next token depends only on the previous n − 1:</p>
+<div class="math"><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mi>p</mi><mo fence="false" stretchy="true" minsize="1.2em" maxsize="1.2em">(</mo><msub><mi>x</mi><mi>t</mi></msub><mo>∣</mo><msub><mi>x</mi><mrow><mo>&lt;</mo><mi>t</mi></mrow></msub><mo fence="false" stretchy="true" minsize="1.2em" maxsize="1.2em">)</mo><mtext>  </mtext><mo>≈</mo><mtext>  </mtext><mi>p</mi><mo fence="false" stretchy="true" minsize="1.2em" maxsize="1.2em">(</mo><msub><mi>x</mi><mi>t</mi></msub><mo>∣</mo><msub><mi>x</mi><mrow><mi>t</mi><mo>−</mo><mi>n</mi><mo>+</mo><mn>1</mn></mrow></msub><mo separator="true">,</mo><mo>…</mo><mo separator="true">,</mo><msub><mi>x</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub><mo fence="false" stretchy="true" minsize="1.2em" maxsize="1.2em">)</mo><mtext>  </mtext><mo>=</mo><mtext>  </mtext><mfrac><mrow><mrow><mi mathvariant="normal">c</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">u</mi><mi mathvariant="normal">n</mi><mi mathvariant="normal">t</mi></mrow><mo stretchy="false">(</mo><msub><mi>x</mi><mrow><mi>t</mi><mo>−</mo><mi>n</mi><mo>+</mo><mn>1</mn></mrow></msub><mo separator="true">,</mo><mo>…</mo><mo separator="true">,</mo><msub><mi>x</mi><mi>t</mi></msub><mo stretchy="false">)</mo></mrow><mrow><mrow><mi mathvariant="normal">c</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">u</mi><mi mathvariant="normal">n</mi><mi mathvariant="normal">t</mi></mrow><mo stretchy="false">(</mo><msub><mi>x</mi><mrow><mi>t</mi><mo>−</mo><mi>n</mi><mo>+</mo><mn>1</mn></mrow></msub><mo separator="true">,</mo><mo>…</mo><mo separator="true">,</mo><msub><mi>x</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub><mo stretchy="false">)</mo></mrow></mfrac><mi mathvariant="normal">.</mi></mrow><annotation encoding="application/x-tex">p\big(x_t \mid x_{&lt;t}\big) \;\approx\; p\big(x_t \mid x_{t-n+1}, \dots, x_{t-1}\big) \;=\; \frac{\mathrm{count}(x_{t-n+1}, \dots, x_t)}{\mathrm{count}(x_{t-n+1}, \dots, x_{t-1})} .</annotation></semantics></math></span></div>
+<p>The count ratio is the maximum likelihood estimate (Problem 9.3). Lab 9B builds the character-level bigram model, n = 2, on a megabyte of Shakespeare.</p>
+<div class="table-wrap"><table><thead><tr><th>Model</th><th>Held-out perplexity</th></tr></thead><tbody><tr><td>Uniform over 65 characters</td><td>65</td></tr><tr><td>Unigram (character frequencies only)</td><td>28.4</td></tr><tr><td>Bigram</td><td>12.0</td></tr></tbody></table></div>
+<p>A sample from the bigram model reads: &quot;Whan ashe:&#39;thend se! Wine, ges o tilo g is LI ar&quot;. It has learned which letters follow which, and nothing more.</p>
+<p>N-gram models dominated speech recognition and translation for decades. They fail for three connected reasons.</p>
+<ol><li><p><strong>Sparsity.</strong> The number of possible contexts is V^(n−1). For a word vocabulary of 50,000 and n = 3, that is 2.5 billion contexts, each needing its own distribution. Most are never observed, however large the corpus. Unseen events get probability zero unless the counts are <strong>smoothed</strong>, and a whole literature exists on how.</p></li><li><p><strong>No sharing.</strong> Tokens are atomic symbols. Having seen &quot;the cat sat&quot; a thousand times tells the model nothing about &quot;the dog sat&quot;. Every context is learned from scratch.</p></li><li><p><strong>Short memory.</strong> The context cannot grow beyond a handful of tokens before sparsity makes the counts useless. Agreement between a subject and a verb twenty words apart is out of reach.</p></li></ol>
+<p>All three are the curse of dimensionality: the model is a lookup table over a space that grows exponentially, with no notion that nearby entries should be similar.</p>
+<h2 id="96-embeddings"><a class="anchor" href="#96-embeddings" aria-hidden="true" tabindex="-1">#</a>9.6 Embeddings</h2>
+<p>The fix for all three is to stop treating tokens as atoms. Assign each token a vector of d real numbers, its <strong>embedding</strong>, and make the vectors learnable parameters. The embeddings form a matrix E ∈ R^(V×d), and looking up token i means taking row i.</p>
+<p>Now the model&#39;s predictions are a smooth function of vectors. If &quot;cat&quot; and &quot;dog&quot; have similar embeddings, whatever the model learns about one transfers to the other automatically. And the model is free to place them close together, because doing so reduces the training loss: they occur in similar contexts, so similar vectors yield good predictions for both.</p>
+<p><strong>The neural language model</strong> (Bengio and others, 2003) put this to work. Look up the embeddings of the previous n − 1 tokens, concatenate them, pass the result through an MLP, and finish with a softmax over the vocabulary. Embeddings and network are trained together by backpropagation. It beat the best n-gram models, and it assigned sensible probabilities to sequences it had never seen. In hindsight this paper contains the whole plan for modern language modeling, short of an architecture that can use long contexts.</p>
+<p><strong>word2vec</strong> (Mikolov and others, 2013) showed how much the embeddings themselves capture. It trained vectors alone, with a cheap objective: predict the words near a given word. The resulting geometry was striking. Words with related meanings clustered. Some relations appeared as consistent directions, so that the vector for &quot;king&quot; minus &quot;man&quot; plus &quot;woman&quot; landed near &quot;queen&quot;.</p>
+<figure class="diagram"><div class="diagram-art"><svg viewBox="0 0 560 280" role="img" aria-label="A relation shows up as the same direction between pairs" font-size="13"><defs><marker id="f26-emb-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--cds-chart-axis)"></path></marker><marker id="f26-emb-arrow-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--cds-chart-categorical-1)"></path></marker></defs><text data-claude-text-id="title" x="24" y="28" font-size="15" font-weight="600" fill="var(--cds-text-primary)">A relation shows up as the same direction between pairs</text><g data-claude-anchor="royalty-direction" fill="none" stroke="var(--cds-chart-axis)" stroke-width="1.25" stroke-dasharray="4 3"><path d="M158 214L332 224" marker-end="url(#f26-emb-arrow)"></path><path d="M218 104L392 114" marker-end="url(#f26-emb-arrow)"></path></g><g data-claude-anchor="gender-direction" fill="none" stroke="var(--cds-chart-categorical-1)" stroke-width="2"><path d="M153 208L207 109" marker-end="url(#f26-emb-arrow-accent)"></path><path d="M343 218L397 119" marker-end="url(#f26-emb-arrow-accent)"></path></g><g data-claude-anchor="words"><circle cx="150" cy="214" r="5" fill="var(--cds-text-primary)"></circle><circle cx="210" cy="104" r="5" fill="var(--cds-text-primary)"></circle><circle cx="340" cy="224" r="5" fill="var(--cds-text-primary)"></circle><circle cx="400" cy="114" r="5" fill="var(--cds-text-primary)"></circle><text data-claude-text-id="man" x="138" y="218" text-anchor="end" font-weight="600" fill="var(--cds-text-primary)">man</text><text data-claude-text-id="woman" x="198" y="100" text-anchor="end" font-weight="600" fill="var(--cds-text-primary)">woman</text><text data-claude-text-id="king" x="352" y="242" font-weight="600" fill="var(--cds-text-primary)">king</text><text data-claude-text-id="queen" x="412" y="110" font-weight="600" fill="var(--cds-text-primary)">queen</text></g><text data-claude-text-id="same-offset" x="436" y="170" font-size="11.5" fill="var(--cds-text-secondary)">same offset</text><text data-claude-text-id="same-offset-2" x="436" y="186" font-size="11.5" fill="var(--cds-text-secondary)">in both pairs</text><text data-claude-text-id="caveat" x="24" y="268" font-size="11.5" fill="var(--cds-text-secondary)">Schematic in two dimensions. Real embeddings have hundreds.</text></svg></div><figcaption>Figure 9.1 · schematic of the analogy structure reported for word embeddings</figcaption></figure>
+<p>Figure 9.1: if the step from &quot;man&quot; to &quot;woman&quot; is the same vector as the step from &quot;king&quot; to &quot;queen&quot;, then king − man + woman lands on queen. The picture is an idealization of a pattern that holds approximately.</p>
+<p>This reflects the <strong>distributional hypothesis</strong> from linguistics: words that occur in similar contexts have similar meanings. The analogy results are less clean than the famous examples suggest, and they hold for some families of relations much better than others. The solid finding is still remarkable. Structure that looks semantic emerged from nothing but an objective to predict co-occurring words. Chapter 20 returns to what that does and does not show.</p>
+<p><strong>The limitation.</strong> A word2vec embedding is one vector per word type. &quot;Bank&quot; gets the same vector beside a river and in a financial report. What is needed is a representation of each token <em>occurrence</em> that depends on its context. Producing such contextual representations is the job of the architectures in the next two chapters.</p>
+<h2 id="97-the-template-for-everything-that-follows"><a class="anchor" href="#97-the-template-for-everything-that-follows" aria-hidden="true" tabindex="-1">#</a>9.7 The template for everything that follows</h2>
+<p>Every neural language model in this book has the same four stages.</p>
+<ol><li><p><strong>Embed.</strong> Map each token ID to a vector by table lookup.</p></li><li><p><strong>Contextualize.</strong> Transform the sequence of vectors so that the vector at each position carries information about the tokens before it.</p></li><li><p><strong>Unembed.</strong> Map the vector at each position to V logits with a linear layer.</p></li><li><p><strong>Normalize and score.</strong> Apply softmax to get next-token probabilities; apply cross-entropy against the actual next token.</p></li></ol>
+<p>Stages 1, 3, and 4 never change. The history of language modeling since 2003 is the history of stage 2: a fixed window through an MLP, then recurrent networks, then the Transformer. The input and output embeddings are often the same matrix, a parameter-saving choice called <strong>weight tying</strong>.</p>
+<h2 id="lab-9a-a-byte-pair-tokenizer"><a class="anchor" href="#lab-9a-a-byte-pair-tokenizer" aria-hidden="true" tabindex="-1">#</a>Lab 9A: a byte-pair tokenizer</h2>
+<pre data-lang="python"><code>from collections import Counter
+
+def train_bpe(text, num_merges):
+    &quot;&quot;&quot;Learn byte-pair merges. Returns the list of merges in order.&quot;&quot;&quot;
+    ids = list(text.encode(&quot;utf-8&quot;))            # start from raw bytes: 256 symbols
+    merges = []
+    for k in range(num_merges):
+        pairs = Counter(zip(ids, ids[1:]))
+        if not pairs:
+            break
+        pair = max(pairs, key=pairs.get)        # most frequent adjacent pair
+        new_id = 256 + k
+        ids = merge(ids, pair, new_id)
+        merges.append((pair, new_id))
+    return merges
+
+def merge(ids, pair, new_id):
+    out, i = [], 0
+    while i &lt; len(ids):
+        if i + 1 &lt; len(ids) and (ids[i], ids[i + 1]) == pair:
+            out.append(new_id); i += 2
+        else:
+            out.append(ids[i]); i += 1
+    return out
+
+def encode(text, merges):
+    ids = list(text.encode(&quot;utf-8&quot;))
+    for pair, new_id in merges:                 # apply merges in training order
+        ids = merge(ids, pair, new_id)
+    return ids
+
+def decode(ids, merges):
+    vocab = {i: bytes([i]) for i in range(256)}
+    for (a, b), new_id in merges:
+        vocab[new_id] = vocab[a] + vocab[b]
+    return b&quot;&quot;.join(vocab[i] for i in ids).decode(&quot;utf-8&quot;, errors=&quot;replace&quot;)
+
+if __name__ == &quot;__main__&quot;:
+    text = (&quot;the cat sat on the mat. the cat ate the rat. &quot;
+            &quot;the rat sat on the cat. that cat, that mat, that rat. &quot;) * 20
+    merges = train_bpe(text, 30)
+    vocab = {i: bytes([i]) for i in range(256)}
+    for (a, b), n in merges:
+        vocab[n] = vocab[a] + vocab[b]
+    print([vocab[n].decode() for _, n in merges[:12]])
+    ids = encode(&quot;the cat sat on that hat&quot;, merges)
+    print(len(&quot;the cat sat on that hat&quot;), &quot;bytes -&gt;&quot;, len(ids), &quot;tokens&quot;)
+    assert decode(ids, merges) == &quot;the cat sat on that hat&quot;
+    assert decode(encode(&quot;naïve café ☕&quot;, merges), merges) == &quot;naïve café ☕&quot;
+    print(&quot;round trip ok&quot;)</code></pre>
+<p>Expected: the first merges listed above, then &quot;23 bytes -&gt; 7 tokens&quot;, then &quot;round trip ok&quot;. The last assertion shows that text the tokenizer never saw, including an emoji, still encodes and decodes exactly, because the base vocabulary is bytes.</p>
+<h2 id="lab-9b-a-bigram-model-and-its-perplexity"><a class="anchor" href="#lab-9b-a-bigram-model-and-its-perplexity" aria-hidden="true" tabindex="-1">#</a>Lab 9B: a bigram model and its perplexity</h2>
+<p>For this and later labs you need a plain-text file of about a megabyte, saved as <code>input.txt</code>. The labs were run on the widely used &quot;tiny Shakespeare&quot; file, 1.1 MB of public-domain plays. Any similar text works, but your numbers will differ.</p>
+<pre data-lang="python"><code>import numpy as np
+
+def bigram_counts(ids, V):
+    C = np.zeros((V, V))
+    np.add.at(C, (ids[:-1], ids[1:]), 1)        # C[a, b] = count of b following a
+    return C
+
+def perplexity(ids, P):
+    logp = np.log(P[ids[:-1], ids[1:]])
+    return np.exp(-logp.mean())
+
+if __name__ == &quot;__main__&quot;:
+    text = open(&quot;input.txt&quot;).read()
+    chars = sorted(set(text)); V = len(chars)
+    stoi = {c: i for i, c in enumerate(chars)}
+    ids = np.array([stoi[c] for c in text])
+    n = int(0.9 * len(ids)); train, val = ids[:n], ids[n:]
+
+    C = bigram_counts(train, V)
+    print(f&quot;V = {V}; uniform perplexity = {V}&quot;)
+    unigram = np.bincount(train, minlength=V) + 1.0
+    unigram /= unigram.sum()
+    print(f&quot;unigram val perplexity = {np.exp(-np.log(unigram[val]).mean()):.2f}&quot;)
+    for alpha in [0.01, 1.0, 100.0]:
+        P = (C + alpha) / (C + alpha).sum(axis=1, keepdims=True)   # add-alpha smoothing
+        print(f&quot;alpha {alpha:6.2f}: train {perplexity(train, P):.2f}  val {perplexity(val, P):.2f}&quot;)
+
+    rng = np.random.default_rng(0)
+    P = (C + 0.01) / (C + 0.01).sum(axis=1, keepdims=True)
+    i = stoi[&quot;\n&quot;]; out = []
+    for _ in range(200):
+        i = rng.choice(V, p=P[i]); out.append(chars[i])
+    print(&quot;&quot;.join(out))</code></pre>
+<p>Measured on the Shakespeare file: unigram 28.43; bigram validation perplexity 12.03, 11.96, and 13.88 for α = 0.01, 1, and 100. Note that a little smoothing helps on held-out data and a lot hurts.</p>
+<p><strong>Tasks.</strong></p>
+<ol><li><p>Train BPE with 500 merges on the first 100,000 characters of your text. Print the 50 longest tokens. What is the compression ratio in tokens per byte on held-out text?</p></li><li><p>Extend Lab 9B to trigrams. What fraction of the trigrams in the validation set never occur in the training set? What does the unsmoothed model assign them?</p></li><li><p>Train a &quot;neural bigram&quot;: a V × V matrix of logits, indexed by the previous character, trained by gradient descent on cross-entropy. Show that it converges to the same probabilities as the count-based model. Why must it?</p></li><li><p>Replace the V × V logit table with an embedding of dimension 16 followed by a linear layer back to V. Compare perplexity and parameter count with the full table.</p></li></ol>
+<h2 id="problems"><a class="anchor" href="#problems" aria-hidden="true" tabindex="-1">#</a>Problems</h2>
+<p><strong>9.1</strong> ★ Show that a model that assigns uniform probability over V tokens has perplexity V.</p>
+<p><strong>9.2</strong> ★ (A) A model has a held-out loss of 1.5 nats per character. Give its perplexity and its bits per character. Compare with the bigram model of Lab 9B.</p>
+<p><strong>9.3</strong> ★★ (A) Show that the maximum likelihood estimate of a bigram model is the ratio of counts.</p>
+<p><strong>9.4</strong> ★★ (A) With V = 50,000, how many free parameters does a trigram table have? Compare with a Bengio-style model with embedding dimension 100, a context of two tokens, one hidden layer of 500 units, and an output layer.</p>
+<p><strong>9.5</strong> ★★ Why does BPE start from bytes and not from Unicode characters? Describe an input string that a BPE tokenizer trained on English compresses very poorly, and explain why.</p>
+<p><strong>9.6</strong> ★★ Show that multiplying a one-hot vector by the embedding matrix selects a row. Then show that the gradient of the loss with respect to E is nonzero only in the rows of tokens that occur in the batch. What does this imply for the embeddings of rare tokens?</p>
+<p><strong>9.7</strong> ★★ During training the model always conditions on the true prefix. During generation it conditions on its own samples. Describe a way this mismatch could cause errors to compound. Why might a strong model suffer less from it?</p>
+<p><strong>9.8</strong> ★★★ Implement skip-gram with negative sampling on a word-level corpus. Report the nearest neighbors of ten words. Try three analogies and report honestly how many work.</p>
+<h2 id="further-reading"><a class="anchor" href="#further-reading" aria-hidden="true" tabindex="-1">#</a>Further reading</h2>
+<ul><li><p>Shannon, &quot;Prediction and entropy of printed English&quot; (1951).</p></li><li><p>Bengio, Ducharme, Vincent, and Jauvin, &quot;A neural probabilistic language model&quot; (2003).</p></li><li><p>Mikolov, Sutskever, Chen, Corrado, and Dean, &quot;Distributed representations of words and phrases and their compositionality&quot; (2013).</p></li><li><p>Sennrich, Haddow, and Birch, &quot;Neural machine translation of rare words with subword units&quot; (2016).</p></li><li><p>Jurafsky and Martin, <em>Speech and Language Processing</em> (3rd edition draft), Chapters 3 and 6.</p></li></ul>
+
+      <nav class="chapter-nav"><a class="prev" href="12.html"><small>← Previous</small><b>Part III · Sequences and attention</b></a><a class="next" href="14.html"><small>Next →</small><b>10 · Recurrent networks</b></a></nav>
+      <footer class="doc-end">
+        <a class="end-link" href="../../index.html#documents">← Back to the Arcade</a>
+      </footer>
+    </main>
+  </div>
+  <script src="../reader.js"></script>
+</body>
+</html>

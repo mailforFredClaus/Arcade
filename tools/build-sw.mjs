@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-const INCLUDE = ['index.html', 'manifest.webmanifest', 'icons', 'shared', 'games'];
+const INCLUDE = ['index.html', 'manifest.webmanifest', 'icons', 'shared', 'games', 'documents'];
 
 async function walk(rel) {
   const entries = await readdir(join(root, rel), { withFileTypes: true }).catch(() => null);

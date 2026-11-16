@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Arcade">
+  <meta name="theme-color" content="#f6f3ec" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#15171c" media="(prefers-color-scheme: dark)">
+  <title>Part I · Foundations · From Neurons to Language Models</title>
+  <link rel="icon" href="../../icons/icon-192.png">
+  <link rel="apple-touch-icon" href="../../icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="../reader.css">
+  <script>try{var s=JSON.parse(localStorage.getItem('arcade:reader'))||{};if(s.theme)document.documentElement.dataset.theme=s.theme;if(s.size)document.documentElement.style.setProperty('--size',s.size+'px')}catch(e){}</script>
+</head>
+<body data-doc="neurons-to-language-models" data-page="2">
+  <div class="progress" aria-hidden="true"><span id="progress"></span></div>
+  <header class="bar">
+    <a class="back" href="../../index.html#documents" aria-label="Back to the Arcade">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Arcade</span>
+    </a>
+    <span class="bar-title">Part I · Foundations</span>
+    <div class="tools">
+      <button type="button" class="tool toc-btn" id="tocBtn" aria-label="Contents" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
+      <button type="button" class="tool" id="smaller" aria-label="Smaller text" title="Smaller text"><span class="aa small">A</span></button>
+      <button type="button" class="tool" id="bigger" aria-label="Bigger text" title="Bigger text"><span class="aa">A</span></button>
+      <button type="button" class="tool" id="theme" aria-label="Light or dark" title="Light or dark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
+    </div>
+  </header>
+  <div class="layout">
+    <nav class="toc" id="toc" aria-label="Contents"><div class="chapters"><p class="toc-head">From Neurons to Language Models</p><ol><li><a href="./">Start here</a></li><li><a href="2.html" class="current" aria-current="page">Part I · Foundations</a></li><li class="sub"><a href="3.html">1 · Introduction</a></li><li class="sub"><a href="4.html">2 · Math refresher</a></li><li class="sub"><a href="5.html">3 · Statistical learning</a></li><li><a href="6.html">Part II · Neural networks</a></li><li class="sub"><a href="7.html">4 · Perceptron to MLP</a></li><li class="sub"><a href="8.html">5 · Backpropagation</a></li><li class="sub"><a href="9.html">6 · Optimization</a></li><li class="sub"><a href="10.html">7 · Training deep nets</a></li><li class="sub"><a href="11.html">8 · Convolution and inductive bias</a></li><li><a href="12.html">Part III · Sequences and attention</a></li><li class="sub"><a href="13.html">9 · Language modeling</a></li><li class="sub"><a href="14.html">10 · Recurrent networks</a></li><li class="sub"><a href="15.html">11 · The Transformer</a></li><li class="sub"><a href="16.html">12 · Lab: build a GPT</a></li><li><a href="17.html">Part IV · Large language models</a></li><li class="sub"><a href="18.html">13 · Pretraining and scale</a></li><li class="sub"><a href="19.html">14 · Fine-tuning and adaptation</a></li><li class="sub"><a href="20.html">15 · Inference</a></li><li class="sub"><a href="21.html">16 · Prompting, retrieval, agents</a></li><li class="sub"><a href="22.html">17 · Evaluation and safety</a></li><li class="sub"><a href="23.html">18 · Beyond text</a></li><li class="sub"><a href="24.html">19 · Interpretability</a></li><li><a href="25.html">Bonus · 20 · Why does it work?</a></li><li><a href="26.html">Appendices</a></li><li class="sub"><a href="27.html">A · Selected solutions</a></li><li class="sub"><a href="28.html">B · Reading list</a></li><li class="sub"><a href="29.html">C · Capstone projects</a></li></ol></div></nav>
+    <main class="doc">
+      <p class="kicker">AI · Textbook</p>
+      <h1>Part I · Foundations</h1>
+      <p class="meta">From Neurons to Language Models<span class="dot">·</span>2 of 29<span class="dot">·</span>1 min read</p>
+<p>Part I sets up the problem and the tools. By its end you can state a learning problem as the minimization of an expected loss, derive the standard losses from maximum likelihood, and train linear models by gradient descent.</p>
+<ul><li><p><a href="3.html">1 · Introduction</a>: what the subject is and why it took over.</p></li><li><p><a href="4.html">2 · Math refresher</a>: the mathematics, in the form the rest of the book uses it.</p></li><li><p><a href="5.html">3 · Statistical learning</a>: supervised learning, likelihood, generalization.</p></li></ul>
+<p>Readers with a strong numerical background can skim Chapter 2 and use it as a reference. Do not skip its matrix-calculus and information-theory sections; later chapters lean on both.</p>
+
+      <nav class="chapter-nav"><a class="prev" href="./"><small>← Previous</small><b>Start here</b></a><a class="next" href="3.html"><small>Next →</small><b>1 · Introduction</b></a></nav>
+      <footer class="doc-end">
+        <a class="end-link" href="../../index.html#documents">← Back to the Arcade</a>
+      </footer>
+    </main>
+  </div>
+  <script src="../reader.js"></script>
+</body>
+</html>

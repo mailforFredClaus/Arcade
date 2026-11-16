@@ -1,0 +1,118 @@
+<h1 id="chapter-6-optimization">Chapter 6: Optimization</h1>
+<p><strong>Objectives.</strong> After this chapter you can:</p>
+<ul><li><p>explain minibatch stochastic gradient descent and the role of gradient noise;</p></li><li><p>derive momentum&#39;s effect on an ill-conditioned quadratic;</p></li><li><p>write Adam from memory, justify each term, and say how AdamW differs;</p></li><li><p>choose a learning-rate schedule and explain warmup;</p></li><li><p>derive He initialization from a variance argument;</p></li><li><p>summarize what is known empirically about neural loss landscapes.</p></li></ul>
+<h2 id="61-from-gradient-descent-to-sgd">6.1 From gradient descent to SGD</h2>
+<p>The training loss is an average over N examples, so its exact gradient costs a pass over the whole dataset. For a corpus of 10^13 tokens, one exact gradient step would take longer than the entire training run.</p>
+<p><strong>Stochastic gradient descent</strong> (SGD) replaces the exact gradient with an estimate from a random <strong>minibatch</strong> of B examples:</p>
+<pre><code class="language-latex">g_t \;=\; \frac{1}{B}\sum_{i \in \mathcal{B}_t} \nabla_\theta\, \ell\big(f_\theta(x_i), y_i\big), \qquad \theta_{t+1} = \theta_t - \eta\, g_t .</code></pre>
+<p>The estimate is unbiased: its expectation is the true gradient. Its noise has standard deviation proportional to 1/sqrt(B). So quadrupling the batch size quadruples the cost of a step and only halves the noise. Many cheap noisy steps beat a few expensive accurate ones, because real datasets are redundant: the gradient from a few hundred examples already points in roughly the right direction.</p>
+<p>One pass through the dataset is an <strong>epoch</strong>. Classical training runs many epochs. LLM pretraining typically sees each token about once.</p>
+<p>The noise is not purely a cost. It lets the iterate escape saddle points and narrow basins, and there is evidence that it biases training toward solutions that generalize better. Chapter 20 takes this up.</p>
+<p><strong>Choosing B.</strong> In practice the batch size is set by hardware: use what fits in memory, since parallel hardware processes a batch almost as fast as a single example. When you change B, the learning rate usually needs to change with it, roughly in proportion for moderate B.</p>
+<h2 id="62-momentum">6.2 Momentum</h2>
+<p>Section 2.5 showed the weakness of plain gradient descent. On a loss surface shaped like a long ravine, the step size is limited by the steep walls, so progress along the shallow floor is slow. The iterate zigzags across the ravine and crawls along it.</p>
+<p><strong>Momentum</strong> accumulates a running sum of past gradients and steps along that:</p>
+<pre><code class="language-latex">v_t = \beta\, v_{t-1} + g_t, \qquad \theta_{t+1} = \theta_t - \eta\, v_t .</code></pre>
+<p>The picture is a heavy ball rolling with friction. Across the ravine, successive gradients alternate in sign and cancel in the sum. Along the ravine they agree and add, up to an effective step of η/(1 − β) (Problem 6.3). With the usual β = 0.9 that is a tenfold amplification exactly where plain descent was slow.</p>
+<figure data-embed="node/55d95b83-49e7"><figcaption>Figure 6.1 · gradient descent and heavy-ball momentum on a quadratic with condition number 10, each optimally tuned</figcaption></figure>
+<p>Figure 6.1: both paths are computed from the update rules, from the same start, with the best fixed settings for each method. After 14 steps momentum is at the minimum while plain descent is still approaching it.</p>
+<p>On a quadratic with condition number κ, optimally tuned gradient descent contracts the error by (κ − 1)/(κ + 1) per step, and optimally tuned momentum by (sqrt(κ) − 1)/(sqrt(κ) + 1). Iterations to converge scale with κ in the first case and sqrt(κ) in the second. Lab 6 measures this: at κ = 1000, 5008 iterations against 257.</p>
+<h2 id="63-adaptive-methods-and-adam">6.3 Adaptive methods and Adam</h2>
+<p>Momentum uses one learning rate for all parameters. But parameters in a network differ wildly in how large their gradients are: across layers, between weights and biases, between embeddings of common and rare tokens. Adaptive methods give each parameter its own step size, scaled by the recent magnitude of its own gradient.</p>
+<p><strong>Adam</strong> (Kingma and Ba, 2014) combines momentum with that per-parameter scaling. All operations are elementwise:</p>
+<pre><code class="language-latex">\begin{aligned}
+m_t &amp;= \beta_1 m_{t-1} + (1-\beta_1)\, g_t &amp;&amp; \text{running mean of gradients}\\
+v_t &amp;= \beta_2 v_{t-1} + (1-\beta_2)\, g_t^2 &amp;&amp; \text{running mean of squared gradients}\\
+\hat m_t &amp;= \frac{m_t}{1-\beta_1^t}, \quad \hat v_t = \frac{v_t}{1-\beta_2^t} &amp;&amp; \text{bias correction}\\
+\theta_{t+1} &amp;= \theta_t - \eta\, \frac{\hat m_t}{\sqrt{\hat v_t} + \epsilon} &amp;&amp; \text{update}
+\end{aligned}</code></pre>
+<p><strong>How to read it.</strong></p>
+<ul><li><p>The update for each parameter is η times the ratio of its mean gradient to its root-mean-square gradient. That ratio is a signal-to-noise measure with magnitude at most about 1. A parameter whose gradient is consistent moves about η per step. One whose gradient flips sign randomly barely moves.</p></li><li><p>The update is invariant to the scale of the gradient. Multiply the loss by 1000 and Adam takes the same steps. This is why one learning rate works across very different layers.</p></li><li><p>Dividing by sqrt(v) is a diagonal preconditioner: a crude, cheap stand-in for the curvature information Newton&#39;s method would use.</p></li><li><p>The <strong>bias correction</strong> exists because m and v start at zero and so underestimate the true averages early on. Dividing by 1 − β^t removes the bias exactly when gradients are stationary (Problem 6.2).</p></li><li><p>Defaults are β₁ = 0.9, β₂ = 0.999, ε = 1e-8. Transformer training often uses a smaller β₂, between 0.95 and 0.99, so that the scale estimate tracks changes faster.</p></li></ul>
+<p>In Lab 6, Adam&#39;s iteration count barely changes as κ goes from 10 to 1000, because the test quadratic is aligned with the coordinate axes and a diagonal preconditioner handles it perfectly. Rotate the quadratic and the advantage shrinks. Real networks are somewhere in between.</p>
+<p>Adam, in its AdamW form below, is the default for Transformers. SGD with momentum remains competitive for convolutional networks.</p>
+<blockquote><p><strong>Checkpoint 6.1.</strong> On the very first step, m̂ = g and v̂ = g². What is the size of the first update to each parameter? What does this suggest about the first few steps of training with a large η?</p></blockquote>
+<h2 id="64-weight-decay-and-adamw">6.4 Weight decay and AdamW</h2>
+<p>Section 3.6 introduced the L2 penalty, which adds λθ to the gradient. Under plain SGD this is the same as shrinking the weights by a constant factor each step. Under Adam it is not: the penalty&#39;s gradient gets divided by sqrt(v) along with everything else, so parameters with large gradients are decayed less. The regularization becomes entangled with the adaptive scaling.</p>
+<p><strong>AdamW</strong> (Loshchilov and Hutter, 2017) restores the intended behavior by applying the decay directly to the weights, outside the adaptive update:</p>
+<pre><code class="language-latex">\theta_{t+1} \;=\; \theta_t \;-\; \eta\left(\frac{\hat m_t}{\sqrt{\hat v_t} + \epsilon} \;+\; \lambda\,\theta_t\right).</code></pre>
+<p>This is the standard optimizer for LLMs. Decay is usually applied to weight matrices and not to biases or normalization parameters.</p>
+<h2 id="65-learning-rate-and-schedules">6.5 Learning rate and schedules</h2>
+<p>The learning rate is the most important hyperparameter. Too large and training diverges or oscillates. Too small and it crawls, or settles somewhere poor. A good value is usually within a factor of a few of the largest one that is stable. Search it on a logarithmic grid before tuning anything else.</p>
+<p>A constant rate is rarely best. The standard schedule for Transformers has two phases.</p>
+<p><strong>Warmup.</strong> Increase η linearly from near zero over the first few hundred to few thousand steps. Early in training the curvature is high and Adam&#39;s scale estimates are based on few samples, while Checkpoint 6.1 shows every parameter moving by about η regardless. Small early steps avoid wrecking the initialization before the statistics settle.</p>
+<p><strong>Decay.</strong> After warmup, reduce η smoothly, most often along a half cosine:</p>
+<pre><code class="language-latex">\eta_t \;=\; \eta_{\min} + \tfrac{1}{2}\,(\eta_{\max} - \eta_{\min})\Big(1 + \cos\frac{\pi\,(t - t_w)}{T - t_w}\Big), \qquad t \ge t_w .</code></pre>
+<figure data-embed="node/45d6b65e-b382"><figcaption>Figure 6.2 · linear warmup over the first 5 percent of steps, then cosine decay to zero</figcaption></figure>
+<p>Figure 6.2: the schedule used in the Chapter 12 lab.</p>
+<p>Large steps early make fast progress and explore. Small steps late let the iterate settle into a basin by averaging out gradient noise.</p>
+<p><strong>Gradient clipping.</strong> Occasionally a batch produces an enormous gradient. Clipping rescales the gradient whenever its norm exceeds a threshold c, to g · c/‖g‖. It bounds the damage a single bad step can do. A threshold of 1.0 is conventional for Transformers.</p>
+<h2 id="66-initialization">6.6 Initialization</h2>
+<p>Section 5.5 showed that gradients through a deep network are products of per-layer factors. The forward signal is a similar product. Initialization should set the scale of the weights so that neither product explodes or vanishes at the start.</p>
+<p>Consider one unit with n_in inputs, z = Σ_j w_j x_j, with weights drawn independently with mean zero and variance σ_w², independent of the inputs. Then</p>
+<pre><code class="language-latex">\operatorname{Var}[z] \;=\; n_{\mathrm{in}}\; \sigma_w^2\; \mathbb{E}\big[x^2\big].</code></pre>
+<p>To keep the scale of activations constant from layer to layer, the factor multiplying E[x²] should be 1 after accounting for the nonlinearity.</p>
+<ul><li><p>For an activation that is roughly linear near zero, such as tanh, this gives σ_w² = 1/n_in. The same argument applied to the backward pass gives 1/n_out. <strong>Xavier (Glorot) initialization</strong> compromises with 2/(n_in + n_out).</p></li><li><p>For ReLU, half the pre-activations are zeroed, so E[x²] is half the variance of the previous layer&#39;s pre-activations. Compensating gives <strong>He initialization</strong>: σ_w² = 2/n_in (Problem 6.4).</p></li></ul>
+<p>Biases start at zero. Weights must be random, not equal, or the units of a layer never differentiate (Problem 4.6).</p>
+<p>The effect is not subtle. In Lab 7, a 50-layer ReLU network with a naive initialization has first-layer gradients 10^17 times smaller than last-layer gradients, and it does not train at all. With He initialization the ratio is near 1.</p>
+<h2 id="67-the-loss-landscape">6.7 The loss landscape</h2>
+<p>Neural network losses are non-convex, and no theorem guarantees that SGD finds a good solution. It works anyway. The following are empirical regularities with partial theoretical support. Treat them as such.</p>
+<ul><li><p><strong>Saddles dominate, not bad minima.</strong> In high dimension, a critical point with all curvatures positive is rare compared with one that has some negative directions. Gradient noise pushes the iterate off saddles (Dauphin and others, 2014).</p></li><li><p><strong>Wide networks rarely get stuck at poor minima.</strong> The local minima reached by different runs have similar loss. Extra parameters seem to make optimization easier, not harder, by supplying more directions of descent.</p></li><li><p><strong>Minima are connected.</strong> Solutions from independent runs can often be joined by a curved path along which the loss stays low (Garipov and others, 2018; Draxler and others, 2018). The set of good solutions looks less like isolated pits and more like a connected valley.</p></li><li><p><strong>Flat minima tend to generalize better than sharp ones.</strong> The correlation is observed widely (Keskar and others, 2017), though sharpness depends on parameterization and the causal story is contested (Dinh and others, 2017).</p></li><li><p><strong>Training runs at the edge of stability.</strong> With full-batch gradient descent at step size η, the largest Hessian eigenvalue tends to rise until it reaches about 2/η, the stability limit from Section 2.5, and then hovers there (Cohen and others, 2021). The quadratic analysis is not just a toy.</p></li></ul>
+<h2 id="68-a-default-recipe">6.8 A default recipe</h2>
+<p>For a new Transformer-like model, start here and change one thing at a time.</p>
+<table><thead><tr><th>Setting</th><th>Default</th></tr></thead><tbody><tr><td>Optimizer</td><td>AdamW, β₁ = 0.9, β₂ = 0.95 to 0.999</td></tr><tr><td>Peak learning rate</td><td>3e-4 to 1e-3 for small models; lower for larger models and for fine-tuning</td></tr><tr><td>Schedule</td><td>Linear warmup over 1 to 5 percent of steps, then cosine decay</td></tr><tr><td>Weight decay</td><td>0.01 to 0.1, on weight matrices only</td></tr><tr><td>Gradient clipping</td><td>Global norm 1.0</td></tr><tr><td>Initialization</td><td>The framework&#39;s default for the architecture; check the initial loss equals log of the number of classes</td></tr></tbody></table>
+<h2 id="lab-6-optimizers-on-a-quadratic">Lab 6: optimizers on a quadratic</h2>
+<p>Three optimizers on f(x) = ½(x₁² + κ x₂²), each run until the loss falls below 1e-6. Gradient descent and momentum use their theoretically optimal settings.</p>
+<pre><code class="language-python">import numpy as np
+
+def run(step_fn, kappa, tol=1e-6, max_iter=100000):
+    &quot;&quot;&quot;Minimize f(x) = 0.5 * (x1^2 + kappa * x2^2) from x = (1, 1).&quot;&quot;&quot;
+    h = np.array([1.0, kappa])            # Hessian diagonal
+    x = np.array([1.0, 1.0]); state = {}
+    for t in range(1, max_iter + 1):
+        x = step_fn(x, h * x, state, t)
+        if 0.5 * np.sum(h * x * x) &lt; tol:
+            return t
+    return None
+
+def gd(lr):
+    return lambda x, g, s, t: x - lr * g
+
+def momentum(lr, beta):
+    def step(x, g, s, t):
+        s[&quot;v&quot;] = beta * s.get(&quot;v&quot;, 0.0) + g
+        return x - lr * s[&quot;v&quot;]
+    return step
+
+def adam(lr, b1=0.9, b2=0.999, eps=1e-8):
+    def step(x, g, s, t):
+        s[&quot;m&quot;] = b1 * s.get(&quot;m&quot;, 0.0) + (1 - b1) * g
+        s[&quot;v&quot;] = b2 * s.get(&quot;v&quot;, 0.0) + (1 - b2) * g * g
+        m_hat = s[&quot;m&quot;] / (1 - b1 ** t)
+        v_hat = s[&quot;v&quot;] / (1 - b2 ** t)
+        return x - lr * m_hat / (np.sqrt(v_hat) + eps)
+    return step
+
+for kappa in [10.0, 100.0, 1000.0]:
+    lr_gd = 2.0 / (1.0 + kappa)                               # optimal fixed step
+    rk = np.sqrt(kappa)
+    lr_m = 4.0 / (1.0 + rk) ** 2                              # optimal heavy ball
+    beta = ((rk - 1.0) / (rk + 1.0)) ** 2
+    print(f&quot;kappa {kappa:6.0f}:  GD {run(gd(lr_gd), kappa):6d}   &quot;
+          f&quot;momentum {run(momentum(lr_m, beta), kappa):5d}   &quot;
+          f&quot;Adam {run(adam(0.01), kappa):5d}&quot;)</code></pre>
+<p>Measured iterations to converge:</p>
+<table><thead><tr><th>κ</th><th>Gradient descent</th><th>Momentum</th><th>Adam (η = 0.01)</th></tr></thead><tbody><tr><td>10</td><td>39</td><td>17</td><td>286</td></tr><tr><td>100</td><td>444</td><td>69</td><td>305</td></tr><tr><td>1000</td><td>5008</td><td>257</td><td>322</td></tr></tbody></table>
+<p>Gradient descent scales with κ, momentum with sqrt(κ), and Adam hardly at all on this axis-aligned problem. Adam is slower than momentum at small κ only because its step size here is fixed and untuned.</p>
+<p><strong>Tasks.</strong></p>
+<ol><li><p>Rotate the quadratic by 45 degrees, so the Hessian is no longer diagonal, and rerun. Explain what happens to Adam.</p></li><li><p>Plot the trajectories of all three methods on a contour plot for κ = 20.</p></li><li><p>Wrap AdamW in a class that updates a dictionary of numpy arrays, and use it to train the Lab 5A network with minibatches of 32. Compare the loss curve with full-batch gradient descent.</p></li><li><p>For the Lab 5A network, estimate the variance of the minibatch gradient for B = 1, 4, 16, 64 by drawing many batches. Confirm the 1/B law.</p></li><li><p>Implement warmup with cosine decay and plot the schedule. Then run a learning-rate sweep over six values on a log grid and plot final loss against η.</p></li></ol>
+<h2 id="problems">Problems</h2>
+<p><strong>6.1</strong> ★ Show that the minibatch gradient is an unbiased estimate of the full gradient. With sampling with replacement, show that its covariance is the single-example covariance divided by B.</p>
+<p><strong>6.2</strong> ★★ (A) Suppose the gradients g_t are identically distributed with mean μ. Show that E[m_t] = (1 − β₁^t)μ, which justifies Adam&#39;s bias correction.</p>
+<p><strong>6.3</strong> ★★ (A) Under a constant gradient g, find the steady-state velocity of momentum and hence its effective learning rate.</p>
+<p><strong>6.4</strong> ★★ (A) Derive He initialization. Assume pre-activations are symmetric about zero, and compute E[ReLU(z)²] in terms of Var[z].</p>
+<p><strong>6.5</strong> ★★ Show that with an L2 penalty added to the loss, Adam&#39;s effective decay on a parameter is inversely related to that parameter&#39;s typical gradient magnitude. Why is this undesirable?</p>
+<p><strong>6.6</strong> ★★ Argue for the linear scaling rule: when B is multiplied by k, multiplying η by k gives approximately the same trajectory per epoch, provided η stays small. Where does the argument break down?</p>
+<p><strong>6.7</strong> ★★ A training run uses clipping at norm 1.0, and you observe that the gradient norm before clipping exceeds 1.0 on 95 percent of steps. What is the optimizer effectively doing? Is this a problem?</p>
+<p><strong>6.8</strong> ★★★ Reproduce the edge-of-stability phenomenon. Train a small MLP with full-batch gradient descent at several step sizes. Estimate the largest Hessian eigenvalue by power iteration on Hessian-vector products (Problem 5.7), and plot it against 2/η over training.</p>
+<h2 id="further-reading">Further reading</h2>
+<ul><li><p>Kingma and Ba, &quot;Adam: a method for stochastic optimization&quot; (2014).</p></li><li><p>Loshchilov and Hutter, &quot;Decoupled weight decay regularization&quot; (2017).</p></li><li><p>Glorot and Bengio, &quot;Understanding the difficulty of training deep feedforward neural networks&quot; (2010).</p></li><li><p>He, Zhang, Ren, and Sun, &quot;Delving deep into rectifiers&quot; (2015).</p></li><li><p>Goh, &quot;Why momentum really works,&quot; <em>Distill</em> (2017).</p></li><li><p>Cohen and others, &quot;Gradient descent on neural networks typically occurs at the edge of stability&quot; (2021).</p></li></ul>
