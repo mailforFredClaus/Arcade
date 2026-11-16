@@ -1,0 +1,245 @@
+<h1 id="chapter-5-backpropagation-and-automatic-differentiation">Chapter 5: Backpropagation and Automatic Differentiation</h1>
+<p><strong>Objectives.</strong> After this chapter you can:</p>
+<ul><li><p>draw the computational graph of an expression and run the backward pass on it by hand;</p></li><li><p>explain forward and reverse mode, and why a scalar loss calls for reverse mode;</p></li><li><p>derive the four backpropagation equations for an MLP;</p></li><li><p>implement a working reverse-mode autodiff engine;</p></li><li><p>state what backpropagation costs in time and memory.</p></li></ul>
+<p>This chapter is the technical center of the book. Every model that follows is trained by the algorithm described here, unchanged.</p>
+<h2 id="51-the-problem">5.1 The problem</h2>
+<p>Gradient descent needs the gradient of a scalar loss with respect to every parameter. For an LLM that is up to 10^12 partial derivatives, needed millions of times.</p>
+<p>Three approaches fail or struggle. <strong>Finite differences</strong> perturb one parameter at a time, so P parameters cost P + 1 evaluations of the loss: hopeless, and inexact besides. <strong>Symbolic differentiation</strong> produces formulas that grow explosively with the depth of the expression. <strong>Deriving by hand</strong> works for one architecture and must be redone for the next.</p>
+<p><strong>Automatic differentiation</strong> (AD) is the answer. It computes derivatives exactly, to machine precision, by applying the chain rule to the sequence of elementary operations the program actually executed. In its reverse mode it has a remarkable cost guarantee:</p>
+<blockquote><p><strong>Cheap gradient principle.</strong> The gradient of a scalar function with respect to all of its inputs can be computed in a small constant multiple of the time needed to evaluate the function, independent of the number of inputs. In practice the multiple is 2 to 3.</p></blockquote>
+<p>A trillion derivatives for the price of about two function evaluations. Without this fact there would be no deep learning.</p>
+<h2 id="52-computational-graphs">5.2 Computational graphs</h2>
+<p>Any numerical computation can be written as a sequence of elementary operations, each taking earlier results as inputs. Drawn as nodes and edges this is a directed acyclic graph, the <strong>computational graph</strong>.</p>
+<p>Take the squared error of a one-parameter linear model, L = (wx + b − y)², and name each intermediate:</p>
+<pre><code class="language-latex">u = w\,x, \qquad v = u + b, \qquad r = v - y, \qquad L = r^2 .</code></pre>
+<p><strong>Forward pass.</strong> Evaluate in order. With w = 2, x = 3, b = 1, y = 5: u = 6, v = 7, r = 2, L = 4.</p>
+<p><strong>Backward pass.</strong> For each node n, define its <strong>adjoint</strong> as the derivative of the final output with respect to that node, written n̄ = ∂L/∂n. Start from L̄ = 1 and walk the graph in reverse. Each operation converts the adjoint of its output into adjoints of its inputs, using only its own local derivative:</p>
+<table><thead><tr><th>Step</th><th>Operation</th><th>Local rule</th><th>Value</th></tr></thead><tbody><tr><td>1</td><td>L = r²</td><td>r̄ = 2r · L̄</td><td>4</td></tr><tr><td>2</td><td>r = v − y</td><td>v̄ = r̄, ȳ = −r̄</td><td>4, −4</td></tr><tr><td>3</td><td>v = u + b</td><td>ū = v̄, b̄ = v̄</td><td>4, 4</td></tr><tr><td>4</td><td>u = w x</td><td>w̄ = x · ū, x̄ = w · ū</td><td>12, 8</td></tr></tbody></table>
+<figure data-embed="node/dbf3fa93-74fd"><figcaption>Figure 5.1 · computational graph of L = (wx + b − y)² at w = 2, x = 3, b = 1, y = 5</figcaption></figure>
+<p>Figure 5.1: the graph of the worked example. Each box holds a value from the forward pass. The blue number beside it is its adjoint, obtained by starting from 1 at the loss and applying one local rule per arrow, in reverse.</p>
+<p>So ∂L/∂w = 12 and ∂L/∂b = 4, which you can confirm from the closed form 2(wx + b − y)x.</p>
+<p>Three things generalize from this toy.</p>
+<ol><li><p><strong>Locality.</strong> Each operation needs to know only how to turn its output adjoint into input adjoints. Addition copies the adjoint to both inputs. Multiplication sends each input the adjoint times the other input. Nothing global is required.</p></li><li><p><strong>Fan-out sums.</strong> If a value is used in several places, its adjoint is the sum of the contributions from each use. This is the multivariable chain rule.</p></li><li><p><strong>Order.</strong> A node&#39;s adjoint is complete only after every node that uses it has been processed. Reverse topological order guarantees this.</p></li></ol>
+<p>In general, for a node n whose value is consumed by nodes c₁, c₂, ...:</p>
+<pre><code class="language-latex">\bar n \;=\; \sum_{c \,\in\, \mathrm{consumers}(n)} \Big(\frac{\partial c}{\partial n}\Big)^{\!\top} \bar c .</code></pre>
+<p>Each term is a vector-Jacobian product from Section 2.2. Backpropagation is this formula applied to every node in reverse order.</p>
+<blockquote><p><strong>Checkpoint 5.1.</strong> For y = x·x + x at x = 3, draw the graph. The node x has three outgoing edges. Run the backward pass and confirm x̄ = 7.</p></blockquote>
+<h2 id="53-forward-mode-reverse-mode-and-why-reverse-wins">5.3 Forward mode, reverse mode, and why reverse wins</h2>
+<p>A computation that is a chain of n steps has a Jacobian that is a product of n local Jacobians:</p>
+<pre><code class="language-latex">J \;=\; J_n\, J_{n-1} \cdots J_2\, J_1 .</code></pre>
+<p>Matrix multiplication is associative, so the product can be accumulated from either end, and the choice determines the cost.</p>
+<p><strong>Forward mode</strong> starts at the input. Pick a direction v in input space and compute J₁v, then J₂(J₁v), and so on. One pass gives one directional derivative, a Jacobian-vector product. Getting the full gradient of a function with P inputs takes P passes.</p>
+<p><strong>Reverse mode</strong> starts at the output. Pick a vector u in output space and compute uᵀJ_n, then (uᵀJ_n)J_(n−1), and so on. One pass gives one vector-Jacobian product. For a function with a single output, taking u = 1 yields the entire gradient in one pass.</p>
+<table><thead><tr><th></th><th>Cost for the full Jacobian</th><th>Efficient when</th><th>Memory</th></tr></thead><tbody><tr><td>Forward mode</td><td>One pass per input</td><td>Few inputs, many outputs</td><td>No more than the forward computation</td></tr><tr><td>Reverse mode</td><td>One pass per output</td><td>Many inputs, few outputs</td><td>Must store every intermediate value</td></tr></tbody></table>
+<p>Training has P inputs (the parameters) and one output (the loss). Reverse mode is the only sensible choice, and <strong>backpropagation is reverse-mode AD applied to a neural network&#39;s loss</strong>.</p>
+<p><strong>The price is memory.</strong> The backward pass visits operations in reverse and needs the values computed in the forward pass: multiplication needs its operands, ReLU needs to know which units were active. So every intermediate must be kept until the backward pass has consumed it. This is why training a network takes far more memory than running it, and why memory, not arithmetic, usually limits the batch size and sequence length you can train with.</p>
+<p>If you have met the adjoint method for sensitivities in optimal control or PDE-constrained optimization, this is the same mathematics. The adjoints here are the discrete costates, and the backward pass is the discrete adjoint solve.</p>
+<h2 id="54-backpropagation-through-an-mlp">5.4 Backpropagation through an MLP</h2>
+<p>Specialize to the MLP of Section 4.4. Define the error signal at layer l as the gradient of the loss with respect to that layer&#39;s pre-activations:</p>
+<pre><code class="language-latex">\delta^{(l)} \;\equiv\; \frac{\partial L}{\partial z^{(l)}} .</code></pre>
+<p>Applying the identity table of Section 2.2 to z^(l) = W^(l) h^(l−1) + b^(l) and h^(l) = φ(z^(l)) gives four equations.</p>
+<pre><code class="language-latex">\textbf{(BP1)}\quad \delta^{(L)} = \frac{\partial L}{\partial z^{(L)}} \qquad\text{(for softmax with cross-entropy: } p - e_c\text{)}</code></pre>
+<pre><code class="language-latex">\textbf{(BP2)}\quad \delta^{(l)} = \Big(W^{(l+1)\top}\,\delta^{(l+1)}\Big)\odot \varphi&#39;\big(z^{(l)}\big)</code></pre>
+<pre><code class="language-latex">\textbf{(BP3)}\quad \frac{\partial L}{\partial W^{(l)}} = \delta^{(l)}\, h^{(l-1)\top}
+\qquad\qquad
+\textbf{(BP4)}\quad \frac{\partial L}{\partial b^{(l)}} = \delta^{(l)}</code></pre>
+<p><strong>Reading them.</strong> BP1 starts the recursion at the output, where the error is prediction minus target. BP2 carries the error back one layer: multiply by the transpose of the weights that carried the signal forward, then gate by the activation&#39;s derivative. BP3 says each weight&#39;s gradient is the error at its output times the activation at its input, the same outer-product form as in Chapter 3. BP4 is the bias case.</p>
+<p><strong>The algorithm.</strong></p>
+<ol><li><p>Forward: compute and store z^(l) and h^(l) for l = 1, ..., L. Compute the loss.</p></li><li><p>Initialize δ^(L) from BP1.</p></li><li><p>For l = L down to 1: compute the gradients of W^(l) and b^(l) from BP3 and BP4, then, if l &gt; 1, compute δ^(l−1) from BP2.</p></li></ol>
+<p><strong>Cost.</strong> The forward pass multiplies by each W^(l) once. The backward pass multiplies by each W^(l)ᵀ once and forms one outer product per layer. Both are proportional to the number of weights, so the backward pass costs about as much as the forward pass.</p>
+<p><strong>Batches.</strong> With a batch of B examples stored as rows, the activations become matrices H^(l) of shape (B, n_l) and the error signals matrices Δ^(l) of the same shape. The sum over examples turns BP3 into a single matrix product, Δ^(l)ᵀ H^(l−1), and BP4 into a sum of Δ^(l) over its rows. Lab 5A implements exactly this.</p>
+<h2 id="55-what-the-equations-say-about-depth">5.5 What the equations say about depth</h2>
+<p>Unroll BP2 from the output down to the first layer:</p>
+<pre><code class="language-latex">\delta^{(1)} \;=\; D^{(1)} W^{(2)\top} D^{(2)} W^{(3)\top} \cdots D^{(L-1)} W^{(L)\top}\, \delta^{(L)}, \qquad D^{(l)} = \operatorname{diag}\big(\varphi&#39;(z^{(l)})\big).</code></pre>
+<p>The gradient reaching the first layer is the output error multiplied by a product of L − 1 matrices. If those matrices typically shrink vectors, the product shrinks exponentially with depth and early layers receive almost no signal: the <strong>vanishing gradient problem</strong>. If they typically stretch vectors, the product grows exponentially: <strong>exploding gradients</strong>. A deep network trains well only when this product stays near neutral.</p>
+<p>This single observation motivates most of the next two chapters. Activation choice controls the D factors. Initialization controls the scale of the W factors at the start. Normalization layers keep the scales in range during training. Residual connections change the product into something that cannot vanish.</p>
+<h2 id="56-automatic-differentiation-in-practice">5.6 Automatic differentiation in practice</h2>
+<p>Nobody derives BP1 through BP4 for a modern architecture. A framework such as PyTorch does what Lab 5B does, at scale.</p>
+<ul><li><p>Each tensor operation records, as it runs, which tensors it consumed and a function that computes its vector-Jacobian product. The graph is built dynamically by executing ordinary code, so loops and branches work without special treatment.</p></li><li><p>Calling <code>loss.backward()</code> sorts the recorded graph topologically and runs the VJP functions in reverse, accumulating adjoints into the <code>.grad</code> field of each parameter.</p></li><li><p>Because adjoints accumulate by addition, gradients must be reset to zero before each new backward pass. Forgetting this is a classic bug.</p></li><li><p>For inference, wrapping the code in <code>torch.no_grad()</code> turns off recording, so intermediates are freed immediately and memory use falls.</p></li></ul>
+<p>A framework is, at bottom, a library of array operations, each paired with its VJP, plus this bookkeeping. Three VJPs are worth knowing because they surprise people: a broadcast addition sends back the adjoint summed over the broadcast axes; an indexing operation scatters the adjoint back into the positions it read from; and a matrix product Y = XW sends back X̄ = ȲWᵀ and W̄ = XᵀȲ.</p>
+<h2 id="lab-5a-backpropagation-by-hand">Lab 5A: backpropagation by hand</h2>
+<p>A two-layer MLP in numpy, with the backward pass written from the batched forms of BP1 through BP4. It is trained on the spiral data that defeated the linear model in Lab 3.</p>
+<pre><code class="language-python">import numpy as np
+from data import make_spiral
+from lab02_gradcheck import numerical_grad, rel_error
+
+def softmax(z):
+    z = z - z.max(axis=1, keepdims=True)
+    e = np.exp(z)
+    return e / e.sum(axis=1, keepdims=True)
+
+def init(d_in, d_hidden, d_out, rng):
+    return {
+        &quot;W1&quot;: rng.normal(size=(d_hidden, d_in)) * np.sqrt(2.0 / d_in),
+        &quot;b1&quot;: np.zeros(d_hidden),
+        &quot;W2&quot;: rng.normal(size=(d_out, d_hidden)) * np.sqrt(2.0 / d_hidden),
+        &quot;b2&quot;: np.zeros(d_out),
+    }
+
+def forward(p, X, y):
+    n = X.shape[0]
+    Z1 = X @ p[&quot;W1&quot;].T + p[&quot;b1&quot;]          # (n, h)   pre-activations
+    A1 = np.maximum(Z1, 0)                # (n, h)   ReLU
+    Z2 = A1 @ p[&quot;W2&quot;].T + p[&quot;b2&quot;]         # (n, k)   logits
+    P = softmax(Z2)
+    loss = -np.log(P[np.arange(n), y]).mean()
+    return loss, (X, Z1, A1, P)
+
+def backward(p, cache, y):
+    X, Z1, A1, P = cache
+    n = X.shape[0]
+    D2 = P.copy(); D2[np.arange(n), y] -= 1; D2 /= n   # BP1: (P - Y)/n
+    g = {&quot;W2&quot;: D2.T @ A1, &quot;b2&quot;: D2.sum(axis=0)}        # BP3, BP4
+    D1 = (D2 @ p[&quot;W2&quot;]) * (Z1 &gt; 0)                     # BP2
+    g[&quot;W1&quot;] = D1.T @ X                                 # BP3
+    g[&quot;b1&quot;] = D1.sum(axis=0)                           # BP4
+    return g
+
+if __name__ == &quot;__main__&quot;:
+    rng = np.random.default_rng(0)
+    X, y = make_spiral()
+
+    # 1. Check the analytic gradient against finite differences.
+    p = init(2, 8, 3, rng)
+    Xc = rng.normal(size=(10, 2)); yc = rng.integers(0, 3, size=10)
+    _, cache = forward(p, Xc, yc)
+    g = backward(p, cache, yc)
+    for name in p:
+        num = numerical_grad(lambda _: forward(p, Xc, yc)[0], p[name])
+        print(f&quot;grad check {name}: {rel_error(g[name], num):.2e}&quot;)
+
+    # 2. Train.
+    p = init(2, 64, 3, rng)
+    for t in range(3001):
+        loss, cache = forward(p, X, y)
+        g = backward(p, cache, y)
+        for name in p:
+            p[name] -= 1.0 * g[name]
+        if t % 500 == 0:
+            acc = (np.argmax(cache[3], axis=1) == y).mean()
+            print(f&quot;step {t:4d}  loss {loss:.4f}  acc {acc:.3f}&quot;)</code></pre>
+<p>Expected: all four gradient checks report relative error near 1e-10. Training reaches loss 0.03 and accuracy 0.993, against 0.54 for the linear model. One hidden layer, with the features learned, solved a problem no linear model can.</p>
+<h2 id="lab-5b-an-autograd-engine">Lab 5B: an autograd engine</h2>
+<p>Now the general mechanism. Each <code>Value</code> holds a number, its adjoint, the values it was computed from, and a closure that applies the local rule. This is reverse-mode AD in about fifty lines.</p>
+<pre><code class="language-python">import math, random
+
+class Value:
+    &quot;&quot;&quot;A scalar that remembers how it was computed.&quot;&quot;&quot;
+    def __init__(self, data, parents=(), op=&quot;&quot;):
+        self.data = data
+        self.grad = 0.0
+        self._parents = parents
+        self._backward = lambda: None     # pushes self.grad to the parents
+        self.op = op
+
+    def __add__(self, other):
+        other = other if isinstance(other, Value) else Value(other)
+        out = Value(self.data + other.data, (self, other), &quot;+&quot;)
+        def _backward():
+            self.grad += out.grad
+            other.grad += out.grad
+        out._backward = _backward
+        return out
+
+    def __mul__(self, other):
+        other = other if isinstance(other, Value) else Value(other)
+        out = Value(self.data * other.data, (self, other), &quot;*&quot;)
+        def _backward():
+            self.grad += other.data * out.grad
+            other.grad += self.data * out.grad
+        out._backward = _backward
+        return out
+
+    def __pow__(self, k):                 # k is a plain number
+        out = Value(self.data ** k, (self,), f&quot;**{k}&quot;)
+        def _backward():
+            self.grad += k * self.data ** (k - 1) * out.grad
+        out._backward = _backward
+        return out
+
+    def tanh(self):
+        t = math.tanh(self.data)
+        out = Value(t, (self,), &quot;tanh&quot;)
+        def _backward():
+            self.grad += (1 - t * t) * out.grad
+        out._backward = _backward
+        return out
+
+    def __neg__(self): return self * -1
+    def __sub__(self, other): return self + (-other)
+    def __radd__(self, other): return self + other
+    def __rmul__(self, other): return self * other
+    def __truediv__(self, other): return self * other ** -1
+
+    def backward(self):
+        order, seen = [], set()
+        def visit(v):                     # depth-first topological sort
+            if v not in seen:
+                seen.add(v)
+                for p in v._parents:
+                    visit(p)
+                order.append(v)
+        visit(self)
+        self.grad = 1.0
+        for v in reversed(order):         # outputs before inputs
+            v._backward()</code></pre>
+<p>A small network library on top of it, and a test:</p>
+<pre><code class="language-python">class Neuron:
+    def __init__(self, n_in):
+        self.w = [Value(random.uniform(-1, 1)) for _ in range(n_in)]
+        self.b = Value(0.0)
+    def __call__(self, x, nonlin=True):
+        z = sum((wi * xi for wi, xi in zip(self.w, x)), self.b)
+        return z.tanh() if nonlin else z
+    def parameters(self): return self.w + [self.b]
+
+class MLP:
+    def __init__(self, sizes):
+        self.layers = [[Neuron(a) for _ in range(b)] for a, b in zip(sizes, sizes[1:])]
+    def __call__(self, x):
+        for i, layer in enumerate(self.layers):
+            last = i == len(self.layers) - 1
+            x = [n(x, nonlin=not last) for n in layer]
+        return x[0] if len(x) == 1 else x
+    def parameters(self):
+        return [p for layer in self.layers for n in layer for p in n.parameters()]
+
+if __name__ == &quot;__main__&quot;:
+    # Check against a hand computation: f = (a*b + c)^2 at a=2, b=-3, c=10.
+    a, b, c = Value(2.0), Value(-3.0), Value(10.0)
+    f = (a * b + c) ** 2
+    f.backward()
+    print(f.data, a.grad, b.grad, c.grad)     # 16.0 -24.0 16.0 8.0
+
+    # A value used twice must accumulate both contributions.
+    x = Value(3.0); y = x * x + x
+    y.backward()
+    print(x.grad)                             # 7.0
+
+    # Train a 2-4-1 network on XOR.
+    random.seed(0)
+    X = [[0, 0], [0, 1], [1, 0], [1, 1]]; Y = [0, 1, 1, 0]
+    net = MLP([2, 4, 1])
+    for step in range(501):
+        loss = sum(((net(x) - y) ** 2 for x, y in zip(X, Y)), Value(0.0))
+        for p in net.parameters(): p.grad = 0.0
+        loss.backward()
+        for p in net.parameters(): p.data -= 0.1 * p.grad
+        if step % 100 == 0:
+            print(f&quot;step {step:4d}  loss {loss.data:.5f}&quot;)
+    print([round(net(x).data, 2) for x in X])</code></pre>
+<p>Expected: the loss falls from 2.7 to below 1e-5 by step 300, and the final predictions are [0.0, 1.0, 1.0, 0.0]. The network that Minsky and Papert showed a perceptron could not learn is learned in a fraction of a second, by an algorithm you now fully understand.</p>
+<p><strong>Tasks.</strong></p>
+<ol><li><p>Change every <code>+=</code> in the <code>_backward</code> closures to <code>=</code> and rerun the second test. Explain the wrong answer.</p></li><li><p>Add <code>relu</code>, <code>exp</code>, and <code>log</code> to <code>Value</code>. Build a softmax cross-entropy loss from them and verify its gradient against p − e_c.</p></li><li><p>Remove the line that zeros the gradients in the training loop. What happens, and why?</p></li><li><p>Count the <code>Value</code> objects created in one forward pass of the 2-4-1 network on four examples. This is the tape. How does it scale with network size and batch size?</p></li><li><p>Plot the decision regions of the trained Lab 5A network. Compare with the straight boundaries from Lab 3.</p></li></ol>
+<h2 id="problems">Problems</h2>
+<p><strong>5.1</strong> ★ (A) Draw the graph of f = (ab + c)² and run the backward pass by hand at a = 2, b = −3, c = 10. Confirm the engine&#39;s output.</p>
+<p><strong>5.2</strong> ★ Derive BP2 from the identity table of Section 2.2, in two steps: through the affine map, then through the activation.</p>
+<p><strong>5.3</strong> ★★ (A) Derive the vector-Jacobian product of softmax. Given p = softmax(z) and an upstream adjoint p̄, show that z̄ = p ⊙ (p̄ − pᵀp̄). Then recover z̄ = p − e_c for the cross-entropy loss.</p>
+<p><strong>5.4</strong> ★★ (A) For the batched matrix product Y = XW, use differentials to show X̄ = ȲWᵀ and W̄ = XᵀȲ. Check both shapes.</p>
+<p><strong>5.5</strong> ★★ Let Y = X + b, with X of shape (B, n) and b of shape (n) broadcast across rows. Show that b̄ is the sum of Ȳ over rows. State the general rule for broadcasting.</p>
+<p><strong>5.6</strong> ★★ (A) An MLP has L layers of width n and processes a batch of B examples. How many floating-point numbers must be held in memory during training, and how many during inference? What is the ratio for L = 100?</p>
+<p><strong>5.7</strong> ★★ Show that the Hessian-vector product Hv equals the gradient of the scalar gᵀv, where g is the gradient and v is held constant. What does this cost relative to one gradient? Why does it matter that H itself is never formed?</p>
+<p><strong>5.8</strong> ★★ Implement forward-mode AD with dual numbers: each value carries (value, derivative). Use it to compute a Jacobian-vector product of the Lab 5A network. For what kinds of problem would you prefer this mode?</p>
+<p><strong>5.9</strong> ★★★ Extend the engine from scalars to numpy arrays. Implement matrix product, broadcast addition, ReLU, sum, and log-softmax, each with its VJP. Train the spiral network with it and compare speed with the scalar engine.</p>
+<h2 id="further-reading">Further reading</h2>
+<ul><li><p>Rumelhart, Hinton, and Williams, &quot;Learning representations by back-propagating errors&quot; (1986).</p></li><li><p>Baydin, Pearlmutter, Radul, and Siskind, &quot;Automatic differentiation in machine learning: a survey&quot; (2018).</p></li><li><p>Griewank and Walther, <em>Evaluating Derivatives</em> (2008), for the cheap gradient principle and the theory.</p></li><li><p>Karpathy, <em>micrograd</em> (2020). The scalar engine in this lab follows its design.</p></li></ul>

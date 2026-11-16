@@ -1,0 +1,129 @@
+<h1 id="chapter-10-recurrent-networks-and-the-road-to-attention">Chapter 10: Recurrent Networks and the Road to Attention</h1>
+<p><strong>Objectives.</strong> After this chapter you can:</p>
+<ul><li><p>write the equations of a recurrent network and explain backpropagation through time;</p></li><li><p>show from the Jacobian product why gradients vanish across time steps;</p></li><li><p>describe the LSTM and explain why its cell state preserves gradients;</p></li><li><p>describe sequence-to-sequence models, their bottleneck, and the first attention mechanism;</p></li><li><p>list the limitations of recurrence that the Transformer removed.</p></li></ul>
+<h2 id="101-the-recurrent-idea">10.1 The recurrent idea</h2>
+<p>Stage 2 of the template in Section 9.7 needs a function that turns a prefix of any length into a fixed-size vector. A <strong>recurrent neural network</strong> (RNN) does this by maintaining a state and updating it one token at a time with the same learned function:</p>
+<pre><code class="language-latex">h_t \;=\; \tanh\big(W_h\, h_{t-1} + W_x\, x_t + b\big), \qquad \mathrm{logits}_t \;=\; U\, h_t .</code></pre>
+<p>Here x_t is the embedding of token t and h_0 is zero. The state h_t is a learned summary of everything up to position t, and the logits computed from it parameterize the distribution over token t + 1.</p>
+<p>Two features are attractive. The parameters are shared across time, so the model handles any sequence length with a fixed parameter count. And unlike an n-gram model, the context is in principle unbounded: h_t can depend on x_1. An RNN is a learned nonlinear dynamical system driven by its input.</p>
+<h2 id="102-backpropagation-through-time">10.2 Backpropagation through time</h2>
+<p>Unroll the recurrence for T steps and you have a feedforward network of depth T in which every layer has the same weights. Backpropagation applies directly, and this application is called <strong>backpropagation through time</strong> (BPTT). Since each weight is used at every step, its gradient is the sum of its gradients at all steps, by the fan-out rule of Section 5.2.</p>
+<figure data-embed="node/5374dcd5-5a21"><figcaption>Figure 10.1 · a recurrent network unrolled over four time steps</figcaption></figure>
+<p>Figure 10.1: reading left to right is reading forward in time. The state h is the only channel from the past to the future, and a gradient from a late step must travel back along that same chain.</p>
+<p>For long sequences, storing every state for the backward pass is expensive. <strong>Truncated BPTT</strong> carries the state forward indefinitely but backpropagates only through the most recent k steps.</p>
+<h2 id="103-why-simple-rnns-forget">10.3 Why simple RNNs forget</h2>
+<p>Section 5.5 showed that gradients through a deep network are products of per-layer Jacobians. An unrolled RNN is a very deep network, and it has the worst version of the problem, because every factor involves the same matrix:</p>
+<pre><code class="language-latex">\frac{\partial h_T}{\partial h_t} \;=\; \prod_{k=t+1}^{T} \operatorname{diag}\!\big(\tanh&#39;(z_k)\big)\, W_h .</code></pre>
+<p>Repeated multiplication by one matrix behaves like a power of it. If the factors shrink vectors on average, the product decays exponentially in T − t. If they stretch, it grows exponentially. There is no stable middle for a generic matrix.</p>
+<p>The consequence for learning is specific. Suppose predicting token 100 correctly requires information from token 10. The training signal for that dependency is the gradient of the loss at step 100 with respect to what happened at step 10. If it is 10^-20, the optimizer never finds out that the dependency exists.</p>
+<p>Lab 10A measures this directly on a randomly initialized network, as the sensitivity of the output at step 99 to the input at earlier steps.</p>
+<table><thead><tr><th>Steps back</th><th>0</th><th>9</th><th>24</th><th>49</th><th>74</th></tr></thead><tbody><tr><td>Simple RNN</td><td>2e+00</td><td>8e-03</td><td>4e-07</td><td>3e-14</td><td>7e-21</td></tr><tr><td>LSTM, default initialization</td><td>5e-01</td><td>9e-03</td><td>8e-06</td><td>2e-11</td><td>2e-16</td></tr><tr><td>LSTM, forget-gate bias set to 3</td><td>5e-01</td><td>2e-01</td><td>2e-01</td><td>2e-01</td><td>2e-01</td></tr></tbody></table>
+<figure data-embed="node/c3c3e7f5-75f6"><figcaption>Figure 10.2 · Lab 10A, the values in the table above, on a logarithmic axis</figcaption></figure>
+<p>Figure 10.2: on a logarithmic axis exponential decay is a straight line. Two of the three networks lose the signal at a steady rate per step. The third keeps it.</p>
+<p>The simple RNN loses fourteen orders of magnitude in fifty steps. Exploding gradients are handled bluntly by clipping (Section 6.5). Vanishing gradients need a change of architecture.</p>
+<h2 id="104-the-lstm">10.4 The LSTM</h2>
+<p>The <strong>long short-term memory</strong> network (Hochreiter and Schmidhuber, 1997) adds a second state vector, the <strong>cell state</strong> c_t, whose update is additive and controlled by learned gates. Each gate is a sigmoid layer producing values between 0 and 1.</p>
+<pre><code class="language-latex">\begin{aligned}
+f_t &amp;= \sigma\big(W_f\,[h_{t-1}, x_t] + b_f\big) &amp;&amp; \text{forget gate: how much old memory to keep}\\
+i_t &amp;= \sigma\big(W_i\,[h_{t-1}, x_t] + b_i\big) &amp;&amp; \text{input gate: how much new content to write}\\
+g_t &amp;= \tanh\big(W_g\,[h_{t-1}, x_t] + b_g\big) &amp;&amp; \text{candidate content}\\
+o_t &amp;= \sigma\big(W_o\,[h_{t-1}, x_t] + b_o\big) &amp;&amp; \text{output gate: how much memory to expose}\\
+c_t &amp;= f_t \odot c_{t-1} + i_t \odot g_t \\
+h_t &amp;= o_t \odot \tanh(c_t)
+\end{aligned}</code></pre>
+<p><strong>Why it works.</strong> Look at the cell update. Along the direct path, the derivative of c_t with respect to c_(t−1) is just diag(f_t). There is no weight matrix and no squashing nonlinearity on that path. If the forget gate is near 1, the cell state and its gradient pass through unchanged, for as many steps as the gate stays open.</p>
+<p>This is the residual connection of Section 7.3, discovered eighteen years earlier: make the default behavior &quot;copy the state forward&quot; and let the network learn additive modifications. The principle is the same in both. Gradients survive depth when there is an additive identity path.</p>
+<p>The third row of the table shows the mechanism. With the forget gate biased open, sensitivity to an input 74 steps back is the same as to one 9 steps back. The second row is a caution: an LSTM at default initialization, with forget gates near one half, also loses the signal, just more slowly. The architecture makes long memory learnable. It does not make it automatic.</p>
+<p>The <strong>GRU</strong> (Cho and others, 2014) is a simplification with two gates and a single state. It performs about as well.</p>
+<blockquote><p><strong>Checkpoint 10.1.</strong> An LSTM&#39;s forget gate holds a constant value of 0.9 in every unit. By what factor is the gradient along the cell-state path attenuated over 50 steps? Over 500? What value of the gate would keep the attenuation over 500 steps above one half?</p></blockquote>
+<h2 id="105-recurrent-language-models">10.5 Recurrent language models</h2>
+<p>From about 2010 to 2017, LSTM language models were the state of the art. Lab 10B trains a one-layer character-level LSTM on the Shakespeare text. After 1000 steps its held-out loss is 1.76 nats per character, a perplexity of 5.8, against 12.0 for the bigram model of Lab 9B. Samples from such models produce plausible words, punctuation, and line structure, because the state can track where it is in a word and a line.</p>
+<h2 id="106-sequence-to-sequence-and-the-bottleneck">10.6 Sequence to sequence, and the bottleneck</h2>
+<p>Translation maps one sequence to another of different length. The <strong>sequence-to-sequence</strong> architecture (Sutskever, Vinyals, and Le, 2014; Cho and others, 2014) uses two RNNs. An <strong>encoder</strong> reads the source sentence and its final state is taken as a summary. A <strong>decoder</strong>, initialized from that summary, generates the target sentence token by token.</p>
+<p>It worked well enough to challenge decades of hand-built translation systems. It also had an obvious flaw. The whole source sentence, whatever its length, must pass through one fixed-size vector. Quality fell off sharply for long sentences.</p>
+<h2 id="107-attention">10.7 Attention</h2>
+<p>Bahdanau, Cho, and Bengio (2014) removed the bottleneck. Keep all the encoder states h_1, ..., h_S, one per source token. At each decoding step, let the decoder compute a weighted average of them, with weights that depend on what it currently needs.</p>
+<p>With decoder state d_(t−1):</p>
+<pre><code class="language-latex">e_{t,s} = \mathrm{score}\big(d_{t-1}, h_s\big), \qquad
+\alpha_{t,s} = \frac{\exp(e_{t,s})}{\sum_{s&#39;} \exp(e_{t,s&#39;})}, \qquad
+c_t = \sum_{s=1}^{S} \alpha_{t,s}\, h_s .</code></pre>
+<p>The score is a small learned function measuring how relevant source position s is to the current decoding step. A softmax turns scores into weights that sum to 1. The <strong>context vector</strong> c_t is the corresponding average of encoder states, and it is fed to the decoder along with the previous token.</p>
+<figure data-embed="node/219ace48-ec14"><figcaption>Figure 10.3 · one decoding step with attention over four encoder states</figcaption></figure>
+<p>Figure 10.3: line thickness stands for the attention weight. At this step the decoder draws mostly on the second source position. At the next step the weights are recomputed and may point elsewhere.</p>
+<p>Three properties made this a turning point.</p>
+<ul><li><p><strong>It is a soft lookup.</strong> The decoder retrieves information from the source by content, not by position. Because the retrieval is a weighted average and not a hard choice, it is differentiable, and the whole system trains by backpropagation.</p></li><li><p><strong>Path length is one.</strong> Any source token can influence any target token through a single attention step, with no chain of recurrent updates between them.</p></li><li><p><strong>It is inspectable.</strong> Plotting the weights α shows which source words the model consulted for each target word. For translation the plot looks like a word alignment, learned with no alignment supervision.</p></li></ul>
+<p>It helps to name the parts now. The decoder state acts as a <strong>query</strong>. Each encoder state acts as both a <strong>key</strong>, matched against the query, and a <strong>value</strong>, returned in proportion to the match. Chapter 11 builds everything from this vocabulary.</p>
+<h2 id="108-what-was-still-wrong">10.8 What was still wrong</h2>
+<p>By 2016 the best systems were LSTMs with attention. Three limitations remained, all from the recurrence.</p>
+<table><thead><tr><th>Limitation</th><th>Cause</th><th>Effect</th></tr></thead><tbody><tr><td>No parallelism within a sequence</td><td>h_t cannot be computed before h_(t−1)</td><td>Training cannot use the full width of a GPU; long sequences are slow</td></tr><tr><td>Long paths inside each sequence</td><td>Information between distant tokens of the same sequence still travels step by step</td><td>Long-range structure remains hard to learn</td></tr><tr><td>A fixed-size running state</td><td>Everything about the prefix must fit in h_t</td><td>The state is a bottleneck in the decoder and in language models</td></tr></tbody></table>
+<p>Attention had been added to recurrent networks as a helper. The question that produced the Transformer was what would happen if the recurrence were deleted and attention did everything.</p>
+<h2 id="lab-10a-watching-gradients-vanish">Lab 10A: watching gradients vanish</h2>
+<pre><code class="language-python">import torch, torch.nn as nn
+
+torch.manual_seed(0)
+T, d, h = 100, 16, 64
+x = torch.randn(1, T, d, requires_grad=True)
+
+lstm_open = nn.LSTM(d, h, batch_first=True)
+with torch.no_grad():                   # PyTorch orders the gates (input, forget, cell, output)
+    lstm_open.bias_ih_l0[h:2 * h] = 3.0     # push the forget gate toward 1
+
+for name, rnn in [(&quot;RNN (tanh)&quot;, nn.RNN(d, h, batch_first=True)),
+                  (&quot;LSTM&quot;, nn.LSTM(d, h, batch_first=True)),
+                  (&quot;LSTM, f-bias 3&quot;, lstm_open)]:
+    out, _ = rnn(x)                     # out: (1, T, h)
+    out[0, -1].sum().backward()         # a &quot;loss&quot; that depends only on the last step
+    g = x.grad[0].norm(dim=1)           # sensitivity of that loss to each input step
+    print(f&quot;{name:15s}&quot;, &quot;  &quot;.join(f&quot;t={t}: {g[t].item():.0e}&quot; for t in [99, 90, 75, 50, 25, 0]))
+    x.grad = None</code></pre>
+<p>The output is the table in Section 10.3.</p>
+<h2 id="lab-10b-a-character-level-lstm">Lab 10B: a character-level LSTM</h2>
+<pre><code class="language-python">import torch, torch.nn as nn, torch.nn.functional as F
+
+torch.manual_seed(0)
+text = open(&quot;input.txt&quot;).read()
+chars = sorted(set(text)); V = len(chars)
+stoi = {c: i for i, c in enumerate(chars)}
+data = torch.tensor([stoi[c] for c in text])
+n = int(0.9 * len(data)); train, val = data[:n], data[n:]
+
+class CharLSTM(nn.Module):
+    def __init__(self, V, d=128):
+        super().__init__()
+        self.emb = nn.Embedding(V, d)
+        self.rnn = nn.LSTM(d, d, batch_first=True)
+        self.head = nn.Linear(d, V)
+    def forward(self, idx, state=None):
+        h, state = self.rnn(self.emb(idx), state)     # h: (B, T, d)
+        return self.head(h), state                    # logits: (B, T, V)
+
+def get_batch(d, B=32, T=64):
+    ix = torch.randint(len(d) - T - 1, (B,))
+    return torch.stack([d[i:i + T] for i in ix]), torch.stack([d[i + 1:i + T + 1] for i in ix])
+
+model = CharLSTM(V)
+opt = torch.optim.Adam(model.parameters(), lr=3e-3)
+for step in range(1001):
+    x, y = get_batch(train)
+    logits, _ = model(x)
+    loss = F.cross_entropy(logits.reshape(-1, V), y.reshape(-1))
+    opt.zero_grad(); loss.backward()
+    nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+    opt.step()
+    if step % 250 == 0:
+        with torch.no_grad():
+            xv, yv = get_batch(val, B=256)
+            lv = F.cross_entropy(model(xv)[0].reshape(-1, V), yv.reshape(-1))
+        print(f&quot;step {step:4d}  train {loss.item():.3f}  val {lv.item():.3f}&quot;)</code></pre>
+<p>Measured: the loss starts at 4.17, which is log 65, and validation loss reaches 1.96 at step 250 and 1.76 at step 1000. Note how the targets are built: <code>y</code> is <code>x</code> shifted by one position, so every position in every sequence is a training example for next-token prediction.</p>
+<p><strong>Tasks.</strong></p>
+<ol><li><p>Write a <code>generate</code> function that feeds the model its own samples one character at a time, passing the state along. Sample 500 characters.</p></li><li><p>Swap <code>nn.LSTM</code> for <code>nn.RNN</code> and for <code>nn.GRU</code>. Compare validation loss after 1000 steps.</p></li><li><p>Implement a simple RNN cell and its BPTT by hand in numpy for T = 3. Check the gradients with your Lab 2 checker.</p></li><li><p>Build a copy task: the input is a random token followed by k filler tokens, and the target at the last position is the first token. Find the largest k that a simple RNN learns, and the largest an LSTM learns.</p></li></ol>
+<h2 id="problems">Problems</h2>
+<p><strong>10.1</strong> ★ (A) Count the parameters of a simple RNN cell and an LSTM cell with input dimension d and hidden dimension h, using one bias vector per affine map.</p>
+<p><strong>10.2</strong> ★★ (A) For a linear RNN, h_t = W h_(t−1), show that ∂h_T/∂h_t = W^(T−t). Using the eigendecomposition of W, describe what happens as T − t grows in terms of the spectral radius.</p>
+<p><strong>10.3</strong> ★★ Show that along the direct path through the cell state, the Jacobian of c_T with respect to c_t is the elementwise product of the forget gates in between. Identify the other paths by which c_t influences c_T.</p>
+<p><strong>10.4</strong> ★★ In an attention step, what is the context vector when all scores are equal? When one score is far larger than the others? Describe how multiplying all scores by a constant moves between these extremes.</p>
+<p><strong>10.5</strong> ★★ With truncated BPTT of window k, can the model&#39;s forward computation use information from more than k steps back? Can it learn to store such information? Distinguish the two questions.</p>
+<p><strong>10.6</strong> ★★★ Implement a sequence-to-sequence model with Bahdanau attention on a synthetic task, such as reversing a string of digits or reformatting dates. Plot the attention weights and interpret them.</p>
+<h2 id="further-reading">Further reading</h2>
+<ul><li><p>Hochreiter and Schmidhuber, &quot;Long short-term memory&quot; (1997).</p></li><li><p>Pascanu, Mikolov, and Bengio, &quot;On the difficulty of training recurrent neural networks&quot; (2013).</p></li><li><p>Sutskever, Vinyals, and Le, &quot;Sequence to sequence learning with neural networks&quot; (2014).</p></li><li><p>Bahdanau, Cho, and Bengio, &quot;Neural machine translation by jointly learning to align and translate&quot; (2014).</p></li><li><p>Olah, &quot;Understanding LSTM networks&quot; (2015). The standard visual explanation.</p></li><li><p>Karpathy, &quot;The unreasonable effectiveness of recurrent neural networks&quot; (2015).</p></li></ul>

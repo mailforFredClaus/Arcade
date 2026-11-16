@@ -1,0 +1,151 @@
+<h1 id="chapter-14-fine-tuning-and-adaptation">Chapter 14: Fine-Tuning and Adaptation</h1>
+<p><strong>Objectives.</strong> After this chapter you can:</p>
+<ul><li><p>explain why a pretrained model is not yet an assistant, and what turns it into one;</p></li><li><p>describe supervised fine-tuning, instruction tuning, and the chat format;</p></li><li><p>write the objectives of reward modeling, RLHF, and DPO, and say what each term does;</p></li><li><p>derive and implement LoRA;</p></li><li><p>explain distillation and quantization;</p></li><li><p>choose an adaptation method for a given need.</p></li></ul>
+<h2 id="141-a-base-model-continues-documents">14.1 A base model continues documents</h2>
+<p>The product of pretraining is called a <strong>base model</strong>. It is a model of documents. Give it the text &quot;What is the capital of France?&quot; and it will continue the document it guesses it is in. That might be an answer. It might equally be a second quiz question, or a forum reply complaining that the question is too easy.</p>
+<p>A base model has the knowledge an assistant needs and none of the role. Three things are missing: the convention that it is in a dialogue and should respond to the last message; a consistent disposition to be helpful, accurate, and careful; and whatever specialized skills an application calls for. Adaptation supplies them.</p>
+<h2 id="142-fine-tuning">14.2 Fine-tuning</h2>
+<p><strong>Fine-tuning</strong> means continuing gradient descent from the pretrained weights on a new, smaller dataset, usually with a learning rate ten to a hundred times lower than in pretraining. The loss is still next-token cross-entropy.</p>
+<p>It works because pretraining has already built general features, and the new data only needs to adjust how they are used. It has two characteristic risks. With little data the model overfits. And as the weights move to fit the new distribution they can lose abilities that the new data does not exercise, which is called <strong>catastrophic forgetting</strong>. A low learning rate, few passes, and the parameter-efficient methods of Section 14.5 all limit both.</p>
+<h2 id="143-instruction-tuning-and-the-chat-format">14.3 Instruction tuning and the chat format</h2>
+<p>To make an assistant, fine-tune on transcripts of the behavior you want. Each training example is a conversation rendered into one token sequence, with special tokens marking who is speaking. The details vary between model families; a generic template looks like this:</p>
+<pre><code>&lt;|system|&gt;You are a helpful assistant.&lt;|end|&gt;
+&lt;|user|&gt;What is the capital of France?&lt;|end|&gt;
+&lt;|assistant|&gt;Paris.&lt;|end|&gt;</code></pre>
+<p>Training on many such examples is called <strong>supervised fine-tuning</strong> (SFT) or <strong>instruction tuning</strong>. The loss is usually computed only on the assistant&#39;s tokens, since those are what the model should learn to produce.</p>
+<p>Nothing about the model has changed in kind. It is still predicting the next token. But the documents it now predicts are dialogues in which an assistant responds helpfully, so predicting the next token after the assistant marker means writing a helpful response. The assistant is, in a precise sense, a character the model has learned to write.</p>
+<p>This view explains several things at once.</p>
+<ul><li><p>A <strong>system prompt</strong> is ordinary text at the start of the transcript. It influences behavior the same way any context does, strengthened by training examples in which the assistant follows such instructions.</p></li><li><p>The model generates until it emits the end-of-turn token. Stopping is a prediction like any other.</p></li><li><p>The assistant&#39;s stated beliefs about itself are part of the character and come from training data. They are not readouts of its internals.</p></li><li><p>Carefully constructed inputs can sometimes pull the model out of the assistant pattern and back toward generic document continuation, which is one root of the security problems in Chapter 17.</p></li></ul>
+<blockquote><p><strong>Checkpoint 14.1.</strong> A chat model is given a transcript that ends in the middle of a <em>user</em> turn, with no end-of-turn token. What do you expect it to generate, and why?</p></blockquote>
+<h2 id="144-learning-from-preferences">14.4 Learning from preferences</h2>
+<p>Supervised fine-tuning teaches imitation of demonstrations. That has limits. Writing an ideal response is expensive, while judging which of two responses is better is cheap. And imitation cannot exceed the demonstrations. Preference-based methods address both.</p>
+<p><strong>Reinforcement learning from human feedback</strong> (RLHF), as used for the first widely deployed chat assistants (Ouyang and others, 2022), has three stages.</p>
+<p><em>Stage 1: collect comparisons.</em> For each prompt x, sample several responses from the model and have people indicate which they prefer.</p>
+<p><em>Stage 2: fit a reward model.</em> Train a network r_φ(x, y) to output a scalar score, such that preferred responses score higher. Modeling the probability that y_w is preferred to y_l as a sigmoid of the score difference gives the loss</p>
+<pre><code class="language-latex">L(\phi) \;=\; -\,\mathbb{E}\Big[\log \sigma\big(r_\phi(x, y_w) - r_\phi(x, y_l)\big)\Big].</code></pre>
+<p>This is logistic regression (Section 3.3) on score differences.</p>
+<p><em>Stage 3: optimize the model against the reward.</em> Treat the language model as a policy π_θ and adjust it to produce responses the reward model scores highly, while penalizing departure from the starting model π_ref:</p>
+<pre><code class="language-latex">\max_\theta \;\; \mathbb{E}_{x,\; y \sim \pi_\theta(\cdot \mid x)}\big[r_\phi(x, y)\big] \;-\; \beta\, \mathrm{KL}\big(\pi_\theta(\cdot \mid x)\,\big\|\,\pi_{\mathrm{ref}}(\cdot \mid x)\big).</code></pre>
+<p>Because sampling a response is not differentiable, this is optimized with a policy-gradient reinforcement learning algorithm.</p>
+<figure data-embed="node/46ff4b6a-4cdb"><figcaption>Figure 14.1 · the three stages of RLHF</figcaption></figure>
+<p>Figure 14.1: each stage uses a different kind of data. Only the first needs people to write answers. The second needs only their judgments, and the third needs no new human data at all.</p>
+<p><strong>Why the KL penalty is essential.</strong> The reward model is a learned approximation, accurate only for responses resembling those it was trained on. An optimizer with no constraint will find responses that the reward model scores highly for wrong reasons. This failure, exploiting the errors of a learned objective, is a general hazard in machine learning and is discussed again in Chapter 17. The penalty keeps the policy in the region where the reward model can be trusted.</p>
+<p><strong>Direct preference optimization</strong> (DPO; Rafailov and others, 2023) reaches the same optimum without a separate reward model or reinforcement learning. The KL-constrained problem has a closed-form relation between the optimal policy and the reward. Substituting it into the reward-model loss gives an objective on the policy itself:</p>
+<pre><code class="language-latex">L_{\mathrm{DPO}}(\theta) = -\,\mathbb{E}\left[\log \sigma\!\left(\beta\Big[\log\frac{\pi_\theta(y_w \mid x)}{\pi_{\mathrm{ref}}(y_w \mid x)} - \log\frac{\pi_\theta(y_l \mid x)}{\pi_{\mathrm{ref}}(y_l \mid x)}\Big]\right)\right].</code></pre>
+<p>It raises the probability of the preferred response relative to the reference model, and lowers that of the rejected one. It is an ordinary supervised loss on pairs, which makes it simple and stable, and it is widely used.</p>
+<p><strong>Other sources of signal.</strong> Human comparisons are one source of reward. Others include written principles applied by a model acting as judge, and automatically checkable outcomes such as whether generated code passes its tests or a mathematical answer is correct. The last kind is central to training models that reason at length (Chapter 16).</p>
+<p><strong>Side effects.</strong> The model learns what the feedback rewards, which is not identical to what is true or good. If raters prefer confident, agreeable answers, the model becomes confident and agreeable, including when it should not be. Flattery of the user&#39;s stated views, called <strong>sycophancy</strong>, is a documented result. So are excessive hedging and unnecessary refusals when raters penalize risk.</p>
+<h2 id="145-parameter-efficient-fine-tuning-lora">14.5 Parameter-efficient fine-tuning: LoRA</h2>
+<p>Full fine-tuning updates every weight, so each adapted version is a complete copy of the model. For a model of tens of billions of parameters that is costly to train and store.</p>
+<p><strong>Low-rank adaptation</strong> (LoRA; Hu and others, 2021) freezes the pretrained weight matrix W_0 ∈ R^(m×n) and learns only a low-rank correction to it:</p>
+<pre><code class="language-latex">W \;=\; W_0 + \frac{\alpha}{r}\, B A, \qquad B \in \mathbb{R}^{m \times r}, \quad A \in \mathbb{R}^{r \times n}, \quad r \ll \min(m, n).</code></pre>
+<p>Only A and B are trained. A starts random and B starts at zero, so the correction is zero at the start and the adapted model initially equals the pretrained one.</p>
+<figure data-embed="node/1a2b8d48-0e9f"><figcaption>Figure 14.2 · a LoRA adapter beside a frozen weight matrix</figcaption></figure>
+<p>Figure 14.2: the input takes both paths and the two results are added. Only A and B receive gradient updates.</p>
+<p><strong>The savings.</strong> The correction has r(m + n) parameters against mn for the full matrix. For a 4096 × 4096 matrix and r = 8, that is 65,536 against 16.8 million, or 0.4 percent. The frozen weights need no gradient storage or optimizer state.</p>
+<p><strong>No inference cost.</strong> After training, compute W_0 + (α/r)BA once and store it as an ordinary matrix. The adapted model has exactly the architecture and speed of the original. Alternatively keep the adapters separate, a few megabytes each, and swap them over one shared base model.</p>
+<p><strong>Why it works.</strong> By Eckart-Young (Section 2.1) a rank-r matrix is the best approximation to a general matrix that r directions allow. LoRA bets that the change needed to adapt a pretrained model is approximately low-rank. Empirically this holds well when the new task is close to what the model already does, and less well for large shifts.</p>
+<p>Lab 14 applies LoRA to the attention matrices of your Chapter 12 model, adapting it to the same plays written entirely in capital letters. The base model&#39;s loss on that text is 4.50, worse than a uniform guess, because it is confidently wrong. Training 24,576 adapter parameters, 2.9 percent of the total, for 300 steps brings it to 1.96.</p>
+<h2 id="146-distillation">14.6 Distillation</h2>
+<p><strong>Knowledge distillation</strong> (Hinton, Vinyals, and Dean, 2015) trains a small <strong>student</strong> model to reproduce the behavior of a large <strong>teacher</strong>. The student is trained to match the teacher&#39;s full output distribution, softened by a temperature τ, in place of or alongside the one-hot target:</p>
+<pre><code class="language-latex">L \;=\; \tau^2\, \mathrm{KL}\Big(\operatorname{softmax}(z^{\mathrm{teacher}}/\tau)\;\Big\|\;\operatorname{softmax}(z^{\mathrm{student}}/\tau)\Big).</code></pre>
+<p>The teacher&#39;s distribution carries far more information per example than a single correct label. It says which wrong answers are nearly right. A student trained on these soft targets typically does better than the same network trained on the data directly.</p>
+<p>For LLMs a second form is common: generate a large corpus of responses from the teacher and fine-tune the student on it as ordinary text. Small, fast models offered alongside large ones are often produced this way.</p>
+<h2 id="147-quantization">14.7 Quantization</h2>
+<p><strong>Quantization</strong> stores each weight in fewer bits. A block of weights is mapped to integers on a uniform grid:</p>
+<pre><code class="language-latex">w \;\approx\; s \cdot q, \qquad q = \operatorname{round}(w / s) \in \{-2^{b-1}, \dots, 2^{b-1} - 1\},</code></pre>
+<p>with a scale s chosen per block. Going from 16 bits to 8 or 4 cuts memory by a factor of 2 or 4, and memory is usually the binding constraint for running a model on modest hardware. At 4 bits a model with 7 billion parameters occupies 3.5 gigabytes.</p>
+<p>Networks tolerate this well, because trained weights are noisy to begin with and the function they compute is robust to small perturbations. As a rule, 8 bits loses almost nothing, 4 bits loses a little with a careful method, and below that quality falls quickly. Quantizing after training is simplest. Simulating quantization during training gives better results at very low precision.</p>
+<h2 id="148-choosing-a-method">14.8 Choosing a method</h2>
+<table><thead><tr><th>What you need</th><th>First thing to try</th></tr></thead><tbody><tr><td>A one-off task or a format change</td><td>A better prompt (Chapter 16)</td></tr><tr><td>Knowledge that is private, recent, or changes often</td><td>Retrieval (Chapter 16), not fine-tuning</td></tr><tr><td>A consistent style, tone, or output structure</td><td>Supervised fine-tuning, usually with LoRA</td></tr><tr><td>Behavior that is easier to judge than to demonstrate</td><td>Preference optimization</td></tr><tr><td>Lower cost or latency at similar quality</td><td>Distillation into a smaller model; quantization</td></tr><tr><td>A capability the base model lacks entirely</td><td>A stronger base model</td></tr></tbody></table>
+<p>The usual order of escalation is prompt, then retrieval, then fine-tuning. Each step costs more and is harder to change afterward.</p>
+<h2 id="lab-14-lora">Lab 14: LoRA</h2>
+<p>This lab needs <code>gpt.py</code> and the trained weights <code>gpt.pt</code> from Chapter 12.</p>
+<pre><code class="language-python">import math, torch, torch.nn as nn, torch.nn.functional as F
+from gpt import GPT, Config
+
+class LoRALinear(nn.Module):
+    &quot;&quot;&quot;Wraps a frozen nn.Linear and adds a trainable low-rank update: W + (alpha/r) B A.&quot;&quot;&quot;
+    def __init__(self, base, r=8, alpha=16):
+        super().__init__()
+        self.base = base
+        for p in self.base.parameters():
+            p.requires_grad = False
+        self.A = nn.Parameter(torch.randn(r, base.in_features) / math.sqrt(base.in_features))
+        self.B = nn.Parameter(torch.zeros(base.out_features, r))     # zero: no change at start
+        self.scale = alpha / r
+    def forward(self, x):
+        return self.base(x) + self.scale * (x @ self.A.T) @ self.B.T
+    def merge(self):                         # fold the update into the base weight
+        self.base.weight.data += self.scale * self.B @ self.A
+        return self.base
+
+if __name__ == &quot;__main__&quot;:
+    torch.manual_seed(0)
+    text = open(&quot;input.txt&quot;).read()
+    chars = sorted(set(text)); stoi = {c: i for i, c in enumerate(chars)}
+    data = torch.tensor([stoi[c] for c in text.upper()])           # the new &quot;domain&quot;: all capitals
+    n = int(0.9 * len(data)); train, val = data[:n], data[n:]
+
+    cfg = Config(vocab_size=len(chars))
+    model = GPT(cfg); model.load_state_dict(torch.load(&quot;gpt.pt&quot;)); model.eval()
+
+    def get_batch(d, B=32):
+        ix = torch.randint(len(d) - cfg.block_size - 1, (B,))
+        return (torch.stack([d[i:i + cfg.block_size] for i in ix]),
+                torch.stack([d[i + 1:i + 1 + cfg.block_size] for i in ix]))
+
+    @torch.no_grad()
+    def val_loss():
+        return sum(model(*get_batch(val))[1].item() for _ in range(10)) / 10
+
+    x, _ = get_batch(val, 4)
+    before = model(x)[0]
+    print(f&quot;base model on capitals: val loss {val_loss():.3f}&quot;)
+
+    for p in model.parameters():
+        p.requires_grad = False
+    for blk in model.blocks:                                       # adapt attention only
+        blk.attn.qkv = LoRALinear(blk.attn.qkv)
+        blk.attn.proj = LoRALinear(blk.attn.proj)
+    print(&quot;unchanged at init:&quot;, torch.allclose(before, model(x)[0], atol=1e-5))
+
+    trainable = [p for p in model.parameters() if p.requires_grad]
+    total = sum(p.numel() for p in model.parameters())
+    print(f&quot;trainable {sum(p.numel() for p in trainable):,} of {total:,} &quot;
+          f&quot;({100 * sum(p.numel() for p in trainable) / total:.1f}%)&quot;)
+
+    opt = torch.optim.AdamW(trainable, lr=1e-3, weight_decay=0.0)
+    for step in range(301):
+        _, loss = model(*get_batch(train))
+        opt.zero_grad(); loss.backward(); opt.step()
+        if step % 100 == 0:
+            print(f&quot;step {step:3d}  val loss {val_loss():.3f}&quot;)
+
+    after = model(x)[0]
+    for blk in model.blocks:
+        blk.attn.qkv = blk.attn.qkv.merge(); blk.attn.proj = blk.attn.proj.merge()
+    print(&quot;merged equals adapted:&quot;, torch.allclose(after, model(x)[0], atol=1e-4))</code></pre>
+<p>Measured output:</p>
+<pre><code>base model on capitals: val loss 4.502
+unchanged at init: True
+trainable 24,576 of 841,088 (2.9%)
+step   0  val loss 4.299
+step 100  val loss 2.181
+step 200  val loss 2.045
+step 300  val loss 1.964
+merged equals adapted: True</code></pre>
+<p>The model is kept in inference mode throughout, so dropout is off; only the adapter parameters receive gradients. The two boolean checks verify the two claims of Section 14.5: the adapter changes nothing at initialization, and merging it reproduces the adapted model exactly.</p>
+<p><strong>Tasks.</strong></p>
+<ol><li><p>Vary the rank over 1, 2, 4, 8, and 32. Plot validation loss after 300 steps against the number of trainable parameters.</p></li><li><p>Compare with full fine-tuning for the same 300 steps at a learning rate of 1e-4. Which reaches a lower loss? Which uses more memory?</p></li><li><p>Measure forgetting. Evaluate the adapted model on the original mixed-case text before and after adaptation. Then do the same for full fine-tuning. What does removing the adapter restore?</p></li><li><p>Compute the singular values of the learned product BA for one layer. How many are significantly different from zero? Was rank 8 needed?</p></li><li><p>Distill the 4-layer model into a 1-layer student. Train one student on the data and another on the teacher&#39;s softened outputs, and compare.</p></li><li><p>Quantize every weight matrix of the trained model to 8, 4, 3, and 2 bits with a per-matrix scale, and report validation loss for each.</p></li></ol>
+<h2 id="problems">Problems</h2>
+<p><strong>14.1</strong> ★ (A) For a 4096 × 4096 weight matrix, give the number of LoRA parameters at ranks 8 and 64, and each as a fraction of the full matrix.</p>
+<p><strong>14.2</strong> ★★ (A) LoRA initializes B to zero and A randomly. Show that initializing both to zero would prevent learning. Would initializing both randomly be acceptable?</p>
+<p><strong>14.3</strong> ★★ (A) Derive the reward-model loss of Section 14.4 by maximum likelihood, starting from the assumption that the probability of preferring y_w to y_l is σ(r_w − r_l).</p>
+<p><strong>14.4</strong> ★★ Evaluate the DPO loss when the policy equals the reference model. Then describe the direction of the gradient with respect to the log-probabilities of the two responses.</p>
+<p><strong>14.5</strong> ★★ In supervised fine-tuning for chat, the loss is typically masked so that only assistant tokens contribute. What would the model additionally learn if user tokens were included? Is that ever desirable?</p>
+<p><strong>14.6</strong> ★★ (A) Rounding to a uniform grid with spacing s produces an error approximately uniform on [−s/2, s/2]. Find its variance. If the weights of a block span [−a, a] and are stored in b bits, how does the error&#39;s standard deviation change with each added bit?</p>
+<p><strong>14.7</strong> ★★ Explain why the KL term in RLHF and the reference model in DPO play the same role. What would you expect a model optimized without either to produce?</p>
+<p><strong>14.8</strong> ★★★ Design an experiment to measure sycophancy in a chat model: a set of questions with known answers, each asked with and without the user first stating a wrong opinion. Specify the metric and the controls.</p>
+<h2 id="further-reading">Further reading</h2>
+<ul><li><p>Ouyang and others, &quot;Training language models to follow instructions with human feedback&quot; (2022).</p></li><li><p>Rafailov and others, &quot;Direct preference optimization: your language model is secretly a reward model&quot; (2023).</p></li><li><p>Hu and others, &quot;LoRA: low-rank adaptation of large language models&quot; (2021).</p></li><li><p>Hinton, Vinyals, and Dean, &quot;Distilling the knowledge in a neural network&quot; (2015).</p></li><li><p>Bai and others, &quot;Constitutional AI: harmlessness from AI feedback&quot; (2022).</p></li><li><p>Sharma and others, &quot;Towards understanding sycophancy in language models&quot; (2023).</p></li></ul>

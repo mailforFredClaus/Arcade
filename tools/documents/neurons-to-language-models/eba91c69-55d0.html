@@ -1,0 +1,117 @@
+<h1 id="chapter-18-beyond-text">Chapter 18: Beyond Text</h1>
+<p><strong>Objectives.</strong> After this chapter you can:</p>
+<ul><li><p>explain how images and audio are turned into token sequences;</p></li><li><p>write the contrastive loss that aligns images with text;</p></li><li><p>describe how a multimodal LLM takes in an image;</p></li><li><p>derive the forward process, training objective, and sampler of a diffusion model;</p></li><li><p>compare autoregressive and diffusion generation.</p></li></ul>
+<h2 id="181-everything-is-a-sequence-of-vectors">18.1 Everything is a sequence of vectors</h2>
+<p>A Transformer operates on a sequence of vectors and is indifferent to what they represent. To apply it to a new kind of data, you need one thing: a way to turn the data into such a sequence.</p>
+<table><thead><tr><th>Modality</th><th>How it becomes a sequence</th></tr></thead><tbody><tr><td>Text</td><td>Tokenize; look up an embedding per token</td></tr><tr><td>Images</td><td>Cut into square patches; project each patch linearly</td></tr><tr><td>Audio</td><td>Slice a spectrogram into frames, or encode the waveform into discrete codes with a learned codec</td></tr><tr><td>Video</td><td>Cut into patches in space and time</td></tr></tbody></table>
+<p>This is why one architecture now spans what used to be separate research fields.</p>
+<h2 id="182-the-vision-transformer">18.2 The Vision Transformer</h2>
+<p>The <strong>Vision Transformer</strong> (ViT; Dosovitskiy and others, 2020) treats an image as a sentence of patches.</p>
+<ol><li><p>Divide the image into non-overlapping P × P patches. A 224 × 224 image with P = 16 gives a 14 × 14 grid of 196 patches.</p></li><li><p>Flatten each patch into a vector of P · P · 3 numbers, here 768.</p></li><li><p>Apply one learned linear map to bring each to the model width d, and add a position embedding.</p></li><li><p>Run a standard Transformer encoder over the 196 vectors.</p></li></ol>
+<p>No convolution is involved. As Section 8.4 described, this model lacks the built-in assumptions of a convolutional network and needs more data to compensate. Given that data it matches or exceeds them, and it brings every technique developed for language models with it.</p>
+<h2 id="183-aligning-images-and-text">18.3 Aligning images and text</h2>
+<p><strong>CLIP</strong> (Radford and others, 2021) trains an image encoder and a text encoder together on hundreds of millions of images paired with their captions from the web. The goal is a shared space in which an image and its caption land close together.</p>
+<p>Take a batch of N pairs. Encode the images to unit vectors u_1, ..., u_N and the captions to unit vectors v_1, ..., v_N. Form the matrix of scaled similarities S_ij = u_iᵀv_j / τ. The correct pairings are on the diagonal. The loss asks each image to pick out its caption from the N in the batch, and each caption its image:</p>
+<pre><code class="language-latex">L \;=\; -\frac{1}{2N}\sum_{i=1}^{N}\left[\log\frac{e^{S_{ii}}}{\sum_{j} e^{S_{ij}}} \;+\; \log\frac{e^{S_{ii}}}{\sum_{j} e^{S_{ji}}}\right].</code></pre>
+<figure data-embed="node/f4e1ff5f-6cec"><figcaption>Figure 18.1 · the contrastive objective over a batch of four image-text pairs</figcaption></figure>
+<p>Figure 18.1: every image is scored against every caption in the batch. Training raises the four diagonal scores and lowers the twelve others.</p>
+<p>This is softmax cross-entropy (Section 3.4) applied to the rows and to the columns of S. It is the same contrastive principle used to train the dense retrievers of Section 16.4.</p>
+<p>Two consequences made CLIP influential.</p>
+<ul><li><p><strong>Zero-shot classification.</strong> To classify an image among a set of labels never used in training, embed the text &quot;a photo of a dog&quot;, &quot;a photo of a cat&quot;, and so on, and choose the label whose embedding is nearest the image&#39;s. No classifier is trained.</p></li><li><p><strong>Supervision from language.</strong> The training signal is free-form text, far richer than a fixed list of categories, and available at web scale without annotation.</p></li></ul>
+<h2 id="184-multimodal-language-models">18.4 Multimodal language models</h2>
+<p>To let an LLM see, connect a vision encoder to it.</p>
+<ol><li><p>A vision encoder, typically a ViT pretrained as in Section 18.3, turns the image into a few hundred to a few thousand patch vectors.</p></li><li><p>A small learned network, often one or two linear layers, maps those vectors into the LLM&#39;s embedding space.</p></li><li><p>The mapped vectors are placed in the LLM&#39;s input sequence next to the text embeddings, as if they were tokens.</p></li><li><p>The LLM runs unchanged and produces text.</p></li></ol>
+<figure data-embed="node/fa2568ab-5340"><figcaption>Figure 18.2 · how a vision-language model receives an image</figcaption></figure>
+<p>Figure 18.2: the language model itself is unchanged. The image arrives as vectors of the same width as token embeddings, placed in the same sequence as the text.</p>
+<p>The combined system is trained on image-text data: captions, questions about images, documents, charts, screenshots. From the LLM&#39;s side an image is a stretch of unusual tokens in its context, and attention lets every later position consult them.</p>
+<p>This has a practical cost: an image occupies hundreds or thousands of positions in the context window. And it has a practical payoff beyond describing pictures. A model that can read a screenshot can be given the screen as its observation and the mouse and keyboard as its tools, which makes it an agent that operates ordinary software (Section 16.6).</p>
+<p>Generating other modalities takes one of two routes: predict discrete codes from a learned codec autoregressively, like text, or condition a diffusion model on the LLM&#39;s output.</p>
+<h2 id="185-diffusion-models">18.5 Diffusion models</h2>
+<p>Autoregressive modeling suits discrete sequences. For continuous, high-dimensional data such as images, the dominant generative method is <strong>diffusion</strong>. The idea: define a process that gradually destroys data by adding noise, and train a network to undo one small step of it. To generate, start from pure noise and undo all the steps.</p>
+<p><strong>The forward process</strong> is fixed, with no learned parameters. At each of T steps it shrinks the signal slightly and adds a little Gaussian noise with variance β_t. Composing Gaussian steps gives a closed form for the result of t steps applied to a data point x_0:</p>
+<pre><code class="language-latex">x_t \;=\; \sqrt{\bar\alpha_t}\; x_0 \;+\; \sqrt{1 - \bar\alpha_t}\;\, \varepsilon, \qquad \varepsilon \sim \mathcal{N}(0, I), \qquad \bar\alpha_t = \prod_{s=1}^{t} (1 - \beta_s).</code></pre>
+<p>As t grows, the first coefficient falls to zero, and x_T is indistinguishable from pure Gaussian noise.</p>
+<figure data-embed="node/439e2f97-e3bc"><figcaption>Figure 18.3 · the forward and reverse processes of a diffusion model (schematic)</figcaption></figure>
+<p>Figure 18.3: a schematic with sixteen points that start on a ring. The forward direction needs no training. The network is trained only for the reverse direction, and generation runs that direction starting from pure noise.</p>
+<p><strong>Training.</strong> A network ε_θ takes a noisy sample and the step index and predicts the noise that was added (Ho, Jain, and Abbeel, 2020):</p>
+<pre><code class="language-latex">L(\theta) \;=\; \mathbb{E}_{x_0,\; t,\; \varepsilon}\Big[\big\lVert \varepsilon - \varepsilon_\theta\big(\sqrt{\bar\alpha_t}\,x_0 + \sqrt{1-\bar\alpha_t}\,\varepsilon,\;\, t\big) \big\rVert^2\Big].</code></pre>
+<p>That is ordinary least-squares regression. Draw a data point, a random step, and a noise vector; form the noisy sample from the closed form; regress the network&#39;s output onto the noise. There is no adversary, no sampling inside the training loop, and nothing unstable.</p>
+<p><strong>Sampling.</strong> Start from x_T drawn from a standard Gaussian. For t = T down to 1, remove the predicted noise for that step and add back a smaller amount of fresh noise:</p>
+<pre><code class="language-latex">x_{t-1} \;=\; \frac{1}{\sqrt{1-\beta_t}}\left(x_t - \frac{\beta_t}{\sqrt{1-\bar\alpha_t}}\; \varepsilon_\theta(x_t, t)\right) + \sqrt{\beta_t}\; z, \qquad z \sim \mathcal{N}(0, I).</code></pre>
+<p><strong>Why it works.</strong> The best possible noise prediction is the conditional mean of the noise given the noisy sample, and that mean is proportional to the gradient of the log-density of noisy data, a quantity called the <strong>score</strong> (Problem 18.4). So each denoising step moves the sample toward regions where data is more probable. At high noise levels the score describes only the coarse shape of the distribution; at low levels, fine detail. Sampling therefore settles global structure first and details last.</p>
+<p>In continuous time the forward process is a stochastic differential equation, and generation is the integration of a corresponding reverse-time equation, which also has a deterministic ordinary-differential-equation form (Song and others, 2021). This view turns sampler design into numerical integration: better integrators need fewer network evaluations, and modern samplers use tens of steps where early ones used a thousand. A closely related formulation, flow matching, trains the network to predict a velocity along straight paths from noise to data and is now widely used.</p>
+<p><strong>Conditioning and guidance.</strong> For text-to-image generation the denoiser also receives an embedding c of the prompt, usually through cross-attention. <strong>Classifier-free guidance</strong> (Ho and Salimans, 2022) strengthens the effect of the prompt. Train the same network with the prompt sometimes dropped, so it can predict noise both with and without conditioning. When sampling, extrapolate from the unconditional prediction past the conditional one:</p>
+<pre><code class="language-latex">\tilde\varepsilon \;=\; \varepsilon_\theta(x_t, t) \;+\; w\,\big(\varepsilon_\theta(x_t, t, c) - \varepsilon_\theta(x_t, t)\big), \qquad w &gt; 1.</code></pre>
+<p>Larger w gives images that match the prompt more closely and vary less.</p>
+<p><strong>Latent diffusion.</strong> Running diffusion on pixels is expensive. Rombach and others (2022) first train an autoencoder that compresses an image to a much smaller grid of latent vectors, for instance 512 × 512 × 3 down to 64 × 64 × 4, and run the diffusion model in that latent space. A decoder turns the final latent back into pixels. Most image and video generators follow this design. The denoising network was originally convolutional and is now often a Transformer over latent patches.</p>
+<blockquote><p><strong>Checkpoint 18.1.</strong> In the training objective, the network is asked to predict noise that was drawn independently of everything else. Why is that not an impossible task? What information about the noise does the network actually have?</p></blockquote>
+<h2 id="186-two-ways-to-generate">18.6 Two ways to generate</h2>
+<table><thead><tr><th></th><th>Autoregressive</th><th>Diffusion</th></tr></thead><tbody><tr><td>Natural data type</td><td>Discrete sequences</td><td>Continuous arrays</td></tr><tr><td>What is learned</td><td>The distribution of the next element given the previous ones</td><td>The noise in a corrupted sample at every noise level</td></tr><tr><td>Generation</td><td>One element per network call, in order</td><td>All elements at once, refined over a fixed number of calls</td></tr><tr><td>Loss</td><td>Cross-entropy</td><td>Squared error</td></tr><tr><td>Typical use</td><td>Text, code, discrete audio codes</td><td>Images, video, audio waveforms</td></tr></tbody></table>
+<p>The two share the idea that makes both work. Learning a complicated high-dimensional distribution directly is hard. Each method breaks generation into many small steps, each of which is an ordinary supervised prediction problem with a simple loss: predict the next token, or remove a little noise. A network trained on the easy steps can be iterated to do the hard thing.</p>
+<h2 id="lab-18-diffusion-in-two-dimensions">Lab 18: diffusion in two dimensions</h2>
+<p>The data are points in the plane drawn from eight tight clusters on a circle. The &quot;image&quot; has two pixels, which lets a small MLP serve as the denoiser and lets you see everything.</p>
+<pre><code class="language-python">import math, torch, torch.nn as nn
+
+torch.manual_seed(0)
+angles = torch.arange(8) * (2 * math.pi / 8)
+centers = 2.0 * torch.stack([angles.cos(), angles.sin()], dim=1)   # eight points on a circle
+X = centers[torch.randint(0, 8, (4000,))] + 0.1 * torch.randn(4000, 2)   # data: eight tight clusters
+
+T = 200
+betas = torch.linspace(1e-4, 0.05, T)              # noise added at each step
+alphas = 1 - betas
+abar = torch.cumprod(alphas, dim=0)                # fraction of signal variance left after t steps
+
+def t_features(t):                                 # sinusoidal features of the step index
+    freqs = torch.exp(torch.linspace(0, math.log(100.0), 8))
+    ang = (t.float() / T)[:, None] * freqs[None, :] * 2 * math.pi
+    return torch.cat([ang.sin(), ang.cos()], dim=1)
+
+net = nn.Sequential(nn.Linear(2 + 16, 128), nn.SiLU(), nn.Linear(128, 128), nn.SiLU(), nn.Linear(128, 2))
+opt = torch.optim.Adam(net.parameters(), lr=2e-3)
+
+for step in range(4001):
+    x0 = X[torch.randint(0, len(X), (256,))]
+    t = torch.randint(0, T, (256,))
+    eps = torch.randn_like(x0)
+    xt = abar[t].sqrt()[:, None] * x0 + (1 - abar[t]).sqrt()[:, None] * eps     # jump straight to step t
+    loss = ((net(torch.cat([xt, t_features(t)], dim=1)) - eps) ** 2).mean()     # predict the noise
+    opt.zero_grad(); loss.backward(); opt.step()
+    if step % 1000 == 0:
+        print(f&quot;step {step:4d}  loss {loss.item():.3f}&quot;)
+
+@torch.no_grad()
+def sample(n):
+    x = torch.randn(n, 2)                          # start from pure noise
+    for t in reversed(range(T)):
+        tt = torch.full((n,), t)
+        eps_hat = net(torch.cat([x, t_features(tt)], dim=1))
+        mean = (x - betas[t] / (1 - abar[t]).sqrt() * eps_hat) / alphas[t].sqrt()
+        x = mean + (betas[t].sqrt() * torch.randn_like(x) if t &gt; 0 else 0)
+    return x
+
+def report(name, pts):
+    d = torch.cdist(pts, centers)                  # distance of each point to each cluster center
+    near = d.min(dim=1).values &lt; 0.3               # within 3 standard deviations of some center
+    share = torch.bincount(d.argmin(dim=1)[near], minlength=8).float() / max(1, int(near.sum()))
+    print(f&quot;{name:12s} on a cluster: {near.float().mean().item():.3f}   &quot;
+          f&quot;cluster shares: {&#39; &#39;.join(f&#39;{v:.2f}&#39; for v in share.tolist())}&quot;)
+
+report(&quot;data&quot;, X)
+report(&quot;pure noise&quot;, torch.randn(2000, 2))
+report(&quot;samples&quot;, sample(2000))</code></pre>
+<p>Measured:</p>
+<table><thead><tr><th>Points</th><th>Fraction lying on a cluster</th><th>Clusters represented</th></tr></thead><tbody><tr><td>Training data</td><td>0.990</td><td>All 8, evenly</td></tr><tr><td>Pure noise</td><td>0.049</td><td>n/a</td></tr><tr><td>Generated samples</td><td>0.796</td><td>All 8, shares between 0.10 and 0.17</td></tr></tbody></table>
+<p>The training loss settles near 0.3 to 0.4 and does not go to zero, because at high noise levels the noise cannot be determined from the noisy sample. Starting from noise in which 5 percent of points lie near a cluster, 200 denoising steps place 80 percent on one, with every cluster covered. The remaining 20 percent show that a small network trained briefly is an imperfect denoiser; Tasks 1 and 2 examine this.</p>
+<p><strong>Tasks.</strong></p>
+<ol><li><p>Save the points at steps 200, 150, 100, 50, 20, and 0 of sampling and plot them. At what noise level do the eight clusters become visible?</p></li><li><p>Improve the on-cluster fraction. Try more training steps, a wider network, and T = 1000 with a correspondingly smaller final β. Which matters most?</p></li><li><p>Implement a deterministic sampler that takes 20 steps instead of 200. How much quality is lost?</p></li><li><p>Add conditioning: give the network the cluster index as an extra input, dropped at random 10 percent of the time. Implement classifier-free guidance and sample from one chosen cluster at w = 0, 1, and 3.</p></li><li><p>Write <code>patchify</code>, mapping a tensor of shape (B, 3, 224, 224) to (B, 196, 768), and its inverse. Check that they compose to the identity.</p></li><li><p>Implement the contrastive loss of Section 18.3 for random unit vectors. Confirm that it starts near log N and that a gradient step raises the diagonal of the similarity matrix.</p></li></ol>
+<h2 id="problems">Problems</h2>
+<p><strong>18.1</strong> ★ (A) How many tokens does a ViT with patch size 14 produce for a 448 × 448 image? If the image side doubles, by what factor does the cost of self-attention over the patches grow?</p>
+<p><strong>18.2</strong> ★★ (A) Derive the closed form for x_t in Section 18.5 from the single-step rule x_t = sqrt(1 − β_t) x_(t−1) + sqrt(β_t) ε_t, by induction.</p>
+<p><strong>18.3</strong> ★★ What is the value of the contrastive loss for a randomly initialized pair of encoders with batch size N? Why do larger batches make the task harder and the learned representation better?</p>
+<p><strong>18.4</strong> ★★ (A) Show that the function minimizing the diffusion training loss is the conditional expectation of ε given x_t. Then, using the closed form for x_t, relate it to the gradient of log p_t(x_t).</p>
+<p><strong>18.5</strong> ★★ Interpret classifier-free guidance at w = 0, w = 1, and w &gt; 1. Why might very large w produce unnatural samples?</p>
+<p><strong>18.6</strong> ★ (A) By what factor does the latent diffusion example in Section 18.5 reduce the number of values the diffusion model must generate?</p>
+<p><strong>18.7</strong> ★★★ Text is generated autoregressively and images by diffusion. Argue for why, considering the structure of each kind of data. Then make the best case you can for the reverse assignment in each case.</p>
+<h2 id="further-reading">Further reading</h2>
+<ul><li><p>Dosovitskiy and others, &quot;An image is worth 16x16 words: Transformers for image recognition at scale&quot; (2020).</p></li><li><p>Radford and others, &quot;Learning transferable visual models from natural language supervision&quot; (2021).</p></li><li><p>Ho, Jain, and Abbeel, &quot;Denoising diffusion probabilistic models&quot; (2020).</p></li><li><p>Song and others, &quot;Score-based generative modeling through stochastic differential equations&quot; (2021).</p></li><li><p>Rombach, Blattmann, Lorenz, Esser, and Ommer, &quot;High-resolution image synthesis with latent diffusion models&quot; (2022).</p></li><li><p>Ho and Salimans, &quot;Classifier-free diffusion guidance&quot; (2022).</p></li><li><p>Lipman and others, &quot;Flow matching for generative modeling&quot; (2022).</p></li></ul>

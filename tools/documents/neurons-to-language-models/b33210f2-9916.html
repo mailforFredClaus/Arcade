@@ -1,0 +1,119 @@
+<h1 id="chapter-3-statistical-learning-in-one-chapter">Chapter 3: Statistical Learning in One Chapter</h1>
+<p><strong>Objectives.</strong> After this chapter you can:</p>
+<ul><li><p>state supervised learning as risk minimization and explain why three data splits are needed;</p></li><li><p>derive linear, logistic, and softmax regression from maximum likelihood;</p></li><li><p>implement softmax regression with gradient descent and check it numerically;</p></li><li><p>explain overfitting, the bias-variance decomposition, and what regularization does.</p></li></ul>
+<h2 id="31-the-setup">3.1 The setup</h2>
+<p>Assume inputs and targets are drawn from a fixed but unknown joint distribution p(x, y). You want a function f whose predictions incur small loss on average over that distribution. This average is the <strong>risk</strong>:</p>
+<pre><code class="language-latex">R(f) \;=\; \mathbb{E}_{(x,y)\sim p}\big[\ell(f(x),\,y)\big].</code></pre>
+<p>The risk cannot be computed, because p is unknown. What you have is a sample of N pairs, assumed independent and identically distributed (i.i.d.). The <strong>empirical risk</strong> replaces the expectation with the sample average, and <strong>empirical risk minimization</strong> (ERM) picks the f in your family that minimizes it. This is the training objective from Chapter 1.</p>
+<p>The difference between risk and empirical risk at the trained model is the <strong>generalization gap</strong>. Training drives empirical risk down directly. It drives risk down only to the extent that the gap stays small.</p>
+<p><strong>Three splits.</strong> Because the model was chosen to do well on the training data, its training loss is a biased, optimistic estimate of risk. So data is divided three ways.</p>
+<table><thead><tr><th>Split</th><th>Used for</th><th>Why it must be separate</th></tr></thead><tbody><tr><td>Training</td><td>Fitting parameters</td><td>It is what the optimizer sees</td></tr><tr><td>Validation</td><td>Choosing hyperparameters, architecture, and when to stop</td><td>Those choices are also fit to data, so they need data the parameters did not see</td></tr><tr><td>Test</td><td>One final estimate of risk</td><td>Any data used for any decision is contaminated as an estimate</td></tr></tbody></table>
+<p>The rule is strict: if you look at test performance and then change anything, the test set has become a validation set. Chapter 17 shows this failure at the scale of the whole field.</p>
+<h2 id="32-linear-regression">3.2 Linear regression</h2>
+<p>The simplest model is linear: f(x) = wᵀx + b. Stack the N inputs as rows of a matrix X and absorb the bias by appending a constant 1 to each input. With squared loss the objective is</p>
+<pre><code class="language-latex">L(w) \;=\; \frac{1}{2N}\,\lVert Xw - y\rVert^2, \qquad \nabla L(w) \;=\; \frac{1}{N}\,X^{\top}(Xw - y).</code></pre>
+<p>Setting the gradient to zero gives the normal equations XᵀX w = Xᵀy. From Chapter 2, this is also the maximum likelihood estimate when the targets are a linear function of the inputs plus Gaussian noise.</p>
+<p>The closed form exists only because the model is linear and the loss quadratic. Gradient descent on the same objective needs only the gradient, which has the same structure in every model in this book: <strong>a matrix of inputs, transposed, times a vector of errors</strong>. Watch for that pattern.</p>
+<h2 id="33-logistic-regression">3.3 Logistic regression</h2>
+<p>For a binary target y ∈ {0, 1}, model the probability of class 1 by squashing a linear score through the logistic sigmoid:</p>
+<pre><code class="language-latex">p(y = 1 \mid x) \;=\; \sigma(z), \qquad z = w^{\top}x + b, \qquad \sigma(z) = \frac{1}{1 + e^{-z}} .</code></pre>
+<p>The score z is called a <strong>logit</strong>. The likelihood of one example under this Bernoulli model is σ(z)^y (1 − σ(z))^(1−y), so the negative log-likelihood is the <strong>binary cross-entropy</strong>:</p>
+<pre><code class="language-latex">\ell(z, y) \;=\; -\,y \log \sigma(z) \;-\; (1-y)\log\big(1 - \sigma(z)\big).</code></pre>
+<p>Using σ′(z) = σ(z)(1 − σ(z)), the derivative collapses to something simple (Problem 3.2):</p>
+<pre><code class="language-latex">\frac{\partial \ell}{\partial z} \;=\; \sigma(z) - y, \qquad \nabla_w \ell \;=\; \big(\sigma(z) - y\big)\,x .</code></pre>
+<p>Prediction minus target, times input. There is no closed-form minimizer, but the objective is convex (Problem 3.3), so gradient descent finds the global minimum. The decision boundary, where σ(z) = ½, is the hyperplane wᵀx + b = 0.</p>
+<h2 id="34-softmax-regression">3.4 Softmax regression</h2>
+<p>For K classes, compute one logit per class, z = Wx + b with W ∈ R^(K×n), and convert logits to probabilities with the <strong>softmax</strong> function:</p>
+<pre><code class="language-latex">p_k \;=\; \operatorname{softmax}(z)_k \;=\; \frac{e^{z_k}}{\sum_{j=1}^{K} e^{z_j}} .</code></pre>
+<p>The outputs are positive and sum to 1. Softmax is the smooth version of &quot;pick the largest&quot;: the largest logit gets most of the mass, and differences between logits, not their absolute values, determine the result. Adding a constant to every logit changes nothing.</p>
+<p>The model is a categorical distribution, so the NLL of an example with correct class c is the <strong>cross-entropy loss</strong>:</p>
+<pre><code class="language-latex">\ell(z, c) \;=\; -\log p_c \;=\; -z_c + \log\sum_{j=1}^{K} e^{z_j} .</code></pre>
+<p>Its gradient with respect to the logits (Problem 2.3) is</p>
+<pre><code class="language-latex">\frac{\partial \ell}{\partial z} \;=\; p - e_c , \qquad \frac{\partial \ell}{\partial W} \;=\; (p - e_c)\,x^{\top},</code></pre>
+<p>where e_c is the one-hot vector for class c. Once more: prediction minus target, times input. The recurrence across linear, logistic, and softmax regression is not a coincidence. All three are generalized linear models with their natural link functions, and that pairing always gives this gradient.</p>
+<p><strong>Why this section matters more than it looks.</strong> The output layer of every LLM is exactly softmax regression. K is the vocabulary size, x is the final hidden vector at a position, and the loss is this cross-entropy with c the token that came next. Everything before the output layer exists to produce a good x.</p>
+<p><strong>Numerical stability.</strong> Computing exp(z) overflows for large logits. Since softmax is invariant to shifts, subtract the maximum logit first so that the largest exponent is exp(0) = 1. For the loss, compute log-probabilities directly as z − logsumexp(z) and never take the log of a computed probability. Frameworks combine softmax and cross-entropy into one function that takes logits for this reason.</p>
+<p><strong>A sanity check.</strong> With zero weights every class gets probability 1/K, so the initial loss is log K. If a freshly initialized classifier does not start near log K, something is wrong. This check applies to every model in the book, including LLMs, where a new model should start near log V.</p>
+<blockquote><p><strong>Checkpoint 3.1.</strong> A 3-class model outputs logits (2, 0, −2) for an example of class 1 (the first). Compute the probabilities, the loss, and the gradient with respect to the logits. Which logit will a gradient step increase?</p></blockquote>
+<h2 id="35-generalization">3.5 Generalization</h2>
+<p>Fit polynomials of degree 1, 3, and 15 to twenty noisy samples of a smooth curve. The line misses the shape: it <strong>underfits</strong>. The cubic tracks the curve. The degree-15 polynomial passes near every training point and oscillates wildly between them: it <strong>overfits</strong>, having spent its capacity on the noise.</p>
+<figure data-embed="node/544d0a19-c662"><figcaption>Figure 3.1 · least-squares polynomial fits to 20 noisy samples of a sine curve; errors are mean squared error</figcaption></figure>
+<p>Figure 3.1: the same twenty points, fitted three ways. These are actual least-squares fits. The degree-15 curve leaves the frame between data points, and its error on fresh samples is astronomically large even though its training error is the smallest of the three.</p>
+<p>For squared loss this trade-off has an exact form. Imagine redrawing the training set many times and refitting. At a fixed test input, the expected squared error of the fitted model decomposes into three terms:</p>
+<pre><code class="language-latex">\mathbb{E}\big[(y - \hat f(x))^2\big] \;=\; \underbrace{\sigma^2}_{\text{noise}} \;+\; \underbrace{\big(\mathbb{E}[\hat f(x)] - f(x)\big)^2}_{\text{bias}^2} \;+\; \underbrace{\operatorname{Var}\big[\hat f(x)\big]}_{\text{variance}} .</code></pre>
+<p>Bias is error from the family being unable to represent the truth. Variance is error from the fit depending on which sample you happened to draw. Small families have high bias and low variance; large families the reverse. The classical picture is a U-shaped curve of test error against model capacity, with a best capacity in the middle.</p>
+<p>Keep this picture, and hold it loosely. It is correct for the models of this chapter. Modern networks are trained far to the right of where the U predicts disaster, and they generalize anyway. Chapter 20 is about why.</p>
+<h2 id="36-regularization">3.6 Regularization</h2>
+<p>Regularization is anything that reduces the generalization gap, usually by restricting or penalizing the family.</p>
+<p><strong>L2 penalty.</strong> Add (λ/2)‖w‖² to the loss. Large weights are penalized, the fitted function becomes smoother, and variance falls at some cost in bias. For linear regression the solution becomes (XᵀX + λNI)⁻¹Xᵀy, which also cures ill-conditioning. In the singular basis of X, the penalty shrinks each component by a factor that is near 1 for directions the data constrain well and near 0 for directions it barely constrains (Problem 3.5). In gradient descent the penalty contributes λw to the gradient, so each step multiplies the weights by (1 − ηλ): hence the name <strong>weight decay</strong>.</p>
+<p><strong>L1 penalty.</strong> Adding λ‖w‖₁ drives many weights exactly to zero and so selects features.</p>
+<p><strong>Early stopping.</strong> Stop training when validation loss stops improving. For linear models trained by gradient descent from zero this behaves much like an L2 penalty, because the poorly constrained directions are the slowest to be fit.</p>
+<p><strong>More data.</strong> Variance falls as N grows. When more data is available it is the most reliable regularizer, which is one reason the field moved to pretraining on enormous unlabeled corpora.</p>
+<h2 id="37-where-linear-models-stop">3.7 Where linear models stop</h2>
+<p>A linear classifier can only draw hyperplanes. The lab below fits a three-class problem made of Gaussian blobs almost perfectly and fails on three interleaved spirals, because no set of straight boundaries separates spirals.</p>
+<p>The classical fix is a <strong>feature map</strong>: replace x by a fixed nonlinear function φ(x), such as polynomials or radial basis functions, and fit a linear model on top. The model is then nonlinear in x and still linear in its parameters. This works when someone knows the right features. The idea of the next chapter is to make φ itself a parameterized function and learn it together with the linear model on top.</p>
+<h2 id="lab-3-softmax-regression-from-scratch">Lab 3: softmax regression from scratch</h2>
+<p>First, two synthetic datasets. Save as <code>data.py</code>.</p>
+<pre><code class="language-python">import numpy as np
+
+def make_blobs(n_per=100, k=3, seed=0):
+    rng = np.random.default_rng(seed)
+    angles = 2 * np.pi * np.arange(k) / k
+    centers = 2.0 * np.stack([np.cos(angles), np.sin(angles)], axis=1)
+    X = np.concatenate([c + 0.6 * rng.normal(size=(n_per, 2)) for c in centers])
+    y = np.repeat(np.arange(k), n_per)
+    return X, y
+
+def make_spiral(n_per=100, k=3, seed=0):
+    rng = np.random.default_rng(seed)
+    X = np.zeros((n_per * k, 2)); y = np.zeros(n_per * k, dtype=int)
+    for j in range(k):
+        r = np.linspace(0.0, 1.0, n_per)
+        t = np.linspace(j * 4, (j + 1) * 4, n_per) + 0.2 * rng.normal(size=n_per)
+        X[j * n_per:(j + 1) * n_per] = np.c_[r * np.sin(t), r * np.cos(t)]
+        y[j * n_per:(j + 1) * n_per] = j
+    return X, y</code></pre>
+<p>Then the model. Note that the code stores examples as rows, so the weight matrix here has shape (n, K), the transpose of the W in the text.</p>
+<pre><code class="language-python">import numpy as np
+from data import make_blobs, make_spiral
+
+def softmax(z):
+    z = z - z.max(axis=1, keepdims=True)      # stability: shift so the max is 0
+    e = np.exp(z)
+    return e / e.sum(axis=1, keepdims=True)
+
+def train_softmax(X, y, k, lr=0.5, steps=500, wd=1e-4):
+    n, d = X.shape
+    W = np.zeros((d, k)); b = np.zeros(k)
+    Y = np.eye(k)[y]                          # one-hot targets, shape (n, k)
+    for t in range(steps):
+        P = softmax(X @ W + b)                # (n, k) predicted probabilities
+        loss = -np.log(P[np.arange(n), y]).mean() + 0.5 * wd * (W ** 2).sum()
+        G = (P - Y) / n                       # dL/dlogits
+        W -= lr * (X.T @ G + wd * W)
+        b -= lr * G.sum(axis=0)
+        if t % 100 == 0:
+            print(f&quot;step {t:4d}  loss {loss:.4f}&quot;)
+    return W, b
+
+def accuracy(X, y, W, b):
+    return (np.argmax(X @ W + b, axis=1) == y).mean()
+
+for name, make in [(&quot;blobs&quot;, make_blobs), (&quot;spiral&quot;, make_spiral)]:
+    X, y = make()
+    W, b = train_softmax(X, y, k=3)
+    print(f&quot;{name}: train accuracy {accuracy(X, y, W, b):.3f}\n&quot;)</code></pre>
+<p>Expected output: both runs start at loss 1.0986, which is log 3. The blobs reach loss 0.02 and accuracy 0.997. The spiral stalls at loss 0.735 and accuracy 0.54.</p>
+<p><strong>Tasks.</strong></p>
+<ol><li><p>Verify <code>X.T @ G</code> against <code>numerical_grad</code> from Lab 2 on a batch of ten examples.</p></li><li><p>Plot the decision regions for both datasets by classifying a grid of points. Confirm the boundaries are straight.</p></li><li><p>Split each dataset 80/20 at random and report held-out accuracy. Is there a generalization gap on the blobs? Why is it small?</p></li><li><p>Add hand-designed features to the spiral inputs, for example the radius and sin and cos of several multiples of the angle. How high can you push accuracy with a linear model? How much did you need to know about the data?</p></li></ol>
+<h2 id="problems">Problems</h2>
+<p><strong>3.1</strong> ★ Derive the normal equations from the gradient in Section 3.2. When is XᵀX singular, and what does that mean about the data?</p>
+<p><strong>3.2</strong> ★ (A) Show that the derivative of binary cross-entropy with respect to the logit is σ(z) − y.</p>
+<p><strong>3.3</strong> ★★ Show that the logistic regression objective is convex by computing its Hessian and showing it is positive semidefinite.</p>
+<p><strong>3.4</strong> ★★ (A) Show that softmax regression with K = 2 is logistic regression. What is the logistic weight vector in terms of the two softmax weight vectors? What does this say about the number of free parameters in softmax regression?</p>
+<p><strong>3.5</strong> ★★ (A) Let X = UΣVᵀ. Show that the ridge solution shrinks the component of the least-squares solution along the i-th right singular vector by the factor σ_i² / (σ_i² + λN).</p>
+<p><strong>3.6</strong> ★★ Derive the bias-variance decomposition of Section 3.5. Where is independence of the test noise from the training set used?</p>
+<p><strong>3.7</strong> ★★ (A) Logistic regression is trained without regularization on linearly separable data. Show that the loss has no minimizer: the weights grow without bound. What happens to the predicted probabilities, and why might that be undesirable?</p>
+<p><strong>3.8</strong> ★★★ Reproduce the polynomial experiment of Section 3.5. Plot training and test error against degree for N = 20 and N = 200. Then add an L2 penalty to the degree-15 fit and plot test error against λ.</p>
+<h2 id="further-reading">Further reading</h2>
+<ul><li><p>Hastie, Tibshirani, and Friedman, <em>The Elements of Statistical Learning</em> (2009), Chapters 2, 3, and 7.</p></li><li><p>Bishop, <em>Pattern Recognition and Machine Learning</em> (2006), Chapters 3 and 4.</p></li><li><p>Murphy, <em>Probabilistic Machine Learning: An Introduction</em> (2022), Chapters 10 and 11.</p></li></ul>

@@ -1,0 +1,82 @@
+<h1 id="chapter-8-convolution-and-inductive-bias">Chapter 8: Convolution and Inductive Bias</h1>
+<p><strong>Objectives.</strong> After this chapter you can:</p>
+<ul><li><p>define a convolutional layer and compute its output shape and parameter count;</p></li><li><p>explain locality, weight sharing, and translation equivariance;</p></li><li><p>describe the structure of a modern convolutional network;</p></li><li><p>define inductive bias and explain the trade between built-in structure and data.</p></li></ul>
+<p>This chapter is shorter than its neighbors. Convolutional networks are not on the direct path to language models, but the idea they illustrate, that architecture is a way of telling the model what you already know, is essential for understanding why the Transformer looks the way it does.</p>
+<h2 id="81-why-not-an-mlp-on-pixels">8.1 Why not an MLP on pixels</h2>
+<p>A modest color image of 224 × 224 pixels has 150,528 input values. A first hidden layer of 1000 units would need 150 million weights, for one layer.</p>
+<p>The waste is worse than the count suggests. An MLP treats its inputs as an unordered list. It does not know that two pixels are neighbors, and a detector learned for an edge in the top-left corner says nothing about the same edge in the bottom-right. The network would have to learn every feature separately at every position, from examples that happen to show it there.</p>
+<h2 id="82-the-convolutional-layer">8.2 The convolutional layer</h2>
+<p>A convolutional layer slides a small learned filter over the image and reports how well each neighborhood matches it. With input x of shape (C_in, H, W) and a kernel K of shape (C_out, C_in, k, k):</p>
+<pre><code class="language-latex">y[o, i, j] \;=\; b_o + \sum_{c=1}^{C_{\mathrm{in}}} \sum_{u=0}^{k-1} \sum_{v=0}^{k-1} K[o, c, u, v]\;\, x[c,\, i+u,\, j+v] .</code></pre>
+<p>Each output channel o is a map of where its filter&#39;s pattern occurs. Strictly this is cross-correlation; the name convolution has stuck.</p>
+<figure data-embed="node/4c750c4b-c84e"><figcaption>Figure 8.1 · a 3 × 3 filter applied to a 7 × 7 input with no padding gives a 5 × 5 feature map</figcaption></figure>
+<p>Figure 8.1: the shaded window is multiplied entry by entry with the filter and summed to give the one shaded output value. Sliding the window to each of the 25 positions fills the feature map, always with the same nine weights.</p>
+<p><strong>Shapes and parameters.</strong> With stride s and zero padding p on each side, the output height is floor((H + 2p − k)/s) + 1, and likewise for width. The layer has C_out (C_in k² + 1) parameters. That count does not depend on the image size.</p>
+<p><strong>Three assumptions are built in.</strong></p>
+<ol><li><p><strong>Locality.</strong> Each output depends only on a k × k neighborhood. Nearby pixels are assumed to be the ones that matter to each other.</p></li><li><p><strong>Weight sharing.</strong> The same filter is applied at every position. A feature worth detecting somewhere is assumed worth detecting everywhere.</p></li><li><p><strong>Translation equivariance.</strong> As a consequence, shifting the input shifts the output by the same amount: conv(shift(x)) = shift(conv(x)).</p></li></ol>
+<p>A convolutional layer is a special case of a linear layer: one whose weight matrix is mostly zeros, with the nonzero entries tied together in a repeating pattern (Problem 8.2). Everything in Chapter 5 applies unchanged. What changed is that the hypothesis space has been cut down to functions that respect the structure of images.</p>
+<p><strong>Pooling.</strong> A pooling layer summarizes each small window, usually 2 × 2, by its maximum or mean, halving the resolution. It gives a little invariance to small shifts and lets later layers see a larger region of the original image. The region of the input that can affect a given unit is its <strong>receptive field</strong>, and it grows with depth.</p>
+<blockquote><p><strong>Checkpoint 8.1.</strong> A layer has 64 filters of size 3 × 3 over 32 input channels. How many parameters does it have? How many would a fully connected layer need to map a 32 × 56 × 56 input to a 64 × 56 × 56 output?</p></blockquote>
+<h2 id="83-convolutional-architectures">8.3 Convolutional architectures</h2>
+<table><thead><tr><th>Network</th><th>Year</th><th>Depth</th><th>Contribution</th></tr></thead><tbody><tr><td>LeNet-5</td><td>1998</td><td>5</td><td>Convolution and pooling, trained by backpropagation, reading digits</td></tr><tr><td>AlexNet</td><td>2012</td><td>8</td><td>ReLU, dropout, GPU training, a million labeled images</td></tr><tr><td>VGG</td><td>2014</td><td>16 to 19</td><td>Stacks of 3 × 3 filters throughout</td></tr><tr><td>ResNet</td><td>2015</td><td>50 to 152</td><td>Residual connections with batch normalization</td></tr></tbody></table>
+<p>The common design is a sequence of stages. Each stage applies several convolutional blocks, then reduces spatial resolution and increases the number of channels. Spatial detail is traded for semantic content. A global average over the remaining positions feeds a final softmax layer.</p>
+<p>Visualizing what the units respond to shows a hierarchy that nobody programmed: oriented edges and color blobs in the first layer, textures next, then object parts, then whole objects. It is the clearest picture available of learned features composing.</p>
+<p><strong>Transfer.</strong> Features learned on one large labeled dataset turned out to be useful for other visual tasks. One could take a network trained on ImageNet, replace its last layer, and fine-tune on a small dataset with good results. This pretrain-then-adapt pattern, discovered in vision, is the template that language models later followed at far greater scale.</p>
+<h2 id="84-inductive-bias">8.4 Inductive bias</h2>
+<p>An <strong>inductive bias</strong> is any assumption built into a learner that makes it prefer some solutions over others before seeing data. Every learner has one. Without it, a finite dataset is consistent with infinitely many functions and there is no basis for choosing among them.</p>
+<p>Architecture is the main place inductive bias lives.</p>
+<table><thead><tr><th>Architecture</th><th>What it assumes</th><th>Symmetry respected</th></tr></thead><tbody><tr><td>MLP</td><td>Nothing about input structure</td><td>None</td></tr><tr><td>Convolutional network</td><td>Locality; the same features matter everywhere</td><td>Translation</td></tr><tr><td>Recurrent network (Chapter 10)</td><td>Inputs arrive in order; the same update applies at every step</td><td>Shift in time</td></tr><tr><td>Transformer (Chapter 11)</td><td>Almost nothing: any position may be relevant to any other</td><td>Permutation of positions, until position information is added as input</td></tr></tbody></table>
+<p><strong>The trade.</strong> A strong bias that matches the data buys sample efficiency: the model does not have to spend examples learning what it was told. A strong bias that does not quite match becomes a ceiling. A weak bias needs more data to reach the same quality but can then learn structure that no designer anticipated.</p>
+<p>Lab 8 shows the first half. With the same number of parameters and the same data, a convolutional network beats an MLP on small digit images, and when the test images are shifted by one pixel the MLP&#39;s accuracy collapses to 51 percent while the convolutional network holds 70.</p>
+<p>The second half played out in research. When Transformers were applied to images cut into patches (the Vision Transformer, 2020), they lost to convolutional networks on datasets of a million images and matched or beat them when pretrained on hundreds of millions. With enough data, the model learned the regularities that convolution hard-codes, and was not limited by them.</p>
+<p>This is the bitter lesson of Chapter 1 in architectural form, and it sets up Part III. The Transformer is the least constrained architecture in wide use. That is why it needed enormous data, and why, once the data was available, it displaced the alternatives.</p>
+<h2 id="lab-8-convolution-against-a-matched-mlp">Lab 8: convolution against a matched MLP</h2>
+<pre><code class="language-python">import torch, torch.nn as nn, torch.nn.functional as F
+from sklearn.datasets import load_digits
+
+torch.manual_seed(0)
+digits = load_digits()
+X = torch.tensor(digits.images, dtype=torch.float32).unsqueeze(1) / 16.0   # (1797, 1, 8, 8)
+y = torch.tensor(digits.target)
+perm = torch.randperm(len(X))
+tr, te = perm[:1400], perm[1400:]
+
+cnn = nn.Sequential(
+    nn.Conv2d(1, 16, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),     # (16, 4, 4)
+    nn.Conv2d(16, 32, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),    # (32, 2, 2)
+    nn.Flatten(), nn.Linear(32 * 2 * 2, 10),
+)
+mlp = nn.Sequential(nn.Flatten(), nn.Linear(64, 80), nn.ReLU(), nn.Linear(80, 10))
+
+def shift(x, dx):                         # translate right by dx pixels, zero fill
+    out = torch.zeros_like(x)
+    out[..., dx:] = x[..., :x.shape[-1] - dx]
+    return out
+
+def acc(net, x, t):
+    with torch.no_grad():
+        return (net(x).argmax(1) == t).float().mean().item()
+
+for name, net in [(&quot;MLP&quot;, mlp), (&quot;CNN&quot;, cnn)]:
+    opt = torch.optim.Adam(net.parameters(), lr=3e-3)
+    for step in range(600):
+        idx = tr[torch.randint(0, len(tr), (64,))]
+        loss = F.cross_entropy(net(X[idx]), y[idx])
+        opt.zero_grad(); loss.backward(); opt.step()
+    n_params = sum(p.numel() for p in net.parameters())
+    print(f&quot;{name}: {n_params} params   test acc {acc(net, X[te], y[te]):.3f}   &quot;
+          f&quot;shifted by 1 px {acc(net, shift(X[te], 1), y[te]):.3f}&quot;)</code></pre>
+<p>Measured:</p>
+<table><thead><tr><th>Model</th><th>Parameters</th><th>Test accuracy</th><th>Test accuracy, shifted 1 pixel</th></tr></thead><tbody><tr><td>MLP</td><td>6010</td><td>0.962</td><td>0.511</td></tr><tr><td>CNN</td><td>6090</td><td>0.987</td><td>0.703</td></tr></tbody></table>
+<p>The convolutional network is not perfectly shift-invariant either. On an 8 × 8 image one pixel is a large shift, pooling discards position only coarsely, and the final linear layer still sees a 2 × 2 grid.</p>
+<p><strong>Tasks.</strong></p>
+<ol><li><p>Verify both parameter counts by hand.</p></li><li><p>Write a naive <code>conv2d</code> in numpy with explicit loops and check it against <code>F.conv2d</code> on random inputs.</p></li><li><p>Train both models with random one-pixel shifts as data augmentation and re-evaluate. The MLP can acquire from data what the CNN has by construction. How much data does that take?</p></li><li><p>Replace the final <code>Flatten</code> and <code>Linear</code> with global average pooling followed by a linear layer on 32 features. What happens to shifted accuracy, and why?</p></li></ol>
+<h2 id="problems">Problems</h2>
+<p><strong>8.1</strong> ★ (A) An input of shape 3 × 32 × 32 passes through: a convolution with 16 filters of size 5, stride 1, padding 2; 2 × 2 max pooling; a convolution with 32 filters of size 3, padding 1. Give the shape after each layer and the parameter count of each.</p>
+<p><strong>8.2</strong> ★★ For a one-dimensional input of length 5 and a kernel of length 3 with no padding, write the 3 × 5 matrix that the convolution is equivalent to. Which entries are zero and which are tied?</p>
+<p><strong>8.3</strong> ★★ (A) Show that the receptive field of L stacked 3 × 3 convolutions with stride 1 is (2L + 1) × (2L + 1). How does it grow if a 2 × 2 pooling layer follows each convolution?</p>
+<p><strong>8.4</strong> ★★ Prove translation equivariance for one-dimensional convolution on an infinite sequence.</p>
+<p><strong>8.5</strong> ★★ Explain why max pooling gives only approximate invariance to translation. Construct a small example where a one-pixel shift changes the pooled output.</p>
+<p><strong>8.6</strong> ★★★ The Vision Transformer result suggests that data can substitute for inductive bias. Design an experiment on the digits data to estimate the exchange rate: how many training examples is the convolutional prior worth?</p>
+<h2 id="further-reading">Further reading</h2>
+<ul><li><p>LeCun, Bottou, Bengio, and Haffner, &quot;Gradient-based learning applied to document recognition&quot; (1998).</p></li><li><p>Krizhevsky, Sutskever, and Hinton, &quot;ImageNet classification with deep convolutional neural networks&quot; (2012).</p></li><li><p>Zeiler and Fergus, &quot;Visualizing and understanding convolutional networks&quot; (2014).</p></li><li><p>Dosovitskiy and others, &quot;An image is worth 16x16 words&quot; (2020).</p></li><li><p>Bronstein, Bruna, Cohen, and Veličković, &quot;Geometric deep learning&quot; (2021), for architecture as symmetry.</p></li></ul>

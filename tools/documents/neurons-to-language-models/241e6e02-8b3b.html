@@ -1,0 +1,148 @@
+<h1 id="chapter-19-interpretability">Chapter 19: Interpretability</h1>
+<p><strong>Objectives.</strong> After this chapter you can:</p>
+<ul><li><p>distinguish behavioral, representational, and mechanistic understanding of a network;</p></li><li><p>train a linear probe, with the controls needed to interpret it;</p></li><li><p>explain the difference between showing information is present and showing it is used;</p></li><li><p>describe a circuit, using induction heads as the example;</p></li><li><p>explain superposition and how sparse autoencoders address it;</p></li><li><p>state what interpretability can and cannot currently do.</p></li></ul>
+<h2 id="191-a-program-nobody-wrote">19.1 A program nobody wrote</h2>
+<p>You have the complete source of your Chapter 12 model: the architecture and every one of its 816,512 weights. You do not know how it decides that a speaker&#39;s name should come next. Training produced an algorithm, and nobody has read it.</p>
+<p>The situation resembles having a compiled binary with no source code. <strong>Interpretability</strong> is the reverse engineering. Its motivations are scientific curiosity, debugging, and the verification problem of Section 17.7: if behavior cannot be exhaustively tested, perhaps the mechanism can be inspected.</p>
+<h2 id="192-levels-of-understanding">19.2 Levels of understanding</h2>
+<table><thead><tr><th>Level</th><th>Question</th><th>Typical method</th></tr></thead><tbody><tr><td>Behavioral</td><td>What does the model do on these inputs?</td><td>Evaluation (Chapter 17)</td></tr><tr><td>Attributional</td><td>Which parts of the input influenced this output?</td><td>Gradients with respect to inputs; attention maps</td></tr><tr><td>Representational</td><td>What information is encoded in the activations?</td><td>Probes</td></tr><tr><td>Mechanistic</td><td>What algorithm do the weights implement?</td><td>Circuit analysis; causal interventions</td></tr></tbody></table>
+<p>A warning about the second row. Attention weights are tempting to read as explanations, since they say where a head &quot;looked&quot;. They are one factor in a product. A head can attend strongly to a position and copy almost nothing from it if the value vector there is small, and later layers can undo what it wrote. Treat attention maps as clues.</p>
+<h2 id="193-features-as-directions">19.3 Features as directions</h2>
+<p>The working hypothesis of most interpretability research is that a network represents a <strong>feature</strong>, some property of the input that is useful downstream, as a direction in activation space. The value of the feature is the projection of the activation onto that direction. This is the <strong>linear representation hypothesis</strong>.</p>
+<p>The evidence is cumulative. Word embeddings showed semantic relations as consistent vector offsets (Section 9.6). Linear probes, below, recover many properties from activations. Adding a feature&#39;s direction to the residual stream during a forward pass shifts the model&#39;s behavior in the corresponding way, which is called <strong>steering</strong>.</p>
+<p>The residual stream of Section 11.7 is where these directions live. Because every layer reads from and writes to the same stream by linear maps, a direction written by one layer can be read by any later one. Applying the unembedding matrix directly to the stream at an intermediate layer, a technique called the <strong>logit lens</strong>, shows the model&#39;s running guess at the next token forming as depth increases.</p>
+<h2 id="194-probing">19.4 Probing</h2>
+<p>A <strong>probe</strong> is a small model, usually linear, trained to predict some property from the frozen activations at one layer. If a linear probe succeeds on held-out data, the property is linearly decodable from that layer.</p>
+<p>Lab 19 probes your Chapter 12 model for a quantity it was never given: the number of characters since the last line break. The token at a position does not contain this. The position embedding encodes position in the context window, not in the line. To have it, the model must compute it.</p>
+<table><thead><tr><th>Model</th><th>Embedding</th><th>After block 1</th><th>After block 2</th><th>After block 3</th><th>After block 4</th></tr></thead><tbody><tr><td>Trained</td><td>0.28</td><td>0.74</td><td>0.89</td><td>0.86</td><td>0.76</td></tr><tr><td>Random initialization</td><td>0.23</td><td>0.25</td><td>0.25</td><td>0.23</td><td>0.22</td></tr></tbody></table>
+<p>The entries are R² of a ridge-regression probe on held-out positions. In the trained model the quantity is not in the embeddings, is largely present after one block, and peaks after two at 0.89. The model built a counter for position within the line, because knowing it helps predict where the line will end. Nobody asked it to. Toward the output the quantity becomes less linearly accessible, as the stream is converted into a prediction of the next character.</p>
+<p><strong>Two cautions, both essential.</strong></p>
+<p><em>Controls.</em> A probe&#39;s success can reflect the probe more than the model. The second row is the control: the same probe on an untrained model of the same architecture gets about 0.23 at every layer, from what the raw tokens and positions give away. The trained model&#39;s 0.89 is meaningful against that baseline. Without a control, a probing result is uninterpretable.</p>
+<p><em>Decodable is not the same as used.</em> A probe shows that information is present. It does not show that the model&#39;s later computation relies on it. That requires intervention.</p>
+<p><strong>Notable results from probing.</strong> A Transformer trained only on sequences of moves in the board game Othello, with no board ever shown, develops an internal representation of the board state that a probe can read, and editing that representation changes the moves the model makes in the corresponding way (Li and others, 2022; Nanda and others, 2023). Language models have been found to carry linear representations of the geographic location of places and the dates of events (Gurnee and Tegmark, 2023).</p>
+<h2 id="195-causal-interventions">19.5 Causal interventions</h2>
+<p>To show that a component matters, change it and observe the output.</p>
+<table><thead><tr><th>Intervention</th><th>Procedure</th><th>Shows</th></tr></thead><tbody><tr><td>Ablation</td><td>Replace a component&#39;s output with zero, or with its average value</td><td>Whether the component is necessary for the behavior</td></tr><tr><td>Activation patching</td><td>Run the model on a clean input and on a corrupted one. Copy one activation from the clean run into the corrupted run</td><td>Whether that activation carries the information that distinguishes the two inputs</td></tr><tr><td>Steering</td><td>Add a feature&#39;s direction to the residual stream</td><td>Whether the feature is sufficient to change behavior</td></tr></tbody></table>
+<p>Lab 19 ablates each of the sixteen attention heads of your model in turn and records the increase in held-out loss over a baseline of 1.548.</p>
+<table><thead><tr><th></th><th>Head 1</th><th>Head 2</th><th>Head 3</th><th>Head 4</th></tr></thead><tbody><tr><td>Layer 1</td><td>+0.014</td><td>+0.051</td><td>+0.047</td><td>+0.084</td></tr><tr><td>Layer 2</td><td>+0.019</td><td>+0.017</td><td>+0.017</td><td>+0.044</td></tr><tr><td>Layer 3</td><td>+0.013</td><td>+0.021</td><td>+0.023</td><td>+0.015</td></tr><tr><td>Layer 4</td><td>+0.013</td><td>+0.019</td><td>+0.012</td><td>+0.017</td></tr></tbody></table>
+<p>Every head contributes, none is indispensable, and the first layer matters most, with one head accounting for the largest single effect. This is typical: computation in trained networks is distributed and partly redundant.</p>
+<p>Setting an output to zero puts the network in a state it never saw in training, which can exaggerate or distort effects. Replacing with the mean output, or patching from a different input, is more faithful.</p>
+<blockquote><p><strong>Checkpoint 19.1.</strong> You find that a probe reads a certain property from layer 6 with 95 percent accuracy. Describe an experiment that would show whether the model uses that representation when producing its output.</p></blockquote>
+<h2 id="196-circuits">19.6 Circuits</h2>
+<p>A <strong>circuit</strong> is a set of components, such as attention heads and MLP neurons, together with the connections among them, that implements an identifiable algorithm.</p>
+<p>The best-understood example is the <strong>induction circuit</strong> (Elhage and others, 2021; Olsson and others, 2022). Its job: if the sequence so far contains ... A B ... and the current token is A again, predict B. It takes two attention heads in two different layers.</p>
+<ol><li><p>A <strong>previous-token head</strong> in an early layer. At every position it attends to the position immediately before and copies that token&#39;s identity into the current position&#39;s stream. After this, the position holding B also carries the note &quot;my predecessor was A&quot;.</p></li><li><p>An <strong>induction head</strong> in a later layer. At the current token A, its query asks for a position whose predecessor was A. That matches the key at the old B position, thanks to the note left by the first head. The head attends there and copies B&#39;s identity into the current stream, raising the logit for B.</p></li></ol>
+<figure data-embed="node/4927ca48-a466"><figcaption>Figure 19.1 · a two-head induction circuit</figcaption></figure>
+<p>Figure 19.1: two attention heads in different layers compose. The first leaves a note on B about the token before it. The second uses that note to find B from the later A, and copies it forward as the prediction.</p>
+<p>The two heads compose through the residual stream: the first writes what the second&#39;s keys read. Neither does anything useful alone.</p>
+<p>Induction heads form abruptly during training, at a moment that coincides with a sharp improvement in the model&#39;s ability to use patterns from its context. They are a concrete mechanism for the simplest kind of in-context learning (Section 13.6). Problem 11.9 asked you to design this circuit. Gradient descent finds it unaided.</p>
+<p>Other circuits have been worked out in comparable detail: how a small language model identifies the indirect object of a sentence (Wang and others, 2022), and how a small network performs modular addition using trigonometric identities that it discovers on its own (Nanda and others, 2023).</p>
+<h2 id="197-superposition">19.7 Superposition</h2>
+<p>The natural first guess is that each neuron represents one feature. It is wrong. Individual neurons in language models typically respond to several unrelated things. They are <strong>polysemantic</strong>.</p>
+<p>The leading explanation is <strong>superposition</strong> (Elhage and others, 2022). A layer with d dimensions has only d orthogonal directions, but it has vastly more directions that are nearly orthogonal. If most features are inactive most of the time, the model can assign features to nearly orthogonal directions, many more of them than d, and tolerate the small interference that arises when two happen to be active together. The network is simulating a larger, sparser network than its dimension allows.</p>
+<figure data-embed="node/a9b47065-7192"><figcaption>Figure 19.2 · feature directions with and without superposition</figcaption></figure>
+<p>Figure 19.2: with more features than dimensions the directions cannot all be orthogonal. The price is interference between features, which stays small as long as the features are rarely active together.</p>
+<p>This has a methodological consequence. If features are directions that do not line up with individual neurons, examining neurons one at a time is examining the wrong basis.</p>
+<h2 id="198-sparse-autoencoders">19.8 Sparse autoencoders</h2>
+<p>A <strong>sparse autoencoder</strong> (SAE) tries to recover the feature directions from the activations themselves. Collect a large set of activation vectors x from one layer. Train a one-hidden-layer network to reconstruct each x through a much wider layer, with a penalty that keeps most of that layer&#39;s units at zero:</p>
+<pre><code class="language-latex">f = \mathrm{ReLU}(W_e\, x + b_e), \qquad \hat x = W_d\, f + b_d, \qquad L = \lVert x - \hat x \rVert^2 + \lambda\, \lVert f \rVert_1 .</code></pre>
+<p>Here f has many more entries than x. The reconstruction term forces the columns of W_d to span the activations. The sparsity term forces each activation to be explained by a few columns. The columns of W_d are the candidate features: a dictionary of directions.</p>
+<p>In practice many of the learned features are far more interpretable than neurons. A feature may activate specifically on mentions of a particular landmark, on a kind of code error, or on text in a particular script, across languages and phrasings (Cunningham and others, 2023; Bricken and others, 2023). The approach has been scaled to production models with millions of features (Templeton and others, 2024). Clamping a feature to a high value steers the model: fixing a landmark feature on makes the model bring the landmark into unrelated conversations. More recent work links features across layers into graphs that trace how a specific output was computed.</p>
+<p><strong>Limits.</strong></p>
+<ul><li><p>Reconstruction is imperfect. Part of every activation is left unexplained, and it is not known what that part does.</p></li><li><p>The features found depend on the size of the dictionary and on training choices. A feature in a small dictionary splits into several in a larger one.</p></li><li><p>Labels for features are assigned by people or other models looking at examples, and can be wrong.</p></li><li><p>It is not established that these features are the variables the model itself computes with, as opposed to a convenient description.</p></li></ul>
+<h2 id="199-where-the-field-stands">19.9 Where the field stands</h2>
+<p>An honest summary: interpretability can explain complete algorithms in small or toy models, and isolated pieces of behavior in large ones. It can find and manipulate many individual features. It cannot yet take an arbitrary model and certify what it will do, or reliably detect a specified property such as whether a statement the model made reflects what it internally represents as true. Whether the approach will scale to that is one of the open questions on which the verification problem of Chapter 17 depends.</p>
+<h2 id="lab-19-a-probe-and-an-ablation">Lab 19: a probe and an ablation</h2>
+<p>Needs <code>gpt.py</code> and <code>gpt.pt</code> from Chapter 12.</p>
+<pre><code class="language-python">import math, torch, torch.nn.functional as F
+from gpt import GPT, Config
+
+torch.manual_seed(0)
+text = open(&quot;input.txt&quot;).read()
+chars = sorted(set(text)); stoi = {c: i for i, c in enumerate(chars)}
+data = torch.tensor([stoi[c] for c in text])
+val = data[int(0.9 * len(data)):]
+cfg = Config(vocab_size=len(chars))
+trained = GPT(cfg); trained.load_state_dict(torch.load(&quot;gpt.pt&quot;)); trained.eval()
+random_init = GPT(cfg).eval()
+
+# ---------- Part 1: a linear probe ----------
+# Target: how many characters since the last newline (capped at 40)?
+# The token at a position does not contain this; the model must compute it.
+T = cfg.block_size
+starts = torch.arange(0, len(val) - T, T)[:400]
+X = torch.stack([val[s:s + T] for s in starts])                    # (400, T)
+since = torch.zeros_like(X)
+for b in range(X.shape[0]):
+    c = 0
+    for t in range(T):
+        c = 0 if X[b, t] == stoi[&quot;\n&quot;] else c + 1
+        since[b, t] = min(c, 40)
+keep = torch.zeros(X.shape[0], T, dtype=torch.bool)                # only positions whose line start is visible
+for b in range(X.shape[0]):
+    nl = (X[b] == stoi[&quot;\n&quot;]).nonzero()
+    if len(nl): keep[b, nl[0, 0]:] = True
+
+@torch.no_grad()
+def residual_streams(model, idx):
+    &quot;&quot;&quot;Residual stream after the embedding and after each block: list of (B, T, d).&quot;&quot;&quot;
+    x = model.tok_emb(idx) + model.pos_emb(torch.arange(idx.shape[1]))
+    out = [x]
+    for blk in model.blocks:
+        x = blk(x); out.append(x)
+    return out
+
+def probe_r2(acts, y, lam=1e-2):
+    &quot;&quot;&quot;Fit ridge regression on half the examples; report R^2 on the other half.&quot;&quot;&quot;
+    A = torch.cat([acts, torch.ones(len(acts), 1)], dim=1); y = y.float()
+    n = len(A) // 2
+    w = torch.linalg.solve(A[:n].T @ A[:n] + lam * torch.eye(A.shape[1]), A[:n].T @ y[:n])
+    resid = y[n:] - A[n:] @ w
+    return 1 - (resid ** 2).sum().item() / ((y[n:] - y[n:].mean()) ** 2).sum().item()
+
+perm = torch.randperm(int(keep.sum()))
+y = since[keep][perm]
+for name, model in [(&quot;trained&quot;, trained), (&quot;random init&quot;, random_init)]:
+    r2 = [probe_r2(h[keep][perm], y) for h in residual_streams(model, X)]
+    print(f&quot;{name:12s} R^2 by layer (embedding, then after blocks 1-4): &quot; + &quot;  &quot;.join(f&quot;{v:.2f}&quot; for v in r2))
+
+# ---------- Part 2: ablating attention heads ----------
+@torch.no_grad()
+def loss_with_head_removed(model, idx, targets, layer=None, head=None):
+    H, d = cfg.n_head, cfg.d_model
+    B, T = idx.shape
+    x = model.tok_emb(idx) + model.pos_emb(torch.arange(T))
+    for l, blk in enumerate(model.blocks):
+        q, k, v = blk.attn.qkv(blk.ln1(x)).split(d, dim=2)
+        heads = lambda z: z.view(B, T, H, d // H).transpose(1, 2)
+        q, k, v = heads(q), heads(k), heads(v)
+        att = (q @ k.transpose(-2, -1)) / math.sqrt(d // H)
+        att = F.softmax(att.masked_fill(~blk.attn.mask[:T, :T], float(&quot;-inf&quot;)), dim=-1)
+        y = att @ v                                               # (B, H, T, d/H): one output per head
+        if l == layer:
+            y[:, head] = 0.0                                      # the intervention
+        x = x + blk.attn.proj(y.transpose(1, 2).contiguous().view(B, T, d))
+        x = x + blk.mlp(blk.ln2(x))
+    logits = model.head(model.ln_f(x))
+    return F.cross_entropy(logits.view(B * T, -1), targets.view(B * T)).item()
+
+Xa = torch.stack([val[s:s + T] for s in starts[:100]])
+Ya = torch.stack([val[s + 1:s + T + 1] for s in starts[:100]])
+base = loss_with_head_removed(trained, Xa, Ya)
+print(f&quot;baseline loss {base:.3f}; increase in loss when one head is removed:&quot;)
+for l in range(cfg.n_layer):
+    print(f&quot;  layer {l + 1}: &quot; + &quot;  &quot;.join(
+        f&quot;{loss_with_head_removed(trained, Xa, Ya, l, h) - base:+.3f}&quot; for h in range(cfg.n_head)))</code></pre>
+<p>The output is the two tables above. Your numbers will differ with a differently trained model; the pattern should not.</p>
+<p><strong>Tasks.</strong></p>
+<ol><li><p>Add a second control: shuffle the probe&#39;s targets among positions and refit. What R² do you get, and what does it rule out?</p></li><li><p>Probe for other properties: whether the position is inside a speaker&#39;s name; whether the next character is a vowel. At which layer does each become decodable?</p></li><li><p>Plot the attention pattern of the most important head from Part 2 on a passage of the play. What does it attend to? Does that fit the probe result?</p></li><li><p>Replace zero ablation with mean ablation: substitute each head&#39;s output averaged over the batch and positions. How do the numbers change?</p></li><li><p>Implement the logit lens. Apply the final normalization and unembedding to the stream after each block, and report the loss of each layer&#39;s implied prediction.</p></li><li><p>Train a sparse autoencoder with 1024 hidden units on the residual stream after block 2. For ten features, print the twenty contexts where each is most active and try to name what it detects.</p></li><li><p>Take the direction found by your line-position probe and add a multiple of it to the stream after block 2 during generation. Do the generated lines get shorter or longer?</p></li></ol>
+<h2 id="problems">Problems</h2>
+<p><strong>19.1</strong> ★★ (A) The probe gets R² of about 0.23 on a randomly initialized model. Where could that information come from, given that nothing has been learned?</p>
+<p><strong>19.2</strong> ★★ A probe finds that a model&#39;s activations encode the grammatical number of the subject. Design an intervention experiment to test whether the model uses that encoding to choose the verb form.</p>
+<p><strong>19.3</strong> ★★ (A) Place three feature directions in the plane at 120 degrees to one another. If exactly one feature is active with value 1, show that reading each feature as ReLU of the dot product with its direction recovers the active feature exactly. What happens when two are active at once?</p>
+<p><strong>19.4</strong> ★★ Trace the induction circuit on the token sequence A B C A. State what each head attends to at the final position and what it writes.</p>
+<p><strong>19.5</strong> ★★ (A) In the sparse autoencoder loss, what solution is found when λ = 0 and the hidden layer is at least as wide as the input? What goes wrong when λ is very large? Why is an L1 penalty used to encourage sparsity?</p>
+<p><strong>19.6</strong> ★★ Construct a concrete scenario in which an attention head puts weight 0.9 on a token and yet removing that token&#39;s contribution would not change the model&#39;s output.</p>
+<p><strong>19.7</strong> ★★★ Reproduce induction heads. Train a two-layer attention-only Transformer on sequences consisting of a random string of tokens followed by a repeat of the same string. Plot the loss on the repeated half over training. Identify the previous-token head and the induction head from their attention patterns.</p>
+<h2 id="further-reading">Further reading</h2>
+<ul><li><p>Olah and others, &quot;Zoom in: an introduction to circuits&quot; (2020).</p></li><li><p>Elhage and others, &quot;A mathematical framework for Transformer circuits&quot; (2021).</p></li><li><p>Olsson and others, &quot;In-context learning and induction heads&quot; (2022).</p></li><li><p>Elhage and others, &quot;Toy models of superposition&quot; (2022).</p></li><li><p>Li and others, &quot;Emergent world representations: exploring a sequence model trained on a synthetic task&quot; (2022).</p></li><li><p>Bricken and others, &quot;Towards monosemanticity: decomposing language models with dictionary learning&quot; (2023).</p></li><li><p>Templeton and others, &quot;Scaling monosemanticity: extracting interpretable features from Claude 3 Sonnet&quot; (2024).</p></li><li><p>Hewitt and Liang, &quot;Designing and interpreting probes with control tasks&quot; (2019).</p></li></ul>
