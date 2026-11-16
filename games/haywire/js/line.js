@@ -173,7 +173,11 @@ export function buildLine() {
     return out;
   };
   const sector = (name, x0, x1, a, b, back) => ({
-    name, x0, x1, att: strip(x0 - 3.5), def: strip(back),
+    name, x0, x1, att: strip(x0 - 3.5), def: strip(back), west: strip(x0 + 2.5),
+    // (For team deathmatch in this arena alone: places for the bots to make for.)
+    spots: [a, b, ['the middle', (x0 + x1) / 2, 32], ['the north side', (x0 + x1) / 2 - 8, 8], ['the south side', (x0 + x1) / 2 + 8, 56], ['the west end', x0 + 8, 30], ['the east end', x1 - 8, 34]]
+      .map(([what, x, z]) => ({ name: what, x, y: 0, z, side: x < (x0 + x1) / 2 ? 0 : 1 }))
+      .filter((p) => { const n = w.nodeAt(p.x, 0.1, p.z); return n >= 0 && reach[n] && w.nodeY[n] === 0; }),
     objs: [{ name: 'A', what: a[0], x: a[1], y: 0, z: a[2] }, { name: 'B', what: b[0], x: b[1], y: 0, z: b[2] }],
   });
   const advance = {
