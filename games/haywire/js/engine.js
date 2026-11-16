@@ -37,8 +37,8 @@ const RAD = Math.PI / 180;
 // falling to min of it at far.
 export const GUNS = {
   rifle: { name: 'Riveter', auto: true, pellets: 1, dmg: 26, head: 1.5, rate: 0.098, mag: 30, reserve: 180, reload: 2.0, hip: 2.6, ads: 0.22, adsTime: 0.2, adsMove: 0.62, zoom: 1.35, kickUp: 0.55, kickSide: 0.22, bloom: 0.28, near: 25, far: 60, min: 0.7, weight: 1 },
-  smg: { name: 'Buzzer', auto: true, pellets: 1, dmg: 25, head: 1.4, rate: 0.068, mag: 32, reserve: 192, reload: 1.6, hip: 2.0, ads: 0.55, adsTime: 0.15, adsMove: 0.8, zoom: 1.2, kickUp: 0.42, kickSide: 0.3, bloom: 0.22, near: 12, far: 32, min: 0.5, weight: 1 },
-  shotgun: { name: 'Scatterjack', auto: false, pellets: 8, dmg: 15, head: 1.2, rate: 0.8, mag: 6, reserve: 36, reload: 0.5, shell: 0.45, hip: 3.6, ads: 2.9, adsTime: 0.2, adsMove: 0.7, zoom: 1.15, kickUp: 3.2, kickSide: 0.8, bloom: 0, near: 7, far: 22, min: 0.2, weight: 1 },
+  smg: { name: 'Buzzer', auto: true, pellets: 1, dmg: 25, head: 1.4, rate: 0.068, mag: 32, reserve: 192, reload: 1.6, hip: 1.6, ads: 0.5, adsTime: 0.15, adsMove: 0.85, zoom: 1.2, kickUp: 0.4, kickSide: 0.28, bloom: 0.18, near: 14, far: 34, min: 0.55, weight: 1 },
+  shotgun: { name: 'Scatterjack', auto: false, pellets: 8, dmg: 18, head: 1.2, rate: 0.8, mag: 6, reserve: 36, reload: 0.5, shell: 0.45, hip: 3.6, ads: 2.9, adsTime: 0.2, adsMove: 0.7, zoom: 1.15, kickUp: 3.2, kickSide: 0.8, bloom: 0, near: 9, far: 24, min: 0.2, weight: 1 },
   lmg: { name: 'Hammer', auto: true, pellets: 1, dmg: 24, head: 1.5, rate: 0.132, mag: 80, reserve: 240, reload: 3.6, hip: 3.4, ads: 0.4, adsTime: 0.34, adsMove: 0.45, zoom: 1.3, kickUp: 0.48, kickSide: 0.3, bloom: 0.22, near: 30, far: 70, min: 0.75, weight: 0.96 },
   sniper: { name: 'Longbolt', auto: false, pellets: 1, dmg: 85, head: 2, rate: 1.15, mag: 5, reserve: 30, reload: 2.6, hip: 7, ads: 0.03, adsTime: 0.3, adsMove: 0.4, zoom: 4.2, kickUp: 3.5, kickSide: 0.6, bloom: 0, near: 100, far: 200, min: 1, weight: 1 },
   pistol: { name: 'Spark', auto: false, pellets: 1, dmg: 24, head: 1.5, rate: 0.14, mag: 12, reserve: Infinity, reload: 1.3, hip: 1.6, ads: 0.35, adsTime: 0.12, adsMove: 0.85, zoom: 1.15, kickUp: 1.1, kickSide: 0.35, bloom: 0.5, near: 12, far: 35, min: 0.5, weight: 1 },
@@ -57,7 +57,7 @@ Object.assign(GUNS, {
   spear: { ...OLD, name: 'Pike', kind: 'melee', dmg: 62, wind: 0.22, rate: 0.8, reach: 3.5, arc: 0.6, alt: 'throw', mag: 3, shot: { kind: 'spear', dmg: 95, speed: 30, grav: 9, head: 1.5 } },
   axe: { ...OLD, name: 'Greataxe', kind: 'melee', dmg: 95, wind: 0.42, rate: 1.15, reach: 2.6, arc: 2, cleave: true, alt: 'throw', mag: 3, weight: 0.97, shot: { kind: 'hatchet', dmg: 70, speed: 23, grav: 12, head: 1.3 } },
   bow: { ...OLD, name: 'Longbow', kind: 'bow', dmg: 92, min: 40, speed: 58, slow: 26, grav: 9.8, drawTime: 0.85, rate: 0.35, mag: 24, head: 1.8, alt: 'zoom', zoom: 1.6, adsTime: 0.2, adsMove: 0.6, shot: { kind: 'arrow' } },
-  daggers: { ...OLD, name: 'Twin Daggers', kind: 'melee', dmg: 30, wind: 0.08, rate: 0.28, reach: 1.9, arc: 1.4, back: 2, alt: 'throw', mag: 10, shot: { kind: 'knife', dmg: 36, speed: 34, grav: 10, head: 1.5 } },
+  daggers: { ...OLD, name: 'Twin Daggers', kind: 'melee', dmg: 34, wind: 0.08, rate: 0.26, reach: 1.9, arc: 1.4, back: 2, alt: 'throw', mag: 10, shot: { kind: 'knife', dmg: 42, speed: 34, grav: 10, head: 1.5 } },
   knife: { ...OLD, name: 'Dagger', kind: 'melee', dmg: 28, wind: 0.1, rate: 0.38, reach: 1.8, arc: 1.3, back: 1.5, alt: null },
 });
 // A blow with the gun itself, in Firefight, for when something is right on top of you.
@@ -67,9 +67,9 @@ for (const k of Object.keys(GUNS)) GUNS[k].id = k;
 
 export const CLASSES = [
   { id: 'assault', name: 'Assault', gun: 'rifle', hp: 100, speed: 1, nades: 2, what: 'A steady rifle for any range.' },
-  { id: 'runner', name: 'Runner', gun: 'smg', hp: 100, speed: 1.1, nades: 2, what: 'Fast on its feet, deadly up close.' },
-  { id: 'breacher', name: 'Breacher', gun: 'shotgun', hp: 110, speed: 1.04, nades: 2, what: 'A shotgun for doorways and corners.' },
-  { id: 'gunner', name: 'Gunner', gun: 'lmg', hp: 115, speed: 0.9, nades: 1, what: 'Heavy plating and eighty rounds.' },
+  { id: 'runner', name: 'Runner', gun: 'smg', hp: 110, speed: 1.12, nades: 2, what: 'Fast on its feet, deadly up close.' },
+  { id: 'breacher', name: 'Breacher', gun: 'shotgun', hp: 125, speed: 1.04, nades: 2, what: 'A shotgun for doorways and corners.' },
+  { id: 'gunner', name: 'Gunner', gun: 'lmg', hp: 110, speed: 0.9, nades: 1, what: 'Heavy plating and eighty rounds.' },
   { id: 'marksman', name: 'Marksman', gun: 'sniper', hp: 100, speed: 1, nades: 1, what: 'One shot to the head, from anywhere.' },
 ];
 
@@ -78,15 +78,15 @@ export const OLD_CLASSES = [
   { id: 'archer', name: 'Archer', gun: 'bow', hp: 90, speed: 1.02, nades: 1, what: 'Hold to draw, let go to loose. Deadly from afar.' },
   { id: 'lancer', name: 'Lancer', gun: 'spear', hp: 100, speed: 1, nades: 1, what: 'The longest reach, and pikes to throw.' },
   { id: 'berserker', name: 'Berserker', gun: 'axe', hp: 130, speed: 0.95, nades: 1, what: 'A slow axe that fells all in its path.' },
-  { id: 'scout', name: 'Scout', gun: 'daggers', hp: 90, speed: 1.14, nades: 2, what: 'Fast, with knives to throw and a deadly backstab.' },
+  { id: 'scout', name: 'Scout', gun: 'daggers', hp: 100, speed: 1.14, nades: 2, what: 'Fast, with knives to throw and a deadly backstab.' },
 ];
 // The two ways to play: with guns, or with the old arms. side: what
 // everyone carries as well; pot: the grenade is a fire pot that bursts
 // where it lands; defWait: how many seconds a scrapped defender is out for
 // in Advance (set so that an attack gets through about half the time).
 export const MODES = [
-  { id: 'guns', name: 'Firefight', classes: CLASSES, side: 'pistol', pot: false, defWait: 12, what: 'Rifles, shotguns and grenades.' },
-  { id: 'old', name: 'Old Iron', classes: OLD_CLASSES, side: 'knife', pot: true, defWait: 10, what: 'Swords, bows, pikes and axes. No guns.' },
+  { id: 'guns', name: 'Firefight', classes: CLASSES, side: 'pistol', pot: false, defWait: 11, what: 'Rifles, shotguns and grenades.' },
+  { id: 'old', name: 'Old Iron', classes: OLD_CLASSES, side: 'knife', pot: true, defWait: 8, what: 'Swords, bows, pikes and axes. No guns.' },
 ];
 
 export const NAMES = [
