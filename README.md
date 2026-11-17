@@ -291,6 +291,9 @@ A first-person shooter for the computer: it needs a mouse and a keyboard, so it 
 | **Right button** (hold) | Look down the sights: slower, but far more accurate |
 | **Shift** | Sprint (forwards, gun down) |
 | **C** | Crouch, and **C** again to stand: steadier, and a smaller target. Sprinting or jumping stands you up too |
+| **Z** | Lie down, and **Z** again to stand: slow, but steadiest of all, and hard to see or hit. Getting down and up takes a moment |
+| **C** twice, sprinting | Slide: low and fast for a moment, ending crouched (or back in a sprint, if Shift is still held) |
+| **E** | Take a weapon someone dropped, in place of yours |
 | **Space** | Jump: enough to get onto a crate |
 | **R** | Reload |
 | **Q**, **1** and **2**, or the wheel | Swap between your main gun and the pistol |
@@ -320,12 +323,13 @@ A first-person shooter for the computer: it needs a mouse and a keyboard, so it 
   - **Berserker:** a slow greataxe that hits everyone in front of it, three hatchets to throw, and the thickest plating.
   - **Scout:** the fastest, with twin daggers that do double in the back and ten knives to throw.
 - **Shooting:** shots scatter more from the hip, on the move, in the air and the longer you hold the trigger, and less down the sights and crouched. The four ticks of the sights show how much. Each shot kicks the view up a little. Guns do less at long range, and half as much again (twice, for the Longbolt) to the head.
+- **Dropped weapons:** a scrapped robot drops its main weapon, with at least a magazine in it, and it lies there for 45 seconds. Walk over one like your own and you take its rounds; press **E** by another to take it in place of yours. Bots that run dry go and find one.
 - **Mending:** your plating mends itself once nothing has hit you for a few seconds, so get behind something. Scrapped, you're back in five seconds, somewhere away from the other team.
 - **The yard:** Foundry Yard, laid out by hand, 88 metres by 64. There are three ways across. To the north, a two-floor warehouse with windows over the yard. Through the middle, the open yard, with containers, a truck and a trench for cover. To the south, a workshop with stairs up to its roof, and a pump house. A gantry crosses overhead from one warehouse to the other. The east half is the west half turned round, so neither team has the better end.
 - **The bots** play by your rules. They see only what is in front of them, take time to react, swing their aim round and miss, more so on the move. They keep to one of the three ways across for a life, hold a spot for a while, hunt for whoever they have just lost sight of, back off to mend, throw grenades and run from them. Marksmen hold the windows and roofs. Easy, Normal and Hard change how fast they react and how well they aim; your own team is always Normal.
 - **On screen:** the radar shows your team in blue, and the others in red where one was last seen or heard. The list at the top right says who scrapped whom. After the match you get the scores for everyone, and your points go towards your rank.
 
-`node tools/test-haywire.mjs` checks that the yard is the same from both ends and that every corner of it can be walked to, checks the rules one at a time (moving, the guns, reloading, mending, grenades, assists, the end of a match, the old arms: reach, shields, the bow's draw, throwing; a blow with the gun; deathmatch in each arena of the Long Works; and Advance: taking and holding an objective, a sector falling, falling back, straying, battalions, the barrage, and where each side comes in), and then has the bots play a dozen whole matches of each kind in each mode. They must finish every one, with nobody stuck or outside the yard, the two teams must come out about even, hard bots must beat easy ones, and the same match must play out the same way twice. In Advance the attack must get through in some matches and not in others.
+`node tools/test-haywire.mjs` checks that the yard is the same from both ends and that every corner of it can be walked to, checks the rules one at a time (moving, the guns, reloading, mending, grenades, assists, the end of a match, the old arms: reach, shields, the bow's draw, throwing; lying down, sliding, dropped weapons; a blow with the gun; deathmatch in each arena of the Long Works; and Advance: taking and holding an objective, a sector falling, falling back, straying, battalions, the barrage, and where each side comes in), and then has the bots play a dozen whole matches of each kind in each mode. They must finish every one, with nobody stuck or outside the yard, the two teams must come out about even, hard bots must beat easy ones, and the same match must play out the same way twice. In Advance the attack must get through in some matches and not in others.
 
 ## Documents
 

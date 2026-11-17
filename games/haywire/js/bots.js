@@ -99,7 +99,9 @@ export class Brain {
     const s = this.s, m = this.m, inp = s.in;
     inp.mx = inp.mz = 0;
     inp.jump = false;
-    inp.fire = inp.reload = inp.nade = inp.sprint = inp.crouch = inp.ads = inp.melee = false;
+    inp.fire = inp.reload = inp.nade = inp.sprint = inp.crouch = inp.ads = inp.melee = inp.use = inp.prone = inp.slide = false;
+    // Out of rounds for its main gun: pick up whatever is lying at its feet.
+    if (this.dry() && (m.tick + s.id) % 10 === 0 && m.dropNear(s)) inp.use = !s.useHeld;
     inp.slot = -1;
     this.wx = this.wz = 0; // which way to walk, in the world
     // Advance: the fight has moved on to the next sector, so think again about where to go.
@@ -175,7 +177,8 @@ export class Brain {
       }
       // Something new a long way off, or out of the corner of its eye, can go unnoticed for a while.
       if (e !== this.target && !hurtMe) {
-        const p = (cos > 0.85 ? 1 : 0.4) * Math.max(0.05, Math.min(1, 1.45 - d / 38)) * (m.time - e.lastShot < 0.6 ? 4 : 1);
+        // (One lying down is harder to pick out still.)
+        const p = (cos > 0.85 ? 1 : 0.4) * Math.max(0.05, Math.min(1, 1.45 - d / 38)) * (m.time - e.lastShot < 0.6 ? 4 : 1) * (e.prone ? 0.4 : 1);
         if (m.rng.next() > p) continue;
       }
       m.know(e);
@@ -262,8 +265,8 @@ export class Brain {
     // Right on top of it: a blow with the gun (unless it's a shotgun, which is better fired).
     if (dist < 1.7 && Math.abs(t.y - s.y) < 1 && gun.id !== 'shotgun' && m.time - this.tSeen > k.react) inp.melee = !s.meleeHeld;
     const steady = (s.ads > 0.8 ? 0.6 : 1) * (s.crouching ? 0.85 : 1) * (gun.id === 'sniper' ? 0.9 : 1);
-    const ty = t.y + (this.goHead ? (t.crouching ? 1.15 : 1.62) : t.crouching ? 0.7 : 1.15);
-    const off = this.aimAt(t.x, ty, t.z, dt, steady, Math.hypot(t.vx, t.vz));
+    const tp = m.target(t, this.goHead, this.tp || (this.tp = [0, 0, 0]));
+    const off = this.aimAt(tp[0], tp[1], tp[2], dt, steady, Math.hypot(t.vx, t.vz));
 
     // Moving: close in, back off, or dodge from side to side.
     const fx = dx / dist, fz = dz / dist;
@@ -330,7 +333,7 @@ export class Brain {
     const s = this.s, m = this.m, k = this.k, inp = s.in, t = this.target, r = m.rng, w = this.w;
     const wp = s.weapons[s.slot], gun = wp.gun, theirs = t.weapons[t.slot].gun;
     const ready = m.time - this.tSeen > k.react * 0.7 && s.protect <= 0.2;
-    const body = t.y + (t.crouching ? 0.7 : 1.1), speed = Math.hypot(t.vx, t.vz);
+    const body = m.target(t, false, this.tp || (this.tp = [0, 0, 0]))[1], speed = Math.hypot(t.vx, t.vz);
     const camp = this.mode === 'camp';
     if (s.hp < s.maxHp * 0.35 && m.time - s.hurtAt < 0.5 && !camp && dist > 4 && m.time > this.coverUntil + 5 && r.next() < 0.04 * (0.5 + k.dance)) {
       if (this.takeCover()) return;
@@ -553,10 +556,29 @@ export class Brain {
 
   // Where to go next: where the other team was last seen, a marksman's
   // window, or one of the map's busy spots (their end more than ours).
+  // Is its main gun empty, with nothing left to load?
+  dry() {
+    const main = this.s.weapons[0];
+    return !main.gun.kind && main.mag + main.reserve <= 0;
+  }
+
   newGoal() {
     const s = this.s, m = this.m, w = this.w, r = m.rng, map = m.map;
     this.perch = null;
     let node = -1;
+    // Empty: go and get a weapon someone dropped, if there is one not far off.
+    if (this.dry()) {
+      let best = null, bestD = 30;
+      for (const d of m.drops) {
+        const dist = Math.hypot(d.x - s.x, d.z - s.z);
+        if (dist < bestD && Math.abs(d.y - s.y) < 4) { bestD = dist; best = d; }
+      }
+      if (best) {
+        node = w.nodeAt(best.x, best.y + 0.3, best.z);
+        if (node >= 0) { this.goTo(node, 30, true); if (this.path) return; }
+        node = -1;
+      }
+    }
     // Advance: mostly, to an objective. Attackers to one that isn't theirs
     // yet; defenders to one that is being taken, or to stand guard.
     if (m.type === 'adv') {

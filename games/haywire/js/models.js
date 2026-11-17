@@ -280,15 +280,21 @@ export function makeModels(R) {
 // Where each piece of a robot is, given how it stands. s: x, y, z, yaw,
 // pitch, crouch (0..1), stride (how far through a step, in radians), pace
 // (0 standing .. 1 walking .. 1.4 running), lean. Returns matrices.
+// prone (0..1): how far it has got down onto its front, legs out behind and
+// the gun held out in front, its body turned so it still looks ahead.
 export function pose(s) {
-  const k = s.crouch, swing = Math.sin(s.stride) * 0.62 * s.pace;
+  const pk = s.prone || 0, k = s.crouch * (1 - pk), swing = Math.sin(s.stride) * 0.62 * s.pace * (1 - pk);
   const legs = [swing, -swing].map((a, i) => {
     // The knee bends as the leg comes through from behind.
-    const lift = Math.max(0, Math.sin(s.stride + (i ? Math.PI : 0) + 1.1)) * 0.95 * s.pace;
-    const A = a + k * 1.08, B = A - lift - k * 1.97;
+    const lift = Math.max(0, Math.sin(s.stride + (i ? Math.PI : 0) + 1.1)) * 0.95 * s.pace * (1 - pk);
+    let A = a + k * 1.08, B = A - lift - k * 1.97;
+    // Lying down: straight out behind, crawling.
+    const crawl = Math.sin(s.stride * 1.6 + (i ? Math.PI : 0)) * 0.18 * Math.min(1, s.pace * 3);
+    A += (-1.5 + crawl - A) * pk;
+    B += (-1.5 + crawl * 0.5 - B) * pk;
     return { A, B, reach: THIGH * Math.cos(A) + SHIN * Math.cos(B) };
   });
-  const hip = Math.max(legs[0].reach, legs[1].reach);
+  const hip = Math.max(legs[0].reach, legs[1].reach) * (1 - pk) + 0.3 * pk;
   const root = M.chain(M.move(s.x, s.y, s.z), M.rotY(-s.yaw));
   const out = { root, hip, thigh: [], shin: [] };
   legs.forEach((l, i) => {
@@ -296,9 +302,11 @@ export function pose(s) {
     out.thigh.push(M.chain(root, M.move(x, hip, 0), M.rotX(l.A)));
     out.shin.push(M.chain(root, M.move(x, hip - THIGH * Math.cos(l.A), -THIGH * Math.sin(l.A)), M.rotX(l.B)));
   });
-  out.hips = M.chain(root, M.move(0, hip, 0), M.rotX(-0.1 * k));
-  // The top half leans into a run and a crouch, and tips to aim up and down.
-  out.top = M.chain(root, M.move(0, hip + WAIST, 0), M.rotX(s.pitch * 0.75 - 0.22 * k - s.lean), M.rotY(Math.sin(s.stride) * 0.06 * s.pace - (s.twist || 0)));
-  out.gun = M.chain(out.top, M.move(HOLD[0], HOLD[1], HOLD[2]), M.rotX(s.pitch * 0.25 + 0.22 * k + s.lean - s.lower));
+  out.hips = M.chain(root, M.move(0, hip, 0), M.rotX(-0.1 * k - 1.4 * pk));
+  // The top half leans into a run and a crouch, and tips to aim up and
+  // down. Lying down, it leans right forward, propped on its elbows.
+  const lie = 1.22 * pk;
+  out.top = M.chain(root, M.move(0, hip + WAIST * (1 - pk), 0), M.rotX(s.pitch * 0.75 * (1 - 0.6 * pk) - 0.22 * k - s.lean - lie), M.rotY(Math.sin(s.stride) * 0.06 * s.pace - (s.twist || 0)));
+  out.gun = M.chain(out.top, M.move(HOLD[0], HOLD[1], HOLD[2]), M.rotX(s.pitch * (0.25 + 0.45 * pk) + 0.22 * k + s.lean - s.lower + lie));
   return out;
 }

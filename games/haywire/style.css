@@ -108,6 +108,8 @@ body { background: #11151c; color: #fff; cursor: default; }
 .pops div.streak { font-size: 20px; color: #ffd84a; letter-spacing: .06em; text-transform: uppercase; }
 @keyframes pop-in { 0% { opacity: 0; transform: translateY(8px) scale(.9); } 12% { opacity: 1; transform: none; } 75% { opacity: 1; } 100% { opacity: 0; transform: translateY(-10px); } }
 .note { position: absolute; left: 50%; top: 66%; transform: translateX(-50%); font-weight: 800; font-size: 14px; letter-spacing: .1em; text-transform: uppercase; text-shadow: 0 2px 4px rgba(0, 0, 0, .8); opacity: .9; }
+.use { position: absolute; left: 50%; top: 71%; transform: translateX(-50%); font-weight: 800; font-size: 14px; white-space: nowrap; text-shadow: 0 2px 4px rgba(0, 0, 0, .8); }
+.use b { display: inline-block; padding: 1px 7px; margin-right: 6px; border-radius: 5px; background: rgba(255, 255, 255, .9); color: #10141c; text-shadow: none; }
 .note.warn { color: #ff6a55; }
 
 .vitals { position: absolute; left: 16px; bottom: calc(var(--safe-bottom) + 16px); display: grid; gap: 6px; }
