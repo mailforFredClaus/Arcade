@@ -182,6 +182,13 @@ export function buildMap() {
     fill(30, 42, 31, 43, 1, 2, M.crate);
     fill(17, 23, 19, 25, 0, 1, M.barrier);
     fill(17, 39, 19, 41, 0, 1, M.barrier);
+    // More to get behind out in the yard, so crossing it is a dash from one to the next.
+    fill(28, 29, 31, 30, 0, 1.1, M.sandbag);
+    fill(38, 26, 41, 27, 0, 1.1, M.sandbag);
+    fill(40, 41, 43, 42, 0, 1.1, M.sandbag);
+    fill(17, 27, 18, 29, 0, 1.1, M.crate);
+    fill(20, 44, 22, 45, 0, 1.1, M.crate);
+    fill(33, 35, 34, 37, 0, 1.1, M.sandbag);
     spot(27.5, 0, 28.5, 'yard');
     spot(34.5, 0, 25.5, 'yard');
     spot(33.5, 0, 41.5, 'yard');
