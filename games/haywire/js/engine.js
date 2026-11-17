@@ -30,7 +30,20 @@ export const NADE_FUSE = 2.7, NADE_REACH = 6.5, NADE_DAMAGE = 170;
 // OUT_TIME seconds and a robot is scrapped. When a sector falls the
 // defenders have RETREAT seconds to fall back, and each one caught on the
 // way is worth ROUT lives to the attack.
-export const TICKETS = 55, BATTALIONS = 3, SECTOR_BONUS = 15, OBJ_REACH = 5.5, ADVANCE_TIME = 1800, OUT_TIME = 6, RETREAT = 14, ROUT = 2;
+//
+// A battalion has so many lives for every robot on a side (the mode's
+// `tickets`: fights with the old arms are slower, so fewer), or TICKETS if
+// the match sets no size. When one runs out, everyone regroups: both sides
+// come in again at the sector being fought for, and it starts over. The
+// attack gets lives back only one way: each defender it catches still in a
+// sector it has just lost, while they fall back, is worth ROUT.
+export const TICKETS = 55, BATTALIONS = 3, OBJ_REACH = 5.5, ADVANCE_TIME = 4500, OUT_TIME = 6, RETREAT = 14, ROUT = 3;
+// The scrapped can be got back on their feet by a medic for REVIVE_WAIT
+// seconds: it takes REVIVE_TIME of holding the use key beside them, and they
+// come back with REVIVE_HP of their plating (and, attacking, their life back).
+export const REVIVE_WAIT = 12, REVIVE_TIME = 1.1, REVIVE_HP = 0.5, REVIVE_REACH = 2.2;
+// A robot can come in beside a squad mate who hasn't been hurt for this long.
+export const SQUAD = 4, SQUAD_CALM = 5;
 const RAD = Math.PI / 180;
 
 // dmg: for each hit. head: how much more a head shot does. rate: seconds
@@ -64,6 +77,11 @@ Object.assign(GUNS, {
   daggers: { ...OLD, name: 'Twin Daggers', kind: 'melee', dmg: 34, wind: 0.08, rate: 0.26, reach: 1.9, arc: 1.4, back: 2, alt: 'throw', mag: 10, shot: { kind: 'knife', dmg: 42, speed: 34, grav: 10, head: 1.5 } },
   knife: { ...OLD, name: 'Dagger', kind: 'melee', dmg: 28, wind: 0.1, rate: 0.38, reach: 1.8, arc: 1.3, back: 1.5, alt: null },
 });
+// A medic's weapons: a quick semi-automatic rifle, and a mace.
+Object.assign(GUNS, {
+  carbine: { name: 'Patcher', auto: false, pellets: 1, dmg: 36, head: 1.6, rate: 0.16, mag: 12, reserve: 108, reload: 1.9, hip: 2.0, ads: 0.2, adsTime: 0.2, adsMove: 0.66, zoom: 1.5, kickUp: 0.85, kickSide: 0.25, bloom: 0.38, near: 30, far: 70, min: 0.75, weight: 1 },
+  mace: { ...OLD, name: 'Mace', kind: 'melee', dmg: 52, wind: 0.2, rate: 0.62, reach: 2.2, arc: 1.3, alt: null },
+});
 // A blow with the gun itself, in Firefight, for when something is right on top of you.
 export const BASH = { name: 'Rifle butt', dmg: 55, wind: 0.12, rate: 0.65, reach: 1.9, arc: 1.4, back: 2 };
 GUNS.bash = BASH;
@@ -75,6 +93,7 @@ export const CLASSES = [
   { id: 'breacher', name: 'Breacher', gun: 'shotgun', hp: 125, speed: 1.04, nades: 2, what: 'A shotgun for doorways and corners.' },
   { id: 'gunner', name: 'Gunner', gun: 'lmg', hp: 110, speed: 0.9, nades: 1, what: 'Heavy plating and eighty rounds.' },
   { id: 'marksman', name: 'Marksman', gun: 'sniper', hp: 100, speed: 1, nades: 1, what: 'One shot to the head, from anywhere.' },
+  { id: 'medic', name: 'Medic', gun: 'carbine', hp: 100, speed: 1, nades: 1, medic: true, what: 'Revives the scrapped, and those near it mend faster.' },
 ];
 
 export const OLD_CLASSES = [
@@ -83,20 +102,30 @@ export const OLD_CLASSES = [
   { id: 'lancer', name: 'Lancer', gun: 'spear', hp: 100, speed: 1, nades: 1, what: 'The longest reach, and pikes to throw.' },
   { id: 'berserker', name: 'Berserker', gun: 'axe', hp: 130, speed: 0.95, nades: 1, what: 'A slow axe that fells all in its path.' },
   { id: 'scout', name: 'Scout', gun: 'daggers', hp: 100, speed: 1.14, nades: 2, what: 'Fast, with knives to throw and a deadly backstab.' },
+  { id: 'medic', name: 'Medic', gun: 'mace', hp: 110, speed: 1, nades: 1, medic: true, what: 'Revives the scrapped, and those near it mend faster.' },
 ];
 // The two ways to play: with guns, or with the old arms. side: what
 // everyone carries as well; pot: the grenade is a fire pot that bursts
 // where it lands; defWait: how many seconds a scrapped defender is out for
 // in Advance (set so that an attack gets through about half the time).
 export const MODES = [
-  { id: 'guns', name: 'Firefight', classes: CLASSES, side: 'pistol', pot: false, defWait: 11, what: 'Rifles, shotguns and grenades.' },
-  { id: 'old', name: 'Old Iron', classes: OLD_CLASSES, side: 'knife', pot: true, defWait: 8, what: 'Swords, bows, pikes and axes. No guns.' },
+  { id: 'guns', name: 'Firefight', classes: CLASSES, side: 'pistol', pot: false, defWait: 11, tickets: 11, what: 'Rifles, shotguns and grenades.' },
+  { id: 'old', name: 'Old Iron', classes: OLD_CLASSES, side: 'knife', pot: true, defWait: 25, tickets: 7, what: 'Swords, bows, pikes and axes. No guns.' },
 ];
 
 export const NAMES = [
-  ['Bolt', 'Rivet', 'Gasket', 'Sprocket', 'Diode', 'Piston', 'Flux', 'Servo', 'Torque', 'Cog', 'Fuse', 'Widget'],
-  ['Crank', 'Spanner', 'Grommet', 'Tappet', 'Shim', 'Clutch', 'Rotor', 'Valve', 'Rust', 'Glitch', 'Static', 'Jolt'],
+  ['Bolt', 'Rivet', 'Gasket', 'Sprocket', 'Diode', 'Piston', 'Flux', 'Servo', 'Torque', 'Cog', 'Fuse', 'Widget', 'Axle', 'Ratchet', 'Spindle', 'Socket',
+    'Ampere', 'Lumen', 'Vector', 'Cathode', 'Pulley', 'Gimbal', 'Joule', 'Ohm', 'Baud', 'Capstan', 'Dynamo', 'Ferrule', 'Hertz', 'Nozzle', 'Pinion', 'Tensor'],
+  ['Crank', 'Spanner', 'Grommet', 'Tappet', 'Shim', 'Clutch', 'Rotor', 'Valve', 'Rust', 'Glitch', 'Static', 'Jolt', 'Burr', 'Slag', 'Clinker', 'Scrap',
+    'Sludge', 'Fizzle', 'Snarl', 'Kink', 'Warp', 'Rasp', 'Gnash', 'Sputter', 'Clang', 'Grit', 'Dent', 'Klaxon', 'Blight', 'Rattle', 'Smog', 'Wrench'],
 ];
+
+// The classes the bots take, by their place in a squad of four: the first
+// two are always an assault and a medic, the others vary from squad to squad.
+const BOT_CLASS = (k) => {
+  const q = Math.floor(k / SQUAD), j = k % SQUAD;
+  return j === 0 ? 0 : j === 1 ? 5 : j === 2 ? [1, 3, 2, 4][q % 4] : [3, 4, 0, 1][q % 4];
+};
 
 export class Rand {
   constructor(seed) { this.s = seed >>> 0; }
@@ -109,7 +138,7 @@ export class Rand {
 }
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
-export const emptyInput = () => ({ prone: false, slide: false, use: false, melee: false, mx: 0, mz: 0, yaw: 0, pitch: 0, jump: false, crouch: false, sprint: false, ads: false, fire: false, reload: false, nade: false, slot: -1, cls: -1 });
+export const emptyInput = () => ({ deploy: false, spawnAt: -1, prone: false, slide: false, use: false, melee: false, mx: 0, mz: 0, yaw: 0, pitch: 0, jump: false, crouch: false, sprint: false, ads: false, fire: false, reload: false, nade: false, slot: -1, cls: -1 });
 
 export class Match {
   // opts: seed, size (robots a side), human (is soldier 0 the player),
@@ -124,14 +153,14 @@ export class Match {
     // 'tdm': team deathmatch. 'adv': Advance, one team attacking through the sectors.
     this.type = opts.type === 'adv' ? 'adv' : 'tdm';
     const adv = this.type === 'adv';
-    this.size = opts.size ?? (adv ? 12 : 8);
+    this.size = opts.size ?? (adv ? (map.advance.size || 12) : 8);
     this.scoreLimit = adv ? Infinity : opts.scoreLimit ?? 50;
-    this.timeLimit = opts.timeLimit ?? (adv ? ADVANCE_TIME : 600);
+    this.timeLimit = opts.timeLimit ?? (adv ? (map.advance.time || ADVANCE_TIME) : 600);
     if (adv) {
       this.attack = opts.attack ? 1 : 0; // which team attacks
       this.battalion = 1;
       this.battalions = opts.battalions ?? BATTALIONS;
-      this.tickets = this.ticketsAtStart = opts.tickets ?? TICKETS;
+      this.tickets = this.ticketsAtStart = opts.tickets ?? (opts.size || map.advance.size ? Math.round(this.mode.tickets * this.size) : TICKETS);
       this.sector = 0;
       this.defWait = opts.defWait ?? this.mode.defWait;
       this.retreatUntil = -1; // the defenders have until then to fall back to the next sector
@@ -158,8 +187,9 @@ export class Match {
       for (let k = 0; k < this.size; k++) {
         const human = !!opts.human && team === 0 && k === 0;
         const s = {
-          id: this.soldiers.length, team, human, name: human ? 'You' : NAMES[team][k % NAMES[team].length],
-          cls: human ? (opts.cls ?? 0) : [0, 1, 0, 3, 2, 4, 0, 1][k % 8], nextCls: -1,
+          id: this.soldiers.length, team, human, name: human ? 'You' : NAMES[team][k % NAMES[team].length] + (k >= NAMES[team].length ? ` ${Math.floor(k / NAMES[team].length) + 1}` : ''),
+          cls: human ? (opts.cls ?? 0) : BOT_CLASS(k), nextCls: -1, squad: Math.floor(k / SQUAD),
+          down: 0, reviveT: 0, reviving: -1, revives: 0, aura: false, spawnOn: -1,
           alive: false, respawnT: human ? 0 : 0.05 * k, x: 0, y: 0, z: 0, px: 0, py: 0, pz: 0, vx: 0, vy: 0, vz: 0, r: RADIUS, h: TALL,
           yaw: 0, pitch: 0, grounded: true, crouching: false, crouchK: 0, sprinting: false, sprintOut: 0, ads: 0,
           hp: 0, maxHp: 100, hurtAt: -99, hurtBy: -1, protect: 0, dmgFrom: new Map(),
@@ -196,6 +226,7 @@ export class Match {
       for (const s of this.soldiers) if (s.human && s.alive) this.look(s);
     }
     if (this.type === 'adv' && !this.over) {
+      if (this.regroupAt === this.tick) this.regroup();
       this.stepAdvance(dt);
       this.stepBarrage(dt);
     }
@@ -247,7 +278,8 @@ export class Match {
     if (this.arena) return [this.arena.x0 - 1, this.arena.x1 + 1];
     if (this.type !== 'adv') return null;
     const sec = this.sectorNow();
-    return s.team === this.attack ? [sec.x0 - 15, sec.x1 + 1.5] : [sec.x0 - 1.5, sec.x1 + 15];
+    // (For the first sector, the attackers' whole camp is theirs.)
+    return s.team === this.attack ? [this.sector === 0 ? 0 : sec.x0 - 15, sec.x1 + 1.5] : [sec.x0 - 1.5, sec.x1 + 15];
   }
 
   // A barrage: shells come down round the objectives for a few seconds,
@@ -255,7 +287,7 @@ export class Match {
   // it, and not under a roof.
   stepBarrage(dt) {
     const rng = this.rng, w = this.world;
-    if (this.time < this.barrageUntil && this.tick % 24 === 0) {
+    if (this.time < this.barrageUntil && this.time > this.barrageUntil - 9 && this.tick % 24 === 0) {
       const objs = this.objectives(), o = objs[Math.floor(rng.next() * objs.length)];
       const a = rng.next() * Math.PI * 2, r = 11 * Math.sqrt(rng.next());
       const x = o.x + Math.cos(a) * r, z = o.z + Math.sin(a) * r, y = w.groundAt(x, z, 30);
@@ -289,7 +321,8 @@ export class Match {
       o.a = a;
       o.d = d;
       // Whoever has more robots at it pulls it their way, faster with more of them.
-      if (a !== d) o.p = clamp(o.p + Math.sign(a - d) * (0.065 + 0.03 * Math.min(3, Math.abs(a - d))) * dt, 0, 1);
+      // (About 22 seconds for one robot alone, and 11 for a crowd.)
+      if (a !== d) o.p = clamp(o.p + Math.sign(a - d) * (0.03 + 0.015 * Math.min(4, Math.abs(a - d))) * dt, 0, 1);
       else if (a === 0) o.p = o.own ? Math.min(1, o.p + 0.03 * dt) : Math.max(0, o.p - 0.03 * dt);
       const took = !o.own && o.p >= 1, lost = o.own && o.p <= 0;
       if (took || lost) {
@@ -307,7 +340,6 @@ export class Match {
     this.sector++;
     if (this.sector >= this.sectors.length) this.finish(this.attack);
     else {
-      this.tickets += SECTOR_BONUS;
       this.retreatUntil = this.time + RETREAT;
       // The defenders who are out come back quickly, to make a stand at the next one.
       for (const s of this.soldiers) if (!s.alive && s.team !== this.attack) s.respawnT = Math.min(s.respawnT, 2.5);
@@ -316,9 +348,34 @@ export class Match {
 
   // ---- coming into the yard ---------------------------------------------------------------
 
+  // Can soldier s come in beside squad mate m? Only if m is in the fight
+  // (not out of bounds) and nothing has hurt it for a while, nor is any of
+  // the other side close.
+  canSpawnOn(s, m) {
+    if (!m || m === s || !m.alive || m.team !== s.team || m.squad !== s.squad || this.time - m.hurtAt < SQUAD_CALM || m.out > 0 || !m.grounded) return false;
+    for (const e of this.soldiers) if (e.alive && e.team !== s.team && Math.abs(e.x - m.x) < 14 && Math.hypot(e.x - m.x, e.z - m.z) < 14) return false;
+    return true;
+  }
+
+  // An alive medic of s's team within reach of it, if there is one.
+  medicNear(s, reach) {
+    for (const m of this.soldiers) {
+      if (m.alive && m !== s && m.team === s.team && this.classes[m.cls].medic && Math.abs(m.x - s.x) < reach && Math.hypot(m.x - s.x, m.z - s.z) < reach) return m;
+    }
+    return null;
+  }
+
   spawn(s) {
     const map = this.map, w = this.world;
     let best = null, bestScore = -Infinity;
+    // Beside a squad mate, if one was picked and still may be.
+    const mate = s.spawnOn >= 0 ? this.soldiers[s.spawnOn] : null;
+    s.spawnOn = -1;
+    if (this.canSpawnOn(s, mate)) {
+      const bx = -Math.sin(mate.yaw) * 1.1, bz = Math.cos(mate.yaw) * 1.1;
+      const x = this.world.blocked(mate.x + bx, mate.y, mate.z + bz, RADIUS, TALL, 0.55) ? mate.x : mate.x + bx, z = x === mate.x ? mate.z : mate.z + bz;
+      return this.enter(s, x, mate.y, z, mate.yaw);
+    }
     // Team deathmatch: anywhere, but better at your own end. Advance: behind your own lines.
     const adv = this.type === 'adv';
     const places = adv ? [this.sectorNow()[s.team === this.attack ? 'att' : 'def'].map(([x, z]) => ({ x, z, yaw: 0 }))]
@@ -347,14 +404,20 @@ export class Match {
         if (d < near) { near = d; best.yaw = Math.atan2(o.x - best.x, -(o.z - best.z)); }
       }
     }
+    this.enter(s, best.x, w.groundAt(best.x, best.z, 0.5), best.z, best.yaw);
+  }
+
+  // Puts soldier s into the yard at (x, y, z), fresh, as its class.
+  enter(s, x, y, z, yaw) {
     if (s.nextCls >= 0) s.cls = s.nextCls;
     const cls = this.classes[s.cls];
     s.alive = true;
-    s.x = best.x; s.z = best.z; s.y = w.groundAt(best.x, best.z, 0.5);
+    s.down = 0;
+    s.x = x; s.z = z; s.y = y;
     s.px = s.x; s.py = s.y; s.pz = s.z;
     s.vx = s.vy = s.vz = 0;
-    s.yaw = best.yaw; s.pitch = 0;
-    s.in.yaw = best.yaw; s.in.pitch = 0;
+    s.yaw = yaw; s.pitch = 0;
+    s.in.yaw = yaw; s.in.pitch = 0;
     s.grounded = true; s.crouching = false; s.crouchK = 0; s.prone = false; s.proneK = 0; s.stanceT = 0; s.slideT = 0; s.h = TALL; s.ads = 0; s.sprinting = false;
     s.hp = s.maxHp = cls.hp;
     s.protect = 1.5;
@@ -378,7 +441,19 @@ export class Match {
     if (inp.cls >= 0 && inp.cls < this.classes.length) s.nextCls = inp.cls;
     if (!s.alive) {
       s.respawnT -= dt;
-      if (s.respawnT <= 0) this.spawn(s);
+      // The body lies there a while, for a medic to get back on its feet.
+      if (s.down > 0) {
+        s.down -= dt;
+        if (s.down <= 0) { s.down = 0; this.events.push({ e: 'gone', id: s.id }); }
+      }
+      // Back in when the wait is over: straight away if no medic is near
+      // (or the player says so), or else once the body is past saving.
+      if (s.respawnT <= 0 && (s.down <= 0 || (s.human && inp.deploy) || !this.medicNear(s, 30))) {
+        if (s.down > 0) { s.down = 0; this.events.push({ e: 'gone', id: s.id }); }
+        if (s.bot) s.bot.pickSpawn();
+        else s.spawnOn = inp.spawnAt ?? -1;
+        this.spawn(s);
+      }
       return;
     }
     const w = this.world, gun = s.weapons[s.slot].gun, cls = this.classes[s.cls];
@@ -475,10 +550,30 @@ export class Match {
 
     // Weapons lying about: rounds from one like your own are taken as you
     // pass; another is taken in place of yours with the use key.
-    if (this.drops.length) this.stepPickup(s, inp);
+    // A medic beside one of its own who is down: holding the use key gets them up.
+    const medic = cls.medic;
+    let busyReviving = false;
+    if (medic && inp.use) {
+      let body = null, near = REVIVE_REACH;
+      for (const e of this.soldiers) {
+        if (e.alive || e.team !== s.team || e.down <= 0 || Math.abs(e.y - s.y) > 1.5) continue;
+        const d = Math.hypot(e.x - s.x, e.z - s.z);
+        if (d < near) { near = d; body = e; }
+      }
+      if (body) {
+        busyReviving = true;
+        if (s.reviving !== body.id) { s.reviving = body.id; s.reviveT = 0; }
+        s.reviveT += dt;
+        if (s.reviveT >= REVIVE_TIME) { this.revive(body, s); s.reviveT = 0; s.reviving = -1; }
+      }
+    }
+    if (!busyReviving) { s.reviveT = 0; s.reviving = -1; }
+    if (this.drops.length && !busyReviving) this.stepPickup(s, inp);
+    if (this.tick % 10 === s.id % 10) s.aura = !!this.medicNear(s, 7);
 
     // Healing by itself, once nothing has hit it for a while.
-    if (s.hp < s.maxHp && this.time - s.hurtAt > REGEN_DELAY) s.hp = Math.min(s.maxHp, s.hp + REGEN * dt);
+    // (Sooner and faster with a medic near.)
+    if (s.hp < s.maxHp && this.time - s.hurtAt > (s.aura ? 2 : REGEN_DELAY)) s.hp = Math.min(s.maxHp, s.hp + REGEN * (s.aura ? 1.6 : 1) * dt);
 
     this.stepWeapon(s, dt);
   }
@@ -694,6 +789,47 @@ export class Match {
     return false;
   }
 
+  // A medic gets a scrapped robot back on its feet, where it lay.
+  revive(e, by) {
+    e.alive = true;
+    e.down = 0;
+    e.respawnT = 0;
+    e.hp = e.maxHp * REVIVE_HP;
+    e.hurtAt = this.time;
+    e.protect = 1;
+    e.vx = e.vy = e.vz = 0;
+    e.px = e.x; e.py = e.y; e.pz = e.z;
+    e.grounded = true; e.crouching = false; e.crouchK = 0; e.prone = false; e.proneK = 0; e.stanceT = 0.5; e.slideT = 0; e.h = TALL;
+    e.swing = e.draw = 0; e.reloadT = 0; e.throwT = 0; e.out = 0; e.spawnOn = -1;
+    // (It has its weapon back, so the one it dropped goes.)
+    const k = this.drops.findIndex((d) => d.owner === e.id);
+    if (k >= 0) this.drops.splice(k, 1);
+    if (this.type === 'adv' && e.team === this.attack && !this.over) this.tickets++;
+    by.score += 80;
+    by.revives++;
+    if (e.bot) e.bot.reset();
+    this.events.push({ e: 'revive', id: e.id, by: by.id });
+  }
+
+  // A battalion is spent: both sides regroup, and the sector starts over.
+  regroup() {
+    for (const o of this.objectives()) { o.own = false; o.p = 0; o.a = o.d = 0; }
+    this.soldiers.forEach((s, i) => {
+      s.alive = false;
+      s.down = 0;
+      s.hp = 0;
+      s.spawnOn = -1;
+      s.respawnT = 3 + 0.04 * (i % 40);
+    });
+    this.nades.length = 0;
+    this.shots.length = 0;
+    this.drops.length = 0;
+    this.shells.length = 0;
+    this.retreatUntil = -1;
+    this.barrageUntil = this.time + 15; // and the new battalion comes in behind a barrage
+    this.events.push({ e: 'regroup' });
+  }
+
   // ---- weapons lying about ---------------------------------------------------------
 
   // A scrapped soldier's main weapon falls where it stood, with at least a
@@ -707,7 +843,7 @@ export class Match {
     else reserve = Math.max(reserve, gun.mag);
     if (y < -9) return;
     if (this.drops.length >= DROPS) this.drops.shift();
-    this.drops.push({ id: ++this.dropId, gun: gun.id, mag, reserve, x: e.x, y, z: e.z, yaw: e.yaw + 0.7, t: this.time });
+    this.drops.push({ id: ++this.dropId, owner: e.id, gun: gun.id, mag, reserve, x: e.x, y, z: e.z, yaw: e.yaw + 0.7, t: this.time });
   }
 
   // How many of a thing a weapon can carry, and how many it has.
@@ -903,6 +1039,8 @@ export class Match {
     e.alive = false;
     e.hp = 0;
     e.deaths++;
+    e.down = gun === 'out' ? 0 : REVIVE_WAIT;
+    e.spawnOn = -1;
     // (In Advance the defenders are out for longer, so that an attack can break through.)
     // (The player, defending, is not kept waiting quite so long.)
     e.respawnT = this.type === 'adv' && e.team !== this.attack ? (e.human ? Math.min(this.defWait, 7) : this.defWait) : RESPAWN;
@@ -916,13 +1054,11 @@ export class Match {
         }
       } else if (--this.tickets <= 0) {
         if (this.battalion < this.battalions) {
-          // That battalion is spent. The next takes up the attack, and the defenders have the sector back whole.
+          // That battalion is spent. The next takes up the attack, and everyone regroups for the sector.
           this.battalion++;
           this.tickets = this.ticketsAtStart;
-          for (const o of this.objectives()) { o.own = false; o.p = 0; }
-          for (const s of this.soldiers) if (!s.alive && s.team === this.attack) s.respawnT = Math.min(s.respawnT, 2.5);
-          this.barrageUntil = this.time + 9; // and it comes in behind a barrage
           this.events.push({ e: 'battalion', n: this.battalion });
+          this.regroupAt = this.tick + 1;
         } else {
           this.tickets = 0;
           this.finish(1 - this.attack);
