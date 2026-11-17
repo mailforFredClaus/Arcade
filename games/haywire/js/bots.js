@@ -13,6 +13,7 @@
 //   camp   (marksmen) hold a window or a roof for a while
 
 import { STEP_UP } from './world.js';
+import { REVIVE_TIME } from './engine.js';
 
 const TAU = Math.PI * 2, RAD = Math.PI / 180;
 
@@ -28,7 +29,7 @@ export const SKILL = [
 
 // How close each gun likes to be: nearer than the first it backs off,
 // further than the second it closes in.
-const RANGE = { rifle: [7, 32], smg: [3, 15], shotgun: [0, 8], lmg: [9, 38], sniper: [16, 90], pistol: [3, 16] };
+const RANGE = { carbine: [10, 45], rifle: [7, 32], smg: [3, 15], shotgun: [0, 8], lmg: [9, 38], sniper: [16, 90], pistol: [3, 16] };
 
 const LANE_Z = [[0, 21], [21, 43], [43, 64]];
 
@@ -80,6 +81,10 @@ export class Brain {
     this.coverUntil = 0;
     this.goHead = false;
     this.sector = -1;
+    this.obj = null; // Advance: the objective it is working on
+    this.objCheck = 0;
+    this.pushAt = 0;
+    this.pushing = false;
     this.fleeX = this.fleeZ = 0;
     this.fleeUntil = 0;
     // Which way round it goes this life: 0 the north side, 1 the middle,
@@ -104,12 +109,21 @@ export class Brain {
     if (this.dry() && (m.tick + s.id) % 10 === 0 && m.dropNear(s)) inp.use = !s.useHeld;
     inp.slot = -1;
     this.wx = this.wz = 0; // which way to walk, in the world
-    // Advance: the fight has moved on to the next sector, so think again about where to go.
-    if (m.type === 'adv' && this.sector !== m.sector) {
-      this.sector = m.sector;
-      this.waitUntil = 0;
-      this.repathAt = 0;
-      if (this.mode === 'roam') this.path = null;
+    // Advance: the fight has moved on to the next sector, so think again
+    // about where to go; and now and then, whether its objective still
+    // needs it (taken, for an attacker; quiet while another is being
+    // taken, for a defender).
+    if (m.type === 'adv') {
+      if (this.sector !== m.sector) {
+        this.sector = m.sector;
+        this.obj = null;
+        this.waitUntil = 0;
+        this.repathAt = 0;
+        if (this.mode === 'roam') this.path = null;
+      } else if (m.time > this.objCheck && this.mode === 'roam') {
+        this.objCheck = m.time + 1 + m.rng.next();
+        if (this.obj && this.needsMove()) { this.waitUntil = 0; this.obj = null; this.path = null; this.repathAt = 0; }
+      }
     }
     if ((m.tick + s.id * 3) % 7 === 0) this.perceive();
     if ((m.tick + s.id * 5) % 12 === 0) this.watchForNades();
@@ -134,7 +148,8 @@ export class Brain {
     else if (this.lob) this.throwing(dt);
     else if (this.mode === 'cover') this.cover(dt);
     else if (this.target && this.visible) this.fight(dt);
-    else if (this.target && m.time - this.lastSeen < 6) this.hunt(dt);
+    else if ((this.body = this.medic() ? this.findBody() : null)) this.reviveBody(this.body, dt);
+    else if (this.target && m.time - this.lastSeen < 6 && !this.leashed(this.lx, this.lz)) this.hunt(dt);
     else {
       this.target = null;
       if (this.mode !== 'camp') this.mode = 'roam';
@@ -272,7 +287,9 @@ export class Brain {
     const fx = dx / dist, fz = dz / dist;
     if (this.mode === 'camp') {
       inp.crouch = false;
-    } else if (dist > far) {
+    } else if (this.push()) {
+      // Advance: on into the objective, firing as it goes.
+    } else if (dist > far && !this.leashed(t.x, t.z)) {
       this.goTo(m.world.nodeAt(t.x, t.y + 0.1, t.z), 0.8);
       this.follow();
       // Much too far for this gun: run for it rather than plink.
@@ -367,6 +384,7 @@ export class Brain {
         if (!inp.fire) this.wantDraw = dist < 10 ? 0.55 + r.next() * 0.3 : 0.8 + r.next() * 0.2;
       }
       if (camp) return;
+      if (dist >= 9 && this.push()) return;
       if (dist < 9) stepTo(-fx - fz * this.strafe * 0.5, -fz + fx * this.strafe * 0.5);
       else if (dist > 45) { this.goTo(w.nodeAt(t.x, t.y + 0.1, t.z), 0.8); this.follow(); }
       else if (!this.still && s.draw < 0.5) stepTo(-fz * this.strafe, fx * this.strafe);
@@ -390,8 +408,10 @@ export class Brain {
       this.sawSwing = swinging;
       if (s.swing <= 0 && ((swinging && this.parry) || (theirs.kind === 'bow' && t.draw > 0.3 && dist > 3.5 && dist < 30))) inp.ads = true;
     }
-    if (!camp) {
-      if (dist > gun.reach * 0.8) {
+    if (!camp && dist > 6 && this.push()) {
+      // Advance: on into the objective; the fight will come to it.
+    } else if (!camp) {
+      if (dist > gun.reach * 0.8 && !this.leashed(t.x, t.z)) {
         // Straight at it when it's close and in plain view; otherwise by the path.
         if (dist < 7 && Math.abs(t.y - s.y) < 0.6 && w.sees(s.x, s.y + 1, s.z, t.x, t.y + 1, t.z)) stepTo(fx - fz * this.strafe * (dist > 3 ? 0.3 : 0), fz + fx * this.strafe * (dist > 3 ? 0.3 : 0));
         if (this.wx === 0 && this.wz === 0) { this.goTo(w.nodeAt(t.x, t.y + 0.1, t.z), 0.5); this.follow(); }
@@ -525,7 +545,8 @@ export class Brain {
       this.turn(this.holdYaw + Math.sin(m.time * 0.9 + s.id) * 0.7, 0, dt, 0.3);
       inp.crouch = this.holdLow;
       inp.ads = s.weapons[s.slot].gun.alt !== 'throw';
-      if (m.time - s.hurtAt < 0.4) this.waitUntil = 0;
+      // (Hit from somewhere it can't see: move. But not off an objective it is holding.)
+      if (m.time - s.hurtAt < 0.4 && !(m.type === 'adv' && this.obj && Math.hypot(this.obj.x - s.x, this.obj.z - s.z) < 12)) this.waitUntil = 0;
       return;
     }
     if (!this.path || this.goal < 0 || m.time >= this.repathAt) this.newGoal();
@@ -541,7 +562,8 @@ export class Brain {
       this.waitUntil = m.time + (quick ? 1 + r.next() * 3 : 2.5 + r.next() * 7);
       this.holdLow = r.next() < 0.4;
       // Face the nearest place an enemy was seen lately, else their end of the yard.
-      let tx = m.arena ? (s.team ? m.arena.x0 : m.arena.x1) : s.team ? 8 : map.W - 8, tz = map.H / 2, bestD = Infinity;
+      // (In Advance the attack always comes from the west.)
+      let tx = m.type === 'adv' ? (s.team === m.attack ? map.W : 0) : m.arena ? (s.team ? m.arena.x0 : m.arena.x1) : s.team ? 8 : map.W - 8, tz = map.H / 2, bestD = Infinity;
       for (const e of m.soldiers) {
         if (e.team === s.team || m.time - e.knownT > 12) continue;
         const d = Math.hypot(e.kx - s.x, e.kz - s.z);
@@ -556,6 +578,144 @@ export class Brain {
 
   // Where to go next: where the other team was last seen, a marksman's
   // window, or one of the map's busy spots (their end more than ours).
+  // ---- Advance: the objectives ---------------------------------------------------------
+
+  // Which objective to work on. Attackers: the squads share out the ones
+  // not yet taken. Defenders: one being taken draws in most of those near
+  // enough; otherwise each squad guards its own.
+  pickObjective() {
+    const s = this.s, m = this.m, r = m.rng, objs = m.objectives();
+    if (s.team === m.attack) {
+      const open = objs.filter((o) => !o.own);
+      if (!open.length) return objs[0];
+      return open[(s.squad + (r.next() < 0.2 ? 1 : 0)) % open.length];
+    }
+    let hot = null, hotD = Infinity;
+    for (const o of objs) {
+      const d = Math.hypot(o.x - s.x, o.z - s.z);
+      if ((o.a > 0 || o.p > 0.02 || o.own) && d < hotD) { hotD = d; hot = o; }
+    }
+    if (hot && (hotD < 60 || r.next() < 0.5)) return hot;
+    return objs[(s.squad + (r.next() < 0.15 ? 1 : 0)) % objs.length];
+  }
+
+  // In a fight, does it keep pushing on into its objective rather than
+  // stand and trade shots? Most attackers do, while it isn't theirs; and
+  // defenders do, while it is being taken. (Decided afresh every few seconds.)
+  push() {
+    const s = this.s, m = this.m, o = this.obj, r = m.rng;
+    if (m.type !== 'adv' || !o || this.astray) return false;
+    const mine = s.team === m.attack, d = Math.hypot(o.x - s.x, o.z - s.z);
+    const want = mine ? !o.own : o.a > 0 || o.p > 0.02;
+    if (!want || d < 3 || d > 60) return false;
+    if (m.time > this.pushAt) {
+      this.pushAt = m.time + 2 + r.next() * 3;
+      this.pushing = r.next() < (mine ? 0.8 : 0.65) * (0.7 + 0.3 * this.k.dance);
+    }
+    if (!this.pushing) return false;
+    const w = this.w;
+    if (this.goal < 0 || Math.hypot(w.nodeX(this.goal) - o.x, w.nodeZ(this.goal) - o.z) > 4 || !this.path) {
+      if (d > 12) this.flowTo(o, 2);
+      else {
+        const a = r.next() * Math.PI * 2, rr = 3 * Math.sqrt(r.next());
+        let n = w.nodeAt(o.x + Math.cos(a) * rr, o.y + 0.6, o.z + Math.sin(a) * rr);
+        if (n < 0) n = w.nodeAt(o.x, o.y + 0.6, o.z);
+        this.goTo(n, 3, true);
+      }
+    }
+    return this.follow();
+  }
+
+  // Sets its path down the flow to objective o, to within `stop` of it.
+  flowTo(o, stop) {
+    const s = this.s, w = this.w, m = this.m;
+    const at = w.nodeAt(o.x, o.y + 0.6, o.z), from = w.nodeAt(s.x, s.y + 0.1, s.z);
+    if (at < 0 || from < 0) return false;
+    const p = w.pathDown(from, w.flowTo(at), stop);
+    if (!p || p.length < 2) return false;
+    this.path = p;
+    this.pi = 0;
+    this.ahead = 0;
+    this.goal = p[p.length - 1];
+    this.repathAt = m.time + 25;
+    return true;
+  }
+
+  // Should it leave the objective it is at for another?
+  needsMove() {
+    const s = this.s, m = this.m, o = this.obj;
+    if (s.team === m.attack) return o.own;
+    if (o.a > 0 || o.p > 0.02 || o.own) return false;
+    return m.objectives().some((x) => x !== o && (x.a > 0 || x.p > 0.05)) && m.rng.next() < 0.35;
+  }
+
+  // Would going after something at (x, z) take it too far from its objective?
+  leashed(x, z) {
+    const m = this.m, o = this.obj;
+    if (m.type !== 'adv' || !o || this.astray) return false;
+    const mine = this.s.team === m.attack;
+    return Math.hypot(x - o.x, z - o.z) > (mine ? (o.own ? 45 : 16) : 24);
+  }
+
+  // Where to come in, when it is its turn. In Advance, beside a squad mate
+  // who is well forward of where it would otherwise come in (attacking),
+  // or in the thick of things at an objective being taken (defending).
+  pickSpawn() {
+    const s = this.s, m = this.m, r = m.rng;
+    s.spawnOn = -1;
+    if (m.type !== 'adv') return;
+    const sec = m.sectorNow(), mine = s.team === m.attack, objs = m.objectives();
+    const toObj = (x, z) => {
+      let d = Infinity;
+      for (const o of objs) if (!mine || !o.own) d = Math.min(d, Math.hypot(o.x - x, o.z - z));
+      return d;
+    };
+    const base = mine ? toObj(sec.x0 - 5, 64) : Infinity;
+    let best = null, bestD = mine ? base - 25 : 18;
+    for (const e of m.soldiers) {
+      if (e.team !== s.team || e.squad !== s.squad || !m.canSpawnOn(s, e)) continue;
+      const d = toObj(e.x, e.z);
+      if (d < bestD) { bestD = d; best = e; }
+    }
+    if (best && r.next() < (mine ? 0.85 : 0.5)) s.spawnOn = best.id;
+  }
+
+  // ---- medics -----------------------------------------------------------------------------
+
+  medic() { return !!this.m.classes[this.s.cls].medic; }
+
+  // A team-mate down near enough to get to before it's too late.
+  findBody() {
+    const s = this.s, m = this.m;
+    let best = null, bestD = 26;
+    for (const e of m.soldiers) {
+      if (e.alive || e.team !== s.team || e.down < REVIVE_TIME + 1 || Math.abs(e.y - s.y) > 3) continue;
+      const d = Math.hypot(e.x - s.x, e.z - s.z);
+      // (Not one so far it would be gone by the time it got there.)
+      if (d < bestD && d / 5 < e.down - REVIVE_TIME) { bestD = d; best = e; }
+    }
+    return best;
+  }
+
+  reviveBody(e, dt) {
+    const s = this.s, inp = s.in, w = this.w;
+    this.mode = 'revive';
+    const dx = e.x - s.x, dz = e.z - s.z, d = Math.hypot(dx, dz);
+    if (d > 1.4) {
+      if (this.goal < 0 || Math.abs(w.nodeX(this.goal) - e.x) > 1.5 || Math.abs(w.nodeZ(this.goal) - e.z) > 1.5) this.goTo(w.nodeAt(e.x, e.y + 0.3, e.z), 2, true);
+      if (!this.follow()) { this.wx = dx / (d || 1); this.wz = dz / (d || 1); }
+      this.lookAlong(dt);
+      inp.sprint = d > 5;
+      return;
+    }
+    // Beside it: down low, working.
+    this.path = null;
+    this.goal = -1;
+    inp.use = true;
+    inp.crouch = true;
+    this.turn(Math.atan2(dx, -dz), -0.6, dt, 0.6);
+  }
+
   // Is its main gun empty, with nothing left to load?
   dry() {
     const main = this.s.weapons[0];
@@ -579,24 +739,29 @@ export class Brain {
         node = -1;
       }
     }
-    // Advance: mostly, to an objective. Attackers to one that isn't theirs
-    // yet; defenders to one that is being taken, or to stand guard.
+    // Advance: always to an objective (see pickObjective). An attacker goes
+    // right into one it hasn't taken; a defender stands guard round its own,
+    // in cover, and goes right in when it is being taken. The long guns and
+    // bows keep a little way off.
     if (m.type === 'adv') {
-      const mine = s.team === m.attack;
-      let obj = null, top = -Infinity;
-      for (const o of m.objectives()) {
-        const want = mine ? (o.own ? 0.2 : 1.6) : (o.own || o.p > 0.02 || o.a > 0 ? 1.6 : 0.9);
-        const score = want + r.next() - Math.hypot(o.x - s.x, o.z - s.z) / 70;
-        if (score > top) { top = score; obj = o; }
+      const o = this.obj = this.pickObjective(), mine = s.team === m.attack;
+      const id = s.weapons[0].gun.id, far = id === 'sniper' || id === 'bow';
+      const into = (mine && !o.own) || (!mine && (o.a > 0 || o.p > 0.02));
+      const [r0, r1] = far ? [8, 18] : into ? [0, 3.6] : [3, 11];
+      let best = -1, bestScore = -Infinity;
+      for (let k = 0; k < 8; k++) {
+        const a = r.next() * Math.PI * 2, d = r0 + (r1 - r0) * Math.sqrt(r.next());
+        const n = w.nodeAt(o.x + Math.cos(a) * d, o.y + 0.6, o.z + Math.sin(a) * d);
+        if (n < 0 || Math.abs(w.nodeY[n] - o.y) > 3) continue;
+        // (Guarding, a spot against a wall is better.)
+        const score = (into ? 0 : w.nodeNear[n] * 2) + r.next();
+        if (score > bestScore) { bestScore = score; best = n; }
       }
-      // Somewhere in it; the long guns and bows a little way off.
-      const id = s.weapons[0].gun.id, wide = id === 'sniper' || id === 'bow' ? 11 : 4.3;
-      for (let k = 0; k < 6 && node < 0; k++) {
-        const n = w.nodeAt(obj.x + (r.next() * 2 - 1) * wide, obj.y + 0.6, obj.z + (r.next() * 2 - 1) * wide);
-        if (n >= 0 && Math.abs(w.nodeY[n] - obj.y) < 2.5) node = n;
-      }
-      if (node < 0) node = w.nodeAt(obj.x, obj.y + 0.6, obj.z);
-      this.goTo(node, 30, true);
+      if (best < 0) best = w.nodeAt(o.x, o.y + 0.6, o.z);
+      // A long way off: down the shared flow to the objective (see World.flowTo),
+      // stopping short of it; the last few metres are found when it gets there.
+      if (Math.hypot(o.x - s.x, o.z - s.z) > 24 && this.flowTo(o, into ? 3 : 8)) return;
+      this.goTo(best, 30, true);
       if (!this.path) this.waitUntil = m.time + 0.5;
       return;
     }

@@ -320,6 +320,8 @@ void main() {
     float mortar = wall > 0.5 ? seam(b.x, 0.03) * seam(b.y, 0.06) : 1.0;
     k = mix(1.18, 0.9 + 0.16 * hash(floor(b)), mortar);
     if (wall < 0.5) k = 0.9 + 0.1 * seam(uv.x / 2.0, 0.012) * seam(uv.y / 2.0, 0.012);
+  } else if (mat == 9) {   // rough ground: blotches, large and small
+    k = 0.82 + 0.22 * noise(uv * 0.35 + 9.0) + 0.12 * noise(uv * 2.7) - 0.06 * noise(uv * 9.0);
   }
   c *= k * k;
 

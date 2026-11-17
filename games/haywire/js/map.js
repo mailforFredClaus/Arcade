@@ -15,7 +15,7 @@ export const W = 88, H = 64;
 
 // What things are made of: a colour, and the pattern the renderer draws on it.
 // Patterns: 0 plain, 1 paving, 2 ribbed metal, 3 panels, 4 planks, 5 hazard
-// stripes, 6 tiles, 7 tread plate, 8 brick.
+// stripes, 6 tiles, 7 tread plate, 8 brick, 9 rough ground.
 export const MATS = [
   { name: 'asphalt', c: '#4b4f58', p: 1 },
   { name: 'concrete', c: '#9a9c9f', p: 3 },
@@ -41,6 +41,18 @@ export const MATS = [
   { name: 'white', c: '#d9dde0', p: 2 },
   { name: 'pump', c: '#8b7fa8', p: 8 },
   { name: 'pillar', c: '#8a6f2a', p: 0 },
+  // (For the Iron Front. Pattern 9 is open ground: rough, with no seams.)
+  { name: 'grass', c: '#6e8a4b', p: 9 },
+  { name: 'mud', c: '#6c5b46', p: 9 },
+  { name: 'ballast', c: '#5d5a55', p: 9 },
+  { name: 'cobble', c: '#8b857a', p: 6 },
+  { name: 'leaf', c: '#4d7a38', p: 9 },
+  { name: 'stone', c: '#a59e8f', p: 8 },
+  { name: 'timber', c: '#7b5534', p: 4 },
+  { name: 'sandbag', c: '#b3a379', p: 3 },
+  { name: 'rail', c: '#6a6f76', p: 0 },
+  { name: 'plaster', c: '#d3c8b2', p: 3 },
+  { name: 'slate', c: '#4b505b', p: 3 },
 ];
 const M = Object.fromEntries(MATS.map((m, i) => [m.name, i]));
 

@@ -4,7 +4,8 @@
 
 import { buildMap } from './map.js';
 import { buildLine } from './line.js';
-import { Match, STEP, MODES, GUNS, WALK } from './engine.js';
+import { buildFront } from './front.js';
+import { Match, STEP, MODES, GUNS, WALK, ROUT, REVIVE_REACH, REVIVE_TIME } from './engine.js';
 import { SKILL } from './bots.js';
 import { Renderer, Builder, M } from './gl.js';
 import { buildMesh, SKY, SUN } from './mesh.js';
@@ -26,7 +27,7 @@ const wrap = (a) => a - TAU * Math.round(a / TAU);
 // ---- saved things ---------------------------------------------------------------------
 
 const SAVE_KEY = 'haywire';
-const save = Object.assign({ map: 0, vol: 1, type: 'tdm', side: 0, mode: 0, clsOld: 0, cls: 0, skill: 1, limit: 75, sens: 1, fov: 90, invert: false, matches: 0, wins: 0, kills: 0, deaths: 0, heads: 0, streak: 0, xp: 0 }, store.get(SAVE_KEY, {}) || {});
+const save = Object.assign({ advSize: 32, map: 0, vol: 1, type: 'tdm', side: 0, mode: 0, clsOld: 0, cls: 0, skill: 1, limit: 75, sens: 1, fov: 90, invert: false, matches: 0, wins: 0, kills: 0, deaths: 0, heads: 0, streak: 0, xp: 0 }, store.get(SAVE_KEY, {}) || {});
 const writeSave = () => store.set(SAVE_KEY, save);
 if (!MODES[save.mode]) save.mode = 0;
 if (save.type !== 'adv') save.type = 'tdm';
@@ -35,7 +36,8 @@ if (!(save.map >= 0 && save.map <= 5)) save.map = 0;
 const snd = (name, k = 0, vol = 1, pan = 0) => sfx(name, k, vol * save.vol, pan);
 // The maps for team deathmatch: Foundry Yard, or any one arena of the Long Works.
 const MAP_NAMES = ['Foundry Yard', 'The Yard', 'The Sheds', 'The Cut', 'The Foundry', 'The Offices'];
-const mapId = () => (save.type === 'adv' || save.map > 0 ? 'line' : 'yard');
+const mapId = () => (save.type === 'adv' ? 'front' : save.map > 0 ? 'line' : 'yard');
+if (![16, 24, 32].includes(save.advSize)) save.advSize = 32;
 const arenaNow = () => (save.type !== 'adv' && save.map > 0 ? save.map - 1 : undefined);
 save.side = save.side ? 1 : 0;
 // Each mode remembers its own choice of class.
@@ -98,7 +100,7 @@ function layout() {
 const maps = {};
 function useMap(id) {
   if (!maps[id]) {
-    const m = id === 'line' ? buildLine() : buildMap();
+    const m = id === 'front' ? buildFront() : id === 'line' ? buildLine() : buildMap();
     maps[id] = { map: m, mesh: buildMesh(m), radar: null };
   }
   const it = maps[id];
@@ -114,13 +116,15 @@ function useMap(id) {
 function whenBuilt(fn) {
   const id = mapId();
   if (maps[id]) { fn(); return; }
-  $('loading').textContent = id === 'line' ? 'Building the Long Works…' : 'Building the yard…';
+  $('loading').textContent = id === 'front' ? 'Building the Iron Front…' : id === 'line' ? 'Building the Long Works…' : 'Building the yard…';
   $('loading').hidden = false;
   setTimeout(() => { useMap(id); $('loading').hidden = true; fn(); }, 40);
 }
 
 function newMatch(opts) {
-  useMap(opts.type === 'adv' || opts.arena !== undefined ? 'line' : 'yard');
+  useMap(opts.type === 'adv' ? 'front' : opts.arena !== undefined ? 'line' : 'yard');
+  if (opts.type === 'adv') opts.size = save.advSize;
+  spawnPick = -1;
   match = new Match(map, { seed: (Math.random() * 2 ** 32) >>> 0, ...opts });
   me = opts.human ? match.soldiers[0] : null;
   vis.length = 0;
@@ -218,6 +222,8 @@ let wantSlot = -1, wantCls = -1;
 // down and Z again stands. Sprinting or jumping stands you up. C twice in
 // quick succession while sprinting is a slide.
 let stance = 0, lastC = -9, slideReq = false;
+// Scrapped in Advance: where to come back in (-1 the usual place, or a squad mate).
+let spawnPick = -1;
 const fine = matchMedia('(pointer: fine)').matches;
 
 let asking = 0; // when the game last asked to hold the mouse
@@ -293,6 +299,13 @@ window.addEventListener('keydown', (e) => {
     else if (n < 2) wantSlot = n;
   }
   if (e.code === 'KeyQ' && me && me.alive) wantSlot = 1 - me.slot;
+  // Scrapped: A and D (or the arrows) choose where to come back in.
+  if (me && !me.alive && match.type === 'adv' && ['KeyA', 'KeyD', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+    const list = spawnList(), k = Math.max(0, list.findIndex((o) => o.id === spawnPick));
+    spawnPick = list[(k + (e.code === 'KeyD' || e.code === 'ArrowRight' ? 1 : list.length - 1)) % list.length].id;
+    shown.down = '';
+    snd('tap');
+  }
   if (e.code === 'KeyC' && me && me.alive) {
     const now = performance.now();
     if (me.sprinting && now - lastC < 400) { slideReq = true; lastC = -9; } else lastC = now;
@@ -322,6 +335,8 @@ function feedInput() {
   inp.crouch = stance === 1;
   inp.prone = stance === 2;
   inp.use = on && keys.has('KeyE');
+  inp.deploy = (on || !me.alive) && keys.has('Space') && !me.alive;
+  inp.spawnAt = spawnPick;
   inp.ads = on && mouse.ads;
   inp.fire = on && mouse.fire;
   inp.reload = on && keys.has('KeyR');
@@ -424,7 +439,12 @@ function onEvent(ev) {
     }
     case 'kill': {
       const by = match.soldiers[ev.by];
-      fx.scrap(match, s, vis[s.id], models.robots[s.team], null, TEAM[s.team].glow);
+      // Down, for a medic to save: it falls, sparking. Otherwise it comes apart.
+      if (s.down > 0) {
+        const g = TEAM[s.team].glow;
+        fx.sparks(ev.x, ev.y + 1, ev.z, 16, [g[0] * 0.5 + 0.5, g[1] * 0.5 + 0.5, g[2] * 0.5 + 0.5], 5);
+        fx.puff(ev.x, ev.y + 0.6, ev.z, 0.5, 0.25, 1.2, 0.8);
+      } else fx.scrap(match, s, vis[s.id], models.robots[s.team], null, TEAM[s.team].glow);
       sound('scrap', 0, ev.x, ev.y + 1, ev.z, 0.9, 60);
       addFeed(by, s, ev.gun, ev.head);
       if (by === me && s !== me) {
@@ -455,6 +475,34 @@ function onEvent(ev) {
       if (phase === 'play') cam.shake = Math.min(1, cam.shake + clamp(1 - d / 28, 0, 1));
       break;
     }
+    case 'gone': fx.scrap(match, s, vis[s.id], models.robots[s.team], null, TEAM[s.team].glow); break;
+    case 'revive': {
+      const by = match.soldiers[ev.by];
+      fx.glow(s.x, s.y + 1, s.z, 1.4, [0.5, 1, 0.6], 0.4);
+      fx.sparks(s.x, s.y + 1, s.z, 14, [0.6, 1, 0.7], 4);
+      sound('reunite', 0, s.x, s.y + 1, s.z, 0.7, 40);
+      if (by === me) pop(`<b>+80</b>Got ${s.name} back on their feet`);
+      if (s === me) {
+        view.yaw = me.yaw;
+        view.pitch = 0;
+        stance = 0;
+        cam.dead = null;
+        cam.y = match.eyeY(me);
+        $('down').hidden = true;
+        hurtShow = 0;
+        pop(`${by.name} got you back on your feet`, 'streak');
+      }
+      break;
+    }
+    case 'regroup':
+      if (me && phase === 'play') {
+        cam.dead = { by: null, t: 0 };
+        $('down').hidden = false;
+        $('downBy').innerHTML = `Battalion ${match.battalion} regroups<small>Everyone comes back in at ${match.sectorNow().name}, and it starts over</small>`;
+        shown.down = '';
+        mouse.fire = false;
+      }
+      break;
     case 'spawn':
       if (s === me) {
         view.yaw = me.yaw;
@@ -528,7 +576,8 @@ function onEvent(ev) {
     case 'sector': {
       if (phase !== 'play') break;
       const last = ev.n >= match.sectors.length - 1, ours = match.attack === 0, name = match.sectors[ev.n].name;
-      pop(ours ? (last ? 'The works are taken' : `${name} is taken: on to ${match.sectorNow().name}`) : (last ? 'The works are lost' : `${name} is lost: fall back to ${match.sectorNow().name}`), 'streak');
+      pop(ours ? (last ? `${map.name} is taken` : `${name} is taken: on to ${match.sectorNow().name}`) : (last ? `${map.name} is lost` : `${name} is lost: fall back to ${match.sectorNow().name}`), 'streak');
+      if (!last) pop(ours ? `Catch them falling back: +${ROUT} lives each` : `Fall back, or be cut off`);
       if (!last) snd(ours ? 'cheer' : 'lose', 0, 0.8);
       break;
     }
@@ -538,7 +587,7 @@ function onEvent(ev) {
       snd(match.attack === 0 ? 'alarm' : 'cheer', 0, 0.8);
       break;
     case 'rout':
-      if (me && match.soldiers[ev.by] === me) pop('<b>+2 lives</b>Caught falling back');
+      if (me && match.soldiers[ev.by] === me) pop(`<b>+${ROUT} lives</b>Caught falling back`);
       break;
     case 'over': if (phase === 'play') { clearTimeout(overTimer); overTimer = setTimeout(finish, 900); } break;
     default:
@@ -547,6 +596,28 @@ function onEvent(ev) {
 
 // Feats: a few points more for scrapping something in style. (They go to
 // your rank, not to the match's scores.)
+// Where the player could come back in: the usual place, or beside a squad
+// mate who is out of trouble (Advance only).
+function spawnList() {
+  const out = [{ id: -1, label: match.attack === 0 ? 'The line' : 'The rear' }];
+  for (const s of match.soldiers) {
+    if (s === me || s.team !== me.team || s.squad !== me.squad || !s.alive) continue;
+    if (match.canSpawnOn(me, s)) out.push({ id: s.id, label: `${s.name} <small>${match.classes[s.cls].name}</small>` });
+  }
+  return out;
+}
+
+// One of your own down within reach, for a medic.
+function bodyNear(s) {
+  let best = null, bestD = REVIVE_REACH;
+  for (const e of match.soldiers) {
+    if (e.alive || e.team !== s.team || e.down <= 0 || Math.abs(e.y - s.y) > 1.5) continue;
+    const d = Math.hypot(e.x - s.x, e.z - s.z);
+    if (d < bestD) { bestD = d; best = e; }
+  }
+  return best;
+}
+
 // What a weapon's rounds are called, where they aren't rounds.
 const UNIT = { bow: 'arrows', spear: 'pikes', axe: 'hatchets', daggers: 'knives', sword: '', knife: '' };
 
@@ -620,7 +691,7 @@ const classCard = (c, i, on, key = true) => `<button class="class${on ? ' on' : 
 function boardHtml() {
   const team = (t) => `<div class="team t${t}"><h3><span>${t ? 'HAYWIRE' : 'BLUE'}</span><span>${match.scores[t]}</span></h3><table><tr><th>Robot</th><th>Score</th><th>K</th><th>D</th><th>A</th></tr>${
     match.table(t).map((s) => `<tr class="${s === me ? 'me' : ''}${s.alive ? '' : ' dead'}"><td>${s.name}<small>${match.classes[s.cls].name}</small></td><td>${s.score}</td><td>${s.kills}</td><td>${s.deaths}</td><td>${s.assists}</td></tr>`).join('')}</table></div>`;
-  return `<div class="board">${team(0)}${team(1)}</div>`;
+  return `<div class="board${match.size > 12 ? ' many' : ''}">${team(0)}${team(1)}</div>`;
 }
 
 function updateHud(now, dt) {
@@ -700,8 +771,11 @@ function updateHud(now, dt) {
     else if (wp.mag <= gun.mag * 0.25 && wp.reserve > 0) { note = 'R to reload'; warn = wp.mag === 0; }
   }
   // A weapon at your feet that you could take instead of your own.
-  const near = me.alive ? match.dropNear(me) : null;
-  const take = near ? `<b>E</b> take the ${GUNS[near.gun].name}${near.mag + near.reserve > 0 ? ` &middot; ${near.mag + near.reserve} ${UNIT[near.gun] || 'rounds'}` : ''}` : '';
+  // Or, for a medic, one of your own down beside you.
+  const body = me.alive && match.classes[me.cls].medic ? bodyNear(me) : null;
+  const near = me.alive && !body ? match.dropNear(me) : null;
+  const take = body ? `<b>E</b> hold to get ${body.name} back on their feet <i class="bar"><i style="width:${Math.round((100 * (me.reviving === body.id ? me.reviveT : 0)) / REVIVE_TIME)}%"></i></i>`
+    : near ? `<b>E</b> take the ${GUNS[near.gun].name}${near.mag + near.reserve > 0 ? ` &middot; ${near.mag + near.reserve} ${UNIT[near.gun] || 'rounds'}` : ''}` : '';
   if (shown.take !== take) { shown.take = take; $('use').innerHTML = take; }
   if (shown.note !== note) { shown.note = note; $('note').textContent = note; $('note').classList.toggle('warn', warn); }
   // Being hit.
@@ -717,16 +791,21 @@ function updateHud(now, dt) {
     arcs += `<i style="transform:rotate(${a.toFixed(2)}rad);opacity:${Math.min(1, f.t * 2).toFixed(2)}"></i>`;
   }
   if (arcs !== shown.arcs) { shown.arcs = arcs; $('from').innerHTML = arcs; }
-  // Scrapped: the wait, and a change of class.
+  // Scrapped: the wait, where to come back in, and a change of class.
   if (!me.alive && phase === 'play') {
-    const key = `${Math.ceil(Math.max(0, me.respawnT))}|${me.nextCls}`;
+    const list = match.type === 'adv' ? spawnList() : [];
+    if (!list.some((o) => o.id === spawnPick)) spawnPick = -1;
+    const medic = me.down > 0 && match.medicNear(me, 30);
+    const wait = Math.ceil(Math.max(0, me.respawnT));
+    const key = `${wait}|${me.nextCls}|${spawnPick}|${list.map((o) => o.id).join(',')}|${medic ? Math.ceil(me.down) : ''}`;
     if (shown.down !== key) {
       shown.down = key;
-      $('downIn').textContent = `Back in ${Math.ceil(Math.max(0, me.respawnT))}`;
+      $('downIn').textContent = wait > 0 ? `Back in ${wait}` : medic ? `A medic is near: wait to be got back on your feet (${Math.ceil(me.down)}), or Space to come back in now` : 'Coming back in';
+      $('downSpawn').innerHTML = list.length > 1 ? list.map((o) => `<span class="${o.id === spawnPick ? 'on' : ''}">${o.label}</span>`).join('') + '<em>A and D to choose</em>' : '';
       $('downClasses').innerHTML = match.classes.map((c, i) => classCard(c, i, i === me.nextCls)).join('');
     }
   }
-  if (!$('board').hidden && now - boardAt > 250) { boardAt = now; $('board').innerHTML = boardHtml().replace(/^<div class="board">|<\/div>$/g, ''); }
+  if (!$('board').hidden && now - boardAt > 250) { boardAt = now; $('board').classList.toggle('many', match.size > 12); $('board').innerHTML = boardHtml().replace(/^<div class="board[^"]*">|<\/div>$/g, ''); }
   $('grab').hidden = locked || force || ui.isOpen() || phase !== 'play';
   drawRadar();
 }
@@ -971,13 +1050,31 @@ function poseOf(s, v, alpha) {
 }
 
 const HOT = { tint: [1.9, 1.9, 1.9] };
+const DOWN = { tint: [0.55, 0.55, 0.6] };
 function draw(now, dt, alpha) {
   const firstPerson = me && me.alive && !cam.dead && phase !== 'title';
   // How each robot stands this frame.
   const poses = [];
+  const v0 = cam.view, fx0 = -v0[2], fz0 = -v0[10];
   for (const s of match.soldiers) {
     const v = vis[s.id];
-    if (!s.alive) { poses.push(null); continue; }
+    // (Robots far off, or behind the camera, aren't drawn; only those near cast shadows.)
+    const dx = s.x - cam.at[0], dz = s.z - cam.at[2], dist = Math.hypot(dx, dz);
+    v.show = dist < 170 && (dist < 8 || dx * fx0 + dz * fz0 > -0.25 * dist);
+    v.cast = dist < 42;
+    if (!s.alive) {
+      // Down, waiting for a medic: lying where it fell.
+      if (s.down > 0 && (v.show || v.cast)) {
+        lightAt(s, v, dt);
+        poseIn.x = s.x; poseIn.y = s.y; poseIn.z = s.z; poseIn.yaw = s.yaw; poseIn.pitch = -0.4; poseIn.crouch = 1; poseIn.prone = 1;
+        poseIn.stride = 0; poseIn.pace = 0; poseIn.lean = 0; poseIn.lower = 0; poseIn.twist = 0;
+        const p = pose(poseIn);
+        p.down = true;
+        poses.push(p);
+      } else poses.push(null);
+      continue;
+    }
+    if (!v.show && !v.cast) { poses.push(null); continue; }
     const speed = Math.hypot(s.vx, s.vz);
     v.pace += (Math.min(1.45, speed / WALK) - v.pace) * Math.min(1, dt * 10);
     v.stride += speed * dt * 2.6;
@@ -994,14 +1091,15 @@ function draw(now, dt, alpha) {
     lightAt(s, v, dt);
     poses.push(poseOf(s, v, alpha));
   }
-  const eachPart = (fn) => {
+  const eachPart = (fn, casting) => {
     match.soldiers.forEach((s, i) => {
       const p = poses[i];
-      if (!p) return;
+      if (!p || !(casting ? vis[s.id].cast : vis[s.id].show)) return;
       const r = models.robots[s.team], own = s === me && firstPerson;
       fn(r.thigh, p.thigh[0], s, own); fn(r.thigh, p.thigh[1], s, own);
       fn(r.shin, p.shin[0], s, own); fn(r.shin, p.shin[1], s, own);
       fn(r.hips, p.hips, s, own); fn(r.top, p.top, s, own);
+      if (p.down) return;
       const gun = s.weapons[s.slot].gun;
       fn(models.guns[gun.id].mesh, gun.kind ? M.mul(p.gun, held(gun, vis[s.id].sweep, vis[s.id].cut)) : p.gun, s, own);
       // A knight's shield: on the arm, or up in front.
@@ -1014,7 +1112,7 @@ function draw(now, dt, alpha) {
 
   // Shadows first (the player's own included, though they aren't drawn themselves).
   R.shadows(cam.at);
-  eachPart((meshPart, m) => R.cast(meshPart, m));
+  eachPart((meshPart, m) => R.cast(meshPart, m), true);
   const nadeMesh = match.mode.pot ? models.pot : models.nade;
   for (const n of match.nades) R.cast(nadeMesh, M.move(n.x, n.y, n.z));
   const dropAt = (d) => M.chain(M.move(d.x, d.y + 0.045, d.z), M.rotY(-d.yaw), M.rotZ(Math.PI / 2));
@@ -1025,11 +1123,21 @@ function draw(now, dt, alpha) {
   R.drawWorld();
   eachPart((meshPart, m, s, own) => {
     if (own) return;
-    R.draw(meshPart, m, vis[s.id].light, now - vis[s.id].hurt < 70 ? HOT : null);
+    R.draw(meshPart, m, vis[s.id].light, !s.alive ? DOWN : now - vis[s.id].hurt < 70 ? HOT : null);
   });
+  const medicNow = me && me.alive && match.classes[me.cls].medic;
   match.soldiers.forEach((s, i) => {
     const p = poses[i];
-    if (!p || (s === me && firstPerson)) return;
+    if (!p || !vis[s.id].show || (s === me && firstPerson)) return;
+    if (p.down) {
+      // A medic sees its own who are down: a green light over each.
+      if (medicNow && s.team === me.team && Math.hypot(s.x - me.x, s.z - me.z) < 40) {
+        const k = 0.5 + 0.3 * Math.sin(now / 200);
+        R.sprite(s.x, s.y + 1.1, s.z, 0.45, [0.25 * k, k, 0.35 * k, 0]);
+        R.streak([s.x, s.y + 0.85, s.z], [s.x, s.y + 1.35, s.z], 0.07, [0.4, 1, 0.5, 0]);
+      }
+      return;
+    }
     R.draw(models.robots[s.team].glow, p.top, vis[s.id].light, { tint: TEAM[s.team].glow, emit: 7 });
     // An arrow over each team-mate.
     if (me && s.team === me.team) {
@@ -1217,7 +1325,9 @@ function showTitle() {
   $('mapRow').hidden = adv;
   $('mapSeg').innerHTML = MAP_NAMES.map((name, i) => `<button class="seg-btn${i === save.map ? ' on' : ''}" data-map="${i}">${name}</button>`).join('');
   $('sideRow').hidden = !adv;
-  $('tagLine').innerHTML = adv ? 'Advance &middot; the Long Works &middot; five sectors &middot; 12 against 12' : `Team deathmatch &middot; ${MAP_NAMES[save.map]} &middot; 8 against 8`;
+  $('sizeRow').hidden = !adv;
+  $('sizeSeg').innerHTML = [16, 24, 32].map((n) => `<button class="seg-btn${n === save.advSize ? ' on' : ''}" data-size="${n}">${n} a side</button>`).join('');
+  $('tagLine').innerHTML = adv ? `Advance &middot; the Iron Front &middot; four sectors &middot; ${save.advSize} against ${save.advSize}` : `Team deathmatch &middot; ${MAP_NAMES[save.map]} &middot; 8 against 8`;
   $('modeSeg').innerHTML = MODES.map((m, i) => `<button class="seg-btn${i === save.mode ? ' on' : ''}" data-mode="${i}">${m.name}</button>`).join('');
   $('classPick').innerHTML = mode.classes.map((c, i) => classCard(c, i, i === save[clsKey(mode)], false)).join('');
   $('keysLine').innerHTML = (save.mode
@@ -1283,6 +1393,15 @@ $('skillSeg').addEventListener('click', (e) => {
   snd('tap');
   showTitle();
 });
+$('sizeSeg').addEventListener('click', (e) => {
+  const el = e.target.closest('[data-size]');
+  if (!el || Number(el.dataset.size) === save.advSize) return;
+  save.advSize = Number(el.dataset.size);
+  writeSave();
+  snd('tap');
+  showTitle();
+  whenBuilt(attract);
+});
 $('limitSeg').addEventListener('click', (e) => {
   const el = e.target.closest('[data-limit]');
   if (!el) return;
@@ -1335,8 +1454,9 @@ function showHow() {
       <p><b>Scrap the haywire robots.</b> Every one your team scraps is a point; the first team to the target wins.</p>
       <p><b>W A S D</b> to move, the <b>mouse</b> to aim, <b>left button</b> to fire. Hold the <b>right button</b> to look down the sights: slower, but much more accurate.</p>
       <p><b>Shift</b> sprints, <b>C</b> crouches and <b>Z</b> lies down (press it again to stand); either way you are steadier and smaller. <b>C</b> twice while sprinting is a slide. <b>Space</b> jumps onto crates, and <b>E</b> picks up a weapon someone dropped (walk over one like your own and you take its rounds). <b>R</b> reloads, <b>Q</b> or <b>1</b> and <b>2</b> swap to the pistol and back, <b>G</b> throws a grenade, and <b>V</b> strikes with the gun itself at whatever is right in front of you.</p>
-      <p><b>Advance</b> is attack and defence, on a map of its own: the Long Works, five arenas in a row. Each is a sector with two objectives, A and B. The attackers take an objective by having more robots at it than the defenders, and take the sector by holding both at once. Then everyone moves on: the defenders fall back to the next arena, and the fight starts again there.</p>
-      <p>The attack has three battalions. Every attacker scrapped costs the battalion one of its lives; when they are gone the next battalion takes up the attack, and the defenders have that sector back whole. Take all five sectors and the attack has won; lose all three battalions and the defence has. Keep to the sector being fought for: stray out of it for six seconds and you are scrapped.</p>
+      <p><b>Advance</b> is attack and defence on a map of its own, the Iron Front: four great sectors in a row, from a rail yard to a walled citadel, each with two or three objectives. The attackers take an objective by having more robots at it than the defenders; holding them all takes the sector, and the fight moves on to the next. The defenders then have a few seconds to fall back: every one the attack catches in the lost sector is worth three lives to it.</p>
+      <p>The attack has three battalions. Every attacker scrapped costs a life; when a battalion's lives are gone, everyone regroups and the sector starts over with the next. Take every sector and the attack has won; lose all three battalions and the defence has. Keep to the sector being fought for: stray out of it for six seconds and you are scrapped.</p>
+      <p><b>Squads and medics.</b> You are in a squad of four. Scrapped in Advance, <b>A</b> and <b>D</b> choose to come back in beside a squad mate who is out of trouble. A <b>Medic</b> can get the scrapped back on their feet where they fell: hold <b>E</b> beside them (attacking, it gives the life back), and those near a medic mend faster. Down, you wait for a medic who is near, or press <b>Space</b> to come back in.</p>
       <p><b>Old Iron</b> is the same match with no guns. The <b>left button</b> swings; with a bow, hold it to draw and let go to loose, aiming a little high for the drop. The <b>right button</b> raises the Knight's shield, throws a pike, hatchet or knife, or looks closer down the bow. <b>G</b> throws a fire pot that bursts where it lands, and <b>Q</b> draws your dagger.</p>
       <p><b>Head shots</b> do more. Your plating mends itself when nothing has hit you for a few seconds, so get behind something.</p>
       <p>The <b>radar</b> shows your team in blue, and the others in red wherever one was last seen or heard. Hold <b>Tab</b> for the scores, press <b>F</b> to fill the screen, and <b>Esc</b> to pause.</p>

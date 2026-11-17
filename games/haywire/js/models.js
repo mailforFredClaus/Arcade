@@ -131,6 +131,19 @@ const GUN_SHAPES = {
     b.box(-0.028, 0.02, -0.26, 0.028, 0.035, 0.0, acc);
     return { sight: 0.125, muzzle: 1.08, rear: null, front: null };
   },
+  // The medic's rifle: long and plain, with a white band and a red cross on the stock.
+  carbine(b, acc) {
+    b.box(-0.026, -0.02, -0.3, 0.026, 0.065, 0.12, STEEL);
+    b.rod(0, 0.028, -0.3, -0.78, 0.013, 0.013, JOINT);
+    b.box(-0.03, -0.012, -0.58, 0.03, 0.05, -0.3, '#7b5534');
+    b.box(-0.022, -0.05, 0.12, 0.022, 0.058, 0.4, '#7b5534');
+    b.box(-0.024, -0.05, 0.2, 0.024, 0.058, 0.26, acc);
+    b.box(-0.025, 0.0, 0.215, 0.025, 0.034, 0.245, '#d6312b');
+    b.box(-0.025, -0.012, 0.225, 0.025, 0.046, 0.235, '#d6312b');
+    b.box(-0.016, -0.11, -0.1, 0.016, -0.02, -0.04, JOINT);
+    b.box(-0.018, -0.12, 0.03, 0.018, -0.02, 0.08, DARK);
+    return { sight: 0.09, muzzle: 0.78, rear: 0.02, front: -0.72 };
+  },
   pistol(b, acc) {
     b.box(-0.016, 0.015, -0.2, 0.016, 0.075, 0.05, STEEL);
     b.box(-0.014, -0.005, -0.18, 0.014, 0.02, 0.04, DARK);
@@ -169,6 +182,14 @@ const OLD_SHAPES = {
     return { muzzle: 0.98 };
   },
   knife(b) { dagger(b, 0); return { muzzle: 0.34 }; },
+  // A mace: a wooden haft and a flanged iron head, with a white band.
+  mace(b) {
+    b.rod(0, 0, 0.14, -0.6, 0.017, 0.017, WOOD, 6);
+    b.rod(0, 0, -0.5, -0.78, 0.05, 0.05, STEEL, 8);
+    for (let k = 0; k < 4; k++) b.with(M.rotZ((k * Math.PI) / 4), () => b.box(-0.085, -0.008, -0.76, 0.085, 0.008, -0.52, BLADE));
+    b.rod(0, 0, -0.08, -0.16, 0.021, 0.021, '#e8e8e8', 6);
+    return { muzzle: 0.78 };
+  },
   daggers(b) { dagger(b, 0); dagger(b, -0.3); return { muzzle: 0.34 }; },
   spear(b) {
     b.rod(0, 0, 0.9, -1.3, 0.017, 0.017, WOOD, 6);
@@ -208,7 +229,7 @@ const THROWN = {
   spear(b) { OLD_SHAPES.spear(b); },
 };
 
-const ACCENT = { rifle: '#3fb6c8', smg: '#e8c53a', shotgun: '#d8612c', lmg: '#8fcf5a', sniper: '#b58cf0', pistol: '#d0d5db' };
+const ACCENT = { carbine: '#e8e8e8', rifle: '#3fb6c8', smg: '#e8c53a', shotgun: '#d8612c', lmg: '#8fcf5a', sniper: '#b58cf0', pistol: '#d0d5db' };
 
 function gun(R, id) {
   const b = new Builder();

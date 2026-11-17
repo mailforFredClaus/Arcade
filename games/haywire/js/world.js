@@ -393,6 +393,93 @@ export class World {
     return null;
   }
 
+  // ---- many going to the same place ----------------------------------------------------
+
+  // The cost of the cheapest way to node b from every node (Infinity where
+  // there is none): worked out once, then kept, for the last few places
+  // asked about. It is how many robots heading for the same objective find
+  // their way without each searching the whole map.
+  flowTo(b) {
+    this.flows = this.flows || new Map();
+    let f = this.flows.get(b);
+    if (f) {
+      this.flows.delete(b);
+      this.flows.set(b, f);
+      return f;
+    }
+    const N = this.nodeY.length, { eStart, eTo, eCost } = this;
+    if (!this.rStart) {
+      // The edges the other way round, once.
+      const rStart = new Int32Array(N + 1), rFrom = new Int32Array(eTo.length), rCost = new Float32Array(eTo.length);
+      for (let e = 0; e < eTo.length; e++) rStart[eTo[e] + 1]++;
+      for (let n = 0; n < N; n++) rStart[n + 1] += rStart[n];
+      const at = rStart.slice(0, N);
+      for (let n = 0; n < N; n++) {
+        for (let e = eStart[n]; e < eStart[n + 1]; e++) {
+          const k = at[eTo[e]]++;
+          rFrom[k] = n;
+          rCost[k] = eCost[e];
+        }
+      }
+      Object.assign(this, { rStart, rFrom, rCost, fHeap: new Int32Array(eTo.length + N), fHeapF: new Float32Array(eTo.length + N) });
+    }
+    const { rStart, rFrom, rCost, fHeap: heap, fHeapF: heapF } = this;
+    f = new Float32Array(N).fill(Infinity);
+    let size = 0;
+    const push = (n, v) => {
+      let i = size++;
+      while (i > 0) {
+        const p = (i - 1) >> 1;
+        if (heapF[p] <= v) break;
+        heap[i] = heap[p]; heapF[i] = heapF[p];
+        i = p;
+      }
+      heap[i] = n; heapF[i] = v;
+    };
+    f[b] = 0;
+    push(b, 0);
+    while (size > 0) {
+      const n = heap[0], v = heapF[0], last = heap[--size], lv = heapF[size];
+      let i = 0;
+      for (;;) {
+        let c = i * 2 + 1;
+        if (c >= size) break;
+        if (c + 1 < size && heapF[c + 1] < heapF[c]) c++;
+        if (heapF[c] >= lv) break;
+        heap[i] = heap[c]; heapF[i] = heapF[c];
+        i = c;
+      }
+      heap[i] = last; heapF[i] = lv;
+      if (v > f[n]) continue;
+      for (let e = rStart[n]; e < rStart[n + 1]; e++) {
+        const m = rFrom[e], nv = v + rCost[e];
+        if (nv < f[m] && size < heap.length) { f[m] = nv; push(m, nv); }
+      }
+    }
+    this.flows.set(b, f);
+    if (this.flows.size > 10) this.flows.delete(this.flows.keys().next().value);
+    return f;
+  }
+
+  // The way from node a downhill on a flow (from flowTo) until within
+  // `stop` of its end, as a list of nodes (a first), or null.
+  pathDown(a, f, stop = 0) {
+    if (a < 0 || !(f[a] < Infinity)) return null;
+    const { eStart, eTo, eCost } = this, out = [a];
+    let n = a;
+    while (f[n] > stop && out.length < 4000) {
+      let best = -1, bestC = Infinity;
+      for (let e = eStart[n]; e < eStart[n + 1]; e++) {
+        const c = eCost[e] + f[eTo[e]];
+        if (c < bestC) { bestC = c; best = eTo[e]; }
+      }
+      if (best < 0) return null;
+      n = best;
+      out.push(n);
+    }
+    return out;
+  }
+
   // Marks every node that can be walked to from node a (reach[n] = 1).
   reachFrom(a) {
     const reach = new Uint8Array(this.nodeY.length), stack = [a];
