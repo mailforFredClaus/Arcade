@@ -404,6 +404,11 @@ function play(a, name, k) {
       tone(a, { f: 190, f2: 120, type: 'triangle', d: 0.16, g: 0.3 });
       hiss(a, { d: 0.18, g: 0.14, f0: 2600, f1: 700, q: 1.2 });
       break;
+    case 'whizz':
+      // A round going close past.
+      hiss(a, { d: 0.12, g: 0.22, f0: 5200, f1: 1800, q: 2.5 });
+      tone(a, { f: 2400, f2: 900, type: 'sine', d: 0.1, g: 0.05 });
+      break;
     case 'deploy':
       tone(a, { f: 330, f2: 660, type: 'triangle', d: 0.18, g: 0.1 });
       tone(a, { f: 990, type: 'triangle', t: 0.14, d: 0.2, g: 0.07 });

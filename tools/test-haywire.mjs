@@ -302,6 +302,49 @@ const has = (m, e) => m.events.some((x) => x.e === e);
 }
 
 {
+  // Moving spoils the aim, down the sights too, and the sights sway; it takes a moment to steady.
+  const { m, a } = duel(40);
+  a.in.ads = true;
+  run(m, 0.6);
+  const still = m.spread(a);
+  check(a.swY === 0 && a.swP === 0, 'standing still, the sights are steady');
+  a.in.mz = 1;
+  run(m, 0.6);
+  check(m.spread(a) > still * 3.5 && (a.swY !== 0 || a.swP !== 0), `walking, the shots scatter far more (${(m.spread(a) / still).toFixed(1)} times) and the sights sway`);
+  a.in.mz = 0;
+  m.step();
+  check(m.spread(a) > still * 1.5, 'and they take a moment to steady after stopping');
+  run(m, 1);
+  check(m.spread(a) < still * 1.1, 'then they are steady again');
+  a.in.crouch = true;
+  run(m, 0.3);
+  a.in.mz = 1;
+  run(m, 0.6);
+  const crawl = m.spread(a);
+  a.in.crouch = false;
+  run(m, 0.6);
+  check(crawl < m.spread(a), 'walking crouched spoils it less');
+}
+
+{
+  // Rounds going close past pin a robot down.
+  const { m, a, b } = duel(20);
+  b.x += 1.2; // a step to the side of where a is aiming
+  b.in.ads = true;
+  run(m, 0.5);
+  const steady = m.spread(b);
+  a.in.ads = true;
+  run(m, 0.5);
+  a.in.pitch = 0;
+  a.in.fire = true;
+  run(m, 0.6);
+  a.in.fire = false;
+  check(b.supp > 0.5 && b.hp === b.maxHp && m.spread(b) > steady * 1.4, 'rounds going close past pin a robot down, spoiling its aim, without a scratch');
+  run(m, 3);
+  check(b.supp < 0.1, 'and it gets over it');
+}
+
+{
   // Lying down.
   const { m, a, b } = duel(6);
   a.in.prone = true;
@@ -318,6 +361,7 @@ const has = (m, e) => m.events.some((x) => x.e === e);
   run(m, 1);
   check(a.z - z0 > 0.6 && a.z - z0 < 1.6, `a robot lying down crawls (${(a.z - z0).toFixed(1)} m a second)`);
   a.in.mz = 0;
+  run(m, 1);
   const hip = m.spread(a);
   a.in.prone = false;
   run(m, 0.7);
@@ -607,7 +651,8 @@ const has = (m, e) => m.events.some((x) => x.e === e);
   };
   const { m, att, def, put, park } = setUp({ attack: 0 });
   check(m.tickets === Math.round(MODES[0].tickets * 16) && m.battalion === 1 && m.sector === 0, 'the first battalion has its lives');
-  const [A, B] = m.objectives();
+  const [A, B, C] = m.objectives();
+  check(m.objectives().length === 3 && A.z < B.z && B.z < C.z, 'the Rail Yard has three objectives, spread from north to south');
   put(att[0], A);
   run(m, 5);
   check(A.p > 0.15 && A.p < 0.35 && !A.own && A.a === 1, 'one attacker at an objective takes it slowly');
@@ -624,8 +669,9 @@ const has = (m, e) => m.events.some((x) => x.e === e);
   check(A.own && has(m, 'taken') && att[0].score === 150, 'three attackers take it sooner, for 150 each');
   check(m.sector === 0, 'one objective is not the sector');
   put(att[3], B);
+  put(att[4], C);
   run(m, 23);
-  check(m.sector === 1 && has(m, 'sector') && m.tickets === Math.round(MODES[0].tickets * 16), 'holding both takes the sector (with no lives back for it)');
+  check(m.sector === 1 && has(m, 'sector') && m.tickets === Math.round(MODES[0].tickets * 16), 'holding them all takes the sector (with no lives back for it)');
 
   // The fight moves on. The defenders still in the lost sector are cut off.
   const before = m.tickets;
@@ -637,7 +683,7 @@ const has = (m, e) => m.events.some((x) => x.e === e);
   check(att[5].alive && att[5].x > 150 && att[5].x < 160, 'the attackers now come in before the second sector');
   run(m, RETREAT + OUT_TIME - RESPAWN + 0.3);
   check(!def[0].alive && def[0].down === 0 && def[0].deaths === 1, 'a defender still in the lost sector when the time is up is scrapped, past saving');
-  run(m, 12);
+  run(m, MODES[0].defWait + 0.5);
   check(def[0].alive && def[0].x > 290 && def[0].x < 300, 'and the defenders come in at the back of the second');
   att[7].x = 305; att[7].z = 60;
   run(m, OUT_TIME + 0.2);
@@ -738,9 +784,10 @@ for (let mode = 0; mode < MODES.length; mode++) {
       m.events.length = 0;
       if (m.tick % 60) continue;
       for (const s of m.soldiers) {
-        if (!s.alive) { seen[s.id].t = 0; continue; }
+        // (Not counting a robot fighting from cover: that can go on a while.)
+        if (!s.alive || (s.bot && s.bot.target && m.time - s.bot.lastSeen < 6)) { seen[s.id].t = 0; continue; }
         if (!(s.y > -2 && s.y < 9) || w.solidAt(s.x, s.y + 0.9, s.z)) lost++;
-        // (Marksmen hold a window for up to half a minute; nobody else stays put that long.)
+        // (Marksmen hold a window for up to half a minute; nobody else stays put that long, but to fight.)
         const p = seen[s.id];
         if (Math.hypot(s.x - p.x, s.z - p.z) > 1) { p.x = s.x; p.z = s.z; p.t = 0; } else if (++p.t === 45) stuck++;
       }
