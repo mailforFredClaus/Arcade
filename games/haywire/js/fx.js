@@ -58,8 +58,10 @@ export const fx = {
 
   // A robot comes apart: each piece goes its own way.
   scrap(match, s, v, robot, gunMesh, glow) {
-    const p = pose({ x: s.x, y: s.y, z: s.z, yaw: s.yaw, pitch: s.pitch, crouch: s.crouchK, stride: v.stride, pace: v.pace, lean: 0, lower: 0 });
-    const pieces = [[robot.thigh, p.thigh[0]], [robot.thigh, p.thigh[1]], [robot.shin, p.shin[0]], [robot.shin, p.shin[1]], [robot.hips, p.hips], [robot.top, p.top], [gunMesh, p.gun]];
+    const p = pose({ x: s.x, y: s.y, z: s.z, yaw: s.yaw, pitch: s.pitch, crouch: s.crouchK, prone: s.proneK, stride: v.stride, pace: v.pace, lean: 0, lower: 0 });
+    // (The gun itself is left lying where it fell, if it can be picked up.)
+    const pieces = [[robot.thigh, p.thigh[0]], [robot.thigh, p.thigh[1]], [robot.shin, p.shin[0]], [robot.shin, p.shin[1]], [robot.hips, p.hips], [robot.top, p.top]];
+    if (gunMesh) pieces.push([gunMesh, p.gun]);
     for (const [mesh, m] of pieces) {
       const rot = new Float32Array(m);
       rot[12] = rot[13] = rot[14] = 0;

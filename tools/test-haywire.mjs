@@ -9,7 +9,7 @@
 
 import { buildMap } from '../games/haywire/js/map.js';
 import { buildLine } from '../games/haywire/js/line.js';
-import { Match, STEP, GUNS, BASH, CLASSES, MODES, TICKETS, SECTOR_BONUS, BATTALIONS, OUT_TIME, RETREAT, ROUT, RESPAWN, REGEN_DELAY, NADE_FUSE, JUMP, GRAVITY, WALK, TALL, TALL_CROUCH } from '../games/haywire/js/engine.js';
+import { Match, STEP, GUNS, BASH, CLASSES, MODES, TALL_PRONE, SLIDE_TIME, DROP_TIME, TICKETS, SECTOR_BONUS, BATTALIONS, OUT_TIME, RETREAT, ROUT, RESPAWN, REGEN_DELAY, NADE_FUSE, JUMP, GRAVITY, WALK, TALL, TALL_CROUCH } from '../games/haywire/js/engine.js';
 import { STEP_UP } from '../games/haywire/js/world.js';
 
 const matches = Number(process.argv[2] || 12);
@@ -298,6 +298,90 @@ const has = (m, e) => m.events.some((x) => x.e === e);
   for (const s of clock.soldiers) s.bot = null;
   run(clock, 1.1);
   check(clock.over && clock.winner === -1, 'the clock running out ends it too: a draw if the scores are level');
+}
+
+{
+  // Lying down.
+  const { m, a, b } = duel(6);
+  a.in.prone = true;
+  m.step();
+  check(a.prone && a.h === TALL_PRONE && a.stanceT > 0, 'Z lies down, which takes a moment');
+  a.in.fire = true;
+  m.step();
+  check(a.shots === 0, 'no firing while getting down');
+  a.in.fire = false;
+  run(m, 0.6);
+  check(Math.abs(m.eyeY(a) - a.y - 0.42) < 0.02, 'the eye is down near the ground');
+  a.in.mz = 1;
+  const z0 = a.z;
+  run(m, 1);
+  check(a.z - z0 > 0.6 && a.z - z0 < 1.6, `a robot lying down crawls (${(a.z - z0).toFixed(1)} m a second)`);
+  a.in.mz = 0;
+  const hip = m.spread(a);
+  a.in.prone = false;
+  run(m, 0.7);
+  check(m.spread(a) > hip * 1.5 && !a.prone && !a.crouching, 'lying down is steadier than standing; and it stands again');
+  a.in.prone = true;
+  run(m, 0.7);
+  b.in.ads = true;
+  run(m, 0.4);
+  b.in.pitch = Math.atan2(1.67 - 1.62, b.z - a.z);
+  b.in.fire = true;
+  run(m, 0.5);
+  b.in.fire = false;
+  check(a.hp === 100, 'shots at a standing robot\'s head height pass over one lying down');
+  b.in.pitch = Math.atan2(a.y + 0.26 - 1.62, b.z - a.z);
+  b.in.fire = true;
+  run(m, 0.5);
+  check(!a.alive, 'shots at its body find it');
+}
+
+{
+  // A slide.
+  const { m, a } = duel(40);
+  a.in.mz = 1;
+  a.in.slide = true;
+  m.step();
+  check(a.slideT <= 0, 'there is no slide from a walk');
+  a.in.slide = false;
+  a.in.sprint = true;
+  run(m, 0.6);
+  const z0 = a.z;
+  a.in.slide = true;
+  m.step();
+  a.in.slide = false;
+  a.in.sprint = false;
+  check(a.slideT > 0 && a.crouching && has(m, 'slide'), 'from a sprint, a slide: low and fast');
+  run(m, SLIDE_TIME - 0.05);
+  const went = a.z - z0;
+  check(went > 4.5 && went < 7, `it goes ${went.toFixed(1)} m and slows`);
+  run(m, 0.2);
+  check(a.slideT <= 0 && !a.crouching, 'and it is over, back on its feet');
+}
+
+{
+  // Weapons dropped by the scrapped. (Here a rifle, and a Runner's submachine gun.)
+  const { m, a, b } = duel(1, 0, 1);
+  const theirs = b.weapons[0].gun.id;
+  m.scrap(b, a, 'rifle', false);
+  check(m.drops.length === 1 && m.drops[0].gun === theirs, 'a scrapped robot drops its main weapon');
+  a.weapons[0].mag = 3;
+  a.weapons[0].reserve = 0;
+  a.in.use = true;
+  m.step();
+  a.in.use = false;
+  check(a.weapons[0].gun.id === theirs && a.weapons[0].mag + a.weapons[0].reserve >= GUNS[theirs].mag && has(m, 'pickup'), 'E takes it, with at least a magazine in it');
+  check(m.drops.length === 1 && m.drops[0].gun === 'rifle' && m.drops[0].mag === 3, 'and leaves yours where it lay');
+  // One like your own gives you its rounds as you pass.
+  a.weapons[0].reserve = 0;
+  const c = m.soldiers[9];
+  c.x = 13.5; c.z = 6.8; c.y = 0;
+  c.weapons[0] = { gun: GUNS[a.weapons[0].gun.id], mag: 10, reserve: 40 };
+  m.scrap(c, a, 'rifle', false);
+  run(m, 0.2);
+  check(a.weapons[0].reserve === 50 && has(m, 'ammo'), 'walking over a weapon like your own takes its rounds');
+  run(m, DROP_TIME + 0.5);
+  check(m.drops.length === 0, `dropped weapons are gone after ${DROP_TIME} seconds`);
 }
 
 {

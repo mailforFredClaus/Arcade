@@ -4,7 +4,7 @@
 
 import { buildMap } from './map.js';
 import { buildLine } from './line.js';
-import { Match, STEP, MODES, GUNS, EYE, EYE_CROUCH, WALK } from './engine.js';
+import { Match, STEP, MODES, GUNS, WALK } from './engine.js';
 import { SKILL } from './bots.js';
 import { Renderer, Builder, M } from './gl.js';
 import { buildMesh, SKY, SUN } from './mesh.js';
@@ -141,7 +141,7 @@ function attract() {
 
 function start() {
   clearTimeout(overTimer);
-  crouchOn = false;
+  stance = 0;
   newMatch({ human: true, mode: save.mode, cls: save[clsKey(MODES[save.mode])], skill: [1, save.skill], scoreLimit: save.limit, type: save.type, attack: save.side, arena: arenaNow() });
   Object.assign(feats, { last: -9, run: 0, killer: -1, dry: 0, bonus: 0 });
   phase = 'play';
@@ -214,7 +214,10 @@ function scoreLine() {
 const keys = new Set();
 const mouse = { fire: false, ads: false };
 let wantSlot = -1, wantCls = -1;
-let crouchOn = false; // C goes down and C comes up again; sprinting or jumping stands you up too
+// 0 standing, 1 crouched, 2 lying down. C crouches and C again stands; Z lies
+// down and Z again stands. Sprinting or jumping stands you up. C twice in
+// quick succession while sprinting is a slide.
+let stance = 0, lastC = -9, slideReq = false;
 const fine = matchMedia('(pointer: fine)').matches;
 
 let asking = 0; // when the game last asked to hold the mouse
@@ -290,7 +293,12 @@ window.addEventListener('keydown', (e) => {
     else if (n < 2) wantSlot = n;
   }
   if (e.code === 'KeyQ' && me && me.alive) wantSlot = 1 - me.slot;
-  if (e.code === 'KeyC' && me && me.alive) crouchOn = !crouchOn;
+  if (e.code === 'KeyC' && me && me.alive) {
+    const now = performance.now();
+    if (me.sprinting && now - lastC < 400) { slideReq = true; lastC = -9; } else lastC = now;
+    stance = stance === 1 ? 0 : 1;
+  }
+  if (e.code === 'KeyZ' && me && me.alive) stance = stance === 2 ? 0 : 2;
   if (e.code === 'KeyP') showPause();
   if (e.code === 'KeyF') fullScreen();
 });
@@ -308,8 +316,12 @@ function feedInput() {
   inp.pitch = view.pitch;
   inp.jump = on && keys.has('Space');
   inp.sprint = on && (keys.has('ShiftLeft') || keys.has('ShiftRight'));
-  if (inp.jump || (inp.sprint && inp.mz > 0) || !me.alive) crouchOn = false;
-  inp.crouch = crouchOn;
+  if (inp.jump || (inp.sprint && inp.mz > 0) || !me.alive) stance = 0;
+  // A slide ends crouched, unless you go on sprinting.
+  if (slideReq) { inp.slide = true; slideReq = false; stance = 1; } else inp.slide = false;
+  inp.crouch = stance === 1;
+  inp.prone = stance === 2;
+  inp.use = on && keys.has('KeyE');
   inp.ads = on && mouse.ads;
   inp.fire = on && mouse.fire;
   inp.reload = on && keys.has('KeyR');
@@ -412,7 +424,7 @@ function onEvent(ev) {
     }
     case 'kill': {
       const by = match.soldiers[ev.by];
-      fx.scrap(match, s, vis[s.id], models.robots[s.team], models.guns[s.weapons[0].gun.id].mesh, TEAM[s.team].glow);
+      fx.scrap(match, s, vis[s.id], models.robots[s.team], null, TEAM[s.team].glow);
       sound('scrap', 0, ev.x, ev.y + 1, ev.z, 0.9, 60);
       addFeed(by, s, ev.gun, ev.head);
       if (by === me && s !== me) {
@@ -447,7 +459,7 @@ function onEvent(ev) {
       if (s === me) {
         view.yaw = me.yaw;
         view.pitch = 0;
-        crouchOn = false;
+        stance = 0;
         cam.dead = null;
         cam.y = match.eyeY(me);
         $('down').hidden = true;
@@ -492,6 +504,16 @@ function onEvent(ev) {
     case 'throw': if (s === me) snd('lob'); else sound('lob', 0, s.x, s.y + 1.4, s.z, 0.5, 25); break;
     case 'bounce': sound('clack', 0, ev.x, ev.y, ev.z, 0.6, 28); break;
     case 'jump': if (s === me) snd('hop', 0, 0.25); break;
+    case 'slide': if (s === me) snd('slide', 0, 0.7); else sound('slide', 0, s.x, s.y, s.z, 0.5, 20); break;
+    case 'ammo':
+      if (s === me) {
+        snd('clack', 0, 0.6);
+        pop(`<b>+${ev.n}</b>${UNIT[ev.gun] || 'rounds'} from a dropped ${GUNS[ev.gun].name}`);
+      }
+      break;
+    case 'pickup':
+      if (s === me) { snd('mag', 1, 0.7); pop(`Picked up the ${GUNS[ev.gun].name}`); }
+      break;
     case 'land': if (s === me) { hand.dip = Math.min(1, ev.v / 9); snd('foot', 2, 0.6); } break;
     case 'foot': if (s === me) snd('foot', (Math.random() * 2) | 0, me.sprinting ? 0.5 : 0.3); else sound('foot', 0, s.x, s.y, s.z, 0.45, 14); break;
     // Advance.
@@ -525,6 +547,9 @@ function onEvent(ev) {
 
 // Feats: a few points more for scrapping something in style. (They go to
 // your rank, not to the match's scores.)
+// What a weapon's rounds are called, where they aren't rounds.
+const UNIT = { bow: 'arrows', spear: 'pikes', axe: 'hatchets', daggers: 'knives', sword: '', knife: '' };
+
 const feats = { last: -9, run: 0, killer: -1, dry: 0, bonus: 0 };
 function feat(ev, s) {
   const got = [], gun = GUNS[ev.gun], far = Math.hypot(me.x - ev.x, me.z - ev.z);
@@ -674,6 +699,10 @@ function updateHud(now, dt) {
     else if (wp.mag === 0 && wp.reserve <= 0) { note = 'Out of rounds'; warn = true; }
     else if (wp.mag <= gun.mag * 0.25 && wp.reserve > 0) { note = 'R to reload'; warn = wp.mag === 0; }
   }
+  // A weapon at your feet that you could take instead of your own.
+  const near = me.alive ? match.dropNear(me) : null;
+  const take = near ? `<b>E</b> take the ${GUNS[near.gun].name}${near.mag + near.reserve > 0 ? ` &middot; ${near.mag + near.reserve} ${UNIT[near.gun] || 'rounds'}` : ''}` : '';
+  if (shown.take !== take) { shown.take = take; $('use').innerHTML = take; }
   if (shown.note !== note) { shown.note = note; $('note').textContent = note; $('note').classList.toggle('warn', warn); }
   // Being hit.
   hurtShow = Math.max(0, hurtShow - dt * 0.9);
@@ -865,7 +894,7 @@ function aim(now, dt, alpha) {
     cam.roll += (0.12 - cam.roll) * Math.min(1, dt * 2);
   } else {
     const x = lerp(me.px, me.x, alpha), z = lerp(me.pz, me.z, alpha);
-    const y = lerp(me.py, me.y, alpha) + EYE + (EYE_CROUCH - EYE) * me.crouchK;
+    const y = lerp(me.py, me.y, alpha) + match.eyeY(me) - me.y;
     // (Steps are climbed in jumps; the eye glides up them.)
     cam.y = Math.abs(y - cam.y) > 1.2 ? y : cam.y + (y - cam.y) * Math.min(1, dt * 22);
     const v = vis[me.id], bob = me.grounded ? Math.abs(Math.sin(v.stride)) * 0.035 * v.pace : 0;
@@ -873,7 +902,7 @@ function aim(now, dt, alpha) {
     cam.yaw = view.yaw + me.ky;
     cam.pitch = clamp(view.pitch + me.kp, -1.55, 1.55);
     const strafe = (me.vx * Math.cos(view.yaw) + me.vz * Math.sin(view.yaw)) / WALK;
-    cam.roll += (-strafe * 0.018 - cam.roll) * Math.min(1, dt * 8);
+    cam.roll += (-strafe * 0.018 + (me.slideT > 0 ? 0.06 : 0) - cam.roll) * Math.min(1, dt * 8);
     const gun = me.weapons[me.slot].gun;
     fov = 2 * Math.atan(Math.tan(fov / 2) / lerp(1, gun.zoom, ease(me.ads)));
     if (me.sprinting) fov *= 1.04;
@@ -899,7 +928,7 @@ const lightAt = (s, v, dt) => {
   return v.light;
 };
 
-const poseIn = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0, crouch: 0, stride: 0, pace: 0, lean: 0, lower: 0, twist: 0 };
+const poseIn = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0, crouch: 0, prone: 0, stride: 0, pace: 0, lean: 0, lower: 0, twist: 0 };
 
 // The shape of a swing, from how far through it is (0..1) and how much of
 // that is the wind-up: down to -1 as the arm goes back, quickly up to 1 as
@@ -932,6 +961,7 @@ function poseOf(s, v, alpha) {
   poseIn.yaw = s === me ? view.yaw : s.yaw + s.ky;
   poseIn.pitch = clamp((s === me ? view.pitch : s.pitch) + s.kp, -1.2, 1.2);
   poseIn.crouch = s.crouchK;
+  poseIn.prone = s.proneK;
   poseIn.stride = v.stride;
   poseIn.pace = s.grounded ? v.pace : 0.45;
   poseIn.lean = v.lean;
@@ -951,7 +981,8 @@ function draw(now, dt, alpha) {
     const speed = Math.hypot(s.vx, s.vz);
     v.pace += (Math.min(1.45, speed / WALK) - v.pace) * Math.min(1, dt * 10);
     v.stride += speed * dt * 2.6;
-    v.lean += ((s.sprinting ? 0.24 : 0) - v.lean) * Math.min(1, dt * 8);
+    // (Leaning into a sprint; back, sliding.)
+    v.lean += ((s.sprinting ? 0.24 : s.slideT > 0 ? -0.3 : 0) - v.lean) * Math.min(1, dt * 8);
     v.lower += ((s.sprinting ? 0.7 : s.reloadT > 0 || s.swapT > 0 ? 0.5 : 0) - v.lower) * Math.min(1, dt * 10);
     // The old arms: how far through a swing it is, and whether its shield is up.
     const gun = s.weapons[s.slot].gun;
@@ -986,6 +1017,8 @@ function draw(now, dt, alpha) {
   eachPart((meshPart, m) => R.cast(meshPart, m));
   const nadeMesh = match.mode.pot ? models.pot : models.nade;
   for (const n of match.nades) R.cast(nadeMesh, M.move(n.x, n.y, n.z));
+  const dropAt = (d) => M.chain(M.move(d.x, d.y + 0.045, d.z), M.rotY(-d.yaw), M.rotZ(Math.PI / 2));
+  for (const d of match.drops) R.cast(models.guns[d.gun].mesh, dropAt(d));
   fxDraw(R, models, 'cast');
 
   R.begin({ view: cam.view, proj: cam.proj, eye: cam.at, sunCol: SUN, skyTop: [0.13, 0.3, 0.7], horizon: [0.62, 0.7, 0.8], fog: [60, 240], lights: lightsNow(cam.at) });
@@ -1010,6 +1043,13 @@ function draw(now, dt, alpha) {
     // A fire pot burns; a grenade has a light that blinks faster as it runs down.
     if (match.mode.pot) R.sprite(x, y + 0.2, z, 0.2 + 0.08 * Math.random(), [1, 0.55, 0.15, 0]);
     else if (Math.sin(now / (30 + n.fuse * 45)) > 0) R.sprite(x, y + 0.1, z, 0.22, [1, 0.15, 0.1, 0]);
+  }
+  // Weapons lying where they fell, each with a glint to show it can be picked up.
+  for (const d of match.drops) {
+    if (Math.abs(d.x - cam.at[0]) > 70) continue;
+    R.draw(models.guns[d.gun].mesh, dropAt(d), SKY, { gloss: 0.5 });
+    const k = 0.3 + 0.2 * Math.sin(now / 250 + d.id);
+    R.sprite(d.x, d.y + 0.25, d.z, 0.22, [k, k * 0.95, k * 0.7, 0]);
   }
   // Arrows and thrown things in the air: point first, the thrown ones turning over.
   for (const p of match.shots) {
@@ -1045,7 +1085,9 @@ function drawHands(now, dt) {
   hand.dip *= Math.exp(-dt * 7);
   const walk = me.grounded ? v.pace : 0;
   const bobX = Math.sin(v.stride) * 0.012 * walk * (0.25 + 0.75 * hip), bobY = -Math.abs(Math.cos(v.stride)) * 0.012 * walk * (0.25 + 0.75 * hip);
-  const run = v.lean / 0.24; // 0..1 as the sprint comes on
+  const run = Math.max(0, v.lean / 0.24); // 0..1 as the sprint comes on
+  // Lying down: the gun a little lower, steadied on the ground.
+  const lying = me.proneK;
   // Lowered while reloading, swapping or throwing.
   const g = me.weapons[me.slot].gun;
   const reload = me.reloadT > 0 ? Math.sin(Math.PI * clamp(1 - me.reloadT / (g.shell ? g.shell : g.reload), 0, 1)) : 0;
@@ -1053,7 +1095,8 @@ function drawHands(now, dt) {
   const SIZE = 0.8;
   // Sprinting, the gun comes in to the middle, held low with the barrel up a little, and swings with each stride.
   const x = 0.2 * hip * (1 - 0.82 * run) + bobX * (1 + 2 * run) + hand.swayX * hip;
-  const y = lerp(-info.sight * SIZE, -0.2, hip) + bobY * (1 + run) + hand.swayY * hip - down * 0.22 - hand.dip * 0.05 - run * 0.07 + hand.kick * 0.006 * hip;
+  const settle = me.stanceT > 0 ? Math.sin(Math.PI * clamp(me.stanceT / 0.5, 0, 1)) : 0;
+  const y = lerp(-info.sight * SIZE, -0.2, hip) + bobY * (1 + run) + hand.swayY * hip - down * 0.22 - hand.dip * 0.05 - run * 0.07 + hand.kick * 0.006 * hip - lying * 0.02 * hip - settle * 0.15;
   const z = lerp(-0.3, -0.46, hip) + hand.kick * 0.035 + run * 0.05 - hand.bash * 0.2;
   const local = M.chain(M.move(x, y, z), M.rotY(-0.04 * hip * (1 - run) + hand.bash * 0.9), M.rotZ(-hand.bash * 0.5), M.rotX(hand.kick * (0.035 + 0.03 * hip) - down * 0.7 + run * 0.2), M.rotZ(run * 0.1 + down * 0.3), M.scale(SIZE));
   const model = M.mul(M.rigidInverse(cam.view), local);
@@ -1074,7 +1117,7 @@ function drawOldHands(dt, gun, info, v) {
   hand.swayX *= Math.exp(-dt * 9);
   hand.swayY *= Math.exp(-dt * 9);
   hand.dip *= Math.exp(-dt * 7);
-  const walk = me.grounded ? v.pace : 0, run = v.lean / 0.24;
+  const walk = me.grounded ? v.pace : 0, run = Math.max(0, v.lean / 0.24);
   const bobX = Math.sin(v.stride) * 0.014 * walk * (1 + run) + hand.swayX;
   const down = Math.max(clamp(me.swapT / 0.4, 0, 1), clamp(me.throwT / 0.65, 0, 1) * 1.1);
   const bobY = -Math.abs(Math.cos(v.stride)) * 0.014 * walk * (1 + run) + hand.swayY - down * 0.32 - hand.dip * 0.05;
@@ -1178,8 +1221,8 @@ function showTitle() {
   $('modeSeg').innerHTML = MODES.map((m, i) => `<button class="seg-btn${i === save.mode ? ' on' : ''}" data-mode="${i}">${m.name}</button>`).join('');
   $('classPick').innerHTML = mode.classes.map((c, i) => classCard(c, i, i === save[clsKey(mode)], false)).join('');
   $('keysLine').innerHTML = (save.mode
-    ? 'W A S D|move,Mouse|aim,Left|swing; hold to draw the bow,Right|shield; throw; look closer,Shift|sprint,C|crouch and stand,Space|jump,G|fire pot,Q|dagger,Tab|scores,F|full screen'
-    : 'W A S D|move,Mouse|aim,Left|fire,Right|sights,Shift|sprint,C|crouch and stand,Space|jump,R|reload,G|grenade,V|strike,Q|swap,Tab|scores,F|full screen')
+    ? 'W A S D|move,Mouse|aim,Left|swing; hold to draw the bow,Right|shield; throw; look closer,Shift|sprint,C|crouch and stand,Space|jump,Z|lie down,C twice sprinting|slide,E|pick up,G|fire pot,Q|dagger,Tab|scores,F|full screen'
+    : 'W A S D|move,Mouse|aim,Left|fire,Right|sights,Shift|sprint,C|crouch and stand,Space|jump,Z|lie down,C twice sprinting|slide,R|reload,G|grenade,V|strike,E|pick up,Q|swap,Tab|scores')
     .split(',').map((k) => k.split('|')).map(([key, what]) => `<b>${key}</b> ${what.replace(/;/g, ',')}`).join(' &middot; ');
   $('skillSeg').innerHTML = SKILL.map((k, i) => `<button class="seg-btn${i === save.skill ? ' on' : ''}" data-skill="${i}">${k.name}</button>`).join('');
   $('limitSeg').innerHTML = [50, 75, 100].map((n) => `<button class="seg-btn${n === save.limit ? ' on' : ''}" data-limit="${n}">${n}</button>`).join('');
@@ -1291,7 +1334,7 @@ function showHow() {
     <div class="how">
       <p><b>Scrap the haywire robots.</b> Every one your team scraps is a point; the first team to the target wins.</p>
       <p><b>W A S D</b> to move, the <b>mouse</b> to aim, <b>left button</b> to fire. Hold the <b>right button</b> to look down the sights: slower, but much more accurate.</p>
-      <p><b>Shift</b> sprints, <b>C</b> crouches and <b>C</b> again stands (crouched you are steadier, and smaller), <b>Space</b> jumps onto crates. <b>R</b> reloads, <b>Q</b> or <b>1</b> and <b>2</b> swap to the pistol and back, <b>G</b> throws a grenade, and <b>V</b> strikes with the gun itself at whatever is right in front of you.</p>
+      <p><b>Shift</b> sprints, <b>C</b> crouches and <b>Z</b> lies down (press it again to stand); either way you are steadier and smaller. <b>C</b> twice while sprinting is a slide. <b>Space</b> jumps onto crates, and <b>E</b> picks up a weapon someone dropped (walk over one like your own and you take its rounds). <b>R</b> reloads, <b>Q</b> or <b>1</b> and <b>2</b> swap to the pistol and back, <b>G</b> throws a grenade, and <b>V</b> strikes with the gun itself at whatever is right in front of you.</p>
       <p><b>Advance</b> is attack and defence, on a map of its own: the Long Works, five arenas in a row. Each is a sector with two objectives, A and B. The attackers take an objective by having more robots at it than the defenders, and take the sector by holding both at once. Then everyone moves on: the defenders fall back to the next arena, and the fight starts again there.</p>
       <p>The attack has three battalions. Every attacker scrapped costs the battalion one of its lives; when they are gone the next battalion takes up the attack, and the defenders have that sector back whole. Take all five sectors and the attack has won; lose all three battalions and the defence has. Keep to the sector being fought for: stray out of it for six seconds and you are scrapped.</p>
       <p><b>Old Iron</b> is the same match with no guns. The <b>left button</b> swings; with a bow, hold it to draw and let go to loose, aiming a little high for the drop. The <b>right button</b> raises the Knight's shield, throws a pike, hatchet or knife, or looks closer down the bow. <b>G</b> throws a fire pot that bursts where it lands, and <b>Q</b> draws your dagger.</p>
@@ -1339,7 +1382,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden && pha
 if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
   window.haywire = {
     get match() { return match; }, get me() { return me; }, get phase() { return phase; }, view, cam, keys, mouse, save, start, finish,
-    set force(v) { force = v; }, set frozen(v) { frozen = v; }, vis, hand, stat, get mesh() { return mesh; },
+    set force(v) { force = v; }, set frozen(v) { frozen = v; }, get stance() { return stance; }, vis, hand, stat, get mesh() { return mesh; },
   };
 }
 
