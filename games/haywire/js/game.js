@@ -552,6 +552,7 @@ function onEvent(ev) {
     case 'throw': if (s === me) snd('lob'); else sound('lob', 0, s.x, s.y + 1.4, s.z, 0.5, 25); break;
     case 'bounce': sound('clack', 0, ev.x, ev.y, ev.z, 0.6, 28); break;
     case 'jump': if (s === me) snd('hop', 0, 0.25); break;
+    case 'whizz': sound('whizz', 0, ev.x, ev.y, ev.z, 1, 8); cam.shake = Math.min(0.35, cam.shake + 0.06); break;
     case 'slide': if (s === me) snd('slide', 0, 0.7); else sound('slide', 0, s.x, s.y, s.z, 0.5, 20); break;
     case 'ammo':
       if (s === me) {
@@ -782,6 +783,9 @@ function updateHud(now, dt) {
   hurtShow = Math.max(0, hurtShow - dt * 0.9);
   const low = me.alive && me.hp < me.maxHp * 0.45 ? 0.35 + 0.15 * Math.sin(now / 160) : 0;
   $('hurt').style.opacity = Math.max(hurtShow, low).toFixed(2);
+  // Pinned down by rounds going close past: the edges of the view darken.
+  const pin = me.alive ? Math.min(0.75, me.supp * 0.85).toFixed(2) : '0';
+  if (shown.pin !== pin) { shown.pin = pin; $('supp').style.opacity = pin; }
   let arcs = '';
   for (let k = fromShow.length - 1; k >= 0; k--) {
     const f = fromShow[k];
@@ -802,9 +806,13 @@ function updateHud(now, dt) {
       shown.down = key;
       $('downIn').textContent = wait > 0 ? `Back in ${wait}` : medic ? `A medic is near: wait to be got back on your feet (${Math.ceil(me.down)}), or Space to come back in now` : 'Coming back in';
       $('downSpawn').innerHTML = list.length > 1 ? list.map((o) => `<span class="${o.id === spawnPick ? 'on' : ''}">${o.label}</span>`).join('') + '<em>A and D to choose</em>' : '';
+      $('spawnMap').hidden = match.type !== 'adv';
       $('downClasses').innerHTML = match.classes.map((c, i) => classCard(c, i, i === me.nextCls)).join('');
     }
   }
+  if (!me.alive && phase === 'play' && match.type === 'adv' && now - mapAt > 200) { mapAt = now; drawSpawnMap(); }
+  // (Down, the objectives are on the map instead of at the top.)
+  $('objs').hidden = !me.alive && match.type === 'adv';
   if (!$('board').hidden && now - boardAt > 250) { boardAt = now; $('board').classList.toggle('many', match.size > 12); $('board').innerHTML = boardHtml().replace(/^<div class="board[^"]*">|<\/div>$/g, ''); }
   $('grab').hidden = locked || force || ui.isOpen() || phase !== 'play';
   drawRadar();
@@ -854,7 +862,72 @@ function hudAdvance() {
 
 // ---- the radar ------------------------------------------------------------------------
 
-let radarMap = null;
+let radarMap = null, mapAt = 0;
+
+// Scrapped in Advance: a map of the sector being fought for, to choose
+// where to come back in. The objectives, your team, the other side where
+// it was last seen, your squad mates you could come in beside (named), and
+// your choice ringed in white: a squad mate, or your side's line.
+function drawSpawnMap() {
+  const c = $('spawnMap'), g = c.getContext('2d'), sec = match.sectorNow();
+  const x0 = Math.max(0, sec.x0 - 22), x1 = Math.min(map.W, sec.x1 + 22), k = Math.min(c.width / (x1 - x0), c.height / map.H);
+  const ox = (c.width - (x1 - x0) * k) / 2, oz = (c.height - map.H * k) / 2;
+  const at = (x, z) => [ox + (x - x0) * k, oz + z * k];
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.clearRect(0, 0, c.width, c.height);
+  g.imageSmoothingEnabled = false;
+  g.globalAlpha = 0.95;
+  g.drawImage(radarMap, x0 * PX, 0, (x1 - x0) * PX, map.H * PX, ox, oz, (x1 - x0) * k, map.H * k);
+  g.globalAlpha = 1;
+  // Outside the sector, dimmed; its two ends in each side's colour.
+  g.fillStyle = 'rgba(5, 8, 14, .55)';
+  const [a0] = at(sec.x0, 0), [a1] = at(sec.x1, 0);
+  g.fillRect(ox, oz, a0 - ox, map.H * k);
+  g.fillRect(a1, oz, ox + (x1 - x0) * k - a1, map.H * k);
+  const mine = match.attack === me.team;
+  // Your side's line, where you come in if you choose no one.
+  const line = sec[mine ? 'att' : 'def'];
+  const lx = line.reduce((t, p) => t + p[0], 0) / line.length;
+  g.strokeStyle = spawnPick < 0 ? '#fff' : 'rgba(74, 155, 255, .7)';
+  g.lineWidth = spawnPick < 0 ? 4 : 2;
+  g.setLineDash([6, 5]);
+  g.beginPath(); g.moveTo(at(lx, 3)[0], at(lx, 3)[1]); g.lineTo(at(lx, map.H - 3)[0], at(lx, map.H - 3)[1]); g.stroke();
+  g.setLineDash([]);
+  for (const o of match.objectives()) {
+    const [x, y] = at(o.x, o.z);
+    g.fillStyle = TEAM_CSS[o.own ? match.attack : 1 - match.attack];
+    g.beginPath(); g.arc(x, y, 11, 0, TAU); g.fill();
+    g.fillStyle = '#fff';
+    g.font = '900 13px system-ui, sans-serif';
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(o.name, x, y + 1);
+  }
+  const choices = new Set(spawnList().map((o) => o.id));
+  for (const s of match.soldiers) {
+    if (!s.alive || s === me) continue;
+    const [x, y] = at(s.x, s.z);
+    if (s.team !== me.team) {
+      if (match.time - s.knownT < 4) { g.fillStyle = '#ff4a3a'; g.beginPath(); g.arc(x, y, 3, 0, TAU); g.fill(); }
+      continue;
+    }
+    const squad = s.squad === me.squad, can = choices.has(s.id);
+    g.fillStyle = squad ? '#9fd0ff' : '#4a9bff';
+    g.beginPath(); g.arc(x, y, squad ? 5 : 3, 0, TAU); g.fill();
+    if (squad) {
+      g.fillStyle = can ? '#fff' : 'rgba(255, 255, 255, .5)';
+      g.font = '800 11px system-ui, sans-serif';
+      g.textAlign = 'left'; g.textBaseline = 'middle';
+      g.fillText(can ? s.name : `${s.name} (in a fight)`, x + 8, y + ((s.id % 4) - 1.5) * 8);
+    }
+    if (s.id === spawnPick) { g.strokeStyle = '#fff'; g.lineWidth = 2.5; g.beginPath(); g.arc(x, y, 10, 0, TAU); g.stroke(); }
+  }
+  // Where you fell.
+  if (me.down > 0) {
+    const [x, y] = at(me.x, me.z);
+    g.strokeStyle = '#ff6a55'; g.lineWidth = 2.5;
+    g.beginPath(); g.moveTo(x - 5, y - 5); g.lineTo(x + 5, y + 5); g.moveTo(x + 5, y - 5); g.lineTo(x - 5, y + 5); g.stroke();
+  }
+}
 const PX = 4; // dots a metre on the radar's picture of the yard
 
 function drawRadarMap() {
@@ -978,8 +1051,9 @@ function aim(now, dt, alpha) {
     cam.y = Math.abs(y - cam.y) > 1.2 ? y : cam.y + (y - cam.y) * Math.min(1, dt * 22);
     const v = vis[me.id], bob = me.grounded ? Math.abs(Math.sin(v.stride)) * 0.035 * v.pace : 0;
     cam.eye[0] = x; cam.eye[1] = cam.y - bob - hand.dip * 0.12; cam.eye[2] = z;
-    cam.yaw = view.yaw + me.ky;
-    cam.pitch = clamp(view.pitch + me.kp, -1.55, 1.55);
+    // (The sights sway as you move, and shake when you're pinned down: the shots go where the view goes.)
+    cam.yaw = view.yaw + me.ky + me.swY;
+    cam.pitch = clamp(view.pitch + me.kp + me.swP, -1.55, 1.55);
     const strafe = (me.vx * Math.cos(view.yaw) + me.vz * Math.sin(view.yaw)) / WALK;
     cam.roll += (-strafe * 0.018 + (me.slideT > 0 ? 0.06 : 0) - cam.roll) * Math.min(1, dt * 8);
     const gun = me.weapons[me.slot].gun;

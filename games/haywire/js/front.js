@@ -200,6 +200,13 @@ export function buildFront() {
   hill(56, 22, 9, 7, 3, 'ballast'); hill(66, 116, 8, 7, 2.5, 'ballast'); hill(142, 40, 5, 4, 2, 'ballast');
   for (const [x, z] of [[46, 30], [92, 28], [98, 36], [52, 104], [76, 122], [96, 116], [140, 100]]) F(x, z, x + 4, z + 2, 0, 1.2, 'timber');
   for (const [x, z] of [[32, 30], [32, 100], [146, 22], [146, 112]]) low(x, z, x + 1, z + 5);
+  // Cover out of the camp and across the open ground, and huts and stacks
+  // across the lanes between the wagons, so no line of sight runs the length of the yard.
+  for (const [x, z] of [[30, 14], [31, 38], [30, 58], [31, 80], [30, 104], [31, 124]]) sandbags(x, z, x + 1, z + 4);
+  for (const [x, z] of [[34, 22], [35, 70], [34, 112]]) crate(x, z, 2, 2, 2);
+  for (const [x, z] of [[50, 48], [92, 56], [130, 48], [72, 80], [114, 88], [58, 96], [102, 64], [84, 72]]) F(x, z, x + 2, z + 3, 0, 2.4, 'timber');
+  for (const [x, z] of [[40, 18], [64, 34], [100, 22], [82, 38], [44, 110], [100, 97], [60, 126], [126, 98]]) sandbags(x, z, x + 4, z + 1);
+  for (const [x, z] of [[84, 14], [118, 40], [76, 108], [140, 128]]) crate(x, z, 1, 2, 2);
   box(36, 12, true, 'red', 2); box(36, 118, true, 'white'); box(88, 12, true, 'green'); box(142, 58, false, 'blue');
 
   // ---- 2: Ashby, a village ------------------------------------------------------------------
@@ -346,16 +353,16 @@ export function buildFront() {
     }
     return out;
   };
-  // (On the ground floor of a building; on top of a hill.)
-  const objAt = (name, what, x, z, high) => {
-    const n = w.nodeAt(x, high ? 10 : 0.1, z);
+  // (On the ground floor of a building, unless `probe` says how high to look: on top of a hill, say.)
+  const objAt = (name, what, x, z, probe) => {
+    const n = w.nodeAt(x, probe || 0.1, z);
     return { name, what, x, y: n >= 0 ? w.nodeY[n] : 0, z };
   };
   const sector = (name, x0, x1, objs, att) => ({
     name, x0, x1,
     att: att ?? [...strip(x0 - 3.5), ...strip(x0 - 7)],
     def: [...strip(x1 - 3.5), ...strip(x1 - 7)],
-    objs: objs.map(([what, x, z, high], i) => objAt('ABC'[i], what, x, z, high)),
+    objs: objs.map(([what, x, z, probe], i) => objAt('ABC'[i], what, x, z, probe)),
   });
   const camp = [];
   for (let x = 8.5; x < 24; x += 3.5) for (let z = 8.5; z < 130; z += 6) {
@@ -366,10 +373,10 @@ export function buildFront() {
     size: 32,
     time: 4500,
     sectors: [
-      sector('The Rail Yard', 26, 160, [['the station', 124, 24], ['the goods shed', 122, 114]], camp),
+      sector('The Rail Yard', 26, 160, [['the station', 124, 24], ['the platform', 96, 69, 1.2], ['the goods shed', 122, 114]], camp),
       sector('Ashby', 160, 300, [['the church', 254, 24], ['the square', 226, 77], ['the mill', 255, 112]]),
-      sector("No Man's Land", 300, 440, [['the bunker', 367, 26], ['the farm', 374, 66], ['the redoubt', 372, 108, true]]),
-      sector('The Citadel', 440, 596, [['the courtyard', 490, 68], ['the great hall', 568, 68]]),
+      sector("No Man's Land", 300, 440, [['the bunker', 367, 26], ['the farm', 374, 66], ['the redoubt', 372, 108, 10]]),
+      sector('The Citadel', 440, 596, [['the barracks', 512, 24], ['the great hall', 568, 68], ['the armoury', 512, 112]]),
     ],
   };
   const spawns = [advance.sectors[0].att.map(([x, z]) => ({ x, z, yaw: Math.PI / 2 })), advance.sectors[3].def.map(([x, z]) => ({ x, z, yaw: -Math.PI / 2 }))];

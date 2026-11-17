@@ -44,6 +44,9 @@ export const TICKETS = 55, BATTALIONS = 3, OBJ_REACH = 5.5, ADVANCE_TIME = 4500,
 export const REVIVE_WAIT = 12, REVIVE_TIME = 1.1, REVIVE_HP = 0.5, REVIVE_REACH = 2.2;
 // A robot can come in beside a squad mate who hasn't been hurt for this long.
 export const SQUAD = 4, SQUAD_CALM = 5;
+// Rounds passing within NEAR_MISS metres of a robot's head (and not hitting
+// it) pin it down: its aim gets worse, and bots duck.
+export const NEAR_MISS = 1.6;
 const RAD = Math.PI / 180;
 
 // dmg: for each hit. head: how much more a head shot does. rate: seconds
@@ -109,7 +112,7 @@ export const OLD_CLASSES = [
 // where it lands; defWait: how many seconds a scrapped defender is out for
 // in Advance (set so that an attack gets through about half the time).
 export const MODES = [
-  { id: 'guns', name: 'Firefight', classes: CLASSES, side: 'pistol', pot: false, defWait: 11, tickets: 11, what: 'Rifles, shotguns and grenades.' },
+  { id: 'guns', name: 'Firefight', classes: CLASSES, side: 'pistol', pot: false, defWait: 13.5, tickets: 11, what: 'Rifles, shotguns and grenades.' },
   { id: 'old', name: 'Old Iron', classes: OLD_CLASSES, side: 'knife', pot: true, defWait: 25, tickets: 7, what: 'Swords, bows, pikes and axes. No guns.' },
 ];
 
@@ -194,7 +197,7 @@ export class Match {
           yaw: 0, pitch: 0, grounded: true, crouching: false, crouchK: 0, sprinting: false, sprintOut: 0, ads: 0,
           hp: 0, maxHp: 100, hurtAt: -99, hurtBy: -1, protect: 0, dmgFrom: new Map(),
           weapons: [], slot: 0, cool: 0, reloadT: 0, swapT: 0, throwT: 0, nadeCount: 0, bloom: 0, kp: 0, ky: 0,
-          out: 0, prone: false, proneK: 0, stanceT: 0, slideT: 0, slideCool: 0, slideX: 0, slideZ: 0, slideV: 0, useHeld: false, meleeHeld: false, fireHeld: false, pull: 0, nadeHeld: false, swing: 0, draw: 0, block: false, altHeld: false, jumpHeld: false, lastShot: -99, stride: 0,
+          out: 0, moveK: 0, swY: 0, swP: 0, supp: 0, suppAt: -99, prone: false, proneK: 0, stanceT: 0, slideT: 0, slideCool: 0, slideX: 0, slideZ: 0, slideV: 0, useHeld: false, meleeHeld: false, fireHeld: false, pull: 0, nadeHeld: false, swing: 0, draw: 0, block: false, altHeld: false, jumpHeld: false, lastShot: -99, stride: 0,
           knownT: -99, kx: 0, ky2: 0, kz: 0, // when and where the other team last knew it to be
           kills: 0, deaths: 0, assists: 0, score: 0, streak: 0, best: 0, heads: 0, shots: 0, hits: 0,
           in: emptyInput(), bot: null,
@@ -259,7 +262,7 @@ export class Match {
 
   // The way a soldier's gun points: where it looks, plus the kick.
   aim(s, out) {
-    const yaw = s.yaw + s.ky, pitch = clamp(s.pitch + s.kp, -1.55, 1.55), c = Math.cos(pitch);
+    const yaw = s.yaw + s.ky + s.swY, pitch = clamp(s.pitch + s.kp + s.swP, -1.55, 1.55), c = Math.cos(pitch);
     out[0] = Math.sin(yaw) * c;
     out[1] = Math.sin(pitch);
     out[2] = -Math.cos(yaw) * c;
@@ -425,6 +428,7 @@ export class Match {
     s.swing = s.draw = 0;
     s.block = false;
     s.out = 0;
+    s.moveK = s.supp = s.swY = s.swP = 0;
     s.weapons = [cls.gun, this.mode.side].map((id) => ({ gun: GUNS[id], mag: GUNS[id].mag, reserve: GUNS[id].reserve }));
     s.pull = 0;
     s.slot = 0; s.cool = 0.3; s.reloadT = 0; s.swapT = 0; s.throwT = 0; s.bloom = 0; s.kp = s.ky = 0;
@@ -570,6 +574,15 @@ export class Match {
     if (!busyReviving) { s.reviveT = 0; s.reviving = -1; }
     if (this.drops.length && !busyReviving) this.stepPickup(s, inp);
     if (this.tick % 10 === s.id % 10) s.aura = !!this.medicNear(s, 7);
+
+    // Moving throws the aim off: the sights sway, more the faster, and it
+    // takes a moment to steady after stopping. (Pinned down, it shakes.)
+    const speedK = Math.min(1, Math.hypot(s.vx, s.vz) / WALK);
+    s.moveK += (speedK - s.moveK) * Math.min(1, dt * (speedK > s.moveK ? 8 : 3.5));
+    if (this.time - s.suppAt > 0.8) s.supp = Math.max(0, s.supp - dt * 0.6);
+    const sway = (s.moveK * 0.014 + s.supp * 0.006) * (0.6 + 0.4 * s.ads), ph = this.time * 6.3 + s.id;
+    s.swY = Math.sin(ph) * sway;
+    s.swP = Math.sin(ph * 2) * sway * 0.5;
 
     // Healing by itself, once nothing has hit it for a while.
     // (Sooner and faster with a medic near.)
@@ -901,10 +914,11 @@ export class Match {
   // How wide a soldier's shots scatter right now, in radians.
   spread(s) {
     const gun = s.weapons[s.slot].gun;
-    const moving = Math.min(1, Math.hypot(s.vx, s.vz) / WALK);
     let a = gun.hip + (gun.ads - gun.hip) * s.ads;
     a += s.bloom * (1 - 0.6 * s.ads);
-    a *= 1 + moving * (0.7 - 0.45 * s.ads);
+    // On the move the shots scatter much more, down the sights as well (see moveK).
+    a *= 1 + s.moveK * (1.4 + 3.5 * s.ads);
+    a *= 1 + s.supp * 1.2;
     if (s.prone) a *= 0.55;
     else if (s.crouching) a *= 0.8;
     if (!s.grounded) a = a * 2 + 2.5;
@@ -940,6 +954,17 @@ export class Match {
       }
       const far = t === Infinity ? 160 : t;
       this.events.push({ e: 'shot', id: s.id, gun: gun.id, first: p === 0, x: ox + dx * far, y: oy + dy * far, z: oz + dz * far, hit: struck ? (head ? 2 : 1) : t < Infinity ? 0 : -1, n: struck ? null : wallN });
+      // Close past anyone else of the other side: it is pinned down.
+      for (const e of this.soldiers) {
+        if (!e.alive || e.team === s.team || e === struck) continue;
+        const hx = e.x - ox, hy = this.eyeY(e) - oy, hz = e.z - oz, along = hx * dx + hy * dy + hz * dz;
+        if (along <= 0 || along > far + 1) continue;
+        if (hx * hx + hy * hy + hz * hz - along * along < NEAR_MISS * NEAR_MISS) {
+          e.supp = Math.min(1, e.supp + (gun.pellets > 1 ? 0.06 : 0.2));
+          e.suppAt = this.time;
+          if (e.human) this.events.push({ e: 'whizz', id: e.id, x: ox + dx * along, y: oy + dy * along, z: oz + dz * along });
+        }
+      }
       if (struck) {
         any = true;
         const fall = far <= gun.near ? 1 : far >= gun.far ? gun.min : 1 - ((far - gun.near) / (gun.far - gun.near)) * (1 - gun.min);

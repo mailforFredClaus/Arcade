@@ -13,18 +13,18 @@
 //   camp   (marksmen) hold a window or a roof for a while
 
 import { STEP_UP } from './world.js';
-import { REVIVE_TIME } from './engine.js';
+import { REVIVE_TIME, SQUAD } from './engine.js';
 
 const TAU = Math.PI * 2, RAD = Math.PI / 180;
 
 // How good a bot is: seconds to react, how far off its aim wanders
 // (degrees), how long its aim takes to settle on a new target, how fast it
 // can turn (radians a second), how much it dodges, and how keen it is on
-// grenades and on going for the head.
+// grenades and on going for the head, and how often it thinks to get into cover.
 export const SKILL = [
-  { name: 'Easy', react: 0.85, err: 10.5, settle: 1.9, turn: 3.4, dance: 0.3, nade: 0.2, head: 0.04, hear: 0.6 },
-  { name: 'Normal', react: 0.55, err: 7.6, settle: 1.4, turn: 5.2, dance: 0.65, nade: 0.45, head: 0.1, hear: 1 },
-  { name: 'Hard', react: 0.32, err: 4.6, settle: 0.9, turn: 7.5, dance: 1, nade: 0.75, head: 0.22, hear: 1.3 },
+  { name: 'Easy', react: 0.85, err: 10.5, settle: 1.9, turn: 3.4, dance: 0.3, nade: 0.2, head: 0.04, hear: 0.6, cover: 0.3 },
+  { name: 'Normal', react: 0.55, err: 7.6, settle: 1.4, turn: 5.2, dance: 0.65, nade: 0.45, head: 0.1, hear: 1, cover: 0.85 },
+  { name: 'Hard', react: 0.32, err: 4.6, settle: 0.9, turn: 7.5, dance: 1, nade: 0.75, head: 0.22, hear: 1.3, cover: 1 },
 ];
 
 // How close each gun likes to be: nearer than the first it backs off,
@@ -85,6 +85,22 @@ export class Brain {
     this.objCheck = 0;
     this.pushAt = 0;
     this.pushing = false;
+    // Fighting from cover: what it is doing ('hold' where it is, or 'move'
+    // to cover, round the side or forward), whether where it holds is cover,
+    // whether it is up and shooting or down behind it, and when it next thinks again.
+    this.plan = 'hold';
+    this.atCover = false;
+    this.peeking = true;
+    this.peekSwap = 0;
+    this.cvCheck = 0;
+    this.cv = -1;
+    this.swingAt = 0;
+    this.peekNode = -1; // at a corner: where to lean out from
+    this.peekAt = -1;
+    this.holdSince = this.m.time;
+    this.flanked = -1;
+    // Its part in its squad: the odd ones go round the side and forward, the others keep the enemy's heads down.
+    this.mover = (this.s.id % SQUAD) % 2 === 1;
     this.fleeX = this.fleeZ = 0;
     this.fleeUntil = 0;
     // Which way round it goes this life: 0 the north side, 1 the middle,
@@ -149,6 +165,7 @@ export class Brain {
     else if (this.mode === 'cover') this.cover(dt);
     else if (this.target && this.visible) this.fight(dt);
     else if ((this.body = this.medic() ? this.findBody() : null)) this.reviveBody(this.body, dt);
+    else if (this.target && this.plan === 'hold' && this.atCover && m.time - this.lastSeen < 8) this.holdCover(dt);
     else if (this.target && m.time - this.lastSeen < 6 && !this.leashed(this.lx, this.lz)) this.hunt(dt);
     else {
       this.target = null;
@@ -283,43 +300,23 @@ export class Brain {
     const tp = m.target(t, this.goHead, this.tp || (this.tp = [0, 0, 0]));
     const off = this.aimAt(tp[0], tp[1], tp[2], dt, steady, Math.hypot(t.vx, t.vz));
 
-    // Moving: close in, back off, or dodge from side to side.
-    const fx = dx / dist, fz = dz / dist;
+    // Moving. It doesn't walk about shooting (moving spoils the aim): it
+    // fights from cover, crouched behind it and standing up to shoot, or
+    // stands its ground where there is none; and it moves between pieces of
+    // cover at a run. See tactics() for when it moves, and where to.
+    let shoot = true;
     if (this.mode === 'camp') {
       inp.crouch = false;
-    } else if (this.push()) {
-      // Advance: on into the objective, firing as it goes.
-    } else if (dist > far && !this.leashed(t.x, t.z)) {
-      this.goTo(m.world.nodeAt(t.x, t.y + 0.1, t.z), 0.8);
-      this.follow();
-      // Much too far for this gun: run for it rather than plink.
-      if (dist > far * (gun.id === 'smg' || gun.id === 'shotgun' ? 1.15 : 1.6)) {
-        this.lookAlong(dt);
-        inp.sprint = true;
-        inp.ads = false;
-        return;
-      }
     } else {
-      if (m.time >= this.strafeAt) {
-        this.strafe = -this.strafe;
-        this.strafeAt = m.time + 0.35 + r.next() * 0.9;
-        this.still = r.next() > k.dance; // the less sure-footed stand still more
+      if (m.time > this.cvCheck) this.tactics(t, dist);
+      if (this.mode === 'cover') return;
+      if (this.plan === 'move') {
+        if (this.path && this.follow()) {
+          // (Close up, it fires as it goes; further off it runs for it.)
+          if (dist > 12) { shoot = false; inp.sprint = true; inp.ads = false; this.lookAlong(dt); }
+        } else this.arrive();
       }
-      let wx = 0, wz = 0;
-      if (!this.still) { wx = -fz * this.strafe; wz = fx * this.strafe; }
-      if (dist < near) { wx -= fx; wz -= fz; } else if (dist > far * 0.7 && !this.still) { wx += fx * 0.6; wz += fz * 0.6; }
-      const l = Math.hypot(wx, wz);
-      if (l > 0.01) {
-        wx /= l; wz /= l;
-        // Not off a ledge or into a wall.
-        const px = s.x + wx * 0.9, pz = s.z + wz * 0.9;
-        if (this.w.blocked(px, s.y, pz, s.r, s.h, STEP_UP) || this.w.floorUnder(px, s.y, pz, 0.1, STEP_UP) < s.y - STEP_UP) {
-          this.strafe = -this.strafe;
-          wx = wz = 0;
-        }
-      }
-      this.wx = wx; this.wz = wz;
-      inp.crouch = (gun.id === 'lmg' || gun.id === 'sniper') && dist > 18 && this.still;
+      if (this.plan === 'hold') shoot = this.coverCycle(dt, dist, gun, wp);
     }
 
     // Shooting, once it has had time to react and the aim is on.
@@ -327,7 +324,7 @@ export class Brain {
     const size = Math.max(0.012, Math.atan(0.3 / dist)) + (gun.pellets > 1 ? 0.05 : 0);
     const scoped = gun.id !== 'sniper' || s.ads > 0.95;
     if (wp.mag === 0 && s.slot === 0 && dist < 14 && k.dance > 0.5 && s.weapons[1].mag > 0) inp.slot = 1;
-    if (ready && off < size && scoped && wp.mag > 0) {
+    if (shoot && ready && off < size && scoped && wp.mag > 0) {
       if (gun.auto) {
         if (this.restT > 0) this.restT -= dt;
         else {
@@ -384,10 +381,16 @@ export class Brain {
         if (!inp.fire) this.wantDraw = dist < 10 ? 0.55 + r.next() * 0.3 : 0.8 + r.next() * 0.2;
       }
       if (camp) return;
-      if (dist >= 9 && this.push()) return;
-      if (dist < 9) stepTo(-fx - fz * this.strafe * 0.5, -fz + fx * this.strafe * 0.5);
-      else if (dist > 45) { this.goTo(w.nodeAt(t.x, t.y + 0.1, t.z), 0.8); this.follow(); }
-      else if (!this.still && s.draw < 0.5) stepTo(-fz * this.strafe, fx * this.strafe);
+      if (dist < 9) { stepTo(-fx - fz * this.strafe * 0.5, -fz + fx * this.strafe * 0.5); return; }
+      if (dist > 45) { this.goTo(w.nodeAt(t.x, t.y + 0.1, t.z), 0.8); this.follow(); return; }
+      // Otherwise, as with a gun: from cover, crouched until it draws.
+      if (m.time > this.cvCheck && s.draw === 0) this.tactics(t, dist);
+      if (this.mode === 'cover') return;
+      if (this.plan === 'move') {
+        if (this.path && this.follow()) { inp.fire = false; inp.sprint = true; this.lookAlong(dt); return; }
+        this.arrive();
+      }
+      inp.crouch = this.atCover && s.draw === 0 && s.cool > 0;
       return;
     }
 
@@ -418,7 +421,194 @@ export class Brain {
         inp.sprint = dist > 6 && !inp.ads && off < 0.5;
       } else if (!this.still || dist < gun.reach * 0.4) stepTo(-fz * this.strafe - (dist < gun.reach * 0.45 ? fx : 0), fx * this.strafe - (dist < gun.reach * 0.45 ? fz : 0));
     }
-    if (ready && dist < gun.reach + 0.1 && Math.abs(t.y - s.y) < 1.6 && off < 0.5 && s.cool <= 0 && !inp.ads) inp.fire = true;
+    // (A less able bot hesitates between blows.)
+    if (ready && dist < gun.reach + 0.1 && Math.abs(t.y - s.y) < 1.6 && off < 0.5 && s.cool <= 0 && !inp.ads && m.time > this.swingAt) {
+      inp.fire = true;
+      this.swingAt = m.time + gun.rate + k.react * 0.8 * r.next();
+    }
+  }
+
+  // ---- fighting from cover ---------------------------------------------------------------
+
+  // Every second or two in a fight: is it hurt or outnumbered (pull back out
+  // of sight)? Is the enemy behind cover (a grenade)? Is it time to go
+  // forward to the next cover (attacking in Advance) or round the side (a
+  // squad's movers)? Is where it is any cover, or is there some near?
+  tactics(t, dist) {
+    const s = this.s, m = this.m, w = this.w, r = m.rng, k = this.k;
+    this.cvCheck = m.time + 1.1 + r.next() * 0.9;
+    const tx = t.x, ty = m.eyeY(t), tz = t.z;
+    // Hurt, or outnumbered: back out of sight, away from them, to mend.
+    let foes = 0, friends = 0;
+    for (const e of m.soldiers) {
+      if (!e.alive || e === s) continue;
+      const d = Math.hypot(e.x - s.x, e.z - s.z);
+      if (e.team === s.team) { if (d < 18) friends++; } else if (d < 25 && m.time - e.knownT < 3) foes++;
+    }
+    if (((s.hp < s.maxHp * 0.45 && m.time - s.hurtAt < 1.5) || foes >= friends + 3) && m.time > this.coverUntil + 4 && r.next() < 0.75) {
+      const n = this.findCover(tx, ty, tz, 'hide', 12, null, true);
+      if (n >= 0 && this.moveTo(n)) {
+        this.mode = 'cover';
+        this.coverUntil = m.time + 7;
+        return;
+      }
+    }
+    // Behind cover, with only its head showing: flush it out.
+    const g = s.weapons[0].gun;
+    if (dist > 8 && dist < 26 && s.nadeCount > 0 && m.time > this.nadeAt && !w.sees(s.x, m.eyeY(s), s.z, tx, m.mid(t), tz)) {
+      this.nadeAt = m.time + 7 + r.next() * 6;
+      if (r.next() < k.nade * 1.3 && this.startLob(tx, t.y, tz)) return;
+    }
+    // (Where it is: still cover against this enemy?)
+    const covered = !w.sees(tx, ty, tz, s.x, s.y + 0.8, s.z) && (this.peekNode >= 0 ? this.atCover : w.sees(tx, ty, tz, s.x, s.y + 1.62, s.z));
+    if (this.plan === 'move') return;
+    const o = this.obj, held = m.time - this.holdSince;
+    // Advance: on towards the objective, a piece of cover at a time.
+    const forward = m.type === 'adv' && o && !this.astray && (s.team === m.attack ? !o.own : o.a > 0 || o.p > 0.02) && Math.hypot(o.x - s.x, o.z - s.z) > 4;
+    if (forward && held > (this.mover ? 2.5 : 5) + r.next() * 2) {
+      const n = this.findCover(tx, ty, tz, 'fight', 14, o, false, 3);
+      if (n >= 0 && this.moveTo(n)) return;
+      // (No cover forward: a dash straight on.)
+      const at = w.nodeAt(o.x, o.y + 0.6, o.z), from = w.nodeAt(s.x, s.y + 0.1, s.z);
+      const p = at >= 0 && from >= 0 ? w.pathDown(from, w.flowTo(at), 2) : null;
+      if (p && p.length > 2) {
+        this.path = p.slice(0, 10); this.pi = 0; this.ahead = 0; this.goal = this.path[this.path.length - 1];
+        this.plan = 'move';
+        this.cv = -1;
+        this.peekNode = -1;
+        return;
+      }
+    }
+    // Held one spot a good while, with no objective to push on to: up on the
+    // enemy, a piece of cover at a time.
+    if (!forward && held > 18 + r.next() * 10) {
+      const n = this.findCover(tx, ty, tz, 'fight', 14, t, false, 3);
+      if (n >= 0 && this.moveTo(n)) return;
+      this.holdSince = m.time - 10;
+    }
+    // A squad's movers go round the side, once a fight.
+    if (this.mover && this.flanked !== t.id && dist > 15 && dist < 50 && g.id !== 'sniper' && !forward) {
+      this.flanked = t.id;
+      const ux = (s.x - tx) / dist, uz = (s.z - tz) / dist, side = s.id % 4 < 2 ? 1 : -1, back = Math.min(dist * 0.6, 18);
+      const n = w.nodeAt(tx + ux * back - uz * side * 14, s.y + 0.6, tz + uz * back + ux * side * 14);
+      const fence = m.bounds(s);
+      if (n >= 0 && Math.abs(w.nodeY[n] - s.y) < 2 && !(fence && (w.nodeX(n) < fence[0] + 2 || w.nodeX(n) > fence[1] - 2)) && !this.leashed(w.nodeX(n), w.nodeZ(n))) {
+        this.goTo(n, 6, true);
+        if (this.path && this.path.length < 70) { this.plan = 'move'; this.cv = -1; this.peekNode = -1; return; }
+      }
+    }
+    if (covered) { this.atCover = true; return; }
+    this.peekNode = -1;
+    // Out in the open: to cover near by, if there is any (and it thinks of it).
+    const n = r.next() < k.cover ? this.findCover(tx, ty, tz, 'fight', 9, forward ? o : null) : -1;
+    if (n >= 0 && this.moveTo(n)) return;
+    this.atCover = false;
+  }
+
+  // Sets off for node n (cover); false if it can't get there.
+  moveTo(n) {
+    this.goTo(n, 3, true);
+    if (!this.path || this.path.length > 30) { this.path = null; return false; }
+    this.plan = 'move';
+    this.cv = n;
+    this.peekNode = this.peekAt;
+    return true;
+  }
+
+  // Got where it was going.
+  arrive() {
+    this.plan = 'hold';
+    this.atCover = this.cv >= 0;
+    this.holdSince = this.m.time;
+    this.peeking = false;
+    this.peekSwap = this.m.time + 0.3;
+    this.path = null;
+  }
+
+  // A spot near it to fight from against a threat whose eyes are at (tx, ty, tz).
+  // 'fight': either low cover (crouched behind it, it is hidden; standing,
+  // it can shoot over) or a corner (hidden where it stands, with a spot a
+  // step to the side that can see the threat, to lean out to). 'hide':
+  // where it can't be seen at all. Nearer is better; and, if `toward` is
+  // given, nearer that (going forward), by at least `gain` metres; or, if
+  // `away`, further from the threat. Only spots against something, and not
+  // one a team-mate has. Returns a node or -1 (and sets this.peekAt).
+  findCover(tx, ty, tz, kind, reach, toward = null, away = false, gain = 0) {
+    const s = this.s, m = this.m, w = this.w, r = m.rng, fence = m.bounds(s);
+    const d0 = Math.hypot(tx - s.x, tz - s.z), o0 = toward ? Math.hypot(toward.x - s.x, toward.z - s.z) : 0;
+    let best = -1, bestScore = -Infinity, bestPeek = -1;
+    for (let k = 0; k < 28; k++) {
+      const a = r.next() * Math.PI * 2, d = 1 + r.next() * reach;
+      const n = w.nodeAt(s.x + Math.cos(a) * d, s.y + 0.6, s.z + Math.sin(a) * d);
+      if (n < 0 || !w.nodeNear[n] || Math.abs(w.nodeY[n] - s.y) > 1.6) continue;
+      const nx = w.nodeX(n), ny = w.nodeY[n], nz = w.nodeZ(n), dt = Math.hypot(tx - nx, tz - nz);
+      if (dt < 5 || (fence && (nx < fence[0] + 2 || nx > fence[1] - 2)) || this.leashed(nx, nz)) continue;
+      const gained = toward ? o0 - Math.hypot(toward.x - nx, toward.z - nz) : 0;
+      if (gained < gain) continue;
+      if (w.sees(tx, ty, tz, nx, ny + 0.8, nz)) continue;
+      const standing = w.sees(tx, ty, tz, nx, ny + 1.62, nz);
+      let peek = -1;
+      if (kind === 'hide') { if (standing) continue; }
+      else if (!standing) {
+        // A corner: is there a spot a step to the side to lean out from?
+        const ux = (tx - nx) / dt, uz = (tz - nz) / dt;
+        for (const side of [1, -1]) {
+          const p = w.nodeAt(nx - uz * side * 1.2, ny + 0.6, nz + ux * side * 1.2);
+          if (p >= 0 && p !== n && Math.abs(w.nodeY[p] - ny) < 0.3 && w.sees(tx, ty, tz, w.nodeX(p), w.nodeY[p] + 1.62, w.nodeZ(p))) { peek = p; break; }
+        }
+        if (peek < 0) continue;
+      }
+      if (m.soldiers.some((e) => e !== s && e.alive && e.team === s.team && ((e.bot && e.bot.cv === n) || Math.abs(e.x - nx) + Math.abs(e.z - nz) < 1.2))) continue;
+      const score = -Math.hypot(nx - s.x, nz - s.z) * 0.35 + gained * 0.6 + (away ? (dt - d0) * 0.5 : 0) + r.next() * 0.5;
+      if (score > bestScore) { bestScore = score; best = n; bestPeek = peek; }
+    }
+    this.peekAt = bestPeek;
+    return best;
+  }
+
+  // In cover: down behind it a moment, up (or out from the corner) to shoot
+  // a few seconds; down to reload, and for longer when pinned. In the open:
+  // still, and low when the enemy is far. Returns whether it may fire.
+  coverCycle(dt, dist, gun, wp) {
+    const s = this.s, m = this.m, r = m.rng, inp = s.in, w = this.w;
+    if (!this.atCover) {
+      inp.crouch = dist > 14 && gun.id !== 'shotgun';
+      return true;
+    }
+    const pinned = s.supp > 0.5;
+    if (m.time > this.peekSwap) {
+      this.peeking = !this.peeking;
+      this.peekSwap = m.time + (this.peeking ? 1.3 + r.next() * 2 : (0.5 + r.next() * 0.9) * (pinned ? 2.2 : 1));
+    }
+    if (wp.mag < gun.mag * 0.3 && wp.reserve > 0 && !gun.kind) { this.peeking = false; inp.reload = true; }
+    if (this.peekNode < 0) {
+      inp.crouch = !this.peeking;
+      return this.peeking;
+    }
+    // At a corner: a step out to shoot, a step back to hide. (It only fires once it has stopped.)
+    const n = this.peeking ? this.peekNode : this.cv, x = w.nodeX(n) - s.x, z = w.nodeZ(n) - s.z, d = Math.hypot(x, z);
+    if (d > 0.3) { this.wx = x / d; this.wz = z / d; return false; }
+    return this.peeking && Math.hypot(s.vx, s.vz) < 0.5;
+  }
+
+  // In cover with the enemy out of sight a moment: keep at it, watching
+  // where it was; the squad's holders fire on that spot to keep its head
+  // down; and a grenade, if it went to ground close by.
+  holdCover(dt) {
+    const s = this.s, m = this.m, r = m.rng, inp = s.in, wp = s.weapons[s.slot], gun = wp.gun;
+    this.mode = 'hold';
+    const since = m.time - this.lastSeen, dist = Math.hypot(this.lx - s.x, this.lz - s.z);
+    if (since > 0.6 && since < 3 && dist > 8 && dist < 26 && s.nadeCount > 0 && m.time > this.nadeAt) {
+      this.nadeAt = m.time + 8 + r.next() * 6;
+      if (r.next() < this.k.nade && this.startLob(this.lx, this.ly, this.lz)) return;
+    }
+    const up = this.coverCycle(dt, dist, gun, wp);
+    this.aimAt(this.lx, this.ly + (s.crouching ? 0.9 : 1.2), this.lz, dt);
+    inp.ads = up && !gun.kind;
+    // Covering fire, in short bursts.
+    if (up && !this.mover && gun.auto && since < 3.5 && wp.mag > gun.mag * 0.3 && r.next() < 0.5) inp.fire = true;
+    // Nothing for a while: back to whatever it was doing.
+    if (since > 6) { this.target = null; this.atCover = false; }
   }
 
   // ---- it was here a moment ago --------------------------------------------------------
@@ -588,7 +778,7 @@ export class Brain {
     if (s.team === m.attack) {
       const open = objs.filter((o) => !o.own);
       if (!open.length) return objs[0];
-      return open[(s.squad + (r.next() < 0.2 ? 1 : 0)) % open.length];
+      return open[s.squad % open.length];
     }
     let hot = null, hotD = Infinity;
     for (const o of objs) {
@@ -596,7 +786,7 @@ export class Brain {
       if ((o.a > 0 || o.p > 0.02 || o.own) && d < hotD) { hotD = d; hot = o; }
     }
     if (hot && (hotD < 60 || r.next() < 0.5)) return hot;
-    return objs[(s.squad + (r.next() < 0.15 ? 1 : 0)) % objs.length];
+    return objs[s.squad % objs.length];
   }
 
   // In a fight, does it keep pushing on into its objective rather than
@@ -764,6 +954,14 @@ export class Brain {
       this.goTo(best, 30, true);
       if (!this.path) this.waitUntil = m.time + 0.5;
       return;
+    }
+    // A squad keeps together: away from its leader (the first of it still
+    // standing, which may be the player), it goes back to them.
+    const lead = m.soldiers.find((e) => e.alive && e.team === s.team && e.squad === s.squad);
+    if (lead && lead !== s && Math.hypot(lead.x - s.x, lead.z - s.z) > 14 && r.next() < 0.8) {
+      const a = r.next() * Math.PI * 2;
+      const n = w.nodeAt(lead.x + Math.cos(a) * 4, lead.y + 0.6, lead.z + Math.sin(a) * 4);
+      if (n >= 0) { this.goTo(n, 6, true); if (this.path) return; }
     }
     if ((s.weapons[0].gun.id === 'sniper' && r.next() < 0.75) || (s.weapons[0].gun.id === 'bow' && s.weapons[0].mag > 0 && r.next() < 0.4)) {
       let best = null, bestD = Infinity;
