@@ -13,8 +13,12 @@ import { Brain } from './bots.js';
 
 export const STEP = 1 / 60;
 export const GRAVITY = 17, JUMP = 5.9;
-export const WALK = 4.7, SPRINT = 1.42, CROUCH = 0.5;
-export const RADIUS = 0.32, TALL = 1.8, TALL_CROUCH = 1.25, EYE = 1.62, EYE_CROUCH = 1.05;
+export const WALK = 4.7, SPRINT = 1.42, CROUCH = 0.5, PRONE = 0.24;
+export const RADIUS = 0.32, TALL = 1.8, TALL_CROUCH = 1.25, TALL_PRONE = 0.6, EYE = 1.62, EYE_CROUCH = 1.05, EYE_PRONE = 0.42;
+// A slide, from a sprint: it starts at least this fast and slows as it goes.
+export const SLIDE_TIME = 0.85, SLIDE_SPEED = 9.5;
+// Weapons dropped by the scrapped lie there this long, and so many at most.
+export const DROP_TIME = 45, DROPS = 48, PICK_REACH = 1.8;
 export const RESPAWN = 5, REGEN_DELAY = 4.5, REGEN = 34;
 export const NADE_FUSE = 2.7, NADE_REACH = 6.5, NADE_DAMAGE = 170;
 // Advance, the attack-and-defend game. The attackers have so many lives
@@ -105,7 +109,7 @@ export class Rand {
 }
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
-export const emptyInput = () => ({ melee: false, mx: 0, mz: 0, yaw: 0, pitch: 0, jump: false, crouch: false, sprint: false, ads: false, fire: false, reload: false, nade: false, slot: -1, cls: -1 });
+export const emptyInput = () => ({ prone: false, slide: false, use: false, melee: false, mx: 0, mz: 0, yaw: 0, pitch: 0, jump: false, crouch: false, sprint: false, ads: false, fire: false, reload: false, nade: false, slot: -1, cls: -1 });
 
 export class Match {
   // opts: seed, size (robots a side), human (is soldier 0 the player),
@@ -146,6 +150,8 @@ export class Match {
     this.winner = -1;
     this.events = [];
     this.nades = [];
+    this.drops = []; // weapons lying where they fell
+    this.dropId = 0;
     this.soldiers = [];
     const skill = opts.skill ?? [1, 1];
     for (let team = 0; team < 2; team++) {
@@ -158,7 +164,7 @@ export class Match {
           yaw: 0, pitch: 0, grounded: true, crouching: false, crouchK: 0, sprinting: false, sprintOut: 0, ads: 0,
           hp: 0, maxHp: 100, hurtAt: -99, hurtBy: -1, protect: 0, dmgFrom: new Map(),
           weapons: [], slot: 0, cool: 0, reloadT: 0, swapT: 0, throwT: 0, nadeCount: 0, bloom: 0, kp: 0, ky: 0,
-          out: 0, meleeHeld: false, fireHeld: false, pull: 0, nadeHeld: false, swing: 0, draw: 0, block: false, altHeld: false, jumpHeld: false, lastShot: -99, stride: 0,
+          out: 0, prone: false, proneK: 0, stanceT: 0, slideT: 0, slideCool: 0, slideX: 0, slideZ: 0, slideV: 0, useHeld: false, meleeHeld: false, fireHeld: false, pull: 0, nadeHeld: false, swing: 0, draw: 0, block: false, altHeld: false, jumpHeld: false, lastShot: -99, stride: 0,
           knownT: -99, kx: 0, ky2: 0, kz: 0, // when and where the other team last knew it to be
           kills: 0, deaths: 0, assists: 0, score: 0, streak: 0, best: 0, heads: 0, shots: 0, hits: 0,
           in: emptyInput(), bot: null,
@@ -204,7 +210,21 @@ export class Match {
     this.events.push({ e: 'over', winner: this.winner });
   }
 
-  eyeY(s) { return s.y + EYE + (EYE_CROUCH - EYE) * s.crouchK; }
+  eyeY(s) { return s.y + EYE + (EYE_CROUCH - EYE) * s.crouchK + (EYE_PRONE - EYE_CROUCH) * s.proneK; }
+
+  // The middle of a soldier's body, for blasts and blows to reach.
+  mid(e) { return e.y + (e.prone ? 0.28 : e.crouching ? 0.6 : 0.95); }
+
+  // Where to aim at soldier e: its head, or the middle of its body.
+  target(e, head, out) {
+    if (e.prone) {
+      const k = head ? 0.72 : 0;
+      out[0] = e.x + Math.sin(e.yaw) * k; out[1] = e.y + (head ? 0.36 : 0.26); out[2] = e.z - Math.cos(e.yaw) * k;
+    } else {
+      out[0] = e.x; out[1] = e.y + (head ? (e.crouching ? 1.19 : 1.67) : e.crouching ? 0.7 : 1.1); out[2] = e.z;
+    }
+    return out;
+  }
 
   // The way a soldier's gun points: where it looks, plus the kick.
   aim(s, out) {
@@ -252,7 +272,7 @@ export class Match {
       this.events.push({ e: 'boom', x: sh.x, y: sh.y, z: sh.z });
       for (const e of this.soldiers) {
         if (!e.alive || e.team === this.attack) continue;
-        const cy = e.y + (e.crouching ? 0.6 : 0.95), d = Math.hypot(e.x - sh.x, cy - sh.y, e.z - sh.z);
+        const cy = this.mid(e), d = Math.hypot(e.x - sh.x, cy - sh.y, e.z - sh.z);
         if (d < 5 && w.sees(sh.x, sh.y + 0.25, sh.z, e.x, cy, e.z)) this.hurt(e, 130 * clamp(1 - (d - 1) / 4, 0, 1), e, 'barrage', false);
       }
     }
@@ -335,7 +355,7 @@ export class Match {
     s.vx = s.vy = s.vz = 0;
     s.yaw = best.yaw; s.pitch = 0;
     s.in.yaw = best.yaw; s.in.pitch = 0;
-    s.grounded = true; s.crouching = false; s.crouchK = 0; s.h = TALL; s.ads = 0; s.sprinting = false;
+    s.grounded = true; s.crouching = false; s.crouchK = 0; s.prone = false; s.proneK = 0; s.stanceT = 0; s.slideT = 0; s.h = TALL; s.ads = 0; s.sprinting = false;
     s.hp = s.maxHp = cls.hp;
     s.protect = 1.5;
     s.dmgFrom.clear();
@@ -366,13 +386,34 @@ export class Match {
     s.pitch = clamp(inp.pitch, -1.5, 1.5);
     if (s.protect > 0) s.protect -= dt;
 
-    // Standing and crouching.
-    if (inp.crouch && !s.crouching) { s.crouching = true; s.h = TALL_CROUCH; }
-    else if (!inp.crouch && s.crouching && w.ceilingOver(s.x, s.y, s.z, s.r) >= s.y + TALL) { s.crouching = false; s.h = TALL; }
+    // A slide: from a sprint, low and fast, slowing as it goes.
+    if (s.slideCool > 0) s.slideCool -= dt;
+    if (inp.slide && s.grounded && s.slideT <= 0 && s.slideCool <= 0 && !s.prone && s.sprinting) {
+      const v = Math.hypot(s.vx, s.vz) || 1e-6;
+      s.slideT = SLIDE_TIME;
+      s.slideX = s.vx / v; s.slideZ = s.vz / v;
+      s.slideV = Math.max(v * 1.25, SLIDE_SPEED);
+      s.crouching = true; s.h = TALL_CROUCH;
+      this.events.push({ e: 'slide', id: s.id });
+    }
+
+    // Standing, crouching and lying down. Getting down or up takes a
+    // moment (no firing meanwhile), and getting up needs the room.
+    const roof = w.ceilingOver(s.x, s.y, s.z, s.r);
+    const wantProne = inp.prone && s.grounded && s.slideT <= 0;
+    if (wantProne && !s.prone) { s.prone = true; s.crouching = true; s.h = TALL_PRONE; s.stanceT = 0.5; }
+    else if (!wantProne && s.prone && roof >= s.y + TALL_CROUCH) { s.prone = false; s.h = TALL_CROUCH; s.stanceT = 0.45; }
+    if (!s.prone) {
+      const low = inp.crouch || s.slideT > 0;
+      if (low && !s.crouching) { s.crouching = true; s.h = TALL_CROUCH; }
+      else if (!low && s.crouching && roof >= s.y + TALL) { s.crouching = false; s.h = TALL; }
+    }
+    if (s.stanceT > 0) s.stanceT -= dt;
     s.crouchK += ((s.crouching ? 1 : 0) - s.crouchK) * Math.min(1, dt * 14);
+    s.proneK += ((s.prone ? 1 : 0) - s.proneK) * Math.min(1, dt * 7);
 
     // Running flat out: forwards only, gun down.
-    const busy = s.throwT > 0;
+    const busy = s.throwT > 0 || s.stanceT > 0;
     s.sprinting = inp.sprint && inp.mz > 0.3 && !s.crouching && !inp.ads && !inp.fire && !busy;
     if (s.sprinting) s.sprintOut = 0.16; else if (s.sprintOut > 0) s.sprintOut -= dt;
     const wantAds = inp.ads && !s.sprinting && s.reloadT <= 0 && s.swapT <= 0 && !busy;
@@ -382,13 +423,29 @@ export class Match {
     let mx = inp.mx, mz = inp.mz;
     const ml = Math.hypot(mx, mz);
     if (ml > 1) { mx /= ml; mz /= ml; }
-    const speed = WALK * cls.speed * gun.weight * (s.sprinting ? SPRINT : 1) * (s.crouching ? CROUCH : 1) * (1 + (gun.adsMove - 1) * s.ads) * (1 - 0.4 * s.draw);
+    const speed = WALK * cls.speed * gun.weight * (s.sprinting ? SPRINT : 1) * (s.prone ? PRONE : s.crouching ? CROUCH : 1) * (1 + (gun.adsMove - 1) * s.ads) * (1 - 0.4 * s.draw);
     const sy = Math.sin(s.yaw), cy = Math.cos(s.yaw);
     const wx = (sy * mz + cy * mx) * speed, wz = (-cy * mz + sy * mx) * speed;
-    if (s.grounded) {
+    if (s.slideT > 0 && s.grounded) {
+      // Sliding: steered only a little, towards where the keys point.
+      s.slideT -= dt;
+      s.slideV *= Math.exp(-dt * 1.2);
+      const wl = Math.hypot(wx, wz);
+      if (wl > 0.1) {
+        s.slideX += (wx / wl - s.slideX) * Math.min(1, dt * 1.6);
+        s.slideZ += (wz / wl - s.slideZ) * Math.min(1, dt * 1.6);
+        const l = Math.hypot(s.slideX, s.slideZ) || 1;
+        s.slideX /= l; s.slideZ /= l;
+      }
+      s.vx = s.slideX * s.slideV;
+      s.vz = s.slideZ * s.slideV;
+      if (s.slideT <= 0) s.slideCool = 0.5;
+      if (inp.jump && !s.jumpHeld) s.slideT = 0; // jump out of it
+    } else if (s.grounded) {
+      if (s.slideT > 0) { s.slideT = 0; s.slideCool = 0.5; }
       const ax = wx - s.vx, az = wz - s.vz, al = Math.hypot(ax, az), lim = 55 * dt;
       if (al <= lim) { s.vx = wx; s.vz = wz; } else { s.vx += (ax / al) * lim; s.vz += (az / al) * lim; }
-      if (inp.jump && !s.jumpHeld && w.ceilingOver(s.x, s.y, s.z, s.r) >= s.y + s.h + 0.4) {
+      if (inp.jump && !s.jumpHeld && !s.prone && s.stanceT <= 0 && w.ceilingOver(s.x, s.y, s.z, s.r) >= s.y + s.h + 0.4) {
         s.vy = JUMP;
         s.grounded = false;
         this.events.push({ e: 'jump', id: s.id });
@@ -415,6 +472,10 @@ export class Match {
         if (s.out >= OUT_TIME) { this.scrap(s, s, 'out', false); return; }
       } else s.out = 0;
     }
+
+    // Weapons lying about: rounds from one like your own are taken as you
+    // pass; another is taken in place of yours with the use key.
+    if (this.drops.length) this.stepPickup(s, inp);
 
     // Healing by itself, once nothing has hit it for a while.
     if (s.hp < s.maxHp && this.time - s.hurtAt > REGEN_DELAY) s.hp = Math.min(s.maxHp, s.hp + REGEN * dt);
@@ -491,7 +552,7 @@ export class Match {
     // Out of rounds altogether: fall back on the pistol.
     if (wp.mag === 0 && wp.reserve <= 0 && s.slot === 0 && s.swapT <= 0) { s.slot = 1; s.swapT = 0.4; }
 
-    if (pulled && s.cool <= 0 && s.reloadT <= 0 && s.swapT <= 0 && s.throwT <= 0 && s.sprintOut <= 0) {
+    if (pulled && s.cool <= 0 && s.reloadT <= 0 && s.swapT <= 0 && s.throwT <= 0 && s.sprintOut <= 0 && s.stanceT <= 0) {
       s.pull = 0;
       if (wp.mag > 0) this.fire(s, wp);
       else if (!gun.auto) this.events.push({ e: 'dry', id: s.id });
@@ -503,7 +564,7 @@ export class Match {
 
   // The old arms: swinging, blocking, drawing a bow, throwing.
   stepOld(s, dt, wp, gun) {
-    const inp = s.in, free = s.swapT <= 0 && s.throwT <= 0 && s.sprintOut <= 0;
+    const inp = s.in, free = s.swapT <= 0 && s.throwT <= 0 && s.sprintOut <= 0 && s.stanceT <= 0;
     const alt = inp.ads && !s.altHeld;
     s.altHeld = inp.ads;
     s.fireHeld = inp.fire;
@@ -552,7 +613,7 @@ export class Match {
     const fl = Math.hypot(d[0], d[2]) || 1e-6, cosArc = Math.cos(gun.arc / 2), hits = [];
     for (const e of this.soldiers) {
       if (!e.alive || e.team === s.team) continue;
-      const cy = e.y + (e.crouching ? 0.6 : 0.95), x = e.x - ox, y = cy - oy, z = e.z - oz, dist = Math.hypot(x, y, z);
+      const cy = this.mid(e), x = e.x - ox, y = cy - oy, z = e.z - oz, dist = Math.hypot(x, y, z);
       if (dist > gun.reach + 0.34) continue;
       const flat = Math.hypot(x, z) || 1e-6;
       if (dist > 0.9 && (x * d[0] + z * d[2]) / (flat * fl) < cosArc) continue;
@@ -633,6 +694,74 @@ export class Match {
     return false;
   }
 
+  // ---- weapons lying about ---------------------------------------------------------
+
+  // A scrapped soldier's main weapon falls where it stood, with at least a
+  // magazine's worth in it.
+  dropWeapon(e) {
+    const wp = e.weapons[0];
+    if (!wp) return;
+    const gun = wp.gun, y = this.world.groundAt(e.x, e.z, e.y + 0.5);
+    let mag = wp.mag, reserve = wp.reserve;
+    if (gun.kind) mag = Math.max(mag, Math.ceil(gun.mag / 2));
+    else reserve = Math.max(reserve, gun.mag);
+    if (y < -9) return;
+    if (this.drops.length >= DROPS) this.drops.shift();
+    this.drops.push({ id: ++this.dropId, gun: gun.id, mag, reserve, x: e.x, y, z: e.z, yaw: e.yaw + 0.7, t: this.time });
+  }
+
+  // How many of a thing a weapon can carry, and how many it has.
+  static full(gun) { return gun.kind ? gun.mag : gun.mag + gun.reserve; }
+  static has(wp) { return wp.mag + (wp.reserve === Infinity ? 0 : wp.reserve); }
+
+  stepPickup(s, inp) {
+    const use = inp.use && !s.useHeld;
+    s.useHeld = inp.use;
+    if (this.tick % 6 !== s.id % 6 && !use) return;
+    let near = null, nearD = PICK_REACH;
+    for (let k = this.drops.length - 1; k >= 0; k--) {
+      const d = this.drops[k];
+      if (this.time - d.t > DROP_TIME) { this.drops.splice(k, 1); continue; }
+      if (Math.abs(d.y - s.y) > 1.2) continue;
+      const dist = Math.hypot(d.x - s.x, d.z - s.z);
+      if (dist >= PICK_REACH) continue;
+      const wp = s.weapons[0], gun = wp.gun;
+      if (d.gun === gun.id) {
+        // The same as yours: take what it has, up to what you can carry.
+        const room = Match.full(gun) - Match.has(wp), take = Math.min(room, d.mag + d.reserve);
+        if (take > 0) {
+          if (gun.kind) wp.mag += take; else wp.reserve += take;
+          let left = take;
+          const fromRes = Math.min(d.reserve, left); d.reserve -= fromRes; left -= fromRes; d.mag -= left;
+          this.events.push({ e: 'ammo', id: s.id, n: take, gun: gun.id });
+          if (d.mag + d.reserve <= 0) { this.drops.splice(k, 1); continue; }
+        }
+      } else if (dist < nearD) { nearD = dist; near = d; }
+    }
+    if (!use || !near || s.swing > 0 || s.draw > 0 || s.throwT > 0) return;
+    // Swap: yours goes down where it lay.
+    const old = s.weapons[0];
+    near.t = this.time;
+    s.weapons[0] = { gun: GUNS[near.gun], mag: near.mag, reserve: near.reserve };
+    Object.assign(near, { gun: old.gun.id, mag: old.mag, reserve: old.reserve === Infinity ? 0 : old.reserve, yaw: s.yaw + 0.7 });
+    s.slot = 0;
+    s.swapT = 0.5;
+    s.reloadT = 0;
+    s.bloom = 0;
+    this.events.push({ e: 'pickup', id: s.id, gun: s.weapons[0].gun.id });
+  }
+
+  // The weapon lying nearest to a soldier, other than one like its own, within reach.
+  dropNear(s) {
+    let best = null, bestD = PICK_REACH;
+    for (const d of this.drops) {
+      if (d.gun === s.weapons[0].gun.id || Math.abs(d.y - s.y) > 1.2 || this.time - d.t > DROP_TIME) continue;
+      const dist = Math.hypot(d.x - s.x, d.z - s.z);
+      if (dist < bestD) { bestD = dist; best = d; }
+    }
+    return best;
+  }
+
   // How wide a soldier's shots scatter right now, in radians.
   spread(s) {
     const gun = s.weapons[s.slot].gun;
@@ -640,7 +769,8 @@ export class Match {
     let a = gun.hip + (gun.ads - gun.hip) * s.ads;
     a += s.bloom * (1 - 0.6 * s.ads);
     a *= 1 + moving * (0.7 - 0.45 * s.ads);
-    if (s.crouching) a *= 0.8;
+    if (s.prone) a *= 0.55;
+    else if (s.crouching) a *= 0.8;
     if (!s.grounded) a = a * 2 + 2.5;
     return a * RAD;
   }
@@ -681,7 +811,7 @@ export class Match {
       }
     }
     if (any) s.hits++;
-    const ease = (1 - 0.35 * s.ads) * (s.crouching ? 0.85 : 1);
+    const ease = (1 - 0.35 * s.ads) * (s.prone ? 0.65 : s.crouching ? 0.85 : 1);
     s.kp += gun.kickUp * RAD * ease;
     s.ky += (rng.next() * 2 - 1) * gun.kickSide * RAD * ease;
     s.bloom = Math.min(1.6, s.bloom + gun.bloom);
@@ -697,6 +827,7 @@ export class Match {
     const out = this.hitOut || (this.hitOut = { t: Infinity, head: false });
     out.t = Infinity;
     out.head = false;
+    if (e.prone) return this.rayHitsLying(e, ox, oy, oz, dx, dy, dz, maxT, out);
     const top = e.crouching ? 1.02 : 1.5, hy = e.y + top + 0.17;
     // Quick miss: too far from the line.
     const px = e.x - ox, pz = e.z - oz, along = px * dx + pz * dz;
@@ -724,6 +855,36 @@ export class Match {
           if (t >= 0 && t < maxT && t < out.t) { out.t = t; out.head = false; }
         }
       }
+    }
+    return out;
+  }
+
+  // A soldier lying down: its body a capsule along the ground, its head a ball in front.
+  rayHitsLying(e, ox, oy, oz, dx, dy, dz, maxT, out) {
+    const fx = Math.sin(e.yaw), fz = -Math.cos(e.yaw);
+    const hx = e.x + fx * 0.72 - ox, hy = e.y + 0.36 - oy, hz = e.z + fz * 0.72 - oz;
+    const pr = hx * dx + hy * dy + hz * dz;
+    if (pr > 0) {
+      const d2 = hx * hx + hy * hy + hz * hz - pr * pr;
+      if (d2 < 0.19 * 0.19) {
+        const t = pr - Math.sqrt(0.19 * 0.19 - d2);
+        if (t > 0 && t < maxT) { out.t = t; out.head = true; }
+      }
+    }
+    // Closest approach between the ray and the body's middle line.
+    const ax = e.x - fx * 0.75, ay = e.y + 0.24, az = e.z - fz * 0.75;
+    const ex = fx * 1.2, ey = 0.04, ez = fz * 1.2;
+    const wx = ox - ax, wy = oy - ay, wz = oz - az;
+    const b = dx * ex + dy * ey + dz * ez, c = ex * ex + ey * ey + ez * ez, d = dx * wx + dy * wy + dz * wz, f = ex * wx + ey * wy + ez * wz;
+    const den = c - b * b;
+    let u = den > 1e-9 ? (f - b * d) / den : 0;
+    u = clamp(u, 0, 1);
+    const t = Math.max(0, b * u - d);
+    const px = ox + dx * t - (ax + ex * u), py = oy + dy * t - (ay + ey * u), pz = oz + dz * t - (az + ez * u);
+    const dist2 = px * px + py * py + pz * pz, r = 0.26;
+    if (dist2 < r * r) {
+      const th = Math.max(0, t - Math.sqrt(r * r - dist2));
+      if (th < maxT && th < out.t) { out.t = th; out.head = false; }
     }
     return out;
   }
@@ -783,6 +944,7 @@ export class Match {
       }
     }
     e.dmgFrom.clear();
+    this.dropWeapon(e);
     this.events.push({ e: 'kill', id: e.id, by: by.id, gun, head, x: e.x, y: e.y, z: e.z, yaw: e.yaw });
     if (this.scores[by.team] >= this.scoreLimit) this.finish();
   }
@@ -877,7 +1039,7 @@ export class Match {
     this.events.push({ e: 'boom', x: n.x, y: n.y, z: n.z });
     for (const e of this.soldiers) {
       if (!e.alive || (e.team === n.team && e !== by)) continue;
-      const cy = e.y + (e.crouching ? 0.6 : 0.95), d = Math.hypot(e.x - n.x, cy - n.y, e.z - n.z);
+      const cy = this.mid(e), d = Math.hypot(e.x - n.x, cy - n.y, e.z - n.z);
       const reach = this.mode.pot ? 5 : NADE_REACH;
       if (d >= reach || !w.sees(n.x, n.y + 0.25, n.z, e.x, cy, e.z)) continue;
       this.hurt(e, (this.mode.pot ? 140 : NADE_DAMAGE) * clamp(1 - (d - 1.2) / (reach - 1.2), 0, 1), by, 'nade', false);
