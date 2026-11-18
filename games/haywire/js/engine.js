@@ -64,31 +64,90 @@ export const GUNS = {
   pistol: { name: 'Spark', auto: false, pellets: 1, dmg: 24, head: 1.5, rate: 0.14, mag: 12, reserve: Infinity, reload: 1.3, hip: 1.6, ads: 0.35, adsTime: 0.12, adsMove: 0.85, zoom: 1.15, kickUp: 1.1, kickSide: 0.35, bloom: 0.5, near: 12, far: 35, min: 0.5, weight: 1 },
 };
 
-// The old arms, for the mode with no guns. kind 'melee': a swing lands wind
-// seconds after it starts, on whoever is within reach metres and inside an
-// arc that many radians wide in front (cleave: on everyone there). back: how
-// much more it does from behind. kind 'bow': hold to draw, let go to loose;
-// dmg and speed run from a half-drawn bow to a full one. alt is what the
-// right button does: 'block' raises a shield, 'zoom' looks closer, 'throw'
-// throws one of mag things (shot says what it does in the air).
+// The old arms, for the mode with no guns. kind 'melee': a blow comes from
+// a side (see FROM_LEFT below). It winds up for wind seconds (it can be held
+// back there, wound up, as long as the button is held), sweeps through for
+// strike seconds, hitting whatever the blade passes through, and takes
+// recover seconds to come back. dmg and reach are for a blow from the side;
+// blows (one per side, each a list of multipliers) change that for a side.
+// cleave: a blow from the side goes on through everyone in its way. back:
+// how much more it does from behind. kind 'bow': hold to draw, let go to
+// loose; dmg and speed run from a half-drawn bow to a full one. alt is what
+// the right button does: 'block' raises a shield, 'guard' guards with the
+// blade itself, 'zoom' looks closer. throw: how many there are to throw (mag),
+// and shot says what one does in the air.
 const OLD = { auto: true, pellets: 1, head: 1, reserve: 0, reload: 0, hip: 0, ads: 0, adsTime: 0.15, adsMove: 1, zoom: 1, kickUp: 0, kickSide: 0, bloom: 0, weight: 1, mag: 0 };
 Object.assign(GUNS, {
-  sword: { ...OLD, name: 'Longsword', kind: 'melee', dmg: 48, wind: 0.16, rate: 0.55, reach: 2.3, arc: 1.5, alt: 'block', adsMove: 0.65 },
-  spear: { ...OLD, name: 'Pike', kind: 'melee', dmg: 62, wind: 0.22, rate: 0.8, reach: 3.5, arc: 0.6, alt: 'throw', mag: 3, shot: { kind: 'spear', dmg: 95, speed: 30, grav: 9, head: 1.5 } },
-  axe: { ...OLD, name: 'Greataxe', kind: 'melee', dmg: 95, wind: 0.42, rate: 1.15, reach: 2.6, arc: 2, cleave: true, alt: 'throw', mag: 3, weight: 0.97, shot: { kind: 'hatchet', dmg: 70, speed: 23, grav: 12, head: 1.3 } },
+  sword: { ...OLD, name: 'Longsword', kind: 'melee', dmg: 46, wind: 0.42, strike: 0.17, recover: 0.36, reach: 2.3, alt: 'block', adsMove: 0.65 },
+  spear: { ...OLD, name: 'Pike', kind: 'melee', dmg: 60, wind: 0.44, strike: 0.15, recover: 0.46, reach: 3.4, alt: 'guard', throw: true, mag: 3, shot: { kind: 'spear', dmg: 95, speed: 30, grav: 9, head: 1.5 },
+    blows: [{ dmg: 0.6, reach: 0.78 }, { dmg: 0.6, reach: 0.78 }, { dmg: 0.8, reach: 0.8 }, { dmg: 1.05, reach: 1, wind: 0.95 }] },
+  axe: { ...OLD, name: 'Greataxe', kind: 'melee', dmg: 80, wind: 0.58, strike: 0.22, recover: 0.62, reach: 2.6, cleave: true, alt: 'guard', throw: true, mag: 3, weight: 0.97, shot: { kind: 'hatchet', dmg: 70, speed: 23, grav: 12, head: 1.3 },
+    blows: [null, null, null, { dmg: 0.5, reach: 0.9 }] },
   bow: { ...OLD, name: 'Longbow', kind: 'bow', dmg: 92, min: 40, speed: 58, slow: 26, grav: 9.8, drawTime: 0.85, rate: 0.35, mag: 24, head: 1.8, alt: 'zoom', zoom: 1.6, adsTime: 0.2, adsMove: 0.6, shot: { kind: 'arrow' } },
-  daggers: { ...OLD, name: 'Twin Daggers', kind: 'melee', dmg: 34, wind: 0.08, rate: 0.26, reach: 1.9, arc: 1.4, back: 2, alt: 'throw', mag: 10, shot: { kind: 'knife', dmg: 42, speed: 34, grav: 10, head: 1.5 } },
-  knife: { ...OLD, name: 'Dagger', kind: 'melee', dmg: 28, wind: 0.1, rate: 0.38, reach: 1.8, arc: 1.3, back: 1.5, alt: null },
+  daggers: { ...OLD, name: 'Twin Daggers', kind: 'melee', dmg: 32, wind: 0.3, strike: 0.12, recover: 0.2, reach: 1.9, back: 2, alt: 'guard', throw: true, mag: 10, shot: { kind: 'knife', dmg: 42, speed: 34, grav: 10, head: 1.5 } },
+  knife: { ...OLD, name: 'Dagger', kind: 'melee', dmg: 28, wind: 0.32, strike: 0.12, recover: 0.24, reach: 1.85, back: 1.5, alt: 'guard' },
 });
 // A medic's weapons: a quick semi-automatic rifle, and a mace.
 Object.assign(GUNS, {
   carbine: { name: 'Patcher', auto: false, pellets: 1, dmg: 36, head: 1.6, rate: 0.16, mag: 12, reserve: 108, reload: 1.9, hip: 2.0, ads: 0.2, adsTime: 0.2, adsMove: 0.66, zoom: 1.5, kickUp: 0.85, kickSide: 0.25, bloom: 0.38, near: 30, far: 70, min: 0.75, weight: 1 },
-  mace: { ...OLD, name: 'Mace', kind: 'melee', dmg: 52, wind: 0.2, rate: 0.62, reach: 2.2, arc: 1.3, alt: null },
+  mace: { ...OLD, name: 'Mace', kind: 'melee', dmg: 50, wind: 0.45, strike: 0.17, recover: 0.42, reach: 2.2, alt: 'guard', blows: [null, null, null, { dmg: 0.6, reach: 0.95 }] },
 });
 // A blow with the gun itself, in Firefight, for when something is right on top of you.
 export const BASH = { name: 'Rifle butt', dmg: 55, wind: 0.12, rate: 0.65, reach: 1.9, arc: 1.4, back: 2 };
 GUNS.bash = BASH;
 for (const k of Object.keys(GUNS)) GUNS[k].id = k;
+
+// ---- blows from a side -------------------------------------------------------------------
+
+// Where a blow comes from, as the one swinging it sees it: from the left
+// (sweeping across to the right), from the right, from overhead (down), or
+// straight in. To block one, the guard goes up on the side it is coming
+// from as the one blocking sees it: a blow from the swinger's left arrives on
+// the blocker's right. A shield stops a blow from any side.
+export const FROM_LEFT = 0, FROM_RIGHT = 1, OVERHEAD = 2, THRUST = 3;
+export const SIDES = ['from the left', 'from the right', 'overhead', 'a thrust'];
+export const meets = (dir) => (dir === FROM_LEFT ? FROM_RIGHT : dir === FROM_RIGHT ? FROM_LEFT : dir);
+export const PARRY = 0.28;    // a guard put up (or turned to the side) this soon before the blow: a parry
+export const HOLD_MAX = 2.5;  // the longest a blow can be held back, wound up
+export const BLOCKED = 0.42, PARRIED = 0.85; // how long a blow that is stopped leaves the one who swung it reeling
+export const FLINCH = 0.22;   // how long a blow that lands stops the one it lands on
+export const RIPOSTE = 0.62;  // after a parry, the next blow winds up this much quicker (for a moment)
+export const KICK = { dmg: 8, wind: 0.24, reach: 1.75, stun: 0.85, shove: 6.5, rate: 1 };
+const SIDE_BLOW = [{ wind: 1, dmg: 1, reach: 1 }, { wind: 1, dmg: 1, reach: 1 }, { wind: 1.18, dmg: 1.3, reach: 0.95 }, { wind: 0.85, dmg: 0.85, reach: 1.15 }];
+
+// What a blow with gun from side dir is like: wind, strike, dmg and reach.
+export function blowOf(gun, dir) {
+  const base = SIDE_BLOW[dir], own = (gun.blows && gun.blows[dir]) || null;
+  const k = (f) => base[f] * (own && own[f] !== undefined ? own[f] : 1);
+  return { wind: gun.wind * k('wind'), strike: gun.strike, dmg: gun.dmg * k('dmg'), reach: gun.reach * k('reach') };
+}
+
+// The way the blade points at u through a blow from side dir (u 0 as it
+// starts through, 1 at the end, below 0 wound back): x to the right, y up,
+// z ahead, as the one swinging it sees it.
+export function bladeLocal(dir, u, out) {
+  let x, y, z;
+  if (dir === OVERHEAD) { const a = 1.25 - 2 * u; x = 0.1; y = Math.sin(a); z = Math.cos(a); }
+  else if (dir === THRUST) { x = 0.04; y = -0.06; z = 1; }
+  else { const a = (-1.1 + 2.2 * u) * (dir === FROM_LEFT ? 1 : -1); x = Math.sin(a); z = Math.cos(a); y = (dir === FROM_LEFT ? -a : a) * 0.32; }
+  const l = Math.hypot(x, y, z);
+  out[0] = x / l; out[1] = y / l; out[2] = z / l;
+  return out;
+}
+// Where the hand is, ahead of the shoulder, at u through a thrust (and 0 for any other blow).
+export const thrustOut = (dir, u) => (dir === THRUST ? -0.45 + 0.65 * Math.max(0, Math.min(1, u)) : 0);
+
+// The closest two segments (p0-p1 and q0-q1) come to one another.
+function segGap(p0x, p0y, p0z, p1x, p1y, p1z, q0x, q0y, q0z, q1x, q1y, q1z) {
+  const ux = p1x - p0x, uy = p1y - p0y, uz = p1z - p0z, vx = q1x - q0x, vy = q1y - q0y, vz = q1z - q0z;
+  const wx = p0x - q0x, wy = p0y - q0y, wz = p0z - q0z;
+  const a = ux * ux + uy * uy + uz * uz, b = ux * vx + uy * vy + uz * vz, c = vx * vx + vy * vy + vz * vz;
+  const d = ux * wx + uy * wy + uz * wz, e = vx * wx + vy * wy + vz * wz, den = a * c - b * b;
+  let s = den > 1e-9 ? clamp((b * e - c * d) / den, 0, 1) : 0;
+  let t = c > 1e-9 ? (b * s + e) / c : 0;
+  if (t < 0) { t = 0; s = a > 1e-9 ? clamp(-d / a, 0, 1) : 0; } else if (t > 1) { t = 1; s = a > 1e-9 ? clamp((b - d) / a, 0, 1) : 0; }
+  return { gap: Math.hypot(wx + ux * s - vx * t, wy + uy * s - vy * t, wz + uz * s - vz * t), s };
+}
 
 export const CLASSES = [
   { id: 'assault', name: 'Assault', gun: 'rifle', hp: 100, speed: 1, nades: 2, what: 'A steady rifle for any range.' },
@@ -113,7 +172,7 @@ export const OLD_CLASSES = [
 // in Advance (set so that an attack gets through about half the time).
 export const MODES = [
   { id: 'guns', name: 'Firefight', classes: CLASSES, side: 'pistol', pot: false, defWait: 13.5, tickets: 11, what: 'Rifles, shotguns and grenades.' },
-  { id: 'old', name: 'Old Iron', classes: OLD_CLASSES, side: 'knife', pot: true, defWait: 25, tickets: 7, what: 'Swords, bows, pikes and axes. No guns.' },
+  { id: 'old', name: 'Old Iron', classes: OLD_CLASSES, side: 'knife', pot: true, defWait: 28, tickets: 7, what: 'Swords, bows, pikes and axes. No guns.' },
 ];
 
 export const NAMES = [
@@ -141,7 +200,7 @@ export class Rand {
 }
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
-export const emptyInput = () => ({ deploy: false, spawnAt: -1, prone: false, slide: false, use: false, melee: false, mx: 0, mz: 0, yaw: 0, pitch: 0, jump: false, crouch: false, sprint: false, ads: false, fire: false, reload: false, nade: false, slot: -1, cls: -1 });
+export const emptyInput = () => ({ deploy: false, spawnAt: -1, prone: false, slide: false, use: false, melee: false, toss: false, dir: 0, mx: 0, mz: 0, yaw: 0, pitch: 0, jump: false, crouch: false, sprint: false, ads: false, fire: false, reload: false, nade: false, slot: -1, cls: -1 });
 
 export class Match {
   // opts: seed, size (robots a side), human (is soldier 0 the player),
@@ -197,7 +256,8 @@ export class Match {
           yaw: 0, pitch: 0, grounded: true, crouching: false, crouchK: 0, sprinting: false, sprintOut: 0, ads: 0,
           hp: 0, maxHp: 100, hurtAt: -99, hurtBy: -1, protect: 0, dmgFrom: new Map(),
           weapons: [], slot: 0, cool: 0, reloadT: 0, swapT: 0, throwT: 0, nadeCount: 0, bloom: 0, kp: 0, ky: 0,
-          out: 0, moveK: 0, swY: 0, swP: 0, supp: 0, suppAt: -99, prone: false, proneK: 0, stanceT: 0, slideT: 0, slideCool: 0, slideX: 0, slideZ: 0, slideV: 0, useHeld: false, meleeHeld: false, fireHeld: false, pull: 0, nadeHeld: false, swing: 0, draw: 0, block: false, altHeld: false, jumpHeld: false, lastShot: -99, stride: 0,
+          out: 0, moveK: 0, swY: 0, swP: 0, supp: 0, suppAt: -99, prone: false, proneK: 0, stanceT: 0, slideT: 0, slideCool: 0, slideX: 0, slideZ: 0, slideV: 0, useHeld: false, meleeHeld: false, fireHeld: false, pull: 0, nadeHeld: false, swing: 0, draw: 0, block: false, altHeld: false, tossHeld: false,
+          atk: 0, atkT: 0, atkAt: -99, atkDir: 0, atkWind: 0, atkRecover: 0, atkHit: [], atkLanded: false, atkQueued: false, guard: false, guardDir: 0, guardAt: -99, riposteUntil: -99, stun: 0, hitStop: 0, kickT: 0, shoveX: 0, shoveZ: 0, feints: 0, blocks: 0, parries: 0, jumpHeld: false, lastShot: -99, stride: 0,
           knownT: -99, kx: 0, ky2: 0, kz: 0, // when and where the other team last knew it to be
           kills: 0, deaths: 0, assists: 0, score: 0, streak: 0, best: 0, heads: 0, shots: 0, hits: 0,
           in: emptyInput(), bot: null,
@@ -426,7 +486,9 @@ export class Match {
     s.protect = 1.5;
     s.dmgFrom.clear();
     s.swing = s.draw = 0;
-    s.block = false;
+    s.block = s.guard = false;
+    s.atk = s.atkT = s.stun = s.hitStop = s.kickT = s.shoveX = s.shoveZ = 0;
+    s.atkQueued = false; s.riposteUntil = -99;
     s.out = 0;
     s.moveK = s.supp = s.swY = s.swP = 0;
     s.weapons = [cls.gun, this.mode.side].map((id) => ({ gun: GUNS[id], mag: GUNS[id].mag, reserve: GUNS[id].reserve }));
@@ -493,7 +555,7 @@ export class Match {
 
     // Running flat out: forwards only, gun down.
     const busy = s.throwT > 0 || s.stanceT > 0;
-    s.sprinting = inp.sprint && inp.mz > 0.3 && !s.crouching && !inp.ads && !inp.fire && !busy;
+    s.sprinting = inp.sprint && inp.mz > 0.3 && !s.crouching && !inp.ads && !inp.fire && !busy && s.atk === 0 && s.stun <= 0 && s.kickT <= 0;
     if (s.sprinting) s.sprintOut = 0.16; else if (s.sprintOut > 0) s.sprintOut -= dt;
     const wantAds = inp.ads && !s.sprinting && s.reloadT <= 0 && s.swapT <= 0 && !busy;
     s.ads = clamp(s.ads + (wantAds ? dt : -dt) / gun.adsTime, 0, 1);
@@ -502,7 +564,7 @@ export class Match {
     let mx = inp.mx, mz = inp.mz;
     const ml = Math.hypot(mx, mz);
     if (ml > 1) { mx /= ml; mz /= ml; }
-    const speed = WALK * cls.speed * gun.weight * (s.sprinting ? SPRINT : 1) * (s.prone ? PRONE : s.crouching ? CROUCH : 1) * (1 + (gun.adsMove - 1) * s.ads) * (1 - 0.4 * s.draw);
+    const speed = WALK * cls.speed * gun.weight * (s.sprinting ? SPRINT : 1) * (s.prone ? PRONE : s.crouching ? CROUCH : 1) * (1 + (gun.adsMove - 1) * s.ads) * (1 - 0.4 * s.draw) * this.meleePace(s);
     const sy = Math.sin(s.yaw), cy = Math.cos(s.yaw);
     const wx = (sy * mz + cy * mx) * speed, wz = (-cy * mz + sy * mx) * speed;
     if (s.slideT > 0 && s.grounded) {
@@ -522,8 +584,9 @@ export class Match {
       if (inp.jump && !s.jumpHeld) s.slideT = 0; // jump out of it
     } else if (s.grounded) {
       if (s.slideT > 0) { s.slideT = 0; s.slideCool = 0.5; }
-      const ax = wx - s.vx, az = wz - s.vz, al = Math.hypot(ax, az), lim = 55 * dt;
-      if (al <= lim) { s.vx = wx; s.vz = wz; } else { s.vx += (ax / al) * lim; s.vz += (az / al) * lim; }
+      // (A shove from a blow or a kick, or a step into a blow, on top of walking.)
+      const ax = wx + s.shoveX - s.vx, az = wz + s.shoveZ - s.vz, al = Math.hypot(ax, az), lim = 55 * dt;
+      if (al <= lim) { s.vx = wx + s.shoveX; s.vz = wz + s.shoveZ; } else { s.vx += (ax / al) * lim; s.vz += (az / al) * lim; }
       if (inp.jump && !s.jumpHeld && !s.prone && s.stanceT <= 0 && w.ceilingOver(s.x, s.y, s.z, s.r) >= s.y + s.h + 0.4) {
         s.vy = JUMP;
         s.grounded = false;
@@ -535,6 +598,11 @@ export class Match {
       s.vz += (wz - s.vz) * Math.min(1, dt * 2.2);
     }
     s.jumpHeld = inp.jump;
+    if (s.shoveX || s.shoveZ) {
+      const k = Math.exp(-dt * 7);
+      s.shoveX *= k; s.shoveZ *= k;
+      if (Math.abs(s.shoveX) + Math.abs(s.shoveZ) < 0.05) s.shoveX = s.shoveZ = 0;
+    }
     const fell = s.vy;
     if (w.move(s, dt, GRAVITY)) this.events.push({ e: 'land', id: s.id, v: -fell });
     if (s.grounded) {
@@ -591,6 +659,16 @@ export class Match {
     this.stepWeapon(s, dt);
   }
 
+  // How a blow, a guard or being knocked off balance slows walking.
+  meleePace(s) {
+    if (s.stun > 0) return 0.4;
+    if (s.atk === 1) return 0.78;
+    if (s.atk === 2) return 0.55;
+    if (s.atk === 3) return 0.7;
+    if (s.kickT > 0) return 0.5;
+    return s.guard && !s.block ? 0.72 : 1;
+  }
+
   stepWeapon(s, dt) {
     const inp = s.in;
     if (s.cool > 0) s.cool -= dt;
@@ -608,6 +686,8 @@ export class Match {
       s.reloadT = 0;
       s.bloom = 0;
       s.swing = s.draw = 0;
+      s.atk = s.kickT = 0;
+      s.guard = s.block = false;
       this.events.push({ e: 'swap', id: s.id });
     }
     const wp = s.weapons[s.slot], gun = wp.gun;
@@ -670,14 +750,20 @@ export class Match {
     s.nadeHeld = inp.nade;
   }
 
-  // The old arms: swinging, blocking, drawing a bow, throwing.
+  // The old arms: blows from a side, guarding, kicking, drawing a bow, throwing.
   stepOld(s, dt, wp, gun) {
     const inp = s.in, free = s.swapT <= 0 && s.throwT <= 0 && s.sprintOut <= 0 && s.stanceT <= 0;
     const alt = inp.ads && !s.altHeld;
     s.altHeld = inp.ads;
+    const pressed = inp.fire && !s.fireHeld;
     s.fireHeld = inp.fire;
-    s.block = gun.alt === 'block' && inp.ads && s.swing <= 0 && !s.sprinting && free;
+    const tossed = inp.toss && !s.tossHeld;
+    s.tossHeld = inp.toss;
+    const kicked = inp.melee && !s.meleeHeld;
+    s.meleeHeld = inp.melee;
     if (gun.kind === 'bow') {
+      s.guard = s.block = false;
+      s.atk = 0;
       if (inp.fire && free && s.cool <= 0 && wp.mag > 0) {
         if (s.draw === 0) this.events.push({ e: 'draw', id: s.id });
         s.draw = Math.min(1, s.draw + dt / gun.drawTime);
@@ -695,27 +781,204 @@ export class Match {
       }
       return;
     }
-    if (s.swing > 0) {
-      s.swing -= dt;
-      if (s.swing <= 0) this.strike(s, gun);
-    } else if (inp.fire && s.cool <= 0 && free && !s.block) {
-      s.swing = gun.wind;
-      s.cool = gun.rate;
+    // Knocked off balance (by a kick, a blow that landed, or one that was stopped): nothing for a moment.
+    if (s.stun > 0) {
+      s.stun -= dt;
+      s.atk = 0; s.kickT = 0;
+      s.guard = s.block = false;
+      return;
+    }
+    // A blow that has just bitten holds there for a moment.
+    if (s.hitStop > 0) { s.hitStop -= dt; return; }
+    // A kick: unstoppable, but short, and slow to come back from if it misses.
+    if (s.kickT > 0) {
+      s.kickT -= dt;
+      if (s.kickT <= 0) this.kick(s);
+      return;
+    }
+    if (kicked && s.atk === 0 && free && s.cool <= 0) {
+      s.kickT = KICK.wind;
+      s.cool = KICK.rate;
+      s.guard = s.block = false;
       s.protect = 0;
-      this.events.push({ e: 'swing', id: s.id });
-    } else if (alt && gun.alt === 'throw' && wp.mag > 0 && s.cool <= 0 && free) {
+      this.events.push({ e: 'kick', id: s.id });
+      return;
+    }
+    // Throwing a pike, a hatchet or a knife.
+    if (tossed && gun.throw && wp.mag > 0 && s.atk === 0 && s.cool <= 0 && free) {
       const sh = gun.shot;
       wp.mag--;
       s.cool = 0.55;
       s.protect = 0;
+      s.guard = s.block = false;
       this.loose(s, gun, sh.kind, sh.speed, sh.dmg, sh.grav, sh.head, 0.6 * RAD);
       this.events.push({ e: 'hurl', id: s.id });
       // The last pike thrown: out with the dagger.
       if (gun.id === 'spear' && wp.mag === 0 && s.slot === 0) { s.slot = 1; s.swapT = 0.4; }
+      return;
+    }
+    const dir = inp.dir & 3;
+    if (s.atk === 0) {
+      // On guard: the blade (or a shield) up on the side the right button is held to.
+      const want = inp.ads && free && !s.sprinting && s.cool <= 0.1;
+      if (want) {
+        const side = gun.alt === 'block' ? -1 : dir;
+        if (!s.guard || side !== s.guardDir) { s.guardAt = this.time; s.guardDir = side; }
+        s.guard = true;
+      } else s.guard = false;
+      s.block = s.guard && gun.alt === 'block';
+      if ((pressed || (inp.fire && s.atkQueued)) && free && s.cool <= 0) this.windUp(s, gun, dir, 1);
+      s.atkQueued = false;
+    } else if (s.atk === 1) {
+      // Winding up. The right button now calls the blow off (a feint), into a guard.
+      s.atkT += dt;
+      if (alt) {
+        s.atk = 0;
+        s.cool = 0;
+        s.feints++;
+        this.events.push({ e: 'feint', id: s.id });
+      } else if (s.atkT >= s.atkWind && (!inp.fire || s.atkT >= s.atkWind + HOLD_MAX)) {
+        // Let go: through it goes, with a step into it.
+        s.atk = 2;
+        s.atkT = 0;
+        s.atkHit.length = 0;
+        s.atkLanded = false;
+        const fwd = gun.reach > 3 ? 2.6 : 2.1, sy = Math.sin(s.yaw), cy = Math.cos(s.yaw);
+        if (s.grounded) { s.shoveX += sy * fwd; s.shoveZ -= cy * fwd; }
+        this.events.push({ e: 'swing', id: s.id, dir: s.atkDir });
+      }
+    } else if (s.atk === 2) {
+      const b = blowOf(gun, s.atkDir), u0 = s.atkT / b.strike;
+      s.atkT += dt;
+      const u1 = Math.min(1, s.atkT / b.strike);
+      const got = this.sweep(s, gun, b, u0, u1);
+      if (got === 'stopped') return;
+      if (u1 >= 1 || (got === 'hit' && !(gun.cleave && s.atkDir < OVERHEAD))) {
+        s.atk = 3;
+        s.atkT = 0;
+        s.atkRecover = gun.recover * (s.atkLanded ? 0.6 : 1);
+        if (!s.atkLanded) s.shots++;
+      }
+    } else {
+      // Coming back from it. A blow that landed can be followed by another, sooner.
+      s.atkT += dt;
+      if (pressed) s.atkQueued = true;
+      if (s.atkLanded && s.atkQueued && inp.fire && s.atkT > s.atkRecover * 0.35 && free) { this.windUp(s, gun, dir, 0.8); s.atkQueued = false; }
+      else if (s.atkT >= s.atkRecover) s.atk = 0;
     }
   }
 
-  // A swing lands: on the nearest enemy in reach and in front (or all of them, for an axe).
+  // A blow begins to wind up, from side dir (quick: how much quicker than usual).
+  windUp(s, gun, dir, quick) {
+    s.atk = 1;
+    s.atkT = 0;
+    s.atkAt = this.time;
+    s.atkDir = dir;
+    s.atkWind = blowOf(gun, dir).wind * quick * (this.time < s.riposteUntil ? RIPOSTE : 1);
+    s.riposteUntil = -99;
+    s.guard = s.block = false;
+    s.protect = 0;
+    this.events.push({ e: 'windup', id: s.id, dir });
+  }
+
+  // Where the blade of soldier s is, u through a blow from side dir: its hilt and its tip.
+  blade(s, dir, u, reach, out) {
+    const yaw = s.yaw, pitch = clamp(s.pitch, -1.2, 1.2), sy = Math.sin(yaw), cy = Math.cos(yaw), sp = Math.sin(pitch), cp = Math.cos(pitch);
+    const fx = sy * cp, fy = sp, fz = -cy * cp, rx = cy, rz = sy, ux = -sy * sp, uy = cp, uz = cy * sp;
+    const l = bladeLocal(dir, u, this.tmpL || (this.tmpL = [0, 0, 0])), ahead = thrustOut(dir, u);
+    const dx = rx * l[0] + ux * l[1] + fx * l[2], dy = uy * l[1] + fy * l[2], dz = rz * l[0] + uz * l[1] + fz * l[2];
+    // (From the shoulder, a little to the right of and below the eye.)
+    const ox = s.x + rx * 0.15 - ux * 0.28 + fx * ahead, oy = this.eyeY(s) - uy * 0.28 + fy * ahead, oz = s.z + rz * 0.15 - uz * 0.28 + fz * ahead;
+    out[0] = ox + dx * 0.25; out[1] = oy + dy * 0.25; out[2] = oz + dz * 0.25;
+    out[3] = ox + dx * reach; out[4] = oy + dy * reach; out[5] = oz + dz * reach;
+    return out;
+  }
+
+  // A blow sweeping on from u0 to u1 of the way through: does the blade meet
+  // anyone? A guard on the right side (or a shield) stops it and throws the
+  // one swinging off balance; otherwise it bites. 'stopped', 'hit' or null.
+  sweep(s, gun, b, u0, u1) {
+    const w = this.world, seg = this.tmpSeg || (this.tmpSeg = [0, 0, 0, 0, 0, 0]);
+    let met = null, metS = 2, landed = null;
+    for (let i = 1; i <= 3; i++) {
+      const u = u0 + ((u1 - u0) * i) / 3;
+      this.blade(s, s.atkDir, u, b.reach, seg);
+      for (const e of this.soldiers) {
+        if (!e.alive || e.team === s.team || s.atkHit.includes(e.id)) continue;
+        if (Math.abs(e.x - s.x) > 4.5 || Math.abs(e.z - s.z) > 4.5) continue;
+        // (The body as a line up the middle of it; lying down, a line along the ground.)
+        let ax, ay, az, bx, by, bz;
+        if (e.prone) {
+          const hx = Math.sin(e.yaw) * 0.75, hz = -Math.cos(e.yaw) * 0.75;
+          ax = e.x - hx; bx = e.x + hx; ay = by = e.y + 0.25; az = e.z - hz; bz = e.z + hz;
+        } else { ax = bx = e.x; az = bz = e.z; ay = e.y + 0.25; by = e.y + e.h - 0.15; }
+        const g = segGap(seg[0], seg[1], seg[2], seg[3], seg[4], seg[5], ax, ay, az, bx, by, bz);
+        if (g.gap > 0.36 || g.s >= metS) continue;
+        // (Not through a wall.)
+        const hx = seg[0] + (seg[3] - seg[0]) * g.s, hy = seg[1] + (seg[4] - seg[1]) * g.s, hz = seg[2] + (seg[5] - seg[2]) * g.s;
+        if (!w.sees(s.x, this.eyeY(s), s.z, hx, hy, hz)) continue;
+        met = e; metS = g.s;
+        landed = [hx, hy, hz];
+      }
+      if (met) break;
+    }
+    if (!met) return null;
+    const e = met;
+    s.atkHit.push(e.id);
+    const front = this.facing(e, s.x - e.x, s.z - e.z);
+    // Met by a guard on that side, or a shield.
+    if (front > 0.25 && e.guard && (e.block || e.guardDir === meets(s.atkDir))) {
+      const parry = this.time - e.guardAt < PARRY;
+      s.atk = 0;
+      s.stun = parry ? PARRIED : BLOCKED;
+      s.cool = 0;
+      if (parry) { e.riposteUntil = this.time + 1.1; e.parries++; }
+      e.blocks++;
+      // (Both pushed apart a little.)
+      const dx = s.x - e.x, dz = s.z - e.z, l = Math.hypot(dx, dz) || 1;
+      s.shoveX += (dx / l) * (parry ? 3 : 1.8); s.shoveZ += (dz / l) * (parry ? 3 : 1.8);
+      this.events.push({ e: 'block', id: e.id, by: s.id, parry, shield: e.block, x: landed[0], y: landed[1], z: landed[2] });
+      return 'stopped';
+    }
+    const dmg = b.dmg * (gun.back && front < -0.3 ? gun.back : 1);
+    s.atkLanded = true;
+    s.hits++;
+    s.shots++;
+    s.hitStop = 0.06;
+    this.events.push({ e: 'cut', id: e.id, by: s.id, dir: s.atkDir, x: landed[0], y: landed[1], z: landed[2] });
+    // A blow that lands stops whatever they were winding up, and knocks them back a step.
+    if (e.atk === 1) { e.atk = 0; this.events.push({ e: 'broken', id: e.id }); }
+    e.stun = Math.max(e.stun, FLINCH);
+    e.guard = e.block = false;
+    const dx = e.x - s.x, dz = e.z - s.z, l = Math.hypot(dx, dz) || 1;
+    e.shoveX += (dx / l) * 2.6; e.shoveZ += (dz / l) * 2.6;
+    this.hurt(e, dmg, s, gun.id, false);
+    return 'hit';
+  }
+
+  // A kick lands (or doesn't): on the nearest enemy just in front, through any guard.
+  kick(s) {
+    const sy = Math.sin(s.yaw), cy = Math.cos(s.yaw);
+    let best = null, bd = KICK.reach + 0.35;
+    for (const e of this.soldiers) {
+      if (!e.alive || e.team === s.team || Math.abs(e.y - s.y) > 1) continue;
+      const dx = e.x - s.x, dz = e.z - s.z, d = Math.hypot(dx, dz);
+      if (d >= bd || (dx * sy - dz * cy) / (d || 1) < 0.55) continue;
+      if (!this.world.sees(s.x, s.y + 0.8, s.z, e.x, e.y + 0.8, e.z)) continue;
+      best = e; bd = d;
+    }
+    if (!best) { s.cool += 0.35; return; }
+    const e = best;
+    e.atk = 0; e.kickT = 0;
+    e.guard = e.block = false;
+    e.stun = KICK.stun;
+    e.shoveX += sy * KICK.shove; e.shoveZ -= cy * KICK.shove;
+    s.hits++;
+    this.events.push({ e: 'kicked', id: e.id, by: s.id, x: e.x, y: e.y + 0.9, z: e.z });
+    this.hurt(e, KICK.dmg, s, 'kick', false);
+  }
+
+  // A blow with a gun's butt (in Firefight) lands: on the nearest enemy in reach and in front.
   strike(s, gun) {
     const w = this.world, d = this.aim(s, [0, 0, 0]), ox = s.x, oy = this.eyeY(s), oz = s.z;
     const fl = Math.hypot(d[0], d[2]) || 1e-6, cosArc = Math.cos(gun.arc / 2), hits = [];
@@ -887,7 +1150,7 @@ export class Match {
         }
       } else if (dist < nearD) { nearD = dist; near = d; }
     }
-    if (!use || !near || s.swing > 0 || s.draw > 0 || s.throwT > 0) return;
+    if (!use || !near || s.swing > 0 || s.atk > 0 || s.draw > 0 || s.throwT > 0) return;
     // Swap: yours goes down where it lay.
     const old = s.weapons[0];
     near.t = this.time;

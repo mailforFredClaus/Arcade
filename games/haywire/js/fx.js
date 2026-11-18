@@ -5,7 +5,7 @@
 import { M } from './gl.js';
 import { pose } from './models.js';
 
-const sparks = [], smoke = [], tracers = [], marks = [], debris = [], lights = [], glows = [], stuck = [];
+const sparks = [], smoke = [], tracers = [], marks = [], debris = [], lights = [], glows = [], stuck = [], trails = [];
 const rnd = (a = 1) => (Math.random() * 2 - 1) * a;
 
 // Marks stay until there are too many; then the oldest go.
@@ -15,7 +15,7 @@ function mark(m) {
 }
 
 export function fxReset() {
-  for (const list of [sparks, smoke, tracers, marks, debris, lights, glows, stuck]) list.length = 0;
+  for (const list of [sparks, smoke, tracers, marks, debris, lights, glows, stuck, trails]) list.length = 0;
 }
 
 export const fx = {
@@ -27,6 +27,11 @@ export const fx = {
     const dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2], len = Math.hypot(dx, dy, dz);
     if (len < 1.5) return;
     tracers.push({ a: [a[0], a[1], a[2]], d: [dx / len, dy / len, dz / len], len, head: Math.min(len, 5), c, w });
+  },
+
+  // A streak left in the air by a blade going through (a to b), fading over life seconds.
+  trail(a, b, c, w, life) {
+    if (trails.length < 400) trails.push({ a: [a[0], a[1], a[2]], b: [b[0], b[1], b[2]], c, w, t: 0, life });
   },
 
   sparks(x, y, z, n, c, speed = 4, dir = null) {
@@ -112,7 +117,7 @@ export function fxStep(dt, world) {
     if (t.head - 12 > t.len) tracers.splice(k, 1);
   }
   for (let k = stuck.length - 1; k >= 0; k--) if ((stuck[k].t += dt) > 25) stuck.splice(k, 1);
-  for (const list of [lights, glows]) {
+  for (const list of [lights, glows, trails]) {
     for (let k = list.length - 1; k >= 0; k--) {
       list[k].t += dt;
       if (list[k].t >= list[k].life) list.splice(k, 1);
@@ -176,6 +181,10 @@ export function fxDraw(R, models, pass, now = 0) {
     tmpA[0] = p.x; tmpA[1] = p.y; tmpA[2] = p.z;
     tmpB[0] = p.x - p.vx * 0.035; tmpB[1] = p.y - p.vy * 0.035; tmpB[2] = p.z - p.vz * 0.035;
     R.streak(tmpB, tmpA, 0.012, [p.c[0] * k * 1.6, p.c[1] * k * 1.6, p.c[2] * k * 1.6, 0]);
+  }
+  for (const t of trails) {
+    const k = 1 - t.t / t.life;
+    R.streak(t.a, t.b, t.w * (0.5 + 0.5 * k), [t.c[0] * k, t.c[1] * k, t.c[2] * k, 0]);
   }
   for (const t of tracers) {
     const h1 = Math.min(t.len, t.head), h0 = Math.max(0, t.head - 12);

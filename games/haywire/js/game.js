@@ -5,7 +5,7 @@
 import { buildMap } from './map.js';
 import { buildLine } from './line.js';
 import { buildFront } from './front.js';
-import { Match, STEP, MODES, GUNS, WALK, ROUT, REVIVE_REACH, REVIVE_TIME } from './engine.js';
+import { Match, STEP, MODES, GUNS, WALK, ROUT, REVIVE_REACH, REVIVE_TIME, FROM_LEFT, FROM_RIGHT, OVERHEAD, THRUST, meets, blowOf, bladeLocal, thrustOut } from './engine.js';
 import { SKILL } from './bots.js';
 import { Renderer, Builder, M } from './gl.js';
 import { buildMesh, SKY, SUN } from './mesh.js';
@@ -128,7 +128,7 @@ function newMatch(opts) {
   match = new Match(map, { seed: (Math.random() * 2 ** 32) >>> 0, ...opts });
   me = opts.human ? match.soldiers[0] : null;
   vis.length = 0;
-  for (const s of match.soldiers) vis.push({ stride: s.id * 1.3, pace: 0, lean: 0, lower: 0, hurt: -9, swingT: -9, sweep: 0, cut: 0, twist: 0, blockK: 0, light: [SKY[0], SKY[1], SKY[2]] });
+  for (const s of match.soldiers) vis.push({ stride: s.id * 1.3, pace: 0, lean: 0, lower: 0, hurt: -9, swingT: -9, twist: 0, blockK: 0, bd: [READY[0], READY[1], READY[2]], be: [0, 1, 0], bh: [0.07, 0.2, 0.24], tip: null, light: [SKY[0], SKY[1], SKY[2]] });
   fxReset();
   acc = 0;
   feed.length = 0;
@@ -216,7 +216,14 @@ function scoreLine() {
 // ---- mouse and keys -------------------------------------------------------------------
 
 const keys = new Set();
-const mouse = { fire: false, ads: false };
+const mouse = { fire: false, ads: false, mid: false };
+// The side picked for the next blow (or guard) with the old arms, and the mouse movement that picks it.
+const side = { x: 0, y: 0, at: 0, dir: FROM_RIGHT };
+// What a blow just did, said under the sights for a moment; and the last blow that landed on the player.
+const blowSaid = { text: '', color: '#fff', t: 0 };
+const sayBlow = (text, color) => { blowSaid.text = text; blowSaid.color = color; blowSaid.t = 1; };
+let lastCut = null;
+const gunName = (id) => (id === 'kick' ? 'Kick' : GUNS[id].name);
 let wantSlot = -1, wantCls = -1;
 // 0 standing, 1 crouched, 2 lying down. C crouches and C again stands; Z lies
 // down and Z again stands. Sprinting or jumping stands you up. C twice in
@@ -262,16 +269,24 @@ document.addEventListener('mousemove', (e) => {
   view.pitch = clamp(view.pitch - e.movementY * k * (save.invert ? -1 : 1), -1.5, 1.5);
   hand.swayX = clamp(hand.swayX - e.movementX * 0.0006, -0.05, 0.05);
   hand.swayY = clamp(hand.swayY + e.movementY * 0.0006, -0.05, 0.05);
+  // The old arms: the way the mouse last moved picks the side of a blow (and of a guard).
+  const t = performance.now(), fade = Math.exp(-(t - side.at) / 110);
+  side.at = t;
+  side.x = side.x * fade + e.movementX * k;
+  side.y = side.y * fade - e.movementY * k;
+  if (Math.hypot(side.x, side.y) > 0.045) side.dir = Math.abs(side.x) > Math.abs(side.y) ? (side.x < 0 ? FROM_LEFT : FROM_RIGHT) : side.y > 0 ? OVERHEAD : THRUST;
 });
 document.addEventListener('mousedown', (e) => {
   if (!locked) return;
   if (e.button === 0) mouse.fire = true;
   if (e.button === 2) mouse.ads = true;
+  if (e.button === 1) mouse.mid = true;
   e.preventDefault();
 });
 document.addEventListener('mouseup', (e) => {
   if (e.button === 0) mouse.fire = false;
   if (e.button === 2) mouse.ads = false;
+  if (e.button === 1) mouse.mid = false;
 });
 document.addEventListener('contextmenu', (e) => e.preventDefault());
 let wheelAt = 0;
@@ -319,7 +334,7 @@ window.addEventListener('keyup', (e) => {
   keys.delete(e.code);
   if (e.code === 'Tab') $('board').hidden = true;
 });
-window.addEventListener('blur', () => { keys.clear(); mouse.fire = mouse.ads = false; $('board').hidden = true; });
+window.addEventListener('blur', () => { keys.clear(); mouse.fire = mouse.ads = mouse.mid = false; $('board').hidden = true; });
 
 function feedInput() {
   const inp = me.in, on = locked || force;
@@ -342,6 +357,8 @@ function feedInput() {
   inp.reload = on && keys.has('KeyR');
   inp.nade = on && keys.has('KeyG');
   inp.melee = on && keys.has('KeyV');
+  inp.toss = on && (mouse.mid || keys.has('KeyT'));
+  inp.dir = side.dir;
   inp.slot = wantSlot;
   inp.cls = wantCls;
   wantSlot = wantCls = -1;
@@ -460,7 +477,10 @@ function onEvent(ev) {
         feats.killer = by !== me ? by.id : -1;
         $('down').hidden = false;
         // Who did it, with what, and how much they had left.
-        $('downBy').innerHTML = by !== me ? `Scrapped by <b>${by.name}</b><small>${ev.gun === 'nade' ? (match.mode.pot ? 'Fire pot' : 'Grenade') : GUNS[ev.gun].name}${ev.head ? ', to the head' : ''} &middot; ${by.alive ? `${Math.ceil(by.hp)} of ${by.maxHp} left` : 'scrapped too'}</small>`
+        // (Cut down: which side the blow came from, and how to have stopped it.)
+        const cut = lastCut && lastCut.by === ev.by && GUNS[ev.gun] && GUNS[ev.gun].kind === 'melee' ? meets(lastCut.dir) : -1;
+        const how = cut < 0 ? '' : `<small class="how">The blow came ${['from your left', 'from your right', 'from above', 'straight in, a thrust'][cut]}. Hold right-click and move the mouse ${['left', 'right', 'up', 'down'][cut]} to block one.</small>`;
+        $('downBy').innerHTML = by !== me ? `Scrapped by <b>${by.name}</b><small>${ev.gun === 'nade' ? (match.mode.pot ? 'Fire pot' : 'Grenade') : gunName(ev.gun)}${ev.head ? ', to the head' : ''} &middot; ${by.alive ? `${Math.ceil(by.hp)} of ${by.maxHp} left` : 'scrapped too'}</small>${how}`
           : ev.gun === 'out' ? 'Scrapped for leaving the fight' : ev.gun === 'barrage' ? 'Caught in the barrage' : `Blown up by your own ${match.mode.pot ? 'fire pot' : 'grenade'}`;
         shown.down = '';
         mouse.fire = false;
@@ -531,13 +551,35 @@ function onEvent(ev) {
       if (s === me) snd('whoosh', 0, 0.45); else sound('whoosh', 0, s.x, s.y + 1.2, s.z, 0.5, 22);
       break;
     case 'cut':
-      fx.sparks(ev.x, ev.y, ev.z, 9, [1, 0.85, 0.5], 5);
-      sound('clang', 0, ev.x, ev.y, ev.z, 0.8, 40);
+      // A blow (or an arrow, or a thrown thing) that bites.
+      fx.sparks(ev.x, ev.y, ev.z, 11, [1, 0.8, 0.45], 5);
+      fx.glow(ev.x, ev.y, ev.z, 0.45, [1, 0.55, 0.25], 0.12);
+      sound('chop', 0, ev.x, ev.y, ev.z, 1, 40);
+      if (ev.by !== undefined && me) {
+        if (ev.by === me.id) cam.shake = Math.min(0.5, cam.shake + 0.1);
+        if (s === me) { lastCut = { by: ev.by, dir: ev.dir }; cam.shake = Math.min(0.6, cam.shake + 0.2); }
+      }
       break;
     case 'block':
-      fx.sparks(ev.x, ev.y, ev.z, 12, [0.9, 0.95, 1], 6);
-      fx.light(ev.x, ev.y, ev.z, 4, 1, 1, 1.2, 0.08);
-      sound('clang', 1, ev.x, ev.y, ev.z, 1, 45);
+      // A blow (or an arrow) stopped by a guard or a shield; a parry, if the guard went up just in time.
+      fx.sparks(ev.x, ev.y, ev.z, ev.parry ? 24 : 12, ev.parry ? [1, 0.85, 0.35] : [0.9, 0.95, 1], ev.parry ? 8 : 6);
+      fx.light(ev.x, ev.y, ev.z, 4, 1, 1, ev.parry ? 0.6 : 1.2, 0.08);
+      sound('clang', ev.shield ? 1 : 0, ev.x, ev.y, ev.z, 1, 45);
+      if (ev.parry) sound('clang', 0, ev.x, ev.y, ev.z, 0.6, 30);
+      if (me && s === me && ev.by !== undefined) sayBlow(ev.parry ? 'Parried' : 'Blocked', ev.parry ? '#ffd257' : '#e8f2ff');
+      if (me && ev.by === me.id) { sayBlow(ev.parry ? 'They parried it' : 'They blocked it', '#ff9a72'); cam.shake = Math.min(0.6, cam.shake + 0.22); }
+      break;
+    case 'windup':
+      if (s === me) snd('slide', 0, 0.12); else sound('slide', 0, s.x, s.y + 1.4, s.z, 0.22, 14);
+      break;
+    case 'feint': if (s === me) sayBlow('Feint', '#cfd6e0'); break;
+    case 'broken': if (s === me) sayBlow('Knocked off your blow', '#ff7a5c'); break;
+    case 'kick': if (s === me) snd('whoosh', 0, 0.3); else sound('whoosh', 0, s.x, s.y + 0.8, s.z, 0.35, 18); break;
+    case 'kicked':
+      fx.puff(ev.x, ev.y, ev.z, 0.25, 0.4, 0.5, 0.3);
+      sound('thump', 0, ev.x, ev.y, ev.z, 1, 35);
+      if (me && s === me) { sayBlow('Kicked off balance', '#ff7a5c'); cam.shake = Math.min(0.7, cam.shake + 0.4); }
+      if (me && ev.by === me.id) sayBlow('Kicked', '#ffd257');
       break;
     case 'draw': if (s === me) snd('slide', 0, 0.25); break;
     case 'loose': if (s === me) snd('twang', 0, 0.8); else sound('twang', 0, s.x, s.y + 1.4, s.z, 0.6, 30); break;
@@ -634,6 +676,7 @@ function feat(ev, s) {
   if (s.id === feats.killer) { got.push(['Payback', 50]); feats.killer = -1; }
   if (feats.dry >= 3) got.push(['Comeback', 50]);
   if (ev.gun === 'bash') got.push(['Clobbered', 50]);
+  else if (ev.gun === 'kick') got.push(['Booted', 75]);
   else if (ev.gun === 'nade') got.push([match.mode.pot ? 'Fire pot' : 'Grenade', 25]);
   else if (gun && far > (gun.kind === 'melee' ? 12 : gun.kind ? 28 : 45)) got.push([gun.kind === 'melee' ? 'Long throw' : 'Long shot', 50]);
   if (me.alive && me.hp < me.maxHp * 0.25) got.push(['Close call', 25]);
@@ -677,7 +720,7 @@ function pop(html, cls = '') {
 function addFeed(by, s, gun, head) {
   const el = document.createElement('div');
   if (by === me || s === me) el.className = 'mine';
-  const what = gun === 'nade' ? (match.mode.pot ? 'fire pot' : 'grenade') : gun === 'out' ? '' : GUNS[gun].name;
+  const what = gun === 'nade' ? (match.mode.pot ? 'fire pot' : 'grenade') : gun === 'out' ? '' : gunName(gun);
   el.innerHTML = by === s ? `<span class="t${s.team}">${s.name}</span><em>${gun === 'out' ? 'left the fight' : gun === 'barrage' ? 'the barrage' : match.mode.pot ? 'own fire pot' : 'own grenade'}</em>`
     : `<span class="t${by.team}">${by.name}</span><em class="${head ? 'head' : ''}">${what}${head ? ' &middot; head' : ''}</em><span class="t${s.team}">${s.name}</span>`;
   const box = $('feed');
@@ -715,7 +758,7 @@ function updateHud(now, dt) {
   set('cls', match.classes[me.cls].name, 'clsName');
   if (gun && gun.kind) {
     // The old arms: only what there is a number of to show.
-    const counted = gun.kind === 'bow' || gun.alt === 'throw';
+    const counted = gun.kind === 'bow' || gun.throw;
     set('mag', counted ? `n${wp.mag}` : 'none', 'mag', counted ? wp.mag : '');
     $('mag').classList.remove('low');
     set('reserve', gun.id, 'reserve', gun.kind === 'bow' ? 'arrows' : { spear: 'pikes', axe: 'hatchets', daggers: 'knives' }[gun.id] || '');
@@ -1083,30 +1126,82 @@ const lightAt = (s, v, dt) => {
 
 const poseIn = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0, crouch: 0, prone: 0, stride: 0, pace: 0, lean: 0, lower: 0, twist: 0 };
 
-// The shape of a swing, from how far through it is (0..1) and how much of
-// that is the wind-up: down to -1 as the arm goes back, quickly up to 1 as
-// the blow goes through, then easing back to 0.
-function sweep(p, wind) {
-  if (p >= 1) return 0;
-  if (p < wind) return -ease(p / wind);
-  const q = (p - wind) / (1 - wind);
-  return q < 0.25 ? -1 + 2 * ease(q / 0.25) : 1 - ease((q - 0.25) / 0.75);
+// ---- the old arms: where a blade is ------------------------------------------------------
+
+// Which way a blade points (x right, y up, z ahead, as the one holding it
+// sees it), which way its edge leads, and where the hand is, from the
+// shoulder. While a blow goes through, this is the very sweep that decides
+// what it hits (bladeLocal), so what is seen is what lands.
+const unit = (v) => { const l = Math.hypot(v[0], v[1], v[2]) || 1; v[0] /= l; v[1] /= l; v[2] /= l; return v; };
+const READY = unit([0.22, 0.62, 0.75]);
+// On guard, the blade across the side the blow will come from (as the holder sees it).
+const GUARD_D = [unit([0.05, 0.95, 0.3]), unit([-0.05, 0.95, 0.3]), unit([-1, 0.12, 0.2]), unit([-0.6, -0.4, 0.7])];
+const GUARD_H = [[-0.32, 0.02, 0.36], [0.22, 0.02, 0.36], [0.05, 0.32, 0.32], [0.02, -0.12, 0.42]];
+const tmpD = [0, 0, 0], tmpE = [0, 0, 0];
+// Into v.bd (direction), v.be (edge) and v.bh (hand): where s's blade is now, eased there from where it was.
+function bladeNow(s, gun, v, dt) {
+  let d = READY, e = null, h = null, exact = false, ahead = 0;
+  if (s.atk === 1) {
+    // Winding up: back and over to the side it will come from.
+    const k = clamp(s.atkT / Math.max(0.05, s.atkWind), 0, 1);
+    d = bladeLocal(s.atkDir, -0.38 * ease(k), tmpD);
+    e = edgeOf(s.atkDir, -0.38 * ease(k));
+    ahead = s.atkDir === THRUST ? -0.45 * ease(k) : 0;
+  } else if (s.atk === 2) {
+    const u = clamp(s.atkT / gun.strike, 0, 1);
+    d = bladeLocal(s.atkDir, u, tmpD);
+    e = edgeOf(s.atkDir, u);
+    ahead = thrustOut(s.atkDir, u);
+    exact = true;
+  } else if (s.atk === 3 && s.atkT < s.atkRecover * 0.4) {
+    d = bladeLocal(s.atkDir, 1, tmpD);
+    e = edgeOf(s.atkDir, 1);
+    ahead = thrustOut(s.atkDir, 1);
+  } else if (s.guard && !s.block) {
+    d = GUARD_D[s.guardDir];
+    h = GUARD_H[s.guardDir];
+  } else if (s.stun > 0) d = unit([0.5, 0.75, -0.1]);
+  if (!e) { tmpE[0] = 0; tmpE[1] = 1; tmpE[2] = 0; e = tmpE; }
+  const hx = h ? h[0] : d[0] * 0.32, hy = h ? h[1] : d[1] * 0.32, hz = h ? h[2] : d[2] * 0.32 + ahead;
+  const k = exact ? 1 : Math.min(1, dt * 22);
+  for (let i = 0; i < 3; i++) {
+    v.bd[i] += (d[i] - v.bd[i]) * k;
+    v.be[i] += (e[i] - v.be[i]) * k;
+  }
+  unit(v.bd); unit(v.be);
+  v.bh[0] += (hx - v.bh[0]) * k; v.bh[1] += (hy - v.bh[1]) * k; v.bh[2] += (hz - v.bh[2]) * k;
+}
+// Which way the edge leads at u through a blow from side dir: the way the blade is sweeping.
+function edgeOf(dir, u) {
+  if (dir === THRUST) { tmpE[0] = 0; tmpE[1] = 1; tmpE[2] = 0; return tmpE; }
+  const a = bladeLocal(dir, u, [0, 0, 0]), b = bladeLocal(dir, u + 0.05, [0, 0, 0]);
+  tmpE[0] = b[0] - a[0]; tmpE[1] = b[1] - a[1]; tmpE[2] = b[2] - a[2];
+  return unit(tmpE);
+}
+// The matrix for a blade held at hand position h, pointing d, edge leading e (all
+// as the holder sees them), given the holder's right, up and ahead (rx.., ux.., fx..)
+// and shoulder (o). (The weapon models point down -z with their edge up +y.)
+function bladeMatrix(o, r, u, f, d, e, h, mirror = 1) {
+  const dl = [d[0] * mirror, d[1], d[2]], el = [e[0] * mirror, e[1], e[2]];
+  const wd = [r[0] * dl[0] + u[0] * dl[1] + f[0] * dl[2], r[1] * dl[0] + u[1] * dl[1] + f[1] * dl[2], r[2] * dl[0] + u[2] * dl[1] + f[2] * dl[2]];
+  const we = [r[0] * el[0] + u[0] * el[1] + f[0] * el[2], r[1] * el[0] + u[1] * el[1] + f[1] * el[2], r[2] * el[0] + u[2] * el[1] + f[2] * el[2]];
+  const z = [-wd[0], -wd[1], -wd[2]];
+  // (The edge, square to the blade.)
+  const dot = we[0] * z[0] + we[1] * z[1] + we[2] * z[2];
+  const y = unit([we[0] - z[0] * dot, we[1] - z[1] * dot, we[2] - z[2] * dot]);
+  const x = [y[1] * z[2] - y[2] * z[1], y[2] * z[0] - y[0] * z[2], y[0] * z[1] - y[1] * z[0]];
+  const hx = h[0] * mirror, px = o[0] + r[0] * hx + u[0] * h[1] + f[0] * h[2], py = o[1] + r[1] * hx + u[1] * h[1] + f[1] * h[2], pz = o[2] + r[2] * hx + u[2] * h[1] + f[2] * h[2];
+  return new Float32Array([x[0], x[1], x[2], 0, y[0], y[1], y[2], 0, z[0], z[1], z[2], 0, px, py, pz, 1]);
+}
+// Where a robot (seen from outside) holds its blade, in the world.
+function bladeWorld(s, v, alpha, mesh, mirror = 1) {
+  const yaw = s.yaw, pitch = clamp(s.pitch, -1.2, 1.2), sy = Math.sin(yaw), cy = Math.cos(yaw), sp = Math.sin(pitch), cp = Math.cos(pitch);
+  const f = [sy * cp, sp, -cy * cp], r = [cy, 0, sy], u = [-sy * sp, cp, cy * sp];
+  const eye = match.eyeY(s) + (lerp(s.py, s.y, alpha) - s.y);
+  const o = [lerp(s.px, s.x, alpha) + r[0] * 0.15 * mirror - u[0] * 0.28, eye - u[1] * 0.28, lerp(s.pz, s.z, alpha) + r[2] * 0.15 * mirror - u[2] * 0.28];
+  return bladeMatrix(o, r, u, f, v.bd, v.be, v.bh, mirror);
 }
 
-// How far a blade is into the cut itself: 0, up to 1 as it goes through, and back to 0.
-function through(p, wind) {
-  const q = (p - wind) / (1 - wind);
-  return q <= 0 || q >= 0.6 ? 0 : Math.sin((Math.PI * q) / 0.6);
-}
-
-// How a robot holds one of the old arms (seen from outside), k through its swing.
-function held(gun, k, cut) {
-  const fwd = Math.max(0, k), back = Math.max(0, -k);
-  if (gun.id === 'spear') return M.chain(M.move(0, 0, 0.35 + 0.25 * back - 0.75 * fwd), M.rotX(0.1));
-  if (gun.id === 'axe') return M.rotX(1.0 + 0.75 * back - 1.25 * fwd);
-  if (gun.id === 'bow') return M.chain(M.move(-0.1, 0.02, -0.12), M.rotZ(0.2));
-  return M.chain(M.rotY(0.85 * k), M.rotX(0.95 + 0.3 * back - 0.75 * cut));
-}
 function poseOf(s, v, alpha) {
   poseIn.x = lerp(s.px, s.x, alpha);
   poseIn.y = lerp(s.py, s.y, alpha);
@@ -1120,11 +1215,14 @@ function poseOf(s, v, alpha) {
   poseIn.lean = v.lean;
   poseIn.lower = s.weapons[s.slot].gun.kind ? 0 : v.lower;
   poseIn.twist = v.twist;
-  return pose(poseIn);
+  const p = pose(poseIn);
+  p.alpha = alpha;
+  return p;
 }
 
 const HOT = { tint: [1.9, 1.9, 1.9] };
 const DOWN = { tint: [0.55, 0.55, 0.6] };
+const WIND = { tint: [2.4, 0.75, 0.5], emit: 0.35 }, STRIKE = { tint: [2.6, 1.6, 1.1], emit: 0.6 };
 function draw(now, dt, alpha) {
   const firstPerson = me && me.alive && !cam.dead && phase !== 'title';
   // How each robot stands this frame.
@@ -1157,10 +1255,22 @@ function draw(now, dt, alpha) {
     v.lower += ((s.sprinting ? 0.7 : s.reloadT > 0 || s.swapT > 0 ? 0.5 : 0) - v.lower) * Math.min(1, dt * 10);
     // The old arms: how far through a swing it is, and whether its shield is up.
     const gun = s.weapons[s.slot].gun;
-    const swung = clamp((match.time - v.swingT) / (gun.rate || 1), 0, 1);
-    v.sweep = gun.kind === 'melee' ? sweep(swung, gun.wind / gun.rate) : 0;
-    v.cut = gun.kind === 'melee' ? through(swung, gun.wind / gun.rate) : 0;
-    v.twist = gun.kind === 'melee' && gun.id !== 'spear' ? -0.45 * v.sweep : 0;
+    if (gun.kind === 'melee') {
+      bladeNow(s, gun, v, dt || 1 / 60);
+      // (The body turns with a blow from the side.)
+      v.twist += ((s.atk && s.atkDir < OVERHEAD ? -0.5 * v.bd[0] : 0) - v.twist) * Math.min(1, dt * 14);
+      // (The blade's path through the air, as it goes: the very sweep that decides what it hits.)
+      if (s.atk === 2 && v.show) {
+        const b = blowOf(gun, s.atkDir), seg = match.blade(s, s.atkDir, clamp(s.atkT / b.strike, 0, 1), b.reach, [0, 0, 0, 0, 0, 0]);
+        const now3 = [seg[3], seg[4], seg[5]], mid3 = [lerp(seg[0], seg[3], 0.6), lerp(seg[1], seg[4], 0.6), lerp(seg[2], seg[5], 0.6)];
+        if (v.tip && Math.hypot(now3[0] - v.tip[0], now3[1] - v.tip[1], now3[2] - v.tip[2]) > 0.01) {
+          const c = s === me ? [0.55, 0.65, 0.8] : me && s.team !== me.team ? [1, 0.45, 0.25] : [0.6, 0.6, 0.6];
+          fx.trail(v.tip, now3, c, 0.05, 0.22);
+          fx.trail(v.mid, mid3, [c[0] * 0.5, c[1] * 0.5, c[2] * 0.5], 0.04, 0.18);
+        }
+        v.tip = now3; v.mid = mid3;
+      } else v.tip = null;
+    } else v.twist = 0;
     v.blockK += ((s.block ? 1 : 0) - v.blockK) * Math.min(1, dt * 14);
     lightAt(s, v, dt);
     poses.push(poseOf(s, v, alpha));
@@ -1175,7 +1285,12 @@ function draw(now, dt, alpha) {
       fn(r.hips, p.hips, s, own); fn(r.top, p.top, s, own);
       if (p.down) return;
       const gun = s.weapons[s.slot].gun;
-      fn(models.guns[gun.id].mesh, gun.kind ? M.mul(p.gun, held(gun, vis[s.id].sweep, vis[s.id].cut)) : p.gun, s, own);
+      if (gun.kind === 'melee') {
+        // (Two daggers: one in each hand, the left a mirror of the right.)
+        const v = vis[s.id], twin = gun.id === 'daggers', mesh = models.guns[twin ? 'knife' : gun.id].mesh;
+        fn(mesh, bladeWorld(s, v, p.alpha, mesh), s, own, s.atk === 1 || s.atk === 2 ? 'blade' : null);
+        if (twin) fn(mesh, bladeWorld(s, v, p.alpha, mesh, -1), s, own, s.atk === 1 || s.atk === 2 ? 'blade' : null);
+      } else fn(models.guns[gun.id].mesh, gun.kind ? M.mul(p.gun, M.chain(M.move(-0.1, 0.02, -0.12), M.rotZ(0.2))) : p.gun, s, own);
       // A knight's shield: on the arm, or up in front.
       if (gun.alt === 'block') {
         const k = vis[s.id].blockK;
@@ -1195,9 +1310,11 @@ function draw(now, dt, alpha) {
 
   R.begin({ view: cam.view, proj: cam.proj, eye: cam.at, sunCol: SUN, skyTop: [0.13, 0.3, 0.7], horizon: [0.62, 0.7, 0.8], fog: [60, 240], lights: lightsNow(cam.at) });
   R.drawWorld();
-  eachPart((meshPart, m, s, own) => {
+  eachPart((meshPart, m, s, own, part) => {
     if (own) return;
-    R.draw(meshPart, m, vis[s.id].light, !s.alive ? DOWN : now - vis[s.id].hurt < 70 ? HOT : null);
+    // (An enemy's blade glows as its blow winds up and goes through: a warning.)
+    const warn = part === 'blade' && me && s.team !== me.team;
+    R.draw(meshPart, m, vis[s.id].light, !s.alive ? DOWN : now - vis[s.id].hurt < 70 ? HOT : warn ? (s.atk === 2 ? STRIKE : WIND) : null);
   });
   const medicNow = me && me.alive && match.classes[me.cls].medic;
   match.soldiers.forEach((s, i) => {
@@ -1294,7 +1411,6 @@ function drawHands(now, dt) {
 
 // One of the old arms in the player's hands.
 function drawOldHands(dt, gun, info, v) {
-  const k = v.sweep, fwd = Math.max(0, k), back = Math.max(0, -k), cut = v.cut;
   hand.kick *= Math.exp(-dt * 9);
   hand.swayX *= Math.exp(-dt * 9);
   hand.swayY *= Math.exp(-dt * 9);
@@ -1319,27 +1435,111 @@ function drawOldHands(dt, gun, info, v) {
       R.draw(models.thrown.arrow, M.chain(m, M.move(0.025, 0.01, -0.25 + 0.33 * d)), light);
       R.draw(models.armR, M.chain(m, M.move(0.03, 0, 0.14 + 0.33 * d), M.rotZ(0.5)), light);
     }
-  } else if (gun.id === 'spear') {
-    m = at(0.24 - 0.07 * fwd, -0.25 - run * 0.03, 0.1 + 0.28 * back - 0.8 * fwd - throwK * 0.3, M.rotY(0.05), M.rotX(0.07 + run * 0.12 + throwK * 0.1));
-    arm(models.armR, m);
-  } else if (gun.id === 'axe') {
-    m = at(0.27 - 0.17 * fwd - run * 0.12, -0.34 + 0.16 * back - 0.1 * fwd, -0.5 - 0.12 * fwd, M.rotY(-0.1 + 0.3 * fwd), M.rotZ(-0.2 + 0.2 * fwd), M.rotX(1.15 + 0.6 * back - 1.4 * fwd - run * 0.35 - throwK * 0.5));
-    arm(models.armR, m);
-  } else if (gun.id === 'daggers') {
-    m = at(0.15, -0.27 + 0.03 * back, -0.42 + 0.1 * back - 0.3 * fwd - throwK * 0.12, M.rotX(0.75 + 0.2 * back - 0.5 * fwd - run * 0.3 - throwK * 0.4));
-    arm(models.armR, m);
-    arm(models.armL, M.chain(m, M.move(-0.3, 0, 0)));
   } else {
-    // A sword or a dagger: back to the right, then across.
-    m = at(0.3 + 0.07 * back - 0.42 * fwd - 0.15 * cut - run * 0.14, -0.32 + 0.08 * back + 0.05 * cut, -0.6 - 0.1 * cut, M.rotY(-0.15 + (k < 0 ? 0.6 * k : 1.3 * k)), M.rotZ(-0.35 + 0.55 * fwd), M.rotX(1.05 + 0.25 * back - 0.9 * cut - 0.2 * fwd - run * 0.4));
-    arm(models.armR, m);
+    // A blade: where it is is where the blow is (see bladeNow), seen from the shoulder.
+    // (A thrown thing: the arm goes back with it.)
+    const o = [0.17 + bobX, -0.31 + bobY - throwK * 0.04, -0.1 + throwK * 0.12], r = [1, 0, 0], u = [0, 1, 0], f = [0, 0, -1];
+    const twin = gun.id === 'daggers', mesh = twin ? models.guns.knife.mesh : info.mesh;
+    // (Seen from behind the eyes, the blade is turned a little towards straight ahead
+    // and the hand kept out in front, so that every blow, wound back or going
+    // through, stays in view: it goes the way the real one does.)
+    const fd = unit([v.bd[0], v.bd[1], v.bd[2] + 0.8]), fh = [v.bh[0], v.bh[1] * 0.9, Math.max(0.12, 0.22 + v.bh[2] * 0.3)];
+    const place = (mirror) => {
+      const bm = bladeMatrix(mirror > 0 ? o : [-0.17 + bobX, o[1], o[2]], r, u, f, fd, v.be, fh, mirror);
+      const hm = M.mul(inv, bm);
+      arm(mirror > 0 ? models.armR : models.armL, hm);
+      R.draw(mesh, hm, light, { gloss: 0.7 });
+    };
+    place(1);
+    if (twin) place(-1);
+    m = null;
   }
-  R.draw(info.mesh, m, light, { gloss: 0.7 });
+  if (m) R.draw(info.mesh, m, light, { gloss: 0.7 });
   if (gun.alt === 'block') {
     // The shield: down at the left, or up in front.
     const b = ease(v.blockK);
     const sm = at(lerp(-0.5, -0.24, b), lerp(-0.72, -0.42, b) - run * 0.1, lerp(-0.55, -0.62, b), M.rotY(lerp(0.6, 0.15, b)), M.rotX(lerp(-0.25, 0, b)));
     R.draw(models.shields[0], sm, [light[0] + 0.25, light[1] + 0.25, light[2] + 0.25], { gloss: 0.3 });
+  }
+}
+
+// ---- the old arms: the sides of blows, round the sights ----------------------------------
+
+// Round the sights, with a blade in hand: the side picked for your next
+// blow (or guard), white, the others faint; a blow winding up, amber (gold
+// when it is ready to go); a guard, a blue bar on its side (all round, for a
+// shield); and blows coming at you, red and brighter as they come, on the
+// side they will come from, or round the edge if they come from somewhere
+// you aren't looking. Under it, a word for what a blow just did.
+const SIDE_ANG = [Math.PI, 0, -Math.PI / 2, Math.PI / 2];
+function drawBlades(dt) {
+  const cv = $('blades'), gun = me && me.alive && phase === 'play' && !cam.dead ? me.weapons[me.slot].gun : null;
+  const on = !!gun && gun.kind === 'melee';
+  if (cv.hidden === on) cv.hidden = !on;
+  if (!on) { blowSaid.t = 0; return; }
+  const g = cv.getContext('2d'), S = cv.width / 180, pulse = 0.75 + 0.25 * Math.sin(performance.now() / 45);
+  g.setTransform(S, 0, 0, S, cv.width / 2, cv.height / 2);
+  g.clearRect(-90, -90, 180, 180);
+  g.lineCap = 'round';
+  g.lineJoin = 'round';
+  const SHADE = 'rgba(0, 0, 0, 0.5)';
+  const chevron = (a, r, size, color, width) => {
+    const tx = -Math.cos(a), ty = -Math.sin(a), cx = -tx * r, cy = -ty * r, nx = -ty, ny = tx;
+    for (const [c, wd] of [[SHADE, width + 2.5], [color, width]]) {
+      g.strokeStyle = c;
+      g.lineWidth = wd;
+      g.beginPath();
+      g.moveTo(cx - tx * size * 0.55 + nx * size, cy - ty * size * 0.55 + ny * size);
+      g.lineTo(cx + tx * size * 0.45, cy + ty * size * 0.45);
+      g.lineTo(cx - tx * size * 0.55 - nx * size, cy - ty * size * 0.55 - ny * size);
+      g.stroke();
+    }
+  };
+  const bar = (a, r, span, color, width) => {
+    for (const [c, wd] of [[SHADE, width + 2.5], [color, width]]) {
+      g.strokeStyle = c;
+      g.lineWidth = wd;
+      g.beginPath();
+      g.arc(0, 0, r, a - span, a + span);
+      g.stroke();
+    }
+  };
+  // Blows coming at you.
+  const sy = Math.sin(view.yaw), cy = Math.cos(view.yaw);
+  for (const e of match.soldiers) {
+    if (!e.alive || e.team === me.team || (e.atk !== 1 && e.atk !== 2)) continue;
+    const eg = e.weapons[e.slot].gun;
+    if (eg.kind !== 'melee') continue;
+    const dx = me.x - e.x, dz = me.z - e.z;
+    if (Math.hypot(dx, dz) > blowOf(eg, e.atkDir).reach + 1.6 || match.facing(e, dx, dz) < 0.6) continue;
+    const k = e.atk === 2 ? 1 : clamp(e.atkT / Math.max(0.05, e.atkWind), 0, 1);
+    const col = `rgba(255, ${Math.round(95 - 55 * k)}, ${Math.round(70 - 45 * k)}, ${(0.55 + 0.45 * k) * (k >= 1 ? pulse : 1)})`;
+    const ahead = -dx * sy + dz * cy, right = -dx * cy - dz * sy;
+    if (ahead > 0.35 * Math.hypot(dx, dz)) chevron(SIDE_ANG[meets(e.atkDir)], 64 - 18 * k, 10 + 7 * k, col, 3.5 + 2 * k);
+    else bar(Math.atan2(-ahead, right), 80, 0.3, col, 5);
+  }
+  // Your guard.
+  if (me.guard) for (const d of me.block ? [0, 1, 2, 3] : [me.guardDir]) bar(SIDE_ANG[d], 37, me.block ? 0.62 : 0.55, 'rgba(150, 210, 255, 0.95)', 5);
+  // Your sides, and the one picked.
+  const pick = me.atk ? me.atkDir : side.dir;
+  for (let d = 0; d < 4; d++) {
+    const sel = d === pick;
+    let col = sel ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.3)';
+    if (sel && me.atk === 1) col = me.atkT >= me.atkWind ? `rgba(255, 210, 87, ${pulse})` : `rgba(255, 170, 60, ${0.6 + 0.4 * clamp(me.atkT / me.atkWind, 0, 1)})`;
+    if (me.stun > 0) col = 'rgba(255, 120, 90, 0.55)';
+    chevron(SIDE_ANG[d], 26, sel ? 7 : 5, col, sel ? 3 : 1.8);
+  }
+  // What a blow just did.
+  if (blowSaid.t > 0) {
+    blowSaid.t -= dt * 1.1;
+    g.globalAlpha = clamp(blowSaid.t * 2.5, 0, 1);
+    g.font = '700 13px system-ui, sans-serif';
+    g.textAlign = 'center';
+    g.fillStyle = SHADE;
+    g.fillText(blowSaid.text, 0.8, 84.8);
+    g.fillStyle = blowSaid.color;
+    g.fillText(blowSaid.text, 0, 84);
+    g.globalAlpha = 1;
   }
 }
 
@@ -1384,6 +1584,7 @@ function frame(now) {
   draw(now, running ? dt : 0, acc / STEP);
   const t2 = performance.now();
   updateHud(now, dt);
+  drawBlades(dt);
   stat.step = t1 - t0;
   stat.draw = t2 - t1;
   stat.hud = performance.now() - t2;
@@ -1405,7 +1606,7 @@ function showTitle() {
   $('modeSeg').innerHTML = MODES.map((m, i) => `<button class="seg-btn${i === save.mode ? ' on' : ''}" data-mode="${i}">${m.name}</button>`).join('');
   $('classPick').innerHTML = mode.classes.map((c, i) => classCard(c, i, i === save[clsKey(mode)], false)).join('');
   $('keysLine').innerHTML = (save.mode
-    ? 'W A S D|move,Mouse|aim,Left|swing; hold to draw the bow,Right|shield; throw; look closer,Shift|sprint,C|crouch and stand,Space|jump,Z|lie down,C twice sprinting|slide,E|pick up,G|fire pot,Q|dagger,Tab|scores,F|full screen'
+    ? 'W A S D|move,Mouse|aim; its last move picks the side,Left|swing (hold to keep it back); draw the bow,Right|guard; shield; look closer,Right while winding up|feint,V|kick,Middle or T|throw,Shift|sprint,C|crouch and stand,Space|jump,Z|lie down,E|pick up,G|fire pot,Q|dagger,Tab|scores,F|full screen'
     : 'W A S D|move,Mouse|aim,Left|fire,Right|sights,Shift|sprint,C|crouch and stand,Space|jump,Z|lie down,C twice sprinting|slide,R|reload,G|grenade,V|strike,E|pick up,Q|swap,Tab|scores')
     .split(',').map((k) => k.split('|')).map(([key, what]) => `<b>${key}</b> ${what.replace(/;/g, ',')}`).join(' &middot; ');
   $('skillSeg').innerHTML = SKILL.map((k, i) => `<button class="seg-btn${i === save.skill ? ' on' : ''}" data-skill="${i}">${k.name}</button>`).join('');
@@ -1531,7 +1732,7 @@ function showHow() {
       <p><b>Advance</b> is attack and defence on a map of its own, the Iron Front: four great sectors in a row, from a rail yard to a walled citadel, each with two or three objectives. The attackers take an objective by having more robots at it than the defenders; holding them all takes the sector, and the fight moves on to the next. The defenders then have a few seconds to fall back: every one the attack catches in the lost sector is worth three lives to it.</p>
       <p>The attack has three battalions. Every attacker scrapped costs a life; when a battalion's lives are gone, everyone regroups and the sector starts over with the next. Take every sector and the attack has won; lose all three battalions and the defence has. Keep to the sector being fought for: stray out of it for six seconds and you are scrapped.</p>
       <p><b>Squads and medics.</b> You are in a squad of four. Scrapped in Advance, <b>A</b> and <b>D</b> choose to come back in beside a squad mate who is out of trouble. A <b>Medic</b> can get the scrapped back on their feet where they fell: hold <b>E</b> beside them (attacking, it gives the life back), and those near a medic mend faster. Down, you wait for a medic who is near, or press <b>Space</b> to come back in.</p>
-      <p><b>Old Iron</b> is the same match with no guns. The <b>left button</b> swings; with a bow, hold it to draw and let go to loose, aiming a little high for the drop. The <b>right button</b> raises the Knight's shield, throws a pike, hatchet or knife, or looks closer down the bow. <b>G</b> throws a fire pot that bursts where it lands, and <b>Q</b> draws your dagger.</p>
+      <p><b>Old Iron</b> is the same match with no guns. A blow comes from a side, and the way the mouse last moved picks it: move it left and click for a blow from the left, right for one from the right, up for one from overhead, down for a thrust. The marks round the sights show the side picked. Hold the <b>left button</b> to keep a blow wound up, and let go to strike. Hold the <b>right button</b> to guard, moving the mouse towards the blow coming at you: it shows as a red mark on the side it will come from. A guard on the right side stops it; one put up just in time is a parry, which leaves them reeling and your next blow quicker. Overhead blows hit harder but are slower; thrusts are quick and reach further. The right button while winding up calls a blow off (a feint). <b>V</b> kicks, through any guard or shield. The Knight's shield stops blows from any side, and arrows. <b>Middle button</b> or <b>T</b> throws a pike, hatchet or knife; with a bow, hold the left button to draw and let go to loose, aiming a little high for the drop, and the right button looks closer. <b>G</b> throws a fire pot that bursts where it lands, and <b>Q</b> draws your dagger.</p>
       <p><b>Head shots</b> do more. Your plating mends itself when nothing has hit you for a few seconds, so get behind something.</p>
       <p>The <b>radar</b> shows your team in blue, and the others in red wherever one was last seen or heard. Hold <b>Tab</b> for the scores, press <b>F</b> to fill the screen, and <b>Esc</b> to pause.</p>
     </div>

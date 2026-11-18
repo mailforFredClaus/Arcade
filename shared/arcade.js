@@ -400,6 +400,17 @@ function play(a, name, k) {
       tone(a, { f: k ? 1460 : 3100, type: 'triangle', t: 0.01, d: 0.22, g: 0.07 });
       hiss(a, { d: 0.08, g: 0.2, f0: 6000, f1: 2500, q: 1.5 });
       break;
+    case 'chop':
+      // A blade biting into plating: a heavy knock, with a scrape.
+      tone(a, { f: 150, f2: 60, type: 'triangle', d: 0.12, g: 0.4 });
+      tone(a, { f: 420, f2: 260, type: 'square', d: 0.05, g: 0.06 });
+      hiss(a, { d: 0.12, g: 0.22, f0: 3200, f1: 900, q: 1.1 });
+      break;
+    case 'thump':
+      // A kick landing.
+      tone(a, { f: 95, f2: 45, type: 'sine', d: 0.16, g: 0.5 });
+      hiss(a, { d: 0.08, g: 0.16, f0: 900, f1: 300, q: 0.9 });
+      break;
     case 'twang':
       tone(a, { f: 190, f2: 120, type: 'triangle', d: 0.16, g: 0.3 });
       hiss(a, { d: 0.18, g: 0.14, f0: 2600, f1: 700, q: 1.2 });
