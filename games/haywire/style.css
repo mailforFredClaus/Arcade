@@ -19,6 +19,7 @@ body { background: #11151c; color: #fff; cursor: default; }
 .hud[hidden] { display: none; }
 
 /* The sights: four ticks that open out as your aim loosens, and a dot. */
+.blades { position: absolute; left: 50%; top: 50%; width: 180px; height: 180px; margin: -90px 0 0 -90px; pointer-events: none; }
 .cross { position: absolute; left: 50%; top: 50%; --gap: 12px; transition: opacity .08s; }
 .cross i { position: absolute; background: #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, .55); }
 .cross i:nth-child(1) { width: 2px; height: 9px; left: -1px; top: calc(var(--gap) * -1 - 9px); }
