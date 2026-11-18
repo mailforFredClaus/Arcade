@@ -10,7 +10,7 @@
 import { buildMap } from '../games/haywire/js/map.js';
 import { buildLine } from '../games/haywire/js/line.js';
 import { buildFront } from '../games/haywire/js/front.js';
-import { Match, STEP, GUNS, BASH, CLASSES, OLD_CLASSES, MODES, TALL_PRONE, SLIDE_TIME, DROP_TIME, REVIVE_WAIT, REVIVE_TIME, REVIVE_HP, SQUAD_CALM, BATTALIONS, OUT_TIME, RETREAT, ROUT, RESPAWN, REGEN_DELAY, NADE_FUSE, JUMP, GRAVITY, WALK, TALL, TALL_CROUCH } from '../games/haywire/js/engine.js';
+import { Match, STEP, GUNS, BASH, CLASSES, OLD_CLASSES, MODES, TALL_PRONE, SLIDE_TIME, DROP_TIME, REVIVE_WAIT, REVIVE_TIME, REVIVE_HP, SQUAD_CALM, BATTALIONS, OUT_TIME, RETREAT, ROUT, RESPAWN, REGEN_DELAY, NADE_FUSE, JUMP, GRAVITY, WALK, TALL, TALL_CROUCH, FROM_LEFT, FROM_RIGHT, OVERHEAD, THRUST, meets, blowOf, RIPOSTE, KICK } from '../games/haywire/js/engine.js';
 import { STEP_UP } from '../games/haywire/js/world.js';
 
 const matches = Number(process.argv[2] || 12);
@@ -481,33 +481,108 @@ const has = (m, e) => m.events.some((x) => x.e === e);
   const old = (apart, a = 0, b = 0) => duel(apart, a, b, 1);
   const aimFor = (a, dist, speed, grav) => { a.in.pitch = Math.atan2(1.0 - 1.62 + 0.08 + 0.5 * grav * (dist / speed) ** 2, dist); };
 
-  // The sword.
+  // A blow: from a side, wound up, then swept through.
   const s = old(2);
   check(s.a.weapons[0].gun.id === 'sword' && s.a.weapons[1].gun.id === 'knife' && s.a.hp === 110, 'a knight has a sword, a dagger and thicker plating');
+  const sw = GUNS.sword, fromSide = blowOf(sw, FROM_LEFT), over = blowOf(sw, OVERHEAD), thrust = blowOf(sw, THRUST);
+  check(over.dmg > fromSide.dmg && over.wind > fromSide.wind && thrust.wind < fromSide.wind && thrust.reach > fromSide.reach, 'a blow from overhead is heavier and slower; a thrust quicker and longer');
+  s.a.in.dir = FROM_LEFT;
   s.a.in.fire = true;
   s.m.step();
-  check(s.b.hp === 110 && has(s.m, 'swing'), 'a swing takes a moment to land');
-  run(s.m, GUNS.sword.wind + 0.02);
-  check(s.b.hp === 110 - GUNS.sword.dmg, 'then takes 48 from whoever is in reach');
-  run(s.m, GUNS.sword.rate * 2 + 0.2);
-  check(!s.b.alive && s.a.kills === 1, 'three blows scrap a knight');
+  check(s.a.atk === 1 && s.a.atkDir === FROM_LEFT && has(s.m, 'windup'), 'a blow winds up first, from the side the mouse last moved');
+  run(s.m, 1);
+  check(s.a.atk === 1 && s.b.hp === 110, 'it can be held back, wound up, while the button is held');
+  s.a.in.fire = false;
+  run(s.m, sw.strike + 0.05);
+  check(s.b.hp === 110 - sw.dmg && has(s.m, 'cut'), `let go, it sweeps through and does ${sw.dmg}`);
+  check(s.b.z > 8.15, 'and knocks them back a step');
+  const tap = old(2);
+  tap.a.in.dir = OVERHEAD;
+  tap.a.in.fire = true;
+  tap.m.step();
+  tap.a.in.fire = false;
+  run(tap.m, over.wind - 0.05);
+  check(tap.b.hp === 110, 'a click still winds the whole way up first');
+  run(tap.m, sw.strike + 0.1);
+  check(Math.abs(tap.b.hp - (110 - over.dmg)) < 1e-6, `then lands: ${over.dmg.toFixed(0)} from overhead`);
   const far = old(4);
   far.a.in.fire = true;
+  far.m.step();
+  far.a.in.fire = false;
   run(far.m, 1);
   check(far.b.hp === 110 && far.a.shots > 0, 'a sword does not reach four metres');
+  const wide = old(2);
+  wide.a.in.yaw = Math.PI + 1.7;
+  wide.a.in.dir = THRUST;
+  wide.a.in.fire = true;
+  wide.m.step();
+  wide.a.in.fire = false;
+  run(wide.m, 1);
+  check(wide.b.hp === 110, 'a thrust off to one side misses: a blow lands only where the blade goes');
 
-  // The shield.
+  // Guarding with the blade: on the side the blow comes from, as the one guarding sees it.
+  check(meets(FROM_LEFT) === FROM_RIGHT && meets(OVERHEAD) === OVERHEAD, "a blow from the swinger's left comes at the guard's right");
+  const swingNow = (d, dir) => { d.a.in.dir = dir; d.a.in.fire = true; d.m.step(); d.a.in.fire = false; };
+  const g = old(2, 0, 2);
+  g.b.in.ads = true;
+  g.b.in.dir = FROM_RIGHT;
+  run(g.m, 0.6);
+  swingNow(g, FROM_LEFT);
+  run(g.m, sw.wind + sw.strike + 0.05);
+  const blocked = g.m.events.find((e) => e.e === 'block');
+  check(g.b.guard && g.b.hp === 100 && blocked && !blocked.parry && g.a.stun > 0, 'a guard on that side stops it, and throws the one swinging off balance');
+  run(g.m, 1);
+  g.b.in.dir = FROM_LEFT;
+  run(g.m, 0.6);
+  swingNow(g, FROM_LEFT);
+  run(g.m, sw.wind + sw.strike + 0.05);
+  check(g.b.hp < 100, 'a guard on the wrong side does not');
+  const par = old(2, 0, 2);
+  swingNow(par, FROM_RIGHT);
+  run(par.m, sw.wind - 0.12);
+  par.b.in.ads = true;
+  par.b.in.dir = FROM_LEFT;
+  run(par.m, 0.35);
+  const parried = par.m.events.find((e) => e.e === 'block');
+  check(par.b.hp === 100 && parried && parried.parry && par.a.stun > 0.4, 'one put up just in time is a parry, and leaves them reeling for longer');
+  par.b.in.ads = false;
+  par.m.step();
+  swingNow({ a: par.b, m: par.m }, THRUST);
+  check(par.b.atk === 1 && Math.abs(par.b.atkWind - blowOf(GUNS.spear, THRUST).wind * RIPOSTE) < 1e-6, 'and the next blow after a parry winds up quicker');
+  const fe = old(2);
+  swingNow(fe, FROM_LEFT);
+  fe.a.in.fire = true;
+  run(fe.m, 0.2);
+  fe.a.in.ads = true;
+  fe.m.step();
+  check(fe.a.atk === 0 && has(fe.m, 'feint'), 'the right button while winding up calls the blow off (a feint)');
+  fe.a.in.fire = false;
+  run(fe.m, 1);
+  check(fe.b.hp === 110, 'so it never lands');
+  const bk = old(2);
+  swingNow(bk, FROM_LEFT);
+  swingNow({ a: bk.b, m: bk.m }, THRUST);
+  run(bk.m, blowOf(sw, THRUST).wind + 0.05);
+  check(bk.a.atk === 0 && bk.a.hp < 110 && bk.b.hp === 110 && has(bk.m, 'broken'), 'a quicker blow that lands first knocks the other off theirs');
+
+  // The shield, and kicks.
   const sh = old(2);
   sh.b.in.ads = true;
-  sh.a.in.fire = true;
   run(sh.m, 0.3);
-  check(sh.b.block && sh.b.hp === 110 && has(sh.m, 'block'), 'a raised shield stops a blow from the front');
-  sh.a.in.fire = false;
+  swingNow(sh, THRUST);
+  run(sh.m, sw.wind + sw.strike);
+  check(sh.b.block && sh.b.hp === 110 && has(sh.m, 'block'), 'a raised shield stops a blow from any side');
   run(sh.m, 1.5);
+  sh.a.in.melee = true;
+  sh.m.step();
+  sh.a.in.melee = false;
+  run(sh.m, KICK.wind + 0.3);
+  check(sh.b.stun > 0 && !sh.b.block && sh.b.hp === 110 - KICK.dmg && sh.b.z > 8.3, 'a kick goes through it, knocking them off balance and back');
+  run(sh.m, 2);
   sh.b.in.yaw = Math.PI; // turned its back
-  sh.a.in.fire = true;
-  run(sh.m, 0.3);
-  check(sh.b.hp < 110, 'but not one from behind');
+  swingNow(sh, FROM_LEFT);
+  run(sh.m, sw.wind + sw.strike + 0.05);
+  check(sh.b.hp < 110 - KICK.dmg, 'a shield does not stop a blow from behind');
 
   // The bow.
   const bow = old(20, 1);
@@ -547,24 +622,24 @@ const has = (m, e) => m.events.some((x) => x.e === e);
   // Throwing a pike; an axe through two at once; a dagger in the back.
   const pike = old(9, 2);
   aimFor(pike.a, 9, GUNS.spear.shot.speed, GUNS.spear.shot.grav);
-  pike.a.in.ads = true;
+  pike.a.in.toss = true;
   pike.m.step();
-  check(pike.m.shots.length === 1 && pike.a.weapons[0].mag === 2 && has(pike.m, 'hurl'), 'the right button throws a pike');
+  check(pike.m.shots.length === 1 && pike.a.weapons[0].mag === 2 && has(pike.m, 'hurl'), 'the throw button throws a pike');
   run(pike.m, 0.6);
   check(pike.b.hp === 110 - GUNS.spear.shot.dmg, 'which does 95');
-  pike.a.in.ads = false;
+  pike.a.in.toss = false;
   run(pike.m, 0.2);
   check(pike.a.weapons[0].mag === 2, 'one press throws one');
   const axe = old(2, 3);
   const other = axe.m.soldiers[9];
   other.x = 12.8; other.z = 8; other.y = 0; other.protect = 0;
-  axe.a.in.fire = true;
-  run(axe.m, GUNS.axe.wind + 0.05);
-  check(axe.b.hp === 110 - GUNS.axe.dmg && other.hp < other.maxHp, 'an axe hits everyone in front of it');
+  swingNow(axe, FROM_LEFT);
+  run(axe.m, GUNS.axe.wind + GUNS.axe.strike + 0.05);
+  check(axe.b.hp === 110 - GUNS.axe.dmg && other.hp < other.maxHp, 'an axe from the side cuts through everyone in its way');
   const back = old(1.5, 4);
   back.b.in.yaw = Math.PI; // facing away
-  back.a.in.fire = true;
-  run(back.m, GUNS.daggers.wind + 0.05);
+  swingNow(back, FROM_RIGHT);
+  run(back.m, GUNS.daggers.wind + GUNS.daggers.strike + 0.05);
   check(back.b.hp === 110 - GUNS.daggers.dmg * GUNS.daggers.back, 'a dagger in the back does double');
 
   // A fire pot.

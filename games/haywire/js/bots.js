@@ -13,7 +13,7 @@
 //   camp   (marksmen) hold a window or a roof for a while
 
 import { STEP_UP } from './world.js';
-import { REVIVE_TIME, SQUAD } from './engine.js';
+import { REVIVE_TIME, SQUAD, THRUST, KICK, blowOf, meets } from './engine.js';
 
 const TAU = Math.PI * 2, RAD = Math.PI / 180;
 
@@ -22,9 +22,9 @@ const TAU = Math.PI * 2, RAD = Math.PI / 180;
 // can turn (radians a second), how much it dodges, and how keen it is on
 // grenades and on going for the head, and how often it thinks to get into cover.
 export const SKILL = [
-  { name: 'Easy', react: 0.85, err: 10.5, settle: 1.9, turn: 3.4, dance: 0.3, nade: 0.2, head: 0.04, hear: 0.6, cover: 0.3 },
-  { name: 'Normal', react: 0.55, err: 7.6, settle: 1.4, turn: 5.2, dance: 0.65, nade: 0.45, head: 0.1, hear: 1, cover: 0.85 },
-  { name: 'Hard', react: 0.32, err: 4.6, settle: 0.9, turn: 7.5, dance: 1, nade: 0.75, head: 0.22, hear: 1.3, cover: 1 },
+  { name: 'Easy', react: 0.85, err: 10.5, settle: 1.9, turn: 3.4, dance: 0.3, nade: 0.2, head: 0.04, hear: 0.6, cover: 0.3, block: 0.22, read: 0.5, feint: 0 },
+  { name: 'Normal', react: 0.55, err: 7.6, settle: 1.4, turn: 5.2, dance: 0.65, nade: 0.45, head: 0.1, hear: 1, cover: 0.85, block: 0.45, read: 0.72, feint: 0.06 },
+  { name: 'Hard', react: 0.32, err: 4.6, settle: 0.9, turn: 7.5, dance: 1, nade: 0.75, head: 0.22, hear: 1.3, cover: 1, block: 0.7, read: 0.9, feint: 0.16 },
 ];
 
 // How close each gun likes to be: nearer than the first it backs off,
@@ -108,8 +108,14 @@ export class Brain {
     const gun = this.m.classes[this.s.nextCls >= 0 ? this.s.nextCls : this.s.cls].gun, roll = this.m.rng.next();
     this.wantDraw = 1; // how far to draw the bow before letting go
     this.throwAt = this.m.time + 1 + this.m.rng.next() * 3;
-    this.parry = false;
-    this.sawSwing = false;
+    this.readAt = -1; // the blow it last saw coming, and what it does about it
+    this.answer = 'none';
+    this.answerAt = 0;
+    this.answerDir = 0;
+    this.nextDir = null;
+    this.feint = false;
+    this.chain = false;
+    this.kickAt = 0;
     const mid = gun === 'shotgun' ? 0.1 : gun === 'smg' ? 0.22 : gun === 'lmg' ? 0.45 : 0.34;
     this.lane = roll < mid ? 1 : roll < mid + (1 - mid) / 2 ? 0 : 2;
   }
@@ -120,7 +126,7 @@ export class Brain {
     const s = this.s, m = this.m, inp = s.in;
     inp.mx = inp.mz = 0;
     inp.jump = false;
-    inp.fire = inp.reload = inp.nade = inp.sprint = inp.crouch = inp.ads = inp.melee = inp.use = inp.prone = inp.slide = false;
+    inp.fire = inp.reload = inp.nade = inp.sprint = inp.crouch = inp.ads = inp.melee = inp.toss = inp.use = inp.prone = inp.slide = false;
     // Out of rounds for its main gun: pick up whatever is lying at its feet.
     if (this.dry() && (m.tick + s.id) % 10 === 0 && m.dropNear(s)) inp.use = !s.useHeld;
     inp.slot = -1;
@@ -397,35 +403,100 @@ export class Brain {
     // A blade. Throw something on the way in, if there's something to throw.
     const keep = gun.id === 'spear' ? 1 : 0;
     let off;
-    if (gun.alt === 'throw' && wp.mag > keep && dist > 5.5 && dist < 22 && m.time > this.throwAt) {
+    if (gun.throw && wp.mag > keep && dist > 5.5 && dist < 22 && m.time > this.throwAt && s.atk === 0) {
       off = lob(gun.shot.speed, gun.shot.grav);
-      if (ready && s.cool <= 0 && s.swing <= 0 && off < Math.max(0.02, Math.atan(0.35 / dist))) {
-        inp.ads = !s.altHeld;
-        if (inp.ads) this.throwAt = m.time + 1.2 + r.next() * 2.5;
+      if (ready && s.cool <= 0 && off < Math.max(0.02, Math.atan(0.35 / dist))) {
+        inp.toss = !s.tossHeld;
+        if (inp.toss) this.throwAt = m.time + 1.2 + r.next() * 2.5;
       }
     } else off = this.aimAt(t.x, body, t.z, dt, 1, speed);
-    // A shield goes up against a drawn bow, and sometimes against a blow.
-    if (gun.alt === 'block') {
-      const swinging = theirs.kind === 'melee' && t.swing > 0 && dist < theirs.reach + 0.7;
-      if (swinging && !this.sawSwing) this.parry = r.next() < 0.2 + 0.45 * k.dance;
-      this.sawSwing = swinging;
-      if (s.swing <= 0 && ((swinging && this.parry) || (theirs.kind === 'bow' && t.draw > 0.3 && dist > 3.5 && dist < 30))) inp.ads = true;
+    const shield = gun.alt === 'block';
+    // A shield goes up against a drawn bow.
+    if (shield && s.atk === 0 && theirs.kind === 'bow' && t.draw > 0.3 && dist > 3.5 && dist < 30) inp.ads = true;
+
+    // Reading the enemy's blow. Each one is seen coming a moment after it
+    // starts to wind up (quicker for an abler bot), and then it is met with
+    // a guard (on the right side, mostly), or stepped back from, or not.
+    const coming = theirs.kind === 'melee' && (t.atk === 1 || t.atk === 2) && dist < blowOf(theirs, t.atkDir).reach + 1.2 && m.facing(t, s.x - t.x, s.z - t.z) > 0.5;
+    if (coming && this.readAt !== t.atkAt) {
+      this.readAt = t.atkAt;
+      const roll = r.next();
+      this.answer = roll < k.block * (shield ? 1.15 : 1) ? 'guard' : roll < k.block + 0.25 * k.dance ? 'back' : 'none';
+      this.answerAt = m.time + k.react * (0.45 + 0.4 * r.next());
+      this.answerDir = r.next() < k.read ? meets(t.atkDir) : (meets(t.atkDir) + 1 + Math.floor(r.next() * 3)) % 4;
     }
+    const threat = coming && m.time >= this.answerAt && s.atk !== 2;
+    if (threat && this.answer === 'guard' && s.atk === 1) {
+      // Caught winding up: call it off and guard instead (if it can).
+      if (!s.altHeld && r.next() < k.dance) inp.ads = true;
+    } else if (threat && this.answer === 'guard') {
+      inp.ads = true;
+      inp.dir = this.answerDir;
+    }
+    // How many of its own are already at this one: no more than two at once on the player, three on anyone else.
+    let crowd = 0;
+    for (const f of m.soldiers) if (f !== s && f.alive && f.team === s.team && f.weapons[f.slot].gun.kind === 'melee' && Math.abs(f.x - t.x) < 3 && Math.hypot(f.x - t.x, f.z - t.z) < 2.8) crowd++;
+    const wait = crowd >= (t.human ? 2 : 3) && dist > 2.8;
+    const reachNow = blowOf(gun, s.atk ? s.atkDir : this.nextDir ?? THRUST).reach;
+
     if (!camp && dist > 6 && this.push()) {
       // Advance: on into the objective; the fight will come to it.
     } else if (!camp) {
-      if (dist > gun.reach * 0.8 && !this.leashed(t.x, t.z)) {
+      const want = wait ? 4.2 : (threat && this.answer === 'back') ? reachNow + 1.4 : s.atk === 1 ? reachNow * 0.7 : reachNow * 0.85;
+      if (dist > want + 0.3 && !this.leashed(t.x, t.z)) {
         // Straight at it when it's close and in plain view; otherwise by the path.
         if (dist < 7 && Math.abs(t.y - s.y) < 0.6 && w.sees(s.x, s.y + 1, s.z, t.x, t.y + 1, t.z)) stepTo(fx - fz * this.strafe * (dist > 3 ? 0.3 : 0), fz + fx * this.strafe * (dist > 3 ? 0.3 : 0));
         if (this.wx === 0 && this.wz === 0) { this.goTo(w.nodeAt(t.x, t.y + 0.1, t.z), 0.5); this.follow(); }
-        inp.sprint = dist > 6 && !inp.ads && off < 0.5;
-      } else if (!this.still || dist < gun.reach * 0.4) stepTo(-fz * this.strafe - (dist < gun.reach * 0.45 ? fx : 0), fx * this.strafe - (dist < gun.reach * 0.45 ? fz : 0));
+        inp.sprint = dist > 6 && !inp.ads && off < 0.5 && s.atk === 0;
+      } else if (dist < want - 0.6) stepTo(-fx - fz * this.strafe * 0.4, -fz + fx * this.strafe * 0.4);
+      else if (!this.still) stepTo(-fz * this.strafe, fx * this.strafe);
     }
-    // (A less able bot hesitates between blows.)
-    if (ready && dist < gun.reach + 0.1 && Math.abs(t.y - s.y) < 1.6 && off < 0.5 && s.cool <= 0 && !inp.ads && m.time > this.swingAt) {
+
+    // Its own blows.
+    if (s.atk === 1) {
+      // Winding up: let go once it's in reach. An able bot, seeing the right
+      // guard go up against it, calls the blow off to come from another side.
+      const read = t.guard && (t.block || t.guardDir === meets(s.atkDir)) && m.time - t.guardAt > k.react * 0.5;
+      if ((this.feint && s.atkT > s.atkWind * 0.6) || (read && !t.block && r.next() < k.feint * 0.1)) { inp.ads = !s.altHeld; this.feint = false; this.swingAt = m.time + 0.15; }
+      else inp.fire = !(s.atkT >= s.atkWind && dist < reachNow + 0.15) && s.atkT < s.atkWind + 1.2;
+      return;
+    }
+    if (s.atk === 3) {
+      // A blow that landed: another straight after it, sometimes.
+      if (s.atkLanded && this.chain) { inp.fire = true; inp.dir = this.pickDir(t, gun); }
+      return;
+    }
+    if (s.atk === 2 || inp.ads) return;
+    // A kick for a shield held up, or a guard that won't come down.
+    if (dist < KICK.reach + 0.2 && t.guard && m.time - t.guardAt > 0.5 && s.cool <= 0 && ready && m.time > this.kickAt) {
+      this.kickAt = m.time + 1.5 + r.next() * 2;
+      if (r.next() < (t.block ? 0.6 : 0.3) * k.dance) { inp.melee = !s.meleeHeld; return; }
+    }
+    // Open: their blow missed, or they are reeling. Quick, before they recover.
+    const open = t.stun > 0 || t.atk === 3;
+    const dir = this.nextDir = this.pickDir(t, gun);
+    const inReach = dist < blowOf(gun, dir).reach + (open ? 0.6 : 1.1);
+    if (!wait && ready && inReach && Math.abs(t.y - s.y) < 1.6 && off < 0.5 && s.cool <= 0 && (m.time > this.swingAt || (open && r.next() < k.dance * 0.3))) {
       inp.fire = true;
-      this.swingAt = m.time + gun.rate + k.react * 0.8 * r.next();
+      inp.dir = dir;
+      this.nextDir = null;
+      this.feint = r.next() < k.feint;
+      this.chain = r.next() < 0.25 + 0.5 * k.dance;
+      // (A less able bot waits longer between blows.)
+      this.swingAt = m.time + 0.25 + k.react * (0.6 + 0.8 * r.next());
     }
+  }
+
+  // Which side to swing from: wherever their guard isn't (if it can tell),
+  // and what suits the weapon (a pike thrusts; an axe likes to come down).
+  pickDir(t, gun) {
+    const r = this.m.rng, k = this.k;
+    const pref = gun.id === 'spear' ? [0.1, 0.1, 0.15, 0.65] : gun.id === 'axe' ? [0.3, 0.3, 0.35, 0.05] : gun.id === 'mace' ? [0.3, 0.3, 0.3, 0.1] : [0.28, 0.28, 0.2, 0.24];
+    const w = pref.slice();
+    if (t.guard && !t.block && r.next() < k.read) w[meets(t.guardDir)] = 0;
+    let sum = w[0] + w[1] + w[2] + w[3], x = r.next() * sum;
+    for (let d = 0; d < 4; d++) { x -= w[d]; if (x <= 0) return d; }
+    return THRUST;
   }
 
   // ---- fighting from cover ---------------------------------------------------------------
