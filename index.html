@@ -84,45 +84,6 @@
     .install { margin-top: 14px; padding: 14px 16px; border-radius: 18px; background: rgba(255, 255, 255, .6); color: var(--ink); font-size: 14.5px; line-height: 1.45; }
     .install[hidden] { display: none; }
     .install b { font-weight: 900; }
-
-    /* Documents */
-    .docs { margin-top: 34px; scroll-margin-top: 20px; }
-    .docs-head { margin: 0 4px 14px; }
-    .docs h2 { margin: 0; font-size: 28px; font-weight: 900; letter-spacing: -.01em; }
-    .doc-list {
-      padding: 6px 8px 8px;
-      border-radius: 24px;
-      background: rgba(255, 255, 255, .78);
-      box-shadow: 0 5px 0 rgba(59, 71, 196, .16), 0 14px 30px rgba(59, 71, 196, .14);
-    }
-    .doc-group { margin: 12px 10px 4px; color: var(--muted); font-size: 12.5px; font-weight: 900; letter-spacing: .07em; text-transform: uppercase; }
-    .doc-row, .doc-continue {
-      display: grid;
-      grid-template-columns: 40px 1fr auto;
-      align-items: center;
-      gap: 12px;
-      padding: 10px;
-      border-radius: 16px;
-      color: inherit;
-      text-decoration: none;
-      transition: background .12s, transform .08s;
-    }
-    .doc-row:hover { background: rgba(77, 91, 230, .07); }
-    .doc-row:active, .doc-continue:active { transform: scale(.985); }
-    .doc-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: #eef2fb; color: var(--blue-2); }
-    .doc-icon svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-    .doc-text { min-width: 0; display: grid; gap: 1px; }
-    .doc-text b { font-size: 16px; font-weight: 850; line-height: 1.25; }
-    .doc-text span { color: var(--muted); font-size: 13.5px; font-weight: 600; line-height: 1.3; }
-    .doc-time { padding: 3px 9px; border-radius: 99px; background: #eef2fb; color: var(--blue-2); font-size: 12px; font-weight: 800; white-space: nowrap; }
-    @media (max-width: 440px) { .doc-text span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; } }
-    .doc-row.started .doc-time { background: #fff6d6; color: #b07800; }
-    .doc-row.done .doc-time { background: #dcf5e6; color: #18864b; }
-    .doc-continue { margin-bottom: 12px; color: #fff; background: linear-gradient(180deg, var(--blue-1), var(--blue-2)); box-shadow: 0 4px 0 var(--blue-edge), 0 10px 20px rgba(59, 71, 196, .2); }
-    .doc-continue[hidden] { display: none; }
-    .doc-continue .doc-icon { background: rgba(255, 255, 255, .2); color: #fff; }
-    .doc-continue .doc-text span { color: rgba(255, 255, 255, .85); }
-    .doc-continue .doc-time { background: rgba(255, 255, 255, .22); color: #fff; }
   </style>
 </head>
 <body>
@@ -555,76 +516,6 @@
       <div class="soon">More games coming soon</div>
     </div>
 
-    <!-- documents:start (written by tools/build-documents.mjs) -->
-    <section class="docs" id="documents" aria-labelledby="docsTitle">
-      <div class="docs-head">
-        <h2 id="docsTitle">Documents</h2>
-        <p class="sub">13 to read, with or without signal.</p>
-      </div>
-      <a class="doc-continue" id="docContinue" hidden></a>
-      <div class="doc-list">
-        <p class="doc-group">AI and machine learning</p>
-        <a class="doc-row" href="documents/engineers-ai-field-guide/" data-doc="engineers-ai-field-guide" data-pages="1">
-          <span class="doc-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/><rect x="6" y="6" width="12" height="12" rx="2.5"/><path d="M10 10h4v4h-4z" fill="currentColor"/></svg></span>
-          <span class="doc-text"><b>The Engineer's AI Field Guide</b><span>What the pieces of modern AI are, how to use them, and what to run them on.</span></span>
-          <span class="doc-time">71 min</span>
-        </a>
-        <a class="doc-row" href="documents/ai-201/" data-doc="ai-201" data-pages="1">
-          <span class="doc-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/><rect x="6" y="6" width="12" height="12" rx="2.5"/><path d="M10 10h4v4h-4z" fill="currentColor"/></svg></span>
-          <span class="doc-text"><b>AI 201: The Engineer's Deep Dive</b><span>The sequel to the field guide: the numbers behind the models, and building systems that hold up.</span></span>
-          <span class="doc-time">64 min</span>
-        </a>
-        <a class="doc-row" href="documents/how-llms-work/" data-doc="how-llms-work" data-pages="1">
-          <span class="doc-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/><rect x="6" y="6" width="12" height="12" rx="2.5"/><path d="M10 10h4v4h-4z" fill="currentColor"/></svg></span>
-          <span class="doc-text"><b>How LLMs work, from the ground up</b><span>From a single neuron to a full transformer, one step at a time.</span></span>
-          <span class="doc-time">18 min</span>
-        </a>
-        <a class="doc-row" href="documents/how-world-models-work/" data-doc="how-world-models-work" data-pages="1">
-          <span class="doc-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/><rect x="6" y="6" width="12" height="12" rx="2.5"/><path d="M10 10h4v4h-4z" fill="currentColor"/></svg></span>
-          <span class="doc-text"><b>How world models work, from the ground up</b><span>Learned simulators: an LLM predicts the next word, a world model predicts the next moment.</span></span>
-          <span class="doc-time">18 min</span>
-        </a>
-        <a class="doc-row" href="documents/neurons-to-language-models/" data-doc="neurons-to-language-models" data-pages="29">
-          <span class="doc-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/><rect x="6" y="6" width="12" height="12" rx="2.5"/><path d="M10 10h4v4h-4z" fill="currentColor"/></svg></span>
-          <span class="doc-text"><b>From Neurons to Language Models</b><span>A graduate textbook on deep learning and LLMs, in four parts plus appendices.</span></span>
-          <span class="doc-time">29 chapters</span>
-        </a>
-        <a class="doc-row" href="documents/local-ai-image-and-video/" data-doc="local-ai-image-and-video" data-pages="1">
-          <span class="doc-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/><rect x="6" y="6" width="12" height="12" rx="2.5"/><path d="M10 10h4v4h-4z" fill="currentColor"/></svg></span>
-          <span class="doc-text"><b>Getting Started with Local AI Image &amp; Video Generation</b><span>Making images and video on your own GPU: what fits in your VRAM and how to set it up.</span></span>
-          <span class="doc-time">8 min</span>
-        </a>
-        <p class="doc-group">Unreal Engine</p>
-        <a class="doc-row" href="documents/unreal-for-simulation-engineers/" data-doc="unreal-for-simulation-engineers" data-pages="1">
-          <span class="doc-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 20 7.5v9L12 21l-8-4.5v-9z"/><path d="M12 12 20 7.5M12 12 4 7.5M12 12v9"/></svg></span>
-          <span class="doc-text"><b>Unreal Engine for Simulation Engineers</b><span>A 12-week path from a first install to a headless, sensor-equipped simulation.</span></span>
-          <span class="doc-time">69 min</span>
-        </a>
-        <a class="doc-row" href="documents/unreal-for-simulation-engineers-201/" data-doc="unreal-for-simulation-engineers-201" data-pages="1">
-          <span class="doc-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 20 7.5v9L12 21l-8-4.5v-9z"/><path d="M12 12 20 7.5M12 12 4 7.5M12 12v9"/></svg></span>
-          <span class="doc-text"><b>Unreal Engine for Simulation Engineers 201</b><span>The second half: engine internals, sensor physics, distributed time and credible simulators.</span></span>
-          <span class="doc-time">74 min</span>
-        </a>
-        <a class="doc-row" href="documents/learning-unreal-1/" data-doc="learning-unreal-1" data-pages="1">
-          <span class="doc-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 20 7.5v9L12 21l-8-4.5v-9z"/><path d="M12 12 20 7.5M12 12 4 7.5M12 12v9"/></svg></span>
-          <span class="doc-text"><b>Learning Unreal, Part 1: How Unreal Engine Works</b><span>How Unreal Engine works, explained in simulation terms.</span></span>
-          <span class="doc-time">25 min</span>
-        </a>
-        <a class="doc-row" href="documents/learning-unreal-2/" data-doc="learning-unreal-2" data-pages="1">
-          <span class="doc-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 20 7.5v9L12 21l-8-4.5v-9z"/><path d="M12 12 20 7.5M12 12 4 7.5M12 12v9"/></svg></span>
-          <span class="doc-text"><b>Learning Unreal, Part 2: Inside Lake Highland Stray</b><span>A guided read through Lake Highland Stray, a cat game written entirely in C++.</span></span>
-          <span class="doc-time">18 min</span>
-        </a>
-        <p class="doc-group">Everything else</p>
-                <a class="doc-row" href="documents/sumo-101/" data-doc="sumo-101" data-pages="1">
-          <span class="doc-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4M9 12h7M9 16h7"/></svg></span>
-          <span class="doc-text"><b>Sumo 101: A Viewer's Guide for Sumo + Sushi</b><span>A viewer's guide to Sumo + Sushi: the ranks, the moves and what to watch for.</span></span>
-          <span class="doc-time">8 min</span>
-        </a>
-      </div>
-    </section>
-    <!-- documents:end -->
-
     <div class="status" id="status"><span class="dot" id="statusDot"></span><span id="statusText">Checking offline mode…</span></div>
     <div class="install" id="install" hidden>
       <b>Add this to your Home Screen</b> to play anywhere without signal: tap <b>Share</b> (in iOS 26, tap <b>•••</b> first), then <b>Add to Home Screen</b>. Then open it once from the Home Screen while you still have internet.
@@ -635,33 +526,6 @@
     import { store, registerOffline, lockViewport } from './shared/arcade.js';
 
     lockViewport();
-
-    // Documents: what you've started or finished, and where to pick up.
-    (() => {
-      const reader = store.get('reader', null) || {};
-      const read = reader.docs || {};
-      let last = null;
-      for (const row of document.querySelectorAll('.doc-row')) {
-        const d = read[row.dataset.doc];
-        if (!d || !d.pages) continue;
-        const pages = +row.dataset.pages;
-        const seen = Object.keys(d.pages).length;
-        const lastPage = d.pages[pages] || {};
-        const done = pages > 1 ? seen >= pages && (lastPage.pct || 0) >= 90 : (d.pages[1]?.pct || 0) >= 90;
-        row.classList.add(done ? 'done' : 'started');
-        const time = row.querySelector('.doc-time');
-        time.textContent = done ? '✓ Read' : pages > 1 ? `Ch. ${d.page || 1} of ${pages}` : `${d.pages[1]?.pct || 0}%`;
-        if (!done && (!last || (d.at || 0) > (last.d.at || 0))) last = { row, d, pages };
-      }
-      if (last) {
-        const c = document.getElementById('docContinue');
-        const page = +(last.d.page || 1);
-        c.href = last.row.getAttribute('href') + (page > 1 ? `${page}.html` : '');
-        c.innerHTML = last.row.innerHTML;
-        c.querySelector('.doc-text span').textContent = 'Continue reading';
-        c.hidden = false;
-      }
-    })();
 
     // Progress in each Arrow Cube mode (older saves kept just one run).
     const ac = store.get('arrowcube', null) || {};
