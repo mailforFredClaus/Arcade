@@ -103,6 +103,8 @@ body { background: #2a7fe6; color: #fff; }
 }
 .power i::after { content: ''; position: absolute; inset: 3px 3px 50%; border-radius: 10px 10px 4px 4px; background: rgba(255, 255, 255, .25); }
 .power svg { width: 28px; height: 28px; filter: drop-shadow(0 2px 0 rgba(0, 0, 0, .3)); }
+/* What each coin is worth while an upgraded magnet runs. */
+.power em { position: absolute; z-index: 2; right: -7px; bottom: -6px; padding: 2px 5px 1px; border-radius: 8px; font-style: normal; font-size: 13px; font-weight: 900; line-height: 1.1; color: #6a3500; background: linear-gradient(180deg, #fff09a, #ffc21a); box-shadow: 0 2px 0 #b97a00; }
 .power u { display: block; width: 104px; height: 20px; margin-left: -8px; padding: 4px 5px 4px 12px; border-radius: 0 10px 10px 0; background: rgba(14, 22, 56, .6); text-decoration: none; }
 .power u b { display: block; height: 100%; border-radius: 6px; background: linear-gradient(180deg, #ff9a6b, #e5383b); transition: width .1s linear; }
 .power.low { animation: blink .3s steps(2) infinite; }
@@ -196,6 +198,7 @@ body { background: #2a7fe6; color: #fff; }
 .shop-head .purse { color: var(--ink); text-shadow: none; font-size: 16px; }
 
 .goals { display: grid; gap: 8px; margin: 8px 0; text-align: left; }
+.card .shop-head + .goals { margin-top: 4px; }
 .goal-line { display: grid; grid-template-columns: 26px 1fr; gap: 10px; align-items: center; padding: 10px; border-radius: 16px; background: #fff6dc; font-weight: 800; font-size: 14.500px; }
 .goal-line i { width: 26px; height: 26px; border-radius: 50%; background: #ead9b0; display: grid; place-items: center; color: #fff; font-style: normal; font-weight: 900; }
 .goal-line.done i { background: #34c759; }

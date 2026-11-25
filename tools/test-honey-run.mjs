@@ -4,7 +4,7 @@
 // fair. Also checks the same seed always lays the same line.
 // Usage: node tools/test-honey-run.mjs [runs] [metres]
 
-import { Run, STEP, LANE, ROOF, CART, RAMP, JUMP, GRAVITY, POWER_TIME, speedAt, V0, VMAX, FLY_HEIGHT } from '../games/honey-run/js/engine.js';
+import { Run, STEP, LANE, ROOF, CART, CART_LEN, RAMP, CAR, JUMP, GRAVITY, POWER_TIME, MAGNET_COINS, speedAt, V0, VMAX, FLY_HEIGHT } from '../games/honey-run/js/engine.js';
 
 const runs = Number(process.argv[2] || 12), metres = Number(process.argv[3] || 6000);
 let failures = 0;
@@ -185,6 +185,89 @@ const says = (r, e) => r.events.some((x) => x.e === e);
   const up = new Run({ lay: false, levels: { magnet: 5 } });
   up.give('magnet');
   check(up.power.magnet === POWER_TIME.magnet[5], 'upgrades make them last longer');
+  // An upgraded magnet makes every coin worth more while it runs.
+  for (let lvl = 0; lvl <= 5; lvl++) {
+    const w = new Run({ lay: false, levels: { magnet: lvl } });
+    w.row(0, 8, 5);
+    w.give('magnet');
+    steps(w, 1.5);
+    check(w.coins === 5 * MAGNET_COINS[lvl], `with the magnet at level ${lvl} each coin is worth ${MAGNET_COINS[lvl]}`);
+  }
+  check(MAGNET_COINS[0] === 1 && MAGNET_COINS[5] === 3 && MAGNET_COINS.includes(2), 'the magnet goes from x1 to doubling and then tripling');
+  const after = new Run({ lay: false, levels: { magnet: 5 } });
+  after.give('magnet');
+  steps(after, POWER_TIME.magnet[5] + 0.1);
+  after.row(0, after.s + 5, 4);
+  steps(after, 1);
+  check(after.coins === 4, 'once it runs out coins are worth one again');
+}
+
+{
+  // Boots catch the coins under (and over) a jump, in your lane only.
+  const r = empty();
+  r.row(0, 9, 6);
+  r.row(1, 9, 6);
+  r.give('boots');
+  steps(r, 0.5);
+  r.input('up');
+  let top = 0;
+  for (let i = 0; i < 1.3 / STEP; i++) { r.step(); top = Math.max(top, r.y); }
+  check(top > 3 && r.coins === 6, `jumping with boots picks up the coins below you (${r.coins} of 6, ${top.toFixed(1)} m up)`);
+  const q = empty();
+  q.row(0, 12, 3, ROOF + 0.7);
+  q.give('boots');
+  steps(q, 1.6);
+  check(q.coins === 3, 'and the ones above you');
+  const n = empty();
+  n.row(0, 9, 6);
+  n.input('up');
+  steps(n, 1);
+  check(n.coins < 3, 'without boots a jump goes over them');
+}
+
+{
+  // Coins show the way: follow them and you get every one, and get past.
+  for (const at of [0, 2500]) {
+    const v = speedAt(at);
+    const follow = (lay, act) => {
+      const r = empty();
+      r.s = at;
+      const path = lay(r);
+      r.coinList.sort((a, b) => a.s - b.s);
+      // Do whatever it takes when the cub reaches the first coin.
+      while (r.s < path[0].s - 0.01) r.step();
+      act(r);
+      steps(r, 2.5);
+      return { r, path };
+    };
+    const fence = follow((r) => {
+      r.add({ kind: 'low', lane: 0, s0: at + 20, s1: at + 20.5 });
+      return r.overFence(0, at + 20.25);
+    }, (r) => r.input('up'));
+    const peak = fence.path.reduce((m, c) => (c.y > m.y ? c : m));
+    check(fence.path.length >= 5 && Math.abs(peak.s - (at + 20.25)) < 1.2 && peak.y > 2.5, `at ${v.toFixed(0)} m/s the coins arch over a fence, highest over it`);
+    check(!fence.r.dead && fence.r.coins === fence.path.length, `and jumping at the first one clears it and gets them all (${fence.r.coins} of ${fence.path.length})`);
+    const cart = follow((r) => {
+      r.add({ kind: 'cart', lane: 0, s0: at + 20, s1: at + 20 + CART_LEN, h: CART });
+      return r.overCart(0, at + 20);
+    }, (r) => r.input('up'));
+    check(cart.path.some((c) => c.y > CART + 0.6), 'they go up over a hay cart');
+    check(!cart.r.dead && cart.r.coins === cart.path.length, `and jumping at the first one gets them all (${cart.r.coins} of ${cart.path.length})`);
+    const bar = follow((r) => {
+      r.add({ kind: 'high', lane: 0, s0: at + 20, s1: at + 20.5 });
+      return r.underBarrier(0, at + 20.25);
+    }, (r) => r.input('down'));
+    check(bar.path.every((c) => c.y < 0.6), 'they run low under a barrier');
+    check(!bar.r.dead && bar.r.coins === bar.path.length, `and rolling at the first one gets them all (${bar.r.coins} of ${bar.path.length})`);
+    const ramp = follow((r) => {
+      r.add({ kind: 'ramp', lane: 0, s0: at + 20, s1: at + 20 + RAMP, h: ROOF });
+      r.train(0, at + 20 + RAMP, 3);
+      return r.upRamp(0, at + 20, at + 20 + RAMP + 3 * CAR);
+    }, () => {});
+    steps(ramp.r, 2);
+    check(ramp.path.some((c) => c.y > ROOF + 0.6) && ramp.path[ramp.path.length - 1].y < 1.2, 'they go up a ramp, along the roofs and back down');
+    check(!ramp.r.dead && ramp.r.coins === ramp.path.length, `and running along them gets them all (${ramp.r.coins} of ${ramp.path.length})`);
+  }
 }
 
 {
@@ -227,6 +310,16 @@ function lineProblems(r, seen) {
     if (o.kind === 'ramp' && !obs.some((t) => t.kind === 'train' && t.lane === o.lane && Math.abs(t.s0 - o.s1) < 1e-6)) out.push('a ramp with no train behind it');
     // Things standing still never overlap.
     if (!o.v) for (const q of obs) if (q !== o && !q.v && q.lane === o.lane && q.s0 < o.s1 - 1e-6 && o.s0 < q.s1 - 1e-6) out.push(`${o.kind} and ${q.kind} on top of each other`);
+  }
+  // Coins are never inside anything, and a plain row never runs into anything.
+  for (const c of r.coinList) {
+    if (seen.has(`c${c.id}`) || c.s < r.s + 20) continue;
+    seen.add(`c${c.id}`);
+    for (const o of obs) {
+      if (o.v || o.lane !== c.lane) continue;
+      if (o.h && c.s > o.s0 + 0.3 && c.s < o.s1 - 0.3 && c.y - 0.6 < Run.top(o, c.s) - 0.05) out.push(`a coin inside a ${o.kind}`);
+      if (c.plain && o.kind !== 'ramp' && c.s > o.s0 - 3 && c.s < o.s1) out.push(`a row of coins running into a ${o.kind}`);
+    }
   }
   return out;
 }

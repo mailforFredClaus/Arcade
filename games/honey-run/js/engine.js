@@ -16,9 +16,14 @@
 // side of something and you bounce back and stumble: the bees catch up, and
 // a second stumble while they're close ends the run.
 //
-// Power-ups: magnet (pulls coins in), balloons (float above everything
-// along a trail of coins), boots (jump onto roofs), double (twice the
-// score) and bubble (shrugs off one crash).
+// Power-ups: magnet (pulls coins in, and once upgraded makes each one worth
+// two or three), balloons (float above everything along a trail of coins),
+// boots (jump onto roofs, and catch every coin above or below you in your
+// lane), double (twice the score) and bubble (shrugs off one crash).
+//
+// Coins show the way past what's in the way: an arch over a fence, the
+// jump onto a hay cart and off again, a low line under a barrier, up a ramp
+// and along the roofs. A plain row of coins never runs into anything.
 //
 // The line is laid a little way ahead of the cub, one "beat" at a time.
 // One lane, the safe lane, never gets anything the cub can't deal with on
@@ -50,6 +55,8 @@ const SIDE = 45, SIDE_MIN = 8, SIDE_EASE = 20;
 // How long each power-up lasts at upgrade levels 0 to 5.
 export const POWER_TIME = { magnet: [8, 10, 12, 15, 18, 22], fly: [6, 7, 8, 9.5, 11, 13], boots: [8, 10, 12, 15, 18, 22], double: [8, 10, 12, 15, 18, 22], bubble: [14, 17, 20, 24, 28, 34] };
 export const POWERS = Object.keys(POWER_TIME);
+// What each coin is worth while the magnet runs, at upgrade levels 0 to 5.
+export const MAGNET_COINS = [1, 1, 2, 2, 3, 3];
 
 export class Rand {
   constructor(seed) { this.s = seed >>> 0; }
@@ -124,6 +131,8 @@ export class Run {
   get height() { return this.rolling ? 0.8 : 1.6; }
   get flying() { return this.power.fly > 0; }
   multiplier() { return this.mult * (this.power.double > 0 ? 2 : 1); }
+  // What a coin picked up now is worth.
+  coinWorth() { return this.power.magnet > 0 ? MAGNET_COINS[clamp(this.levels.magnet || 0, 0, 5)] : 1; }
 
   emit(e, data) { this.events.push(data ? { e, ...data } : { e }); }
 
@@ -367,13 +376,15 @@ export class Run {
 
   // Coins and power-ups.
   gather(dt) {
-    const magnet = this.power.magnet > 0;
+    const magnet = this.power.magnet > 0, boots = this.power.boots > 0;
     const cy = this.y + 0.8;
     for (const c of this.coinList) {
       if (c.taken) continue;
       const ds = c.s - this.s;
       if (ds > 12) break;
       if (magnet && !c.pull && ds > -1.5 && ds < 10 && Math.abs(c.y - cy) < 5) c.pull = true;
+      // Boots catch every coin straight above or below, in the lane you're in.
+      if (boots && !c.pull && ds > -1 && ds < 1.6 && Math.abs(c.x - this.x) < LANE * 0.52 && Math.abs(c.y - cy) < 9) c.pull = true;
       if (c.pull) {
         // Fly to the cub, faster the closer it gets.
         const k = Math.min(1, 14 * dt);
@@ -383,9 +394,10 @@ export class Run {
       }
       if (Math.abs(c.s - this.s) < 0.8 && Math.abs(c.x - this.x) < LANE * 0.52 && Math.abs(c.y - cy) < 1.35) {
         c.taken = true;
-        this.coins++;
-        this.score += 5 * this.multiplier();
-        this.emit('coin', { x: c.x, y: c.y, s: c.s });
+        const n = this.coinWorth();
+        this.coins += n;
+        this.score += 5 * n * this.multiplier();
+        this.emit('coin', { x: c.x, y: c.y, s: c.s, n });
       }
     }
     for (const p of this.pickups) {
@@ -469,10 +481,103 @@ export class Run {
     return this.add({ kind: 'train', lane, s0, s1: s0 + n * CAR, h: ROOF, cars: n, v, look: this.rand.int(5) });
   }
 
-  // A row of coins: n of them from s on, at height y (a function of how
-  // far along, for arcs and slopes).
+  // A row of coins: n of them from s on, at height y. (A plain row: if
+  // something is put in the way, the coins in front of it go.)
   row(lane, s, n, y = 0.7, gap = 2.2) {
-    for (let k = 0; k < n; k++) this.coin(lane, s + k * gap, typeof y === 'function' ? y(k / Math.max(1, n - 1)) : y);
+    for (let k = 0; k < n; k++) this.coin(lane, s + k * gap, y).plain = true;
+  }
+
+  // Coins along the way the cub goes down this lane from s = from to s = to,
+  // over, onto and off whatever stands there, jumping at s = jumpAt if
+  // given. Worked out by running a cub along it at the speed it will be
+  // going, with coins at its middle (where a coin on the ground would be).
+  trail(lane, from, to, jumpAt = null, gap = 2.2) {
+    const v = speedAt(from), dt = 1 / 480;
+    const solid = this.obstacles.filter((o) => o.lane === lane && o.h && !o.v && o.s1 > from - 1 && o.s0 < to + 1);
+    const floorAt = (s, y) => {
+      let f = 0;
+      for (const o of solid) {
+        if (o.s1 < s - 0.25 || o.s0 > s + 0.25) continue;
+        const top = Run.top(o, s + 0.25);
+        if (top <= y + STEP_UP && top > f) f = top;
+      }
+      return f;
+    };
+    let s = from, y = floorAt(from, 0), vy = 0, grounded = true, k = 0;
+    const out = [];
+    while (from + k * gap <= to + 1e-6) {
+      if (s >= from + k * gap - 1e-6) {
+        out.push(this.coin(lane, from + k * gap, y + 0.7));
+        k++;
+        continue;
+      }
+      if (jumpAt !== null && grounded && s >= jumpAt - 1e-6) {
+        vy = JUMP;
+        grounded = false;
+        jumpAt = null;
+      }
+      s += v * dt;
+      const f = floorAt(s, y);
+      if (grounded) {
+        if (y > f + 0.02) grounded = false;
+        else y = f;
+      }
+      if (!grounded) {
+        vy -= GRAVITY * dt;
+        y += vy * dt;
+        if (y <= f && vy <= 0) {
+          y = f;
+          vy = 0;
+          grounded = true;
+        }
+      }
+    }
+    return out;
+  }
+
+  // An arch of coins over a fence at s = at: the shape of the jump that clears it.
+  overFence(lane, at) {
+    const reach = speedAt(at) * (2 * JUMP / GRAVITY);
+    const n = Math.max(4, Math.round(reach / 2.1));
+    const from = at - reach / 2;
+    return this.trail(lane, from, from + reach, from, reach / n);
+  }
+
+  // Coins up onto a hay cart from s0, along it and off the end (or, when
+  // going fast enough, an arch right over it).
+  overCart(lane, s0) {
+    const v = speedAt(s0), from = s0 - v * 0.22;
+    return this.trail(lane, from, s0 + CART_LEN + v * 0.5, from, 2);
+  }
+
+  // A low line of coins under a barrier at s = at, where you roll.
+  underBarrier(lane, at) {
+    const out = [];
+    for (let k = -2; k <= 2; k++) out.push(this.coin(lane, at + k * 1.8, 0.45));
+    return out;
+  }
+
+  // Up a ramp from s0, along the roofs to s1 and down off the end.
+  upRamp(lane, s0, s1) {
+    return this.trail(lane, s0 + 0.4, s1 + speedAt(s0) * 0.6, null, 2.2);
+  }
+
+  // A plain row runs into nothing: its coins from a little in front of
+  // anything standing in its lane (but a ramp: run up it) to the far side
+  // are taken away.
+  // (Nor does it run into coins showing the way.)
+  clearRows(from) {
+    const obs = this.obstacles.filter((o) => !o.v && o.s1 > from - 4);
+    const shown = this.coinList.filter((c) => !c.plain && c.s > from - 2);
+    this.coinList = this.coinList.filter((c) => {
+      if (!c.plain || c.s < from) return true;
+      for (const o of obs) {
+        if (o.lane !== c.lane) continue;
+        const lead = o.kind === 'ramp' ? 0 : 3.5;
+        if (c.s > o.s0 - lead && c.s < o.s1 + 1) return false;
+      }
+      return !shown.some((q) => q.lane === c.lane && Math.abs(q.s - c.s) < 1.5);
+    });
   }
 
   layAhead() {
@@ -506,21 +611,18 @@ export class Run {
     if (act === 'low') {
       const at = p + B * 0.55;
       this.add({ kind: 'low', lane: safe, s0: at - 0.25, s1: at + 0.25 });
-      // Coins in an arc over it, the shape of a jump.
-      if (R.next() < 0.7) {
-        const reach = v * (2 * JUMP / GRAVITY);
-        this.row(safe, at - reach / 2 + 0.4, 5, (k) => 0.8 + 4 * 2.0 * k * (1 - k), (reach - 0.8) / 4);
-      }
+      // Coins in an arch over it, the shape of the jump.
+      if (R.next() < 0.75) this.overFence(safe, at);
     } else if (act === 'high') {
       const at = p + B * 0.55;
       this.add({ kind: 'high', lane: safe, s0: at - 0.25, s1: at + 0.25 });
-      if (R.next() < 0.5) this.row(safe, at - 3.3, 4, 0.5);
+      if (R.next() < 0.6) this.underBarrier(safe, at);
     } else if (act === 'cart') {
       // A hay cart: hop on, hop off.
       const at = p + B * 0.55;
       this.add({ kind: 'cart', lane: safe, s0: at, s1: at + CART_LEN, h: CART });
-      this.row(safe, at + 0.6, 3, CART + 0.7, 1.6);
-      next = Math.max(next, at + CART_LEN + v * 0.5);
+      const path = this.overCart(safe, at);
+      next = Math.max(next, at + CART_LEN + v * 0.5, path[path.length - 1].s + 0.5);
     } else if (act === 'shift') {
       // The safe lane moves over. Whatever comes next in the old lane shuts it.
       const to = R.pick(others);
@@ -585,8 +687,14 @@ export class Run {
         coins: 0.1,
       });
       const at = p + B * (0.3 + 0.4 * R.next());
-      if (what === 'low' || what === 'high') this.add({ kind: what, lane: l, s0: at - 0.25, s1: at + 0.25 });
-      else if (what === 'train') {
+      if (what === 'low' || what === 'high') {
+        this.add({ kind: what, lane: l, s0: at - 0.25, s1: at + 0.25 });
+        // Sometimes with coins showing the way, if there's room for them.
+        if (R.next() < 0.45 && g.busy[i] < at - v * (JUMP / GRAVITY) - 1) {
+          const path = what === 'low' ? this.overFence(l, at) : this.underBarrier(l, at);
+          g.busy[i] = Math.max(g.busy[i], path[path.length - 1].s);
+        }
+      } else if (what === 'train') {
         // (Long ones: the lanes beside you are often a wall of wagons.)
         const n = 2 + R.int(d > 0.3 ? 5 : 4);
         this.train(l, at, n);
@@ -597,14 +705,22 @@ export class Run {
         this.train(l, at + RAMP, n);
         // (With room to land at the far end.)
         g.busy[i] = at + RAMP + n * CAR + v * 0.8;
-        // The roofs are worth the climb.
-        this.row(l, at + RAMP + 2, Math.floor((n * CAR - 4) / 2.2), ROOF + 0.7, 2.2);
+        // The roofs are worth the climb: coins up the ramp, along the roofs
+        // and down off the end.
+        this.upRamp(l, at, at + RAMP + n * CAR);
       } else if (what === 'cart') {
         this.add({ kind: 'cart', lane: l, s0: at, s1: at + CART_LEN, h: CART });
+        // (Coins too, if there's room in front to take off.)
+        const room = g.busy[i] < at - v * 0.22 - 0.5;
         g.busy[i] = at + CART_LEN;
-        this.row(l, at + 0.6, 3, CART + 0.7, 1.6);
+        if (room) {
+          const path = this.overCart(l, at);
+          g.busy[i] = Math.max(g.busy[i], path[path.length - 1].s);
+        }
       } else if (what === 'coins') this.row(l, p + 1, Math.max(3, Math.floor(B / 2.4) - 1), 0.7);
     }
+    // (What went in just now may stand in the way of a row laid before.)
+    this.clearRows(p - 8);
     this.coinList.sort((a, b) => a.s - b.s);
   }
 
