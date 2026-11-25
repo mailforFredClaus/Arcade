@@ -2,7 +2,7 @@
 // 3D, and looks after the swipes and keys, the score, the sounds, the
 // shop, the goals and the menus.
 
-import { Run, STEP, LANE, CAR, ROOF, POWER_TIME, POWERS } from './engine.js';
+import { Run, STEP, LANE, CAR, ROOF, POWER_TIME, POWERS, MAGNET_COINS } from './engine.js';
 import { Renderer, M } from './gl.js';
 import { makeModels, SKINS, LAMP_X, LAMP_Y } from './models.js';
 import { World, lookAt, zoneName } from './world.js';
@@ -35,9 +35,9 @@ const writeSave = () => store.set(SAVE_KEY, save);
 const fmt = (n) => Math.floor(n).toLocaleString();
 
 const POWER_INFO = {
-  magnet: { name: 'Magnet', colour: '#e5383b', what: 'Pulls in coins from every lane.' },
+  magnet: { name: 'Magnet', colour: '#e5383b', what: 'Pulls in coins from every lane, and once upgraded makes each one worth two, then three.' },
   fly: { name: 'Balloons', colour: '#3b9dff', what: 'Float over everything, along a trail of coins.' },
-  boots: { name: 'Boots', colour: '#ff8a1c', what: 'Jump high enough to land on the roofs.' },
+  boots: { name: 'Boots', colour: '#ff8a1c', what: 'Jump high enough to land on the roofs, catching the coins below.' },
   double: { name: 'Double', colour: '#a45bff', what: 'Twice the score.' },
   bubble: { name: 'Bubble', colour: '#58c7f3', what: 'Shrugs off one crash.' },
 };
@@ -54,31 +54,46 @@ const POWER_ICON = {
 // ---- goals ----------------------------------------------------------------------------
 
 // Three goals at a time. Finish all three and the score multiplier goes up
-// by one for good (to 30 at most), and three harder ones take their place.
+// by one for good (to 30 at most), and three harder ones take their place
+// straight away, even in the middle of a run.
 // once: has to be done in a single run; otherwise it adds up over runs.
 const GOALS = [
-  { text: (n) => `Collect ${n} coins in one run`, once: true, need: (l) => Math.min(500, 40 + 25 * l), now: (r) => r.coins },
-  { text: (n) => `Jump ${n} times`, need: (l) => 15 + 8 * l, now: (r) => r.stats.jumps },
-  { text: (n) => `Run ${fmt(n)} m in one run`, once: true, need: (l) => Math.min(4000, 500 + 250 * l), now: (r) => Math.floor(r.s) },
-  { text: (n) => `Roll ${n} times`, need: (l) => 12 + 6 * l, now: (r) => r.stats.rolls },
-  { text: (n) => `Run ${fmt(n)} m along the roofs`, need: (l) => 100 + 60 * l, now: (r) => Math.floor(r.stats.roof) },
-  { text: (n) => `Pick up ${n} power-ups`, need: (l) => 2 + Math.floor(l / 2), now: (r) => r.stats.powers },
-  { text: (n) => `Score ${fmt(n)} in one run`, once: true, need: (l) => (1500 * (l + 1) * Math.min(l + 2, 8)) / 2, now: (r) => Math.floor(r.score) },
-  { text: (n) => `Collect ${fmt(n)} coins`, need: (l) => 150 + 120 * l, now: (r) => r.coins },
-  { text: (n) => `Get past ${n} rolling trains`, need: (l) => 2 + l, now: (r) => r.stats.dodged },
+  { text: (n) => `Collect ${n} coins in one run`, once: true, need: (l) => Math.min(500, 40 + 25 * l), now: (t) => t.coins },
+  { text: (n) => `Jump ${n} times`, need: (l) => 15 + 8 * l, now: (t) => t.jumps },
+  { text: (n) => `Run ${fmt(n)} m in one run`, once: true, need: (l) => Math.min(4000, 500 + 250 * l), now: (t) => t.far },
+  { text: (n) => `Roll ${n} times`, need: (l) => 12 + 6 * l, now: (t) => t.rolls },
+  { text: (n) => `Run ${fmt(n)} m along the roofs`, need: (l) => 100 + 60 * l, now: (t) => t.roof },
+  { text: (n) => `Pick up ${n} power-ups`, need: (l) => 2 + Math.floor(l / 2), now: (t) => t.powers },
+  { text: (n) => `Score ${fmt(n)} in one run`, once: true, need: (l) => (1500 * (l + 1) * Math.min(l + 2, 8)) / 2, now: (t) => t.score },
+  { text: (n) => `Collect ${fmt(n)} coins`, need: (l) => 150 + 120 * l, now: (t) => t.coins },
+  { text: (n) => `Get past ${n} rolling trains`, need: (l) => 2 + l, now: (t) => t.dodged },
 ];
 const MAX_MULT = 30;
 const goalSet = (level) => [0, 1, 2].map((k) => GOALS[(level * 2 + k * 3) % GOALS.length]);
 const multiplier = () => Math.min(MAX_MULT, 1 + save.goal.level);
+// Everything the goals count, so far this run.
+const tally = (r) => ({ coins: r.coins, jumps: r.stats.jumps, far: Math.floor(r.s), rolls: r.stats.rolls, roof: Math.floor(r.stats.roof), powers: r.stats.powers, score: Math.floor(r.score), dodged: r.stats.dodged });
+// The tally when the goals in hand were given out, if that was during this
+// run: only what's done after counts towards them.
+let goalBase = null;
 // How far along each goal in hand is, counting the run in progress.
 function goalState(run) {
+  const now = run ? tally(run) : null;
   return goalSet(save.goal.level).map((gl, k) => {
     const need = gl.need(save.goal.level), had = save.goal.have[k] || 0;
-    const now = run ? gl.now(run) : 0;
-    const have = Math.min(need, gl.once ? Math.max(had, now) : had + now);
+    const got = now ? Math.max(0, gl.now(now) - (goalBase ? gl.now(goalBase) : 0)) : 0;
+    const have = Math.min(need, gl.once ? Math.max(had, got) : had + got);
     return { text: gl.text(need), need, have, done: have >= need };
   });
 }
+// All three done: the multiplier goes up and the next three are given out.
+function levelUp() {
+  save.goal = { level: save.goal.level + 1, have: [0, 0, 0] };
+  goalBase = tally(run);
+  goalsDone = [false, false, false];
+  levelsThisRun++;
+}
+const canLevel = () => save.goal.level < MAX_MULT - 1;
 
 // ---- the run --------------------------------------------------------------------------
 
@@ -88,6 +103,7 @@ let phase = 'title';
 let acc = 0; // time owed to the rules
 let startedAt = 0, diedAt = 0;
 let goalsDone = [false, false, false];
+let levelsThisRun = 0;
 let revives = 0;
 let lastZone = '';
 
@@ -95,6 +111,8 @@ function freshRun() {
   run = new Run({ seed: (Math.random() * 2 ** 32) >>> 0, levels: save.levels, mult: multiplier() });
   acc = 0;
   revives = 0;
+  goalBase = null;
+  levelsThisRun = 0;
   goalsDone = goalState(null).map((gl) => gl.done);
   sparks.length = 0;
   cam.ys = 0;
@@ -162,15 +180,12 @@ function settle() {
   save.runs++;
   save.far = Math.max(save.far, Math.floor(run.s));
   const st = goalState(run);
-  let levelled = false;
-  if (st.every((gl) => gl.done) && save.goal.level < MAX_MULT - 1) {
-    save.goal = { level: save.goal.level + 1, have: [0, 0, 0] };
-    levelled = true;
-  } else save.goal.have = st.map((gl) => gl.have);
+  if (st.every((gl) => gl.done) && canLevel()) levelUp();
+  else save.goal.have = st.map((gl) => gl.have);
   const best = Math.floor(run.score) > save.best;
   if (best) save.best = Math.floor(run.score);
   writeSave();
-  return { best, levelled };
+  return { best, levelled: levelsThisRun > 0 };
 }
 
 const reviveCost = () => 200 * 2 ** revives;
@@ -213,7 +228,9 @@ function onEvent(ev) {
       coinRun = now - coinAt < 450 ? Math.min(12, coinRun + 1) : 0;
       coinAt = now;
       sfx('honey', coinRun);
-      spark(ev.x, ev.y, -ev.s, 4, [1, 0.82, 0.25], 3, 0.14, 0.35);
+      // (Coins worth more, from an upgraded magnet, burst brighter.)
+      if (ev.n > 1) spark(ev.x, ev.y, -ev.s, 3 * ev.n, [1, 0.6, 0.15], 4, 0.16, 0.4);
+      else spark(ev.x, ev.y, -ev.s, 4, [1, 0.82, 0.25], 3, 0.14, 0.35);
       bumpPurse();
       break;
     }
@@ -316,7 +333,8 @@ function updateHud() {
       el = document.createElement('div');
       el.className = 'power';
       el.setAttribute('aria-label', POWER_INFO[k].name);
-      el.innerHTML = `<i style="background:linear-gradient(180deg, color-mix(in srgb, ${POWER_INFO[k].colour} 70%, #fff), ${POWER_INFO[k].colour})">${POWER_ICON[k]}</i><u><b></b></u>`;
+      const worth = k === 'magnet' ? run.coinWorth() : 1;
+      el.innerHTML = `<i style="background:linear-gradient(180deg, color-mix(in srgb, ${POWER_INFO[k].colour} 70%, #fff), ${POWER_INFO[k].colour})">${POWER_ICON[k]}${worth > 1 ? `<em>×${worth}</em>` : ''}</i><u><b></b></u>`;
       $('powers').appendChild(el);
       powerEls[k] = el;
       el.bar = el.querySelector('u b');
@@ -326,14 +344,28 @@ function updateHud() {
   }
 }
 
-// Goals finished while running get a shout.
+// Goals finished while running get a shout. Finish all three and the
+// multiplier goes up there and then, with three new goals to work on (see
+// them on the pause card).
 function checkGoals() {
-  goalState(run).forEach((gl, k) => {
+  const st = goalState(run);
+  st.forEach((gl, k) => {
     if (!gl.done || goalsDone[k]) return;
     goalsDone[k] = true;
     sfx('goal');
     toast(`Goal done: ${gl.text}`, 2600);
   });
+  if (!st.every((gl) => gl.done) || !canLevel()) return;
+  // (The coins are banked when the run ends; the goals are kept now.)
+  save.goal.have = st.map((gl) => gl.have);
+  levelUp();
+  run.mult = multiplier();
+  writeSave();
+  setTimeout(() => {
+    if (phase !== 'play') return;
+    sfx('win');
+    callout(`×${multiplier()}!`, 'new goals: pause to see them');
+  }, 900);
 }
 
 // ---- the camera -----------------------------------------------------------------------
@@ -741,7 +773,10 @@ window.addEventListener('keydown', (e) => {
 const hexCoin = '<i class="hex"></i>';
 
 function showPause() {
+  const top = !canLevel() && goalState(run).every((gl) => gl.done);
   ui.show(`<h2>Paused</h2>
+    <div class="shop-head"><span>Goals</span><span>${top ? `×${multiplier()}` : `×${multiplier()} → ×${multiplier() + 1}`}</span></div>
+    ${goalsHtml(goalState(run))}
     ${switchRow('Sound', 'sound')}${switchRow('Haptics', 'haptics')}
     <div class="actions">
       <button class="btn btn-primary" data-action="resume">Carry on</button>
@@ -766,8 +801,9 @@ function showRules() {
       <p><b>${touch ? 'Swipe left or right' : 'Left and right arrows'}</b> to change lane. <b>${touch ? 'Swipe up' : 'Up or Space'}</b> to jump, <b>${touch ? 'swipe down' : 'Down'}</b> to roll. In the air, ${touch ? 'swiping ' : ''}down drops you fast.</p>
       <p><b>Jump</b> the fences and hay carts, <b>roll</b> under the striped barriers, and go <b>round</b> the wagons, or up a ramp and along their roofs.</p>
       <p><b>Careful:</b> run into something and it's over. Swipe sideways into a wagon and you stumble: the bees close in, and a second stumble while they're near ends the run.</p>
-      <p><b>Power-ups:</b> a magnet for coins, balloons to float over everything, spring boots to jump onto roofs, double score, and a bubble that shrugs off one crash.</p>
-      <p><b>Coins</b> buy longer power-ups and new cubs in the shop. <b>Goals</b> raise your score multiplier for good.</p>
+      <p><b>Coins</b> show the way: follow an arch of them over a fence, a low line of them under a barrier.</p>
+      <p><b>Power-ups:</b> a magnet for coins, balloons to float over everything, spring boots to jump onto roofs (catching the coins below), double score, and a bubble that shrugs off one crash.</p>
+      <p><b>Coins</b> buy longer power-ups and new cubs in the shop; an upgraded magnet doubles, then triples, the coins it pulls in. <b>Goals</b> raise your score multiplier for good: finish all three and the next three start straight away. Pause to see them.</p>
     </div>
     <div class="actions"><button class="btn btn-primary" data-action="${back}">Got it</button></div>`);
 }
@@ -791,7 +827,9 @@ function showShop() {
     const pips = [0, 1, 2, 3, 4].map((i) => `<u class="${i < lvl ? 'on' : ''}"></u>`).join('');
     const btn = lvl >= 5 ? '<button class="buy have" disabled>Max</button>'
       : `<button class="buy" data-action="upgrade" data-k="${k}" ${save.bank < cost ? 'disabled' : ''}>${hexCoin}${fmt(cost)}</button>`;
-    return `<div class="item"><i style="background:${POWER_INFO[k].colour}"></i><div><b>${POWER_INFO[k].name}</b><span>${POWER_TIME[k][lvl]} s${lvl < 5 ? ` → ${POWER_TIME[k][lvl + 1]} s` : ''}</span><div class="pips">${pips}</div></div>${btn}</div>`;
+    // (The magnet also makes coins worth more as it goes up.)
+    const at = (l) => `${POWER_TIME[k][l]} s${k === 'magnet' && MAGNET_COINS[l] > 1 ? `, coins ×${MAGNET_COINS[l]}` : ''}`;
+    return `<div class="item"><i style="background:${POWER_INFO[k].colour}"></i><div><b>${POWER_INFO[k].name}</b><span>${at(lvl)}${lvl < 5 ? ` → ${at(lvl + 1)}` : ''}</span><div class="pips">${pips}</div></div>${btn}</div>`;
   }).join('');
   const cubs = SKINS.map((sk) => {
     const own = save.owned.includes(sk.id), on = save.skin === sk.id;
@@ -824,11 +862,11 @@ function showOver() {
 
 function showResult() {
   const { best, levelled } = settle();
-  const st = levelled ? null : goalState(null);
+  const st = goalState(null);
   ui.show(`<h2>${best ? 'New best!' : 'Run over'}</h2>
     <div class="stats"><div><b>${fmt(run.score)}</b><span>Score</span></div><div><b>${hexCoin}${fmt(run.coins)}</b><span>Coins</span></div><div><b>${fmt(run.s)} m</b><span>Distance</span></div></div>
     <p class="best${best ? ' newbest' : ''}">Best ${fmt(save.best)}</p>
-    ${levelled ? `<p class="newbest">All three goals done! Your multiplier is now ×${multiplier()}.</p>` : goalsHtml(st)}
+    ${levelled ? `<p class="newbest">Goals done! Your multiplier is now ×${multiplier()}.</p>` : ''}${goalsHtml(st)}
     <div class="actions">
       <button class="btn btn-primary" data-action="again">Run again</button>
       <button class="btn btn-soft" data-action="shopAfter">Shop &nbsp;${hexCoin} ${fmt(save.bank)}</button>
