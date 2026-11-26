@@ -3,7 +3,7 @@
 // shop, the goals and the menus.
 
 import { Run, STEP, LANE, CAR, ROOF, POWER_TIME, POWERS, MAGNET_COINS } from './engine.js';
-import { Renderer, M } from './gl.js';
+import { Renderer, M, SHADOW_FAR } from './gl.js';
 import { makeModels, SKINS, LAMP_X, LAMP_Y } from './models.js';
 import { World, lookAt, zoneName } from './world.js';
 import { store, settings, sfx, haptic, unlockAudio, lockViewport, registerOffline } from '../../../shared/arcade.js';
@@ -32,7 +32,8 @@ const touch = matchMedia('(pointer: coarse)').matches;
 const SAVE_KEY = 'honeyrun';
 const save = Object.assign({ best: 0, bank: 0, far: 0, runs: 0, levels: {}, skin: 'cub', owned: ['cub'], goal: { level: 0, have: [0, 0, 0] }, seen: false }, store.get(SAVE_KEY, {}) || {});
 const writeSave = () => store.set(SAVE_KEY, save);
-const fmt = (n) => Math.floor(n).toLocaleString();
+const numbers = new Intl.NumberFormat();
+const fmt = (n) => numbers.format(Math.floor(n));
 
 const POWER_INFO = {
   magnet: { name: 'Magnet', colour: '#e5383b', what: 'Pulls in coins from every lane, and once upgraded makes each one worth two, then three.' },
@@ -101,6 +102,14 @@ let run = null;
 // 'title': waiting to start. 'play'. 'paused'. 'dead': the crash is playing out. 'over': the card is up.
 let phase = 'title';
 let acc = 0; // time owed to the rules
+// The rules move in steps of 1/120 s, which never quite match the screen's
+// frames, so the cub is drawn where it was part-way between the last two
+// steps: was is where it stood before the last one, lag how far behind the
+// latest step the picture is (in seconds). Without this the line would
+// judder along, most of all on screens that aren't 60 or 120 Hz.
+const was = { s: 0, x: 0, y: 0 };
+let lag = 0;
+const keepWas = () => { was.s = run.s; was.x = run.x; was.y = run.y; };
 let startedAt = 0, diedAt = 0;
 let goalsDone = [false, false, false];
 let levelsThisRun = 0;
@@ -114,6 +123,7 @@ function freshRun() {
   goalBase = null;
   levelsThisRun = 0;
   goalsDone = goalState(null).map((gl) => gl.done);
+  was.s = was.x = was.y = 0;
   sparks.length = 0;
   cam.ys = 0;
   cam.xs = 0;
@@ -125,6 +135,7 @@ function freshRun() {
 function start() {
   if (phase !== 'title') return;
   phase = 'play';
+  easeQuality();
   startedAt = performance.now();
   $('title').classList.add('gone');
   $('hud').hidden = false;
@@ -170,6 +181,7 @@ function resume() {
     if (phase !== 'paused' || ui.isOpen()) return;
     phase = 'play';
     acc = 0;
+    keepWas();
     last = performance.now();
   }, 750);
 }
@@ -339,7 +351,7 @@ function updateHud() {
       powerEls[k] = el;
       el.bar = el.querySelector('u b');
     }
-    el.bar.style.width = `${Math.round((100 * left) / run.powerFull[k])}%`;
+    el.bar.style.transform = `scaleX(${(left / run.powerFull[k]).toFixed(3)})`;
     el.classList.toggle('low', left < 2);
   }
 }
@@ -376,10 +388,45 @@ function checkGoals() {
 const cam = { ys: 0, xs: 0, base: 0, k: 0, eye: [0, 0, 0], at: [0, 0, 0], view: null, proj: null, vp: null };
 let W = 1, H = 1;
 
+// How sharp the picture is drawn: as sharp as the screen (up to 2 pixels
+// a point) to start with. If the phone can't keep up, it's drawn a notch
+// less sharp, and so on down, until it runs smoothly: a slightly softer
+// picture at full speed beats a crisp one that stutters.
+const quality = { k: 1, least: 1, frames: 0, time: 0, wait: 0, ups: 0 };
+const NOTCH = 0.82, SLOW = 21; // (slow: under about 48 frames a second)
 function layout() {
   W = innerWidth;
   H = innerHeight;
-  R.resize(W, H, Math.min(window.devicePixelRatio || 1, 2));
+  // (Never less sharp than one pixel a point, on a screen that has more.)
+  const dpr = window.devicePixelRatio || 1, full = Math.min(dpr, 2);
+  quality.least = Math.min(full, dpr >= 1.5 ? 1 : 0.75) / full;
+  R.resize(W, H, full * Math.max(quality.least, quality.k));
+}
+// Called each frame of a run with how long the frame took (ms). Judged
+// over a second and a half at a time, so one slow frame changes nothing.
+function watchSpeed(gap) {
+  if (gap > 250) return; // (a stall, or the page was away: not how fast it draws)
+  if (quality.wait > 0) { quality.wait -= gap; return; }
+  quality.frames++;
+  quality.time += gap;
+  if (quality.time < 1500) return;
+  const mean = quality.time / quality.frames;
+  quality.frames = quality.time = 0;
+  if (mean > SLOW && quality.k > quality.least) {
+    quality.k = Math.max(quality.least, quality.k * NOTCH);
+    quality.wait = 600; // (let it settle before judging again)
+    layout();
+  }
+}
+// A fresh run may try a notch sharper again, in case it was only a bad
+// moment (twice at most: after that it stays where it runs well).
+function easeQuality() {
+  quality.frames = quality.time = 0;
+  quality.wait = 1000;
+  if (quality.k >= 1 || quality.ups >= 2) return;
+  quality.ups++;
+  quality.k = Math.min(1, quality.k / NOTCH);
+  layout();
 }
 
 function aim(dt, now) {
@@ -525,34 +572,57 @@ function drawCub(parts, shadowPlane = null) {
   }
 }
 
-// Each thing on the line as [mesh, matrix] pairs.
-const lamps = [];
+// What's on the line, to draw: for each, its mesh, the mesh that casts its
+// shadow (or null) and where it is. (The lists and matrices are kept from
+// frame to frame, so drawing makes no litter to be swept up.)
+const drawn = { n: 0, mesh: [], shadow: [], mat: [] };
+function put(mesh, shadow, x, z) {
+  const k = drawn.n++;
+  drawn.mesh[k] = mesh;
+  drawn.shadow[k] = shadow;
+  M.moveTo(drawn.mat[k] || (drawn.mat[k] = new Float32Array(16)), x, 0, z);
+}
+const FAR_WAGON = 55; // wagons further ahead than this are drawn plainer
 function obstacleDraws() {
-  const out = [];
-  lamps.length = 0;
+  drawn.n = 0;
+  const s = run.s;
   for (const o of run.obstacles) {
-    if (o.s0 > run.s + 150) continue;
+    if (o.s0 > s + 150 || o.s1 < s - 14) continue;
+    const x = o.lane * LANE;
     if (o.kind === 'train') {
+      // (A rolling train is drawn where it was between steps, like the cub.)
+      const s0 = o.s0 + o.v * lag;
       for (let i = 0; i < o.cars; i++) {
-        const mesh = o.v && i === 0 ? models.engine : models.wagons[o.look][(o.id + i) % 3];
-        out.push([mesh, M.move(o.lane * LANE, 0, -(o.s0 + i * CAR))]);
+        const at = s0 + i * CAR;
+        if (at > s + 150 || at + CAR < s - 14) continue;
+        const lead = o.v && i === 0;
+        const mesh = lead ? models.engine : (at > s + FAR_WAGON ? models.wagonsFar : models.wagons)[o.look][(o.id + i) % 3];
+        put(mesh, at < s + SHADOW_FAR ? models.wagonShadow : null, x, -at);
         // An engine's lamps are lit: a bright middle in a soft glow.
-        if (o.v && i === 0) {
+        if (lead) {
           for (const dx of [-LAMP_X, LAMP_X]) {
-            lamps.push([o.lane * LANE + dx, LAMP_Y, -o.s0 - 0.1, 1.5, 0.5, 0.44, 0.22, 1]);
-            lamps.push([o.lane * LANE + dx, LAMP_Y, -o.s0 - 0.15, 0.42, 0.95, 0.9, 0.6]);
+            glow(x + dx, LAMP_Y, -s0 - 0.1, 1.5, 0.5, 0.44, 0.22, 1);
+            glow(x + dx, LAMP_Y, -s0 - 0.15, 0.42, 0.95, 0.9, 0.6);
           }
         }
       }
     } else {
       const mesh = o.kind === 'ramp' ? models.ramp : o.kind === 'cart' ? models.cart : o.kind === 'high' ? models.high : models.low[o.id % 2];
-      out.push([mesh, M.move(o.lane * LANE, 0, -o.s0)]);
+      put(mesh, o.s0 < s + SHADOW_FAR ? mesh : null, x, -o.s0);
     }
   }
-  return out;
 }
 
+// Sparks and glows to draw this frame: [x, y, z, size, r, g, b, soft] each.
 const glowList = [];
+let glowN = 0;
+function glow(x, y, z, size, r, g, b, soft = 0) {
+  const p = glowList[glowN] || (glowList[glowN] = new Float32Array(8));
+  glowN++;
+  p[0] = x; p[1] = y; p[2] = z; p[3] = size; p[4] = r; p[5] = g; p[6] = b; p[7] = soft;
+}
+const spinMat = new Float32Array(16);
+const camRight = [0, 0, 0], camUp = [0, 0, 0];
 const GLOSS = { shine: 0.45, rim: 0.3 }; // trains and the things on the line
 const COIN = { shine: 1, rim: 0.6, emit: 0.55 };
 const POWER = { shine: 0.8, rim: 0.6, emit: 0.25 };
@@ -571,32 +641,31 @@ function draw(now, dt) {
     rimCol: look.glow.map((v, i) => (v * 0.6 + look.skyLight[i] * 0.4) * 0.9),
     fogCol: look.fog, fog: [55, 150], top: look.top, sunGlow: look.glow, sunAt, sunSize: 0.42, horizon: hz ? hz[1] : -0.2,
   });
-  world.drawGround();
-  world.drawProps();
-  world.drawMetal();
-  const obs = obstacleDraws();
-  for (const [mesh, m] of obs) R.draw(mesh, m, GLOSS);
+  // What's nearest and biggest is drawn first (the trains, then the coins
+  // and the cub, and the ground last of all), so that nothing is worked
+  // out for ground that ends up hidden behind a wagon.
+  glowN = 0;
+  obstacleDraws();
+  for (let k = 0; k < drawn.n; k++) R.draw(drawn.mesh[k], drawn.mat[k], GLOSS);
 
   // Coins and power-ups, turning. Coins shine in their own light, glint as
   // they turn, and glow.
-  glowList.length = 0;
-  for (const l of lamps) glowList.push(l);
   const spin = now / 300;
   for (const c of run.coinList) {
-    if (c.taken) continue;
+    if (c.taken || c.s < run.s - 8) continue;
     if (c.s > run.s + 130) break;
-    R.draw(models.coin, M.chain(M.move(c.x, c.y + 0.08, -c.s), M.rotY(spin + c.s * 0.35)), COIN);
-    if (c.s < run.s + 80) glowList.push([c.x, c.y + 0.08, -c.s, 1.05, 0.3, 0.2, 0.02, 1]);
+    R.draw(models.coin, M.spinTo(spinMat, c.x, c.y + 0.08, -c.s, spin + c.s * 0.35), COIN);
+    if (c.s < run.s + 80) glow(c.x, c.y + 0.08, -c.s, 1.05, 0.3, 0.2, 0.02, 1);
   }
   for (const p of run.pickups) {
     if (p.taken || p.s > run.s + 130) continue;
-    const y = p.y + Math.sin(now / 300 + p.s) * 0.15;
+    const y = p.y + Math.sin(now / 300 + p.s) * 0.15, tint = POWER_INFO[p.kind].glow;
     R.draw(models.power[p.kind], M.chain(M.move(p.lane * LANE, y, -p.s), M.rotY(now / 500), M.scale(1.25)), POWER);
-    glowList.push([p.lane * LANE, y, -p.s, 1.6, ...POWER_INFO[p.kind].glow.map((v) => v * 0.45), 1]);
+    glow(p.lane * LANE, y, -p.s, 1.6, tint[0] * 0.45, tint[1] * 0.45, tint[2] * 0.45, 1);
     // A ring of twinkles round it.
     for (let k = 0; k < 4; k++) {
       const a = now / 400 + (k * TAU) / 4;
-      glowList.push([p.lane * LANE + Math.cos(a) * 0.9, y + Math.sin(a * 1.3) * 0.5, -p.s + Math.sin(a) * 0.9, 0.16, 1, 1, 0.8]);
+      glow(p.lane * LANE + Math.cos(a) * 0.9, y + Math.sin(a * 1.3) * 0.5, -p.s + Math.sin(a) * 0.9, 0.16, 1, 1, 0.8);
     }
   }
 
@@ -629,12 +698,17 @@ function draw(now, dt) {
     }
   }
 
+  // The land the line runs through.
+  world.drawProps();
+  world.drawGround();
+  world.drawMetal();
+
   // Shadows on the ground. The cub's is a soft round one right under it,
   // darker in the middle, and smaller and fainter the higher it is: it
   // shows where it will land.
   R.shadows(true, 0.3);
-  world.shadowProps();
-  for (const [mesh, m] of obs) R.shadow(mesh, m);
+  world.shadowProps(run.s);
+  for (let k = 0; k < drawn.n; k++) if (drawn.shadow[k]) R.shadow(drawn.shadow[k], drawn.mat[k]);
   const floor = run.dead ? 0 : run.floor();
   if (!blink) {
     const k = 1 / (1 + Math.max(0, run.y - floor) * 0.22);
@@ -649,7 +723,7 @@ function draw(now, dt) {
   if (run.power.bubble > 0) {
     const wob = 1 + Math.sin(now / 160) * 0.03;
     R.glass(models.bubble, M.chain(M.move(run.x, run.y + TALL * 0.5, z), M.rotY(now / 900), M.scale(1.1 * wob, 1.18 / wob, 1.1 * wob)), run.power.bubble < 2 && Math.floor(now / 120) % 2 ? 0.1 : 0.24, BUBBLE);
-    glowList.push([run.x - 0.42, run.y + 1.45, z + 0.62, 0.2, 0.9, 0.95, 1]);
+    glow(run.x - 0.42, run.y + 1.45, z + 0.62, 0.2, 0.9, 0.95, 1);
   }
 
   // Sparks.
@@ -662,17 +736,19 @@ function draw(now, dt) {
     s.y += s.vy * dt;
     s.z += s.vz * dt;
     const a = 1 - s.t / s.life;
-    if (s.soft) glowList.push([s.x, s.y, s.z, s.size * (1 + (1 - a) * s.grow), s.c[0] * a, s.c[1] * a, s.c[2] * a, 1]);
-    else glowList.push([s.x, s.y, s.z, s.size * (0.5 + a * 0.5), s.c[0] * a, s.c[1] * a, s.c[2] * a]);
+    if (s.soft) glow(s.x, s.y, s.z, s.size * (1 + (1 - a) * s.grow), s.c[0] * a, s.c[1] * a, s.c[2] * a, 1);
+    else glow(s.x, s.y, s.z, s.size * (0.5 + a * 0.5), s.c[0] * a, s.c[1] * a, s.c[2] * a);
   }
   // Coins glint.
   for (const c of run.coinList) {
     if (c.taken || c.s > run.s + 40) continue;
     const k = (now / 900 + c.s * 0.37) % 1;
-    if (k < 0.12) glowList.push([c.x + 0.16, c.y + 0.3, -c.s + 0.15, 0.32 * Math.sin((Math.PI * k) / 0.12), 1, 0.95, 0.7]);
+    if (k < 0.12) glow(c.x + 0.16, c.y + 0.3, -c.s + 0.15, 0.32 * Math.sin((Math.PI * k) / 0.12), 1, 0.95, 0.7);
   }
   const v = cam.view;
-  R.glow(glowList, [v[0], v[4], v[8]], [v[1], v[5], v[9]]);
+  camRight[0] = v[0]; camRight[1] = v[4]; camRight[2] = v[8];
+  camUp[0] = v[1]; camUp[1] = v[5]; camUp[2] = v[9];
+  R.glow(glowList, camRight, camUp, glowN);
 }
 for (const k of POWERS) {
   const n = parseInt(POWER_INFO[k].colour.slice(1), 16);
@@ -684,12 +760,14 @@ for (const k of POWERS) {
 let last = 0, hudAt = 0;
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
+  if (phase === 'play') watchSpeed(now - last);
   last = now;
   if (phase === 'play') {
     acc += dt;
     let n = 0;
     while (acc >= STEP && n++ < 12) {
       acc -= STEP;
+      keepWas();
       run.step();
       if (run.dead) break;
     }
@@ -706,16 +784,34 @@ function frame(now) {
       lastZone = zone;
       callout(zone, `${fmt(run.s)} m`);
     }
-    if (now - hudAt > 100) {
+    // (The numbers on the screen are brought up to date fifteen times a
+    // second, not every frame: laying out text is slow work on a phone.)
+    if (now - hudAt > 66 || run.dead) {
       hudAt = now;
       checkGoals();
+      updateHud();
     }
-    updateHud();
+  }
+  // Draw the cub part-way between the last two steps (see was, above).
+  const live = phase === 'play';
+  const s = run.s, x = run.x, y = run.y;
+  lag = 0;
+  if (live) {
+    const k = clamp(acc / STEP, 0, 1);
+    run.s = lerp(was.s, s, k);
+    run.x = lerp(was.x, x, k);
+    run.y = lerp(was.y, y, k);
+    lag = (1 - k) * STEP;
   }
   // (On the title the camera looks back down the line, so more of it is kept.)
   world.update(run.s, 160, phase === 'title' || cam.k < 1 ? 150 : 16, world.chunks.size < 10 ? 16 : 2);
   aim(dt, now);
   draw(now, dt);
+  if (live) {
+    run.s = s;
+    run.x = x;
+    run.y = y;
+  }
   requestAnimationFrame(frame);
 }
 
@@ -965,7 +1061,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) pause
 
 // A handle for poking at the game from the browser console while testing on this computer.
 if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
-  window.honey = { get run() { return run; }, get phase() { return phase; }, start, act, save, cam };
+  window.honey = { get run() { return run; }, get phase() { return phase; }, start, act, save, cam, world, quality };
 }
 
 layout();

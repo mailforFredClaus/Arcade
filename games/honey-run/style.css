@@ -106,7 +106,7 @@ body { background: #2a7fe6; color: #fff; }
 /* What each coin is worth while an upgraded magnet runs. */
 .power em { position: absolute; z-index: 2; right: -7px; bottom: -6px; padding: 2px 5px 1px; border-radius: 8px; font-style: normal; font-size: 13px; font-weight: 900; line-height: 1.1; color: #6a3500; background: linear-gradient(180deg, #fff09a, #ffc21a); box-shadow: 0 2px 0 #b97a00; }
 .power u { display: block; width: 104px; height: 20px; margin-left: -8px; padding: 4px 5px 4px 12px; border-radius: 0 10px 10px 0; background: rgba(14, 22, 56, .6); text-decoration: none; }
-.power u b { display: block; height: 100%; border-radius: 6px; background: linear-gradient(180deg, #ff9a6b, #e5383b); transition: width .1s linear; }
+.power u b { display: block; height: 100%; border-radius: 6px; background: linear-gradient(180deg, #ff9a6b, #e5383b); transform-origin: 0 50%; transition: transform .1s linear; }
 .power.low { animation: blink .3s steps(2) infinite; }
 @keyframes blink { 50% { opacity: .45; } }
 

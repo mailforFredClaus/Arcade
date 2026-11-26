@@ -34,6 +34,21 @@ export const M = {
     const c = Math.cos(a), s = Math.sin(a);
     return new Float32Array([c, s, 0, 0, -s, c, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
   },
+  // Written into a matrix that's kept and used again, for things drawn by
+  // the dozen every frame: a move, and a move with a turn about straight up.
+  moveTo(out, x, y, z) {
+    out.fill(0);
+    out[0] = out[5] = out[10] = out[15] = 1;
+    out[12] = x; out[13] = y; out[14] = z;
+    return out;
+  },
+  spinTo(out, x, y, z, a) {
+    const c = Math.cos(a), s = Math.sin(a);
+    out.fill(0);
+    out[0] = c; out[2] = -s; out[5] = 1; out[8] = s; out[10] = c; out[15] = 1;
+    out[12] = x; out[13] = y; out[14] = z;
+    return out;
+  },
   // Several in a row: chain(A, B, C) applies C first, then B, then A.
   chain(...ms) {
     let out = ms[0];
@@ -304,14 +319,18 @@ void main() {
   }
   vec3 c = vCol;
   if (uLit > 0.5) {
-    vec3 n = normalize(vNor), v = normalize(vView);
+    vec3 n = normalize(vNor);
     float sun = max(dot(n, uSun), 0.0);
     vec3 light = mix(uGround, uSky, n.y * 0.5 + 0.5) + uSunCol * sun;
     c = mix(vCol * light, vCol, uEmit);
-    float edge = 1.0 - max(dot(n, v), 0.0);
-    c += uRimCol * (uRim * edge * edge * edge);
-    vec3 hv = normalize(uSun + v);
-    c += uSunCol * (uShine * pow(max(dot(n, hv), 0.0), 36.0) * step(0.001, sun));
+    // (The ground, which is most of the screen, has neither rim nor shine.)
+    if (uRim + uShine > 0.0) {
+      vec3 v = normalize(vView);
+      float edge = 1.0 - max(dot(n, v), 0.0);
+      c += uRimCol * (uRim * edge * edge * edge);
+      vec3 hv = normalize(uSun + v);
+      c += uSunCol * (uShine * pow(max(dot(n, hv), 0.0), 36.0) * step(0.001, sun));
+    }
     // A touch richer than life.
     float grey = dot(c, vec3(0.3, 0.59, 0.11));
     c = mix(vec3(grey), c, 1.07);
@@ -339,6 +358,10 @@ void main() {
   c += uSunGlow * (0.55 * exp(-r * 2.2) + 1.0 - smoothstep(0.13, 0.17, r));
   gl_FragColor = vec4(c, 1.0);
 }`;
+
+// Where shadows start to fade and where they're gone, in metres ahead.
+export const SHADOW_FAR = 100;
+const SHADOW_FADE = [45, SHADOW_FAR];
 
 export class Renderer {
   constructor(canvas) {
@@ -377,12 +400,15 @@ export class Renderer {
     return { p, u };
   }
 
-  // Turns a Builder into something to draw. The Builder isn't needed afterwards.
+  // Turns a Builder (or its numbers, as a Float32Array) into something to
+  // draw. The Builder isn't needed afterwards.
   mesh(builder) {
     const gl = this.gl, buf = gl.createBuffer();
+    const data = builder instanceof Float32Array ? builder : new Float32Array(builder.data);
     gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(builder.data), gl.STATIC_DRAW);
-    return { buf, count: builder.count };
+    gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+    this.bound = null;
+    return { buf, count: data.length / 9 };
   }
 
   free(mesh) {
@@ -390,8 +416,9 @@ export class Renderer {
   }
 
   resize(w, h, dpr) {
-    this.canvas.width = Math.max(1, Math.round(w * dpr));
-    this.canvas.height = Math.max(1, Math.round(h * dpr));
+    const cw = Math.max(1, Math.round(w * dpr)), ch = Math.max(1, Math.round(h * dpr));
+    if (this.canvas.width !== cw) this.canvas.width = cw;
+    if (this.canvas.height !== ch) this.canvas.height = ch;
     this.aspect = w / h;
   }
 
@@ -451,6 +478,7 @@ export class Renderer {
     gl.uniform1f(u.uLit, 1);
     gl.uniform3fv(u.uTint, this.white);
     this.bound = null;
+    this.styled = null;
   }
 
   bind(mesh) {
@@ -463,36 +491,42 @@ export class Renderer {
     this.bound = mesh;
   }
 
-  // Draws a mesh. opts: tint [r, g, b], unlit, shine (gloss), rim (light
-  // round the edges), emit (glows with its own colour), each 0..1.
+  // How things are drawn from here on, until it's changed. opts: tint
+  // [r, g, b], unlit, shine (gloss), rim (light round the edges), emit
+  // (glows with its own colour), each 0..1; null for plain. (Only what
+  // differs from last time is sent to the graphics card.)
+  style(opts) {
+    if (opts === this.styled) return;
+    const gl = this.gl, u = this.main.u, was = this.styled;
+    const tint = (opts && opts.tint) || null, unlit = !!(opts && opts.unlit);
+    const shine = (opts && opts.shine) || 0, rim = (opts && opts.rim) || 0, emit = (opts && opts.emit) || 0;
+    if (tint !== ((was && was.tint) || null)) gl.uniform3fv(u.uTint, tint || this.white);
+    if (unlit !== !!(was && was.unlit)) gl.uniform1f(u.uLit, unlit ? 0 : 1);
+    if (shine !== ((was && was.shine) || 0)) gl.uniform1f(u.uShine, shine);
+    if (rim !== ((was && was.rim) || 0)) gl.uniform1f(u.uRim, rim);
+    if (emit !== ((was && was.emit) || 0)) gl.uniform1f(u.uEmit, emit);
+    this.styled = opts;
+  }
+
+  // Draws a mesh, in the style given (see style).
   draw(mesh, model = this.ident, opts = null) {
     if (!mesh || !mesh.count) return;
-    const gl = this.gl, u = this.main.u;
+    const gl = this.gl;
     this.bind(mesh);
-    gl.uniformMatrix4fv(u.uModel, false, model);
-    if (opts) {
-      if (opts.tint) gl.uniform3fv(u.uTint, opts.tint);
-      if (opts.unlit) gl.uniform1f(u.uLit, 0);
-      if (opts.shine) gl.uniform1f(u.uShine, opts.shine);
-      if (opts.rim) gl.uniform1f(u.uRim, opts.rim);
-      if (opts.emit) gl.uniform1f(u.uEmit, opts.emit);
-    }
+    this.style(opts);
+    gl.uniformMatrix4fv(this.main.u.uModel, false, model);
     gl.drawArrays(gl.TRIANGLES, 0, mesh.count);
-    if (opts) {
-      if (opts.tint) gl.uniform3fv(u.uTint, this.white);
-      if (opts.unlit) gl.uniform1f(u.uLit, 1);
-      if (opts.shine) gl.uniform1f(u.uShine, 0);
-      if (opts.rim) gl.uniform1f(u.uRim, 0);
-      if (opts.emit) gl.uniform1f(u.uEmit, 0);
-    }
   }
 
   // Shadows: call shadows(true), draw the things that cast them (with
   // shadow()), then shadows(false). Each bit of ground is darkened once
-  // however many shadows fall on it.
+  // however many shadows fall on it. They fade out with distance, and are
+  // gone by SHADOW_FAR, so nothing further off than that need cast one.
   shadows(on, strength = 0.3) {
     const gl = this.gl, u = this.main.u;
+    this.style(null);
     if (on) {
+      gl.uniform2fv(u.uFog, SHADOW_FADE);
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
       gl.depthMask(false);
@@ -508,6 +542,7 @@ export class Renderer {
       gl.uniform1f(u.uShadow, 0);
       gl.uniform1f(u.uAlpha, 1);
       gl.uniform1f(u.uPlane, 0.09);
+      gl.uniform2fv(u.uFog, this.look.fog);
     }
   }
 
@@ -529,6 +564,7 @@ export class Renderer {
     gl.depthMask(false);
     gl.uniform1f(u.uAlpha, alpha);
     this.draw(mesh, model, opts);
+    this.style(null);
     gl.uniform1f(u.uAlpha, 1);
     gl.depthMask(true);
     gl.disable(gl.BLEND);
@@ -538,10 +574,10 @@ export class Renderer {
   // behind them. Each is [x, y, z, size, r, g, b, soft]: soft ones are a
   // round glow fading out from the middle, the others a sharp diamond.
   // right / up: the camera's right and up directions.
-  glow(list, right, up) {
-    if (!list.length) return;
+  glow(list, right, up, count = list.length) {
+    if (!count) return;
     const gl = this.gl, u = this.main.u, s = this.sparks;
-    const n = Math.min(list.length, 800);
+    const n = Math.min(count, 800);
     const d = s.data;
     let o = 0;
     const corner = (p, sx, sy, soft) => {
@@ -570,6 +606,7 @@ export class Renderer {
     gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 36, 12);
     gl.vertexAttribPointer(2, 3, gl.FLOAT, false, 36, 24);
     this.bound = null;
+    this.style(null);
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE);
     gl.depthMask(false);
