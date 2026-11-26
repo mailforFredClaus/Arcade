@@ -14,7 +14,7 @@
 // with a gantry over all three tracks every 40 metres. Everything close to
 // the line is there so the run feels fast: it streams past at the edges.
 
-import { Builder, M, rgb, mix, shade } from './gl.js';
+import { Builder, M, rgb, mix, shade, SHADOW_FAR } from './gl.js';
 import { Rand, LANE, FLY_HEIGHT } from './engine.js';
 import { GAUGE } from './models.js';
 
@@ -442,7 +442,7 @@ function gantry(p, m, z) {
 
 // ---- a chunk of the world ----------------------------------------------------------------
 
-function buildChunk(index) {
+export function buildChunk(index) {
   const R = new Rand(9001 + index * 7919);
   const z1 = -index * CHUNK, z0 = z1 - CHUNK, zm = (z0 + z1) / 2;
   const look = lookAt(index * CHUNK + CHUNK / 2);
@@ -599,28 +599,92 @@ function buildChunk(index) {
   return { index, ground: g, props: p, metal: m };
 }
 
+// A chunk's three meshes as plain numbers, ready to hand to the graphics
+// card (or to post across from the worker that builds them).
+export function chunkData(index) {
+  const c = buildChunk(index);
+  return { index, ground: new Float32Array(c.ground.data), props: new Float32Array(c.props.data), metal: new Float32Array(c.metal.data) };
+}
+
+// Chunks this close ahead are built there and then if they're missing;
+// further off there's time to wait for the worker.
+const MUST = 70;
+
 export class World {
-  constructor(R) {
+  // worker: build chunks on another thread, so that laying the countryside
+  // never holds up a frame. (Without one, or until it's ready, or if it
+  // fails, they're built here, as many as `budget` allows per frame.)
+  constructor(R, worker = true) {
     this.R = R;
     this.chunks = new Map();
+    this.order = []; // the chunks nearest first, to draw in that order
+    this.asked = new Set(); // chunks the worker is building
+    this.from = 0;
+    this.to = -1;
+    this.worker = null;
+    this.ready = false;
+    if (worker && typeof Worker !== 'undefined') {
+      try {
+        this.worker = new Worker(new URL('./chunk-worker.js', import.meta.url), { type: 'module' });
+        this.worker.onmessage = (e) => {
+          if (e.data === 'ready') this.ready = true;
+          else this.take(e.data);
+        };
+        this.worker.onerror = () => this.noWorker();
+        this.worker.onmessageerror = () => this.noWorker();
+      } catch {
+        this.noWorker();
+      }
+    }
   }
 
-  // Makes sure the chunks from a little behind s to `ahead` beyond it exist,
-  // and drops the ones left behind. At most `budget` are built per call, so
-  // a frame never stalls.
+  noWorker() {
+    if (this.worker) this.worker.terminate();
+    this.worker = null;
+    this.ready = false;
+    this.asked.clear();
+  }
+
+  // A chunk has come back from the worker.
+  take(c) {
+    this.asked.delete(c.index);
+    if (c.index < this.from || c.index > this.to || this.chunks.has(c.index)) return;
+    this.put(c);
+  }
+
+  put(c) {
+    this.chunks.set(c.index, { index: c.index, ground: this.R.mesh(c.ground), props: this.R.mesh(c.props), metal: this.R.mesh(c.metal) });
+    this.order = [...this.chunks.values()].sort((a, b) => a.index - b.index);
+  }
+
+  // Makes sure the chunks from a little behind s to `ahead` beyond it exist
+  // (or are on their way), and drops the ones left behind. At most `budget`
+  // are built here per call, so a frame never stalls for long.
   update(s, ahead = 150, behind = 14, budget = 2) {
     const from = Math.floor((s - behind) / CHUNK), to = Math.floor((s + ahead) / CHUNK);
-    for (let i = from; i <= to && budget > 0; i++) {
+    this.from = from;
+    this.to = to;
+    const far = this.ready && this.chunks.size > 0;
+    for (let i = from; i <= to; i++) {
       if (this.chunks.has(i)) continue;
-      const c = buildChunk(i);
-      this.chunks.set(i, { ground: this.R.mesh(c.ground), props: this.R.mesh(c.props), metal: this.R.mesh(c.metal) });
-      budget--;
+      if (far && i * CHUNK > s + MUST) {
+        if (!this.asked.has(i)) {
+          this.asked.add(i);
+          this.worker.postMessage(i);
+        }
+      } else if (budget > 0 || (far && (i + 1) * CHUNK > s - 8)) {
+        this.put(chunkData(i));
+        budget--;
+      }
     }
+    let dropped = false;
     for (const [i, c] of this.chunks) {
       if (i >= from && i <= to) continue;
       this.free(c);
       this.chunks.delete(i);
+      dropped = true;
     }
+    if (dropped) this.order = this.order.filter((c) => this.chunks.has(c.index));
   }
 
   free(c) {
@@ -632,12 +696,13 @@ export class World {
   clear() {
     for (const c of this.chunks.values()) this.free(c);
     this.chunks.clear();
+    this.order = [];
   }
 
-  drawGround() { for (const c of this.chunks.values()) this.R.draw(c.ground); }
-  drawProps() { for (const c of this.chunks.values()) this.R.draw(c.props, undefined, PROPS); }
-  drawMetal() { for (const c of this.chunks.values()) this.R.draw(c.metal, undefined, METAL); }
-  shadowProps() { for (const c of this.chunks.values()) this.R.shadow(c.props); }
+  drawGround() { for (const c of this.order) this.R.draw(c.ground); }
+  drawProps() { for (const c of this.order) this.R.draw(c.props, undefined, PROPS); }
+  drawMetal() { for (const c of this.order) this.R.draw(c.metal, undefined, METAL); }
+  // (Only what's near enough for its shadow to show: they fade with distance.)
+  shadowProps(s) { for (const c of this.order) if (c.index * CHUNK < s + SHADOW_FAR) this.R.shadow(c.props); }
 }
 const PROPS = { rim: 0.22 }, METAL = { shine: 0.9, rim: 0.15 };
-

@@ -21,9 +21,13 @@ function wheel(b, x, y, z, r = 0.34, w = 0.14) {
   });
 }
 
-function chassis(b, len) {
+// far: a plainer one for wagons a long way off, where the wheels are a
+// few dots on the screen but more than half the triangles: there, each
+// pair of wheels is a dark block behind the bogie frame.
+function chassis(b, len, far = false) {
   b.box(-W + 0.06, 0.42, -len + 0.25, W - 0.06, 0.7, -0.25, DARK);
-  for (const z of [-1.25, -2.3, -len + 2.3, -len + 1.25]) for (const x of [-GAUGE, GAUGE]) wheel(b, x, 0.36, z, 0.36, 0.16);
+  if (!far) for (const z of [-1.25, -2.3, -len + 2.3, -len + 1.25]) for (const x of [-GAUGE, GAUGE]) wheel(b, x, 0.36, z, 0.36, 0.16);
+  else for (const z of [-1.78, -len + 1.78]) for (const sx of [-1, 1]) b.box(sx * (GAUGE - 0.08), 0.03, z - 0.85, sx * (GAUGE + 0.08), 0.66, z + 0.85, DARK, { noTop: true, noBottom: true });
   // The bogie frames round each pair of wheels.
   for (const z of [-1.78, -len + 1.78]) for (const sx of [-1, 1]) b.box(sx * (GAUGE + 0.09), 0.3, z - 0.95, sx * (GAUGE + 0.17), 0.52, z + 0.95, '#3a3f4c');
   // Buffers at each end.
@@ -51,11 +55,12 @@ function roundRoof(b, z0, z1, yb, color, w = W, end = color) {
 }
 
 // A wagon. style 0: boxcar. 1: coach. 2: a flat wagon with two containers.
-function wagon(style, colour, second) {
+// far: the plainer one drawn a long way off.
+function wagon(style, colour, second, far = false) {
   const b = new Builder(), len = CAR;
   const c = rgb(colour), dark = shade(c, 0.72), light = mix(c, [1, 1, 1], 0.28);
   const z0 = -len + 0.22, z1 = -0.22;
-  chassis(b, len);
+  chassis(b, len, far);
   if (style === 2) {
     b.box(-W, 0.7, z0, W, 0.86, z1, STEEL);
     const mid = (z0 + z1) / 2;
@@ -391,6 +396,9 @@ export function makeModels(R) {
   const models = {
     // wagons[look][style]
     wagons: WAGON_COLOURS.map(([a, b]) => [0, 1, 2].map((style) => mesh(wagon(style, a, b)))),
+    wagonsFar: WAGON_COLOURS.map(([a, b]) => [0, 1, 2].map((style) => mesh(wagon(style, a, b, true)))),
+    // (A wagon's shadow is the shadow of a box its size.)
+    wagonShadow: mesh(new Builder().box(-W, 0.3, -CAR + 0.22, W, ROOF - 0.15, -0.22, DARK)),
     engine: mesh(engine()),
     ramp: mesh(ramp()),
     low: [mesh(fence()), mesh(bales())],
